@@ -647,6 +647,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     connections.forEach(({ url, cluster, namespace, watchQueryKey: connWatchQueryKey }) => {
       const parsedUrl = new URL(url, BASE_WS_URL);
       let isExpired = false;
+      let isForbidden = false;
       const key = `${cluster}:${subscriptionResourceKey}:${namespace || ''}:${connWatchQueryKey}`;
 
       // Subscribe to WebSocket updates
@@ -655,11 +656,11 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
         update => {
-          if (isExpired) {
+          if (isExpired || isForbidden) {
             return;
           }
           if (isForbiddenError(update)) {
-            isExpired = true;
+            isForbidden = true;
             delete latestResourceVersions.current[key];
             delete prevListsResourceVersions.current[key];
             delete retryCountsRef.current[key];
@@ -672,6 +673,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         },
         error => {
           if (isForbiddenError(error)) {
+            isForbidden = true;
             delete latestResourceVersions.current[key];
             delete prevListsResourceVersions.current[key];
             delete retryCountsRef.current[key];
@@ -708,6 +710,56 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
               client.invalidateQueries({ queryKey });
             }
           }, delay);
+        },
+        () => {
+          if (!enabled) {
+            return;
+          }
+
+          if (subscriptionResourceKey !== undefined && subscriptionResourceKey !== endpointKey) {
+            return;
+          }
+
+          if (isExpired || isForbidden) {
+            delete latestResourceVersions.current[key];
+            delete prevListsResourceVersions.current[key];
+            delete retryCountsRef.current[key];
+            return;
+          }
+
+          if (retryTimersRef.current[key]) {
+            clearTimeout(retryTimersRef.current[key]);
+            delete retryTimersRef.current[key];
+          }
+
+          const queryKey = kubeObjectListQuery<K>(
+            kubeObjectClass,
+            endpoint,
+            namespace,
+            cluster,
+            stableQueryParams ?? {}
+          ).queryKey;
+          const cached = client.getQueryData<ListResponse<any>>(queryKey);
+          const cachedRV = cached?.list?.metadata?.resourceVersion;
+          const eventRV = latestResourceVersions.current[key];
+          const rv = cachedRV || eventRV || '';
+
+          if (rv) {
+            latestResourceVersions.current[key] = rv;
+          } else {
+            delete latestResourceVersions.current[key];
+            delete prevListsResourceVersions.current[key];
+          }
+
+          if (onReconnect) {
+            if (hasQueryParams) {
+              onReconnect(cluster, namespace, rv, connWatchQueryKey, subscriptionResourceKey);
+            } else {
+              onReconnect(cluster, namespace, rv, undefined, subscriptionResourceKey);
+            }
+          } else {
+            client.invalidateQueries({ queryKey });
+          }
         }
       ).then(
         cleanup => cleanups.push(cleanup),

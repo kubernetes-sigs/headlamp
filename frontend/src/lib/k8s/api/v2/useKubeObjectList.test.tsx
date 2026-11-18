@@ -3917,6 +3917,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
       expect.any(Function),
+      expect.any(Function),
       expect.any(Function)
     );
   });
@@ -3948,6 +3949,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
       expect.any(Function),
+      expect.any(Function),
       expect.any(Function)
     );
     expect(mockSubscribe).toHaveBeenNthCalledWith(
@@ -3955,6 +3957,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-b',
       expect.stringContaining('/api/v1/namespaces/namespace-b/pods'),
       'watch=1&resourceVersion=2',
+      expect.any(Function),
       expect.any(Function),
       expect.any(Function)
     );
@@ -3981,6 +3984,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function),
       expect.any(Function)
     );
@@ -4118,6 +4122,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         'cluster-a',
         expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
         'watch=1&resourceVersion=100',
+        expect.any(Function),
         expect.any(Function),
         expect.any(Function)
       );
@@ -4706,5 +4711,336 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     const freshResult = (query as any).structuralSharing(oldData, freshNewData);
     expect(freshResult).toBe(freshNewData);
     expect(freshResult.list.metadata.resourceVersion).toBe('300');
+  });
+
+  it('resumes watch with latest cursor when backend stream closes without subsequent subscriber', async () => {
+    const onReconnect = vi.fn();
+    const lists = [{ cluster: 'cluster-a', namespace: 'default', resourceVersion: '100' }];
+    const queryClient = new QueryClient();
+
+    const queryKey = kubeObjectListQuery(
+      mockClass,
+      { version: 'v1', resource: 'pods' },
+      'default',
+      'cluster-a',
+      {}
+    ).queryKey;
+
+    queryClient.setQueryData(queryKey, {
+      list: {
+        metadata: { resourceVersion: '100' },
+        items: [makePod('pod-1', '100')],
+      },
+      cluster: 'cluster-a',
+      namespace: 'default',
+    });
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(mockSubscribe).toHaveBeenCalled();
+    const subscribeCall = mockSubscribe.mock.calls[0];
+    const onMessage = subscribeCall[3];
+    const onClose = subscribeCall[5];
+    expect(onClose).toBeDefined();
+
+    // Advance resourceVersion via a watch event
+    act(() => {
+      onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '150'),
+      });
+    });
+
+    // Backend stream closure occurs (STATUS {state: 'closed'})
+    act(() => {
+      onClose();
+    });
+
+    // onReconnect should be called with the advanced cursor '150'
+    expect(onReconnect).toHaveBeenCalledWith(
+      'cluster-a',
+      'default',
+      '150',
+      undefined,
+      expect.any(String)
+    );
+  });
+
+  it('triggers full useKubeObjectList reconnect with updated cursor on stream closure without subsequent subscriber', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '100')],
+            resourceVersion: '100',
+          })
+        ),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'cluster-a', namespaces: ['default'] }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalledWith(
+        'cluster-a',
+        expect.stringContaining('/api/v1/namespaces/default/pods'),
+        'watch=1&resourceVersion=100',
+        expect.any(Function),
+        expect.any(Function),
+        expect.any(Function)
+      );
+    });
+
+    const initialSubscribeCalls = mockSubscribe.mock.calls.length;
+    const onMessage = mockSubscribe.mock.calls[0][3];
+    const onClose = mockSubscribe.mock.calls[0][5];
+    expect(onClose).toBeDefined();
+
+    // Advance watch cursor to 200
+    act(() => {
+      onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '200'),
+      });
+    });
+
+    // Stream closes without another subscriber
+    act(() => {
+      onClose();
+    });
+
+    // Should reconnect with advanced cursor 200
+    await waitFor(() => {
+      expect(mockSubscribe.mock.calls.length).toBeGreaterThan(initialSubscribeCalls);
+      const latestCall = mockSubscribe.mock.calls[mockSubscribe.mock.calls.length - 1];
+      expect(latestCall[2]).toContain('resourceVersion=200');
+    });
+  });
+
+  it('invalidates queries when stream closes and caller has no onReconnect', async () => {
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const lists = [{ cluster: 'cluster-a', namespace: 'default', resourceVersion: '100' }];
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(mockSubscribe).toHaveBeenCalled();
+    const onClose = mockSubscribe.mock.calls[0][5];
+    expect(onClose).toBeDefined();
+
+    act(() => {
+      onClose();
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: expect.arrayContaining(['kubeObject', 'list']),
+    });
+  });
+
+  it('does not reconnect or resurrect cursor when stream closes after receiving 410 expired error', async () => {
+    const onReconnect = vi.fn();
+    const lists = [{ cluster: 'cluster-a', namespace: 'default', resourceVersion: '100' }];
+    const queryClient = new QueryClient();
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(mockSubscribe).toHaveBeenCalled();
+    const onMessage = mockSubscribe.mock.calls[0][3];
+    const onClose = mockSubscribe.mock.calls[0][5];
+
+    // Deliver 410 Expired error
+    act(() => {
+      onMessage({
+        type: 'ERROR',
+        object: { kind: 'Status', metadata: {}, reason: 'Expired', code: 410 },
+      });
+    });
+
+    onReconnect.mockClear();
+
+    // Stream closes following 410 error
+    act(() => {
+      onClose();
+    });
+
+    // Should not reconnect with stale cursor
+    expect(onReconnect).not.toHaveBeenCalled();
+  });
+
+  it('does not reconnect when stream closes after receiving 403 Forbidden error', async () => {
+    const onReconnect = vi.fn();
+    const lists = [{ cluster: 'cluster-a', namespace: 'default', resourceVersion: '100' }];
+    const queryClient = new QueryClient();
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+          onReconnect,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(mockSubscribe).toHaveBeenCalled();
+    const onError = mockSubscribe.mock.calls[0][4];
+    const onClose = mockSubscribe.mock.calls[0][5];
+
+    // Deliver 403 Forbidden error
+    act(() => {
+      onError({
+        type: 'ERROR',
+        status: 403,
+        message: 'Forbidden',
+      });
+    });
+
+    onReconnect.mockClear();
+
+    // Stream closes following 403 error
+    act(() => {
+      onClose();
+    });
+
+    expect(onReconnect).not.toHaveBeenCalled();
+  });
+
+  it('ignores onClose from a previous subscription when resource class changes on mounted hook', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const MockNode = class {
+      static apiVersion = 'v1';
+      static apiName = 'nodes';
+      static kind = 'Node';
+      static apiEndpoint = {
+        apiInfo: [{ group: '', version: 'v1', resource: 'nodes' }],
+      };
+      constructor(public jsonData: any) {}
+      get metadata() {
+        return this.jsonData?.metadata;
+      }
+    };
+
+    mockClusterFetch.mockImplementation(async (url: string | URL) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/pods')) {
+        return {
+          json: async () => ({
+            kind: 'PodList',
+            apiVersion: 'v1',
+            metadata: { resourceVersion: '100' },
+            items: [makePod('pod-1', '100')],
+          }),
+        } as any;
+      }
+      return {
+        json: async () => ({
+          kind: 'NodeList',
+          apiVersion: 'v1',
+          metadata: { resourceVersion: '500' },
+          items: [],
+        }),
+      } as any;
+    });
+
+    let currentClass: any = mockClass;
+
+    const { rerender } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: currentClass,
+          requests: [{ cluster: 'cluster-a', namespaces: ['default'] }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
+
+    const oldSubscribeCall = mockSubscribe.mock.calls.find(call => call[1].includes('/pods'));
+    expect(oldSubscribeCall).toBeDefined();
+    const oldOnClose = oldSubscribeCall![5];
+    expect(oldOnClose).toBeDefined();
+
+    // Switch to MockNode
+    currentClass = MockNode;
+    mockSubscribe.mockClear();
+
+    rerender();
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalled();
+    });
+
+    const newSubscribeCall = mockSubscribe.mock.calls.find(call => call[1].includes('/nodes'));
+    expect(newSubscribeCall).toBeDefined();
+
+    const initialNodeSubscribeCalls = mockSubscribe.mock.calls.length;
+
+    // Trigger old Pod onClose
+    act(() => {
+      oldOnClose();
+    });
+
+    // Should not trigger reconnect for the Node subscription
+    expect(mockSubscribe.mock.calls.length).toBe(initialNodeSubscribeCalls);
   });
 });
