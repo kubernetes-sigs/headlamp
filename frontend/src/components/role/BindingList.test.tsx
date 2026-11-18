@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// Registers the app's routes, so the service account links can resolve their URLs.
+import '../../lib/router';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KubeRoleBinding } from '../../lib/k8s/roleBinding';
