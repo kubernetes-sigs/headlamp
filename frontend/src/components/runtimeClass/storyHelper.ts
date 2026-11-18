@@ -28,8 +28,10 @@ export const BASE_RC: KubeRuntimeClass = {
   },
   handler: 'handler',
   overhead: {
-    cpu: '100m',
-    memory: '128Mi',
+    podFixed: {
+      cpu: '100m',
+      memory: '128Mi',
+    },
   },
   scheduling: {
     nodeSelector: {
@@ -59,8 +61,10 @@ export const RUNTIME_CLASS_DUMMY_DATA: KubeRuntimeClass[] = [
     },
     handler: 'handler',
     overhead: {
-      cpu: '100m',
-      memory: '128Mi',
+      podFixed: {
+        cpu: '100m',
+        memory: '128Mi',
+      },
     },
     scheduling: {
       nodeSelector: {
