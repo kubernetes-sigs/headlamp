@@ -1082,3 +1082,40 @@ func TestResolveServicePod_MultipleSlices(t *testing.T) {
 	assert.Equal(t, "backend-pod-xyz", podName)
 	assert.Equal(t, "production", podNamespace)
 }
+
+func TestStartPortForward_OpenChunkedBodyTimeout(t *testing.T) {
+	origTimeout := portForwardBodyReadTimeout
+	portForwardBodyReadTimeout = 50 * time.Millisecond
+
+	t.Cleanup(func() {
+		portForwardBodyReadTimeout = origTimeout
+	})
+
+	ch := cache.New[interface{}]()
+	store := kubeconfig.NewContextStore()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
+		StartPortForward(store, ch, false, "test-cluster", w, r)
+	}))
+	defer srv.Close()
+
+	pr, pw := io.Pipe()
+	defer func() { _ = pw.Close() }()
+
+	go func() {
+		_, _ = io.WriteString(pw, `{"namespace":"default","pod":"my-pod","targetPort":"8080"}`)
+	}()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, pr)
+	require.NoError(t, err)
+
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}

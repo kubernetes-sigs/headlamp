@@ -64,6 +64,8 @@ const (
 	maxPortForwardIDLength      = 128
 )
 
+var portForwardBodyReadTimeout = 5 * time.Second
+
 var inFlightPortForwards sync.Map
 
 type portForwardRequest struct {
@@ -112,6 +114,11 @@ func validatePortNumber(field, raw string) error {
 }
 
 func decodePortForwardJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	rc := http.NewResponseController(w)
+	if err := rc.SetReadDeadline(time.Now().Add(portForwardBodyReadTimeout)); err == nil {
+		defer func() { _ = rc.SetReadDeadline(time.Time{}) }()
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxPortForwardBodyBytes)
 	dec := json.NewDecoder(r.Body)
 
@@ -120,6 +127,10 @@ func decodePortForwardJSON(w http.ResponseWriter, r *http.Request, dst any) erro
 	}
 
 	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return err
+		}
+
 		return errors.New("request body must contain a single JSON object")
 	}
 
