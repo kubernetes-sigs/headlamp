@@ -80,3 +80,30 @@ WithURL.parameters = {
     },
   },
 };
+
+export const WithServicePortWithoutPath = Template.bind({});
+
+WithServicePortWithoutPath.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations/my-mwc`,
+          () => {
+            const mwc = createMWC(true);
+            return HttpResponse.json({
+              ...mwc,
+              webhooks: mwc.webhooks.map(webhook => ({
+                ...webhook,
+                clientConfig: {
+                  ...webhook.clientConfig,
+                  service: { name: 'my-service', namespace: 'my-namespace', port: 8443 },
+                },
+              })),
+            });
+          }
+        ),
+      ],
+    },
+  },
+};
