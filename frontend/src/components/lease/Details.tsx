@@ -43,8 +43,27 @@ export function LeaseDetails(props: { name?: string; namespace?: string; cluster
             value: item.spec?.leaseDurationSeconds ?? '-',
           },
           {
+            name: t('Acquire Time'),
+            value: item.spec?.acquireTime ? <DateLabel date={item.spec.acquireTime} /> : '-',
+          },
+          {
             name: t('Renew Time'),
             value: item.spec?.renewTime ? <DateLabel date={item.spec.renewTime} /> : '-',
+          },
+          {
+            name: t('Lease Transitions'),
+            value: item.spec?.leaseTransitions ?? '-',
+          },
+          // strategy and preferredHolder are only set when coordinated leader election is used.
+          {
+            name: t('Strategy'),
+            value: item.spec?.strategy,
+            hide: !item.spec?.strategy,
+          },
+          {
+            name: t('Preferred Holder'),
+            value: item.spec?.preferredHolder,
+            hide: !item.spec?.preferredHolder,
           },
         ]
       }
