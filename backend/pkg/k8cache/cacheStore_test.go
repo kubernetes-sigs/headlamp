@@ -1046,3 +1046,38 @@ func TestRedactCacheKey(t *testing.T) {
 		})
 	}
 }
+
+func TestHasQueryParameters(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      url.URL
+		expected bool
+	}{
+		{
+			name:     "plain list request",
+			url:      url.URL{Path: "/api/v1/namespaces/test-kube/pods"},
+			expected: false,
+		},
+		{
+			name:     "label selector",
+			url:      url.URL{Path: "/api/v1/namespaces/test-kube/pods", RawQuery: "labelSelector=app%3Dnginx"},
+			expected: true,
+		},
+		{
+			name:     "field selector",
+			url:      url.URL{Path: "/api/v1/namespaces/test-kube/pods", RawQuery: "fieldSelector=metadata.name%3Dmy-pod"},
+			expected: true,
+		},
+		{
+			name:     "paginated page",
+			url:      url.URL{Path: "/api/v1/namespaces/test-kube/pods", RawQuery: "limit=100&continue=TOKEN"},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, k8cache.HasQueryParameters(&tc.url))
+		})
+	}
+}
