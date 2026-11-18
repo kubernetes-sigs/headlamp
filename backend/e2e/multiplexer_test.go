@@ -273,18 +273,26 @@ func (socket *liveSocket) status(t *testing.T, state, description string) {
 
 func (socket *liveSocket) event(t *testing.T) corev1.ConfigMap {
 	t.Helper()
-	frame := socket.await(t, "expected a fresh Kubernetes watch event", func(frame multiplexFrame) bool {
-		return frame.Type == "DATA"
-	})
 
-	var event struct {
-		Type   string           `json:"type"`
-		Object corev1.ConfigMap `json:"object"`
+	for {
+		frame := socket.await(t, "expected a fresh Kubernetes watch event", func(frame multiplexFrame) bool {
+			return frame.Type == "DATA"
+		})
+
+		var event struct {
+			Type   string           `json:"type"`
+			Object corev1.ConfigMap `json:"object"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(frame.Data), &event))
+
+		if event.Type == "ADDED" && event.Object.Data["revision"] == "initial" {
+			continue
+		}
+
+		require.Equal(t, "MODIFIED", event.Type)
+
+		return event.Object
 	}
-	require.NoError(t, json.Unmarshal([]byte(frame.Data), &event))
-	require.Equal(t, "MODIFIED", event.Type)
-
-	return event.Object
 }
 
 func (live *liveMultiplexer) update(t *testing.T, revision string) *corev1.ConfigMap {
@@ -345,23 +353,34 @@ func TestMultiplexerLiveClientIsolation(t *testing.T) {
 }
 
 func TestMultiplexerLiveWatchReopenCursor(t *testing.T) {
-	live := startLiveMultiplexer(t)
-	socket := live.connect(t)
-	require.NoError(t, socket.conn.WriteJSON(live.route))
-	socket.status(t, "connected", "client did not establish its watch")
+	for _, cursor := range []string{"collection", "explicit-empty"} {
+		t.Run(cursor, func(t *testing.T) {
+			live := startLiveMultiplexer(t)
+			if cursor == "explicit-empty" {
+				query, err := url.ParseQuery(live.route.Query)
+				require.NoError(t, err)
+				query.Set("resourceVersion", "")
+				live.route.Query = query.Encode()
+			}
 
-	for _, revision := range []string{"before-reopen-1", "before-reopen-2"} {
-		object := live.update(t, revision)
-		require.Equal(t, object.ResourceVersion, socket.event(t).ResourceVersion)
+			socket := live.connect(t)
+			require.NoError(t, socket.conn.WriteJSON(live.route))
+			socket.status(t, "connected", "client did not establish its watch")
+
+			for _, revision := range []string{"before-reopen-1", "before-reopen-2"} {
+				object := live.update(t, revision)
+				require.Equal(t, object.ResourceVersion, socket.event(t).ResourceVersion)
+			}
+
+			reopen := live.route
+			reopen.Reopen = true
+			require.NoError(t, socket.conn.WriteJSON(reopen))
+			socket.status(t, "connected", "explicit watch replacement did not connect")
+			object := live.update(t, "after-reopen")
+			// The first event must be fresh, not history replayed from the original opening cursor.
+			event := socket.event(t)
+			require.Equal(t, "after-reopen", event.Data["revision"])
+			require.Equal(t, object.ResourceVersion, event.ResourceVersion)
+		})
 	}
-
-	reopen := live.route
-	reopen.Reopen = true
-	require.NoError(t, socket.conn.WriteJSON(reopen))
-	socket.status(t, "connected", "explicit watch replacement did not connect")
-	object := live.update(t, "after-reopen")
-	// The first event must be fresh, not history replayed from the original opening cursor.
-	event := socket.event(t)
-	require.Equal(t, "after-reopen", event.Data["revision"])
-	require.Equal(t, object.ResourceVersion, event.ResourceVersion)
 }

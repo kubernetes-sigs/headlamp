@@ -151,7 +151,9 @@ cursor, verifies both receive fresh events, then verifies one client's
 unsubscribe and disconnect leave the other receiving new resource versions.
 The cursor test explicitly replaces a watch after two real Kubernetes updates:
 its first subsequent event must be fresh, not history replayed from the original
-opening cursor. Assertions synchronize on readiness, protocol statuses, close
+opening cursor. It covers both a collection cursor and an explicitly empty
+opening cursor that advances after the first event.
+Assertions synchronize on readiness, protocol statuses, close
 acknowledgement, and concrete resource versions, without sleeps.
 
 These are opt-in backend protocol E2E tests; the `e2e` build tag keeps them out

@@ -2774,6 +2774,7 @@ func TestReconnectHandshakeExpiryEndsWatch(t *testing.T) {
 
 func TestResumeWatchQuery(t *testing.T) {
 	assert.Equal(t, "resourceVersion=250&watch=1", resumeWatchQuery("resourceVersion=100&watch=1", "250"))
+	assert.Equal(t, "resourceVersion=250&watch=1", resumeWatchQuery("resourceVersion=&watch=1", "250"))
 
 	// A watch subscribed without a resource version, such as a single object's, starts again
 	// from the current state: resuming it could hit an expired version it never asked for.

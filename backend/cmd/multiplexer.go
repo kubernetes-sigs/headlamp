@@ -765,15 +765,15 @@ func (m *Multiplexer) monitorConnectionTicks(conn *Connection, heartbeat <-chan 
 }
 
 // resumeWatchQuery returns the query a reconnecting watch dials with, so it resumes from the
-// last resource version forwarded to the client. Only watches subscribed from a resource
-// version resume; others, such as a single object's watch, start again from the current state.
+// last resource version forwarded to the client. Explicitly empty cursors advance after
+// the first event; watches that omit resourceVersion retain their original semantics.
 func resumeWatchQuery(query, resourceVersion string) string {
 	if resourceVersion == "" {
 		return query
 	}
 
 	values, err := url.ParseQuery(query)
-	if err != nil || values.Get("watch") == "" || values.Get("resourceVersion") == "" {
+	if err != nil || values.Get("watch") == "" || !values.Has("resourceVersion") {
 		return query
 	}
 
