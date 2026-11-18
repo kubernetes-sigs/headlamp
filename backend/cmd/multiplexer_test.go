@@ -3223,12 +3223,17 @@ func awaitClusterConnection(
 		m.mutex.RLock()
 		defer m.mutex.RUnlock()
 
-		return m.connections[connKey] != nil && upgrades.Load() > 0
+		conn := m.connections[connKey]
+
+		return conn != nil && conn.WSConn != nil && upgrades.Load() > 0
 	}, 2*time.Second, 5*time.Millisecond)
 
 	m.mutex.RLock()
 	activeConn := m.connections[connKey]
 	m.mutex.RUnlock()
+
+	require.NotNil(t, activeConn)
+	require.NotNil(t, activeConn.WSConn)
 
 	return activeConn
 }
