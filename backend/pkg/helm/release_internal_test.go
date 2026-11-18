@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	helmtime "helm.sh/helm/v3/pkg/time"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 func TestGetActionStatus_NilErr(t *testing.T) {
@@ -367,4 +370,114 @@ func TestGetReleasesInvalidFilter(t *testing.T) {
 
 	_, err := getReleases(ListReleaseRequest{Filter: new("[")}, actionConfig)
 	require.ErrorContains(t, err, "error parsing regexp")
+}
+
+// apiServerConfig points a client config at a fake Kubernetes API server that
+// answers every request with the given status and JSON body.
+func apiServerConfig(t *testing.T, status int, body string) clientcmd.ClientConfig {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+
+	return clientConfigFor(srv.URL)
+}
+
+// clientConfigFor returns a client config for the API server at url.
+func clientConfigFor(url string) clientcmd.ClientConfig {
+	return clientcmd.NewDefaultClientConfig(api.Config{
+		Clusters:       map[string]*api.Cluster{"fake": {Server: url}},
+		AuthInfos:      map[string]*api.AuthInfo{"fake": {}},
+		Contexts:       map[string]*api.Context{"fake": {Cluster: "fake", AuthInfo: "fake"}},
+		CurrentContext: "fake",
+	}, &clientcmd.ConfigOverrides{})
+}
+
+func TestReleaseLookupErrorStatus(t *testing.T) {
+	h := &Handler{Cache: cache.New[interface{}](), EnvSettings: cli.New()}
+	query := "?name=test-release&namespace=default"
+	routes := []struct {
+		name, method, target, body string
+		serve                      func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request)
+	}{
+		{"get", http.MethodGet, "/helm/releases" + query, "", h.GetRelease},
+		{"history", http.MethodGet, "/helm/release/history" + query, "", h.GetReleaseHistory},
+		{"uninstall", http.MethodDelete, "/helm/releases/uninstall" + query, "", h.UninstallRelease},
+		{
+			"rollback", http.MethodPut, "/helm/releases/rollback",
+			`{"name":"test-release","namespace":"default","revision":1}`, h.RollbackRelease,
+		},
+		{
+			"upgrade", http.MethodPut, "/helm/releases",
+			`{"name":"test-release","namespace":"default","description":"d","chart":"repo/c","version":"1.0.0"}`,
+			h.UpgradeRelease,
+		},
+	}
+	answers := []struct {
+		name       string
+		status     int
+		body       string
+		wantStatus int
+	}{
+		{
+			"missing release", http.StatusOK,
+			`{"kind":"SecretList","apiVersion":"v1","metadata":{},"items":[]}`, http.StatusNotFound,
+		},
+		{
+			"forbidden", http.StatusForbidden,
+			`{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"Forbidden","code":403}`, http.StatusForbidden,
+		},
+		{
+			"server error", http.StatusInternalServerError,
+			`{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"InternalError","code":500}`,
+			http.StatusInternalServerError,
+		},
+	}
+
+	for _, answer := range answers {
+		clientConfig := apiServerConfig(t, answer.status, answer.body)
+
+		for _, route := range routes {
+			t.Run(answer.name+"/"+route.name, func(t *testing.T) {
+				req := httptest.NewRequestWithContext(context.Background(),
+					route.method, route.target, strings.NewReader(route.body))
+				rr := httptest.NewRecorder()
+
+				route.serve(clientConfig, rr, req)
+
+				assert.Equal(t, answer.wantStatus, rr.Code)
+			})
+		}
+	}
+}
+
+func TestVerifyUserTimesOut(t *testing.T) {
+	defaultTimeout := verifyUserTimeout
+	verifyUserTimeout = 100 * time.Millisecond
+
+	t.Cleanup(func() { verifyUserTimeout = defaultTimeout })
+
+	// The fake API server stalls well past the timeout before it answers.
+	done := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(done) })
+
+	actionConfig, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+	require.NoError(t, err)
+
+	start := time.Now()
+
+	assert.False(t, VerifyUser(actionConfig, InstallRequest{}))
+	assert.Less(t, time.Since(start), 2*time.Second)
 }
