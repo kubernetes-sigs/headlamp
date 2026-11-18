@@ -122,6 +122,42 @@ kubectl config set-credentials admin@kind-test2 \
   --embed-certs=false
 ```
 
+### Multiplexer protocol against a real backend and cluster
+
+`backend/e2e/multiplexer_test.go` starts the actual Headlamp backend executable
+and opens independent client WebSockets through `/wsMultiplexer` to a real
+Kubernetes API server. This uses the existing Go test runner and dependencies,
+not a mocked upstream or browser fixture.
+
+With an existing disposable cluster, run from the repository root:
+
+```bash
+GOMAXPROCS=2 npm run backend:build
+cd backend
+HEADLAMP_E2E_BINARY="$PWD/headlamp-server" \
+  HEADLAMP_E2E_CONTEXT=minikube GOMAXPROCS=2 \
+  go test -p 2 -tags=e2e ./e2e -run '^TestMultiplexerLive' -count=1 -v -timeout=90s
+```
+
+Replace `minikube` with the explicit context of your test cluster. The selected
+identity needs permission to create/delete namespaces and create, get, list,
+update, and watch ConfigMaps. The tests copy only that context into a private
+checkout-local directory, use an OS-assigned ephemeral backend port, and delete
+their own generated namespaces and process/configuration files. They do not
+change the source kubeconfig or create/delete clusters.
+
+The isolation test gives two sockets the same routing ID, resource, and opening
+cursor, verifies both receive fresh events, then verifies one client's
+unsubscribe and disconnect leave the other receiving new resource versions.
+The cursor test explicitly replaces a watch after two real Kubernetes updates:
+its first subsequent event must be fresh, not history replayed from the original
+opening cursor. Assertions synchronize on readiness, protocol statuses, close
+acknowledgement, and concrete resource versions, without sleeps.
+
+These are opt-in backend protocol E2E tests; the `e2e` build tag keeps them out
+of cluster-independent unit runs. They do not exercise React shared-observer
+hooks or a browser UI.
+
 ### Additional suites
 
 `tests/logStreaming.spec.ts` creates a temporary namespace and a logging Deployment
