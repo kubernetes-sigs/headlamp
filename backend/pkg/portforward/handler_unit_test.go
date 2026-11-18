@@ -319,7 +319,7 @@ func TestStartPortForward_InputValidation(t *testing.T) {
 			store := kubeconfig.NewContextStore()
 
 			assertPortForwardBadRequest(t, tt.body, tt.wantBody, func(w *httptest.ResponseRecorder, r *http.Request) {
-				portforward.StartPortForward(store, ch, false, "test-cluster", w, r)
+				portforward.StartPortForward(store, ch, false, "test-cluster", w, r, nil)
 			}, http.MethodPost)
 		})
 	}

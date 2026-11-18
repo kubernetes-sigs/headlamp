@@ -20,11 +20,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -491,4 +493,239 @@ func TestDrainPreservesUserRBACDenial(t *testing.T) {
 	require.Contains(t, drainStatus, "forbidden")
 	require.Equal(t, "Bearer restricted-user", <-requests)
 	require.Empty(t, requests, "Denied operation must not retry with service-account permissions")
+}
+
+func TestClusterScopedDrainExchangesProxyAuthToken(t *testing.T) { //nolint:funlen // STS/API integration.
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{"token_endpoint": "http://" + r.Host + "/token"}))
+			return
+		}
+
+		if r.FormValue("subject_token") != "proxy-user-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "exchanged-drain-token", "expires_in": 3600,
+		}))
+	}))
+	t.Cleanup(sts.Close)
+
+	requests := make(chan string, 8)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.Header.Get("Authorization")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/api/v1/nodes/test-node":
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}))
+		case "/api/v1/pods":
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.PodList{}))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name:     "main",
+		Source:   kubeconfig.InCluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	})
+	cfg.ProxyAuthEnabled = true
+	cfg.ProxyAuthTokenHeader = "X-Forwarded-Access-Token"
+	cfg.OidcStsEnabled = true
+	cfg.OidcStsIssuerURL = sts.URL
+	cfg.OidcStsClientID = "sts-client"
+	cfg.OidcStsClientSecret = "sts-secret"
+	cfg.OidcStsAudienceMap = "main=main-audience"
+
+	auth.ResetSTSCache()
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+		"/clusters/main/drain-node", strings.NewReader(`{"cluster":"main","nodeName":"test-node"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Access-Token", "proxy-user-token")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	select {
+	case got := <-requests:
+		require.Equal(t, "Bearer exchanged-drain-token", got)
+	case <-time.After(5 * time.Second):
+		t.Fatal("drain never reached Kubernetes")
+	}
+}
+
+// TestClusterScopedDrainRenewsSTSToken checks that a drain keeps exchanging the
+// caller's token while it runs. A single exchanged token could expire before
+// the drain finishes, leaving the node cordoned and only partly drained.
+func TestClusterScopedDrainRenewsSTSToken(t *testing.T) { //nolint:funlen // STS and API integration.
+	var exchanges atomic.Int32
+
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		if r.FormValue("subject_token") != "subject-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Without expires_in nothing is cached, so every call exchanges.
+		_, _ = fmt.Fprintf(w, `{"access_token": "exchanged-%d"}`, exchanges.Add(1))
+	}))
+	t.Cleanup(sts.Close)
+
+	requests := make(chan string, 8)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.Header.Get("Authorization")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/api/v1/pods" {
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.PodList{}))
+		} else {
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}))
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name: "main", Source: kubeconfig.KubeConfig,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	})
+	cfg.OidcStsEnabled = true
+	cfg.OidcStsIssuerURL = sts.URL
+	cfg.OidcStsClientID = "sts-client"
+	cfg.OidcStsClientSecret = "sts-secret"
+	cfg.OidcStsAudienceMap = "main=main-audience"
+
+	auth.ResetSTSCache()
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+
+	req, err := makeDrainJSONReq(server.URL+"/clusters/main/drain-node",
+		map[string]string{"cluster": "main", "nodeName": "test-node"})
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer subject-token")
+
+	response, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	require.Eventually(t, func() bool {
+		key := uuid.NewSHA1(uuid.Nil, []byte("test-node\x00main")).String()
+		value, err := cfg.Cache.Get(context.Background(), key)
+
+		return err == nil && value == "success"
+	}, 2*time.Second, 10*time.Millisecond)
+
+	seen := map[string]bool{}
+
+	for range 3 {
+		token := <-requests
+		require.True(t, strings.HasPrefix(token, "Bearer exchanged-"), token)
+		require.False(t, seen[token], "each request should get a newly exchanged token, got %q again", token)
+
+		seen[token] = true
+	}
+}
+
+// TestClusterScopedDrainIgnoresNonBearerAuthorizationForSTS checks that a
+// drain exchanges the user's cookie token rather than a Basic Authorization
+// header from an authenticating proxy, which isn't the user's token and must
+// not be sent to the STS.
+func TestClusterScopedDrainIgnoresNonBearerAuthorizationForSTS(t *testing.T) { //nolint:funlen // STS/API integration.
+	subjectTokens := make(chan string, 8)
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{"token_endpoint": "http://" + r.Host + "/token"}))
+			return
+		}
+
+		subjectTokens <- r.FormValue("subject_token")
+
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "exchanged-drain-token", "expires_in": 3600,
+		}))
+	}))
+	t.Cleanup(sts.Close)
+
+	requests := make(chan string, 8)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.Header.Get("Authorization")
+
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/api/v1/nodes/test-node":
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}))
+		case "/api/v1/pods":
+			require.NoError(t, json.NewEncoder(w).Encode(corev1.PodList{}))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name:     "main",
+		Source:   kubeconfig.InCluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	})
+	cfg.OidcStsEnabled = true
+	cfg.OidcStsIssuerURL = sts.URL
+	cfg.OidcStsClientID = "sts-client"
+	cfg.OidcStsClientSecret = "sts-secret"
+	cfg.OidcStsAudienceMap = "main=main-audience"
+
+	auth.ResetSTSCache()
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+		"/clusters/main/drain-node", strings.NewReader(`{"cluster":"main","nodeName":"test-node"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-main.0",
+		Value:    "cookie-user-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, "cookie-user-token", <-subjectTokens)
+
+	select {
+	case got := <-requests:
+		require.Equal(t, "Bearer exchanged-drain-token", got)
+	case <-time.After(5 * time.Second):
+		t.Fatal("drain never reached Kubernetes")
+	}
 }
