@@ -532,6 +532,42 @@ describe('DeleteMultipleButton', () => {
     expect(bulkState.actionCalls).toBe(1);
   });
 
+  it('omits the cluster from named pods when the selection is one cluster', async () => {
+    bulkState.allowEvict = () => false;
+    renderButton([
+      makePod({ name: 'evict-1', namespace: 'rbac-evict', cluster: 'minikube' }),
+      makePod({ name: 'evict-2', namespace: 'rbac-evict', cluster: 'minikube' }),
+      makePod({ name: 'evict-3', namespace: 'rbac-evict', cluster: 'minikube' }),
+    ]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls).toHaveLength(3));
+    // Repeating the cluster on every name only adds noise for a single-cluster selection.
+    expect(bulkState.actionOptions.successMessage).toBe(
+      'Deleted 3 items. Pods deleted instead of evicted because eviction is not permitted: ' +
+        'rbac-evict/evict-1, rbac-evict/evict-2, rbac-evict/evict-3.'
+    );
+  });
+
+  it('keeps namespaces when the cluster is omitted', async () => {
+    bulkState.allowEvict = () => false;
+    renderButton([
+      makePod({ name: 'evict-1', namespace: 'rbac-evict', cluster: 'minikube' }),
+      makePod({ name: 'evict-2', namespace: 'other-ns', cluster: 'minikube' }),
+    ]);
+    const dialog = await openDialog();
+
+    fireEvent.click(within(dialog).getByTestId('confirm-button'));
+
+    await waitFor(() => expect(bulkState.deleteCalls).toHaveLength(2));
+    expect(bulkState.actionOptions.successMessage).toBe(
+      'Deleted 2 items. Pods deleted instead of evicted because eviction is not permitted: ' +
+        'rbac-evict/evict-1, other-ns/evict-2.'
+    );
+  });
+
   it('still names the fallback pods when another item fails to delete', async () => {
     bulkState.allowEvict = () => false;
     bulkState.failDelete = name => name === 'pod-fail';

@@ -112,6 +112,9 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
       }
       const clonedItems = _.cloneDeep(items);
       const itemsLength = clonedItems.length;
+      // The cluster only disambiguates Pod names when the selection spans clusters;
+      // for a single-cluster selection it would just repeat on every entry.
+      const showCluster = uniq(clonedItems.map(item => item.cluster)).length > 1;
 
       type EvictionVerdict = 'allowed' | 'denied' | 'error';
 
@@ -213,7 +216,9 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
 
       const podList = (pods: Pod[]) => {
         const names = pods.map(pod =>
-          [pod.cluster, pod.getNamespace(), pod.getName()].filter(Boolean).join('/')
+          [showCluster ? pod.cluster : undefined, pod.getNamespace(), pod.getName()]
+            .filter(Boolean)
+            .join('/')
         );
         if (names.length <= MAX_NAMED_PODS) {
           return names.join(', ');
