@@ -125,7 +125,10 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
         <>
           {`${counts.healthy} ${totalLabel}`}
           {breakdown.length > 0 && (
-            <Box component="span" sx={{ display: 'block', fontSize: '0.85em', opacity: 0.7 }}>
+            <Box
+              component="span"
+              sx={{ display: 'block', fontSize: '0.85em', color: 'text.secondary' }}
+            >
               {breakdown.join(' · ')}
             </Box>
           )}
