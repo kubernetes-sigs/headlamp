@@ -239,7 +239,7 @@ function deferred<T>() {
 
 describe('isWatchedListStillRequested', () => {
   // Regression test for 9542b5cb5: an empty-string namespace means "all namespaces"
-  // for a namespaced resource and is a valid, meaningful value — but it is falsy, so
+  // for a namespaced resource and is a valid, meaningful value â€” but it is falsy, so
   // a naive truthiness check (`!watching.namespace`) treats it the same as "no
   // namespace at all" and incorrectly drops the watch entry. It must never get
   // "cleaned up" just because it's an empty string.
@@ -1750,6 +1750,101 @@ describe('useKubeObjectList', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.isError).toBe(false);
     expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1');
+  });
+
+  it('should start fresh A pagination after switching A to B to A', async () => {
+    const queryClient = new QueryClient();
+    const oldAPage = deferred<Response>();
+    let aPageRequests = 0;
+
+    mockClusterFetch.mockImplementation((url, options) => {
+      const cluster = options?.cluster;
+
+      if (cluster === 'cluster-a' && String(url).includes('continue=a-next')) {
+        aPageRequests++;
+
+        if (aPageRequests === 1) {
+          return oldAPage.promise;
+        }
+
+        return Promise.resolve({
+          json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a2', '2')] })),
+        } as Response);
+      }
+
+      if (cluster === 'cluster-a' && url === 'api/v1/pods?limit=1000') {
+        return Promise.resolve({
+          json: () =>
+            Promise.resolve(
+              makeListResponse({
+                items: [makePod('pod-a1', '1')],
+                continueToken: 'a-next',
+              })
+            ),
+        } as Response);
+      }
+
+      if (cluster === 'cluster-b' && url === 'api/v1/pods?limit=1000') {
+        return Promise.resolve({
+          json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-b1', '1')] })),
+        } as Response);
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url}, cluster: ${cluster}`));
+    });
+
+    const { result, rerender } = renderHook(
+      ({ cluster }: { cluster: string }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster }],
+          queryParams: { limit: DEFAULT_LIST_LIMIT },
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: { cluster: 'cluster-a' },
+      }
+    );
+
+    let firstLoad: Promise<void> | undefined;
+    let secondLoad: Promise<void> | undefined;
+
+    try {
+      await waitFor(() => expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1'));
+
+      act(() => {
+        firstLoad = result.current.loadMore?.();
+      });
+
+      await waitFor(() => expect(aPageRequests).toBe(1));
+
+      rerender({ cluster: 'cluster-b' });
+
+      await waitFor(() => expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-b1'));
+
+      rerender({ cluster: 'cluster-a' });
+
+      await waitFor(() => expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1'));
+
+      act(() => {
+        secondLoad = result.current.loadMore?.();
+      });
+
+      // A fresh session must not reuse the old pending A promise.
+      await waitFor(() => expect(aPageRequests).toBe(2));
+    } finally {
+      oldAPage.resolve({
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a2', '2')] })),
+      } as Response);
+
+      await act(async () => {
+        await Promise.allSettled(
+          [firstLoad, secondLoad].filter(
+            (promise): promise is Promise<void> => promise !== undefined
+          )
+        );
+      });
+    }
   });
 
   it('should call useKubeObjectList with 1 namespace after reducing amount of namespaces', async () => {

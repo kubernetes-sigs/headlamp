@@ -835,7 +835,7 @@ export function useKubeObjectList<K extends KubeObject>({
     },
   });
 
-  // Don't watch when results are paginated — the watch stream would deliver events
+  // Don't watch when results are paginated â€” the watch stream would deliver events
   // for resources outside our fetched page, causing the list to grow unboundedly.
   const shouldWatch = watch && !refetchInterval && !query.isLoading && !query.hasMore;
 
@@ -901,20 +901,38 @@ export function useKubeObjectList<K extends KubeObject>({
 
   const queryClient = useQueryClient();
   const loadMoreInputKey = JSON.stringify([listRequestInputKey, paginationInputKey]);
-  const currentLoadMoreInputKeyRef = useRef(loadMoreInputKey);
+  const loadMoreGenerationRef = useRef({
+    key: loadMoreInputKey,
+    generation: 0,
+  });
 
   useEffect(() => {
-    currentLoadMoreInputKeyRef.current = loadMoreInputKey;
+    if (loadMoreGenerationRef.current.key !== loadMoreInputKey) {
+      loadMoreGenerationRef.current = {
+        key: loadMoreInputKey,
+        generation: loadMoreGenerationRef.current.generation + 1,
+      };
+    }
   }, [loadMoreInputKey]);
+
   const loadMorePromiseRef = useRef<{
     key: string;
+    generation: number;
     promise: Promise<void>;
   } | null>(null);
-
   const loadMore = useCallback(async () => {
     if (!endpoint) return;
 
-    if (loadMorePromiseRef.current?.key === loadMoreInputKey) {
+    const loadMoreGeneration = loadMoreGenerationRef.current.generation;
+
+    const isCurrentLoadMore = () =>
+      loadMoreGenerationRef.current.key === loadMoreInputKey &&
+      loadMoreGenerationRef.current.generation === loadMoreGeneration;
+
+    if (
+      loadMorePromiseRef.current?.key === loadMoreInputKey &&
+      loadMorePromiseRef.current.generation === loadMoreGeneration
+    ) {
       return loadMorePromiseRef.current.promise;
     }
 
@@ -942,7 +960,7 @@ export function useKubeObjectList<K extends KubeObject>({
           nextQueries.map(q => queryClient.fetchQuery(q as any))
         );
 
-        if (currentLoadMoreInputKeyRef.current !== loadMoreInputKey) {
+        if (!isCurrentLoadMore()) {
           return;
         }
 
@@ -1027,7 +1045,7 @@ export function useKubeObjectList<K extends KubeObject>({
         })
       );
 
-      if (currentLoadMoreInputKeyRef.current !== loadMoreInputKey) {
+      if (!isCurrentLoadMore()) {
         return;
       }
 
@@ -1043,6 +1061,7 @@ export function useKubeObjectList<K extends KubeObject>({
 
     loadMorePromiseRef.current = {
       key: loadMoreInputKey,
+      generation: loadMoreGeneration,
       promise,
     };
 
