@@ -119,6 +119,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   const [sinceSeconds, setSinceSeconds] = useState<number>(0);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
+  const [reconnectCount, setReconnectCount] = useState(0);
   const [storedSeverities, setStoredSeverities] = useLocalStorageState<LogSeverity[]>(
     'headlamp.logs.severityFilter',
     [...ALL_SEVERITIES]
@@ -287,6 +288,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
     if (pods.length && selectedContainer) {
       setShowReconnectButton(false);
       setLogs({ logs: [], lastLineShown: -1 });
+      setReconnectCount(count => count + 1);
     }
   }
 
@@ -451,6 +453,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   }, [
     selectedPodIndex,
     selectedContainer,
+    reconnectCount,
     lines,
     sinceSeconds,
     showPrevious,
