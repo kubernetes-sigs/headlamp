@@ -22,7 +22,7 @@ interface BeforeQuitEvent {
  * Prevents Electron from quitting until asynchronous cleanup settles or its deadline expires.
  *
  * @param cleanup - Asynchronous application cleanup to start once.
- * @param quit - Resumes Electron quit after cleanup or timeout.
+ * @param quit - Resumes Electron quit on a new event-loop turn after cleanup or timeout.
  * @param reportError - Reports cleanup rejection or timeout.
  * @param timeoutMs - Maximum time to keep Electron's quit event prevented.
  * @returns An Electron before-quit event handler.
@@ -64,7 +64,7 @@ export function createBeforeQuitHandler(
       .finally(() => {
         clearTimeout(timeout);
         readyToQuit = true;
-        quit();
+        setImmediate(quit);
       });
   };
 }

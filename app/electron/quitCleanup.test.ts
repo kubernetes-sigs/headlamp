@@ -17,6 +17,20 @@
 import { expect, it, vi } from 'vitest';
 import { createBeforeQuitHandler } from './quitCleanup';
 
+it('resumes quit outside the original before-quit dispatch turn', async () => {
+  let dispatchingBeforeQuit = true;
+  const quit = vi.fn(() => dispatchingBeforeQuit);
+  setImmediate(() => {
+    dispatchingBeforeQuit = false;
+  });
+  const handler = createBeforeQuitHandler(() => Promise.resolve(), quit);
+
+  handler({ preventDefault: vi.fn() });
+
+  await vi.waitFor(() => expect(quit).toHaveBeenCalledOnce());
+  expect(quit.mock.results[0].value).toBe(false);
+});
+
 it('prevents quit until cleanup settles, then resumes once', async () => {
   let finishCleanup!: () => void;
   const cleanup = vi.fn(() => new Promise<void>(resolve => (finishCleanup = resolve)));
@@ -70,6 +84,7 @@ it('resumes quit after the cleanup deadline', async () => {
     expect(reportError).toHaveBeenCalledWith(
       new Error('Quit cleanup did not settle within 10000ms.')
     );
+    await vi.runOnlyPendingTimersAsync();
     expect(quit).toHaveBeenCalledOnce();
   } finally {
     vi.useRealTimers();
