@@ -45,6 +45,8 @@ import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
 import ResourceClaimList from '../../components/device/ResourceClaimList';
 import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
 import ResourceClaimTemplateList from '../../components/device/ResourceClaimTemplateList';
+import ResourceSliceDetails from '../../components/device/ResourceSliceDetails';
+import ResourceSliceList from '../../components/device/ResourceSliceList';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -839,6 +841,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Resource Claim Template',
     sidebar: 'resourceClaimTemplates',
     component: () => <ResourceClaimTemplateDetails />,
+  },
+  resourceslices: {
+    path: '/resourceslices',
+    exact: true,
+    name: 'Resource Slices',
+    sidebar: 'resourceSlices',
+    component: () => <ResourceSliceList />,
+  },
+  resourceSlice: {
+    path: '/resourceslices/:name',
+    exact: true,
+    name: 'Resource Slice',
+    sidebar: 'resourceSlices',
+    component: () => <ResourceSliceDetails />,
   },
   priorityclasses: {
     path: '/priorityclasses',

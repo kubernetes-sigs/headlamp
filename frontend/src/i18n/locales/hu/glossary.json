@@ -75,6 +75,8 @@
   "Drivers": "",
   "Resource Claims": "",
   "Resource Claim Templates": "",
+  "Devices": "",
+  "Resource Slices": "",
   "Subsets": "Részhalmazok",
   "Endpoint: {{ name }}": "Végpont: {{ name }}",
   "IP": "IP-cím",

@@ -51,6 +51,7 @@ import ReplicaSet from './replicaSet';
 import ResourceClaim from './resourceClaim';
 import ResourceClaimTemplate from './resourceClaimTemplate';
 import ResourceQuota from './resourceQuota';
+import ResourceSlice from './resourceSlice';
 import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
@@ -103,6 +104,7 @@ export const ResourceClasses = {
   ReplicaSet,
   ResourceClaim,
   ResourceClaimTemplate,
+  ResourceSlice,
   Role,
   RoleBinding,
   RuntimeClass,

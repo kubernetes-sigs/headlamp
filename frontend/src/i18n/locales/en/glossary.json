@@ -75,6 +75,8 @@
   "Drivers": "Drivers",
   "Resource Claims": "Resource Claims",
   "Resource Claim Templates": "Resource Claim Templates",
+  "Devices": "Devices",
+  "Resource Slices": "Resource Slices",
   "Subsets": "Subsets",
   "Endpoint: {{ name }}": "Endpoint: {{ name }}",
   "IP": "IP",
