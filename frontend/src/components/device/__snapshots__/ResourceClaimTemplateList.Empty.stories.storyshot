@@ -127,7 +127,7 @@
               class="MuiBox-root css-ty8jgw"
               role="status"
             >
-              No data to be shown.
+              No resource claim templates yet. A Pod uses a template to get its own claim for devices.
             </div>
             <div
               class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
@@ -138,7 +138,7 @@
                 <p
                   class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
                 >
-                  No data to be shown.
+                  No resource claim templates yet. A Pod uses a template to get its own claim for devices.
                 </p>
                 <div
                   aria-label="Empty state actions"

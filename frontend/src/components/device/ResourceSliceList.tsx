@@ -30,6 +30,9 @@ export default function ResourceSliceList() {
       resourceClass={ResourceSlice}
       clusters={servingClusters}
       headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      emptyMessage={t(
+        'translation|No resource slices yet. A DRA driver publishes its devices in resource slices.'
+      )}
       columns={[
         'name',
         'cluster',

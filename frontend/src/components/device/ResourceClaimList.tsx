@@ -34,6 +34,9 @@ export default function ResourceClaimList() {
       resourceClass={ResourceClaim}
       clusters={servingClusters}
       headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      emptyMessage={t(
+        'translation|No resource claims yet. A claim is made when you create one, or when a Pod uses a resource claim template.'
+      )}
       columns={[
         'name',
         'namespace',
