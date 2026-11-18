@@ -2,6 +2,7 @@ package helm
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,8 @@ import (
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	helmtime "helm.sh/helm/v3/pkg/time"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -480,4 +483,130 @@ func TestVerifyUserTimesOut(t *testing.T) {
 
 	assert.False(t, VerifyUser(actionConfig, InstallRequest{}))
 	assert.Less(t, time.Since(start), 2*time.Second)
+}
+
+func TestDecodeGetReleaseHistoryRequest(t *testing.T) {
+	for _, query := range []string{
+		"name=my-release&namespace=default",
+		"namespace=%64efault&name=%6dy-release",
+	} {
+		t.Run(query, func(t *testing.T) {
+			r := httptest.NewRequestWithContext(context.Background(),
+				http.MethodGet, "/helm/release/history?"+query, nil)
+
+			req, err := decodeGetReleaseHistoryRequest(r)
+
+			require.NoError(t, err)
+			assert.Equal(t, GetReleaseHistoryRequest{Name: "my-release", Namespace: "default"}, req)
+		})
+	}
+}
+
+func TestGetReleaseHistorySuccess(t *testing.T) {
+	client := k8sfake.NewClientset()
+	releases := storage.Init(driver.NewSecrets(client.CoreV1().Secrets("default")))
+	rel := &release.Release{
+		Name:      "my-release",
+		Namespace: "default",
+		Version:   1,
+		Info:      &release.Info{Status: release.StatusDeployed},
+	}
+	require.NoError(t, releases.Create(rel))
+
+	secrets, err := client.CoreV1().Secrets("default").List(context.Background(), metav1.ListOptions{})
+	require.NoError(t, err)
+	body, err := json.Marshal(secrets)
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/version":
+			_, _ = w.Write([]byte(`{"gitVersion":"v1.34.0"}`))
+		case "/api/v1/namespaces/default/secrets":
+			assert.Equal(t, "name=my-release,owner=helm", r.URL.Query().Get("labelSelector"))
+
+			_, _ = w.Write(body)
+		default:
+			t.Errorf("unexpected Kubernetes API request: %s %s", r.Method, r.URL)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/helm/release/history?name=my-release&namespace=default", nil)
+	rr := httptest.NewRecorder()
+	h := &Handler{}
+
+	h.GetReleaseHistory(clientConfigFor(srv.URL), rr, r)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+
+	var response GetReleaseHistoryResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	require.Len(t, response.Releases, 1)
+	assert.Equal(t, rel.Name, response.Releases[0].Name)
+	assert.Equal(t, rel.Namespace, response.Releases[0].Namespace)
+	assert.Equal(t, rel.Version, response.Releases[0].Version)
+}
+
+func TestGetReleaseHistory_Validation(t *testing.T) {
+	h := &Handler{}
+
+	tests := []struct {
+		name       string
+		url        string
+		wantStatus int
+	}{
+		{
+			name:       "missing both name and namespace",
+			url:        "/clusters/minikube/helm/releases/history",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing namespace",
+			url:        "/clusters/minikube/helm/releases/history?name=my-release",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing name",
+			url:        "/clusters/minikube/helm/releases/history?namespace=default",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "empty name and namespace",
+			url:        "/clusters/minikube/helm/releases/history?name=&namespace=",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "empty name",
+			url:        "/clusters/minikube/helm/releases/history?name=&namespace=default",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "empty namespace",
+			url:        "/clusters/minikube/helm/releases/history?name=my-release&namespace=",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unknown query parameter",
+			url:        "/clusters/minikube/helm/releases/history?name=my-release&namespace=default&unexpected=value",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, tt.url, nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			h.GetReleaseHistory(nil, rr, req)
+
+			assert.Equal(t, tt.wantStatus, rr.Code)
+		})
+	}
 }
