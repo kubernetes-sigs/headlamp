@@ -18,19 +18,26 @@ func ExportedRunWatcher(
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
-	runWatcher(ctx, k8scache, contextKey, kContext)
+	val, _ := watcherRegistry.LoadOrStore(contextKey, &watcherState{})
+	state := val.(*watcherState)
+	runWatcher(ctx, k8scache, contextKey, kContext, state)
 }
 
 // ResetRegistries clears both registries for test isolation.
 // If no keys are provided, it clears all entries.
 func ResetRegistries(keys ...string) {
 	if len(keys) == 0 {
-		watcherRegistry.Range(func(key, _ interface{}) bool {
+		watcherRegistry.Range(func(key, val interface{}) bool {
+			if state, ok := val.(*watcherState); ok {
+				state.mu.Lock()
+				if state.cancel != nil {
+					state.cancel()
+				}
+				state.mu.Unlock()
+			}
+
 			watcherRegistry.Delete(key)
-			return true
-		})
-		contextCancel.Range(func(key, _ interface{}) bool {
-			contextCancel.Delete(key)
+
 			return true
 		})
 
@@ -38,28 +45,105 @@ func ResetRegistries(keys ...string) {
 	}
 
 	for _, k := range keys {
-		watcherRegistry.Delete(k)
-		contextCancel.Delete(k)
+		if val, loaded := watcherRegistry.LoadAndDelete(k); loaded {
+			if state, ok := val.(*watcherState); ok {
+				state.mu.Lock()
+				if state.cancel != nil {
+					state.cancel()
+				}
+				state.mu.Unlock()
+			}
+		}
 	}
 }
 
-// StoreTestRegistry populates both registries for test setup.
+// StoreTestRegistry populates registries for test setup.
 func StoreTestRegistry(key string, cancel context.CancelFunc) {
-	watcherRegistry.Store(key, struct{}{})
-	contextCancel.Store(key, cancel)
+	watcherRegistry.Store(key, &watcherState{
+		running: true,
+		cancel:  cancel,
+	})
 }
 
 // StoreTestContextCancel stores a cancel function in the registry for tests.
 func StoreTestContextCancel(contextKey string, cancel context.CancelFunc) {
-	contextCancel.Store(contextKey, cancel)
+	val, _ := watcherRegistry.LoadOrStore(contextKey, &watcherState{})
+	state := val.(*watcherState)
+	state.mu.Lock()
+	state.cancel = cancel
+	state.mu.Unlock()
 }
 
-// RegistryLoaded checks if a key exists in both registries.
-func RegistryLoaded(key string) (watcher, cancel bool) {
-	_, watcher = watcherRegistry.Load(key)
-	_, cancel = contextCancel.Load(key)
+// RegistryLoaded checks if a key exists in registries and its running state.
+func RegistryLoaded(key string) (running, loaded bool) {
+	val, ok := watcherRegistry.Load(key)
+	if !ok {
+		return false, false
+	}
 
-	return
+	state, ok := val.(*watcherState)
+	if !ok {
+		return false, false
+	}
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	return state.running, true
+}
+
+// ExportedWatcherInCooldown reports whether the context key is currently in cooldown.
+func ExportedWatcherInCooldown(contextKey string) bool {
+	val, ok := watcherRegistry.Load(contextKey)
+	if !ok {
+		return false
+	}
+
+	state, ok := val.(*watcherState)
+	if !ok {
+		return false
+	}
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	return time.Now().Before(state.retryAfter)
+}
+
+// ExportedExpireWatcherCooldown manually sets the retryAfter timestamp in the past for testing.
+func ExportedExpireWatcherCooldown(contextKey string) {
+	val, ok := watcherRegistry.Load(contextKey)
+	if !ok {
+		return
+	}
+
+	state, ok := val.(*watcherState)
+	if !ok {
+		return
+	}
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	state.retryAfter = time.Now().Add(-1 * time.Second)
+}
+
+// ExportedWatcherFailureCount returns failureCount for testing.
+func ExportedWatcherFailureCount(contextKey string) int {
+	val, ok := watcherRegistry.Load(contextKey)
+	if !ok {
+		return 0
+	}
+
+	state, ok := val.(*watcherState)
+	if !ok {
+		return 0
+	}
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	return state.failureCount
 }
 
 // ResetClientsetCache clears the clientset cache for test isolation.
