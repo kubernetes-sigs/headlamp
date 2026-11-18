@@ -14,8 +14,17 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
+import { useEffect, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import Pod from '../../../../lib/k8s/pod';
+import {
+  NewHeaderActionType,
+  removeDetailsViewHeaderAction,
+  setDetailsViewHeaderAction,
+} from '../../../../redux/actionButtonsSlice';
+import reducers from '../../../../redux/reducers/reducers';
 import { TestContext } from '../../../../test';
 import { podList } from '../../../pod/storyHelper';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection';
@@ -45,4 +54,62 @@ NullBacklink.args = {
   resource,
   backLink: null,
   title: 'No Back Link Resource',
+};
+
+export const PluginActions = () => {
+  const store = configureStore({ reducer: reducers });
+  const Inner = () => {
+    const dispatch = useDispatch();
+
+    useEffect(() => {
+      // 1. Legacy action (returning arbitrary HTML)
+      const LegacyAction = () => {
+        const [clicked, setClicked] = useState(false);
+        return (
+          <button
+            style={{ border: '2px solid red', padding: '4px' }}
+            onClick={() => setClicked(true)}
+          >
+            {clicked ? 'Clicked' : 'Legacy Action'}
+          </button>
+        );
+      };
+
+      // 2. Modern action (returning standard ActionButtonProps)
+      const ModernAction: NewHeaderActionType = () => ({
+        icon: 'mdi:puzzle',
+        description: 'Modern Action',
+        onClick: () => {},
+      });
+
+      // Register them via redux to simulate a plugin
+      dispatch(
+        setDetailsViewHeaderAction({
+          id: 'legacy-action',
+          action: LegacyAction,
+          isLegacy: true,
+        })
+      );
+      dispatch(
+        setDetailsViewHeaderAction({
+          id: 'modern-action',
+          action: ModernAction,
+          isLegacy: false,
+        })
+      );
+
+      return () => {
+        dispatch(removeDetailsViewHeaderAction('legacy-action'));
+        dispatch(removeDetailsViewHeaderAction('modern-action'));
+      };
+    }, [dispatch]);
+
+    return <MainInfoSection resource={resource} title="Plugin Actions Example" />;
+  };
+
+  return (
+    <TestContext store={store}>
+      <Inner />
+    </TestContext>
+  );
 };

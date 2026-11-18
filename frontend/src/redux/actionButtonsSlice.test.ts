@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { vi } from 'vitest';
 import reducer, {
   addDetailsViewHeaderActionsProcessor,
   setAppBarAction,
@@ -47,6 +48,51 @@ describe('actionButtonsSlice', () => {
       const action = { id: 'customID', action: () => 'Test action' };
       const nextState = reducer(initialState, setDetailsViewHeaderAction(action));
       expect(nextState.headerActions[0].id).toBe('customID');
+    });
+
+    it('should keep two ID-less registrations as separate actions even in the same millisecond', () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
+      try {
+        const first = reducer(
+          initialState,
+          setDetailsViewHeaderAction({ action: () => 'First' } as any)
+        );
+        const second = reducer(
+          first,
+          setDetailsViewHeaderAction({ action: () => 'Second' } as any)
+        );
+        expect(second.headerActions).toHaveLength(2);
+        expect(second.headerActions[0].id).not.toBe(second.headerActions[1].id);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it('should update the existing action when the same ID is registered again', () => {
+      const firstAction = () => 'First';
+      const updatedAction = () => 'Updated';
+      const first = reducer(
+        initialState,
+        setDetailsViewHeaderAction({ id: 'my-action', action: firstAction } as any)
+      );
+      const second = reducer(
+        first,
+        setDetailsViewHeaderAction({ id: 'my-action', action: updatedAction } as any)
+      );
+      expect(second.headerActions).toHaveLength(1);
+      expect(second.headerActions[0].action).toBe(updatedAction);
+    });
+
+    it('should remove the action when a null action is registered for an existing ID', () => {
+      const first = reducer(
+        initialState,
+        setDetailsViewHeaderAction({ id: 'my-action', action: (() => 'Test') as any } as any)
+      );
+      const second = reducer(
+        first,
+        setDetailsViewHeaderAction({ id: 'my-action', action: null } as any)
+      );
+      expect(second.headerActions).toHaveLength(0);
     });
   });
 
