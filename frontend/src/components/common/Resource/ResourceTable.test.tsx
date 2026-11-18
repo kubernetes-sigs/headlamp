@@ -369,4 +369,23 @@ describe('ResourceTable Column Visibility', () => {
       expect(lastTablePropsHolder.current.emptyActions).toBeUndefined();
     });
   });
+
+  describe('emptyMessage', () => {
+    const columns = [{ id: 'name', label: 'Name', getValue: (item: any) => item.metadata.name }];
+
+    it('forwards emptyMessage when there is no error', () => {
+      renderTable({ columns, data: [], emptyMessage: 'Nothing here yet.' });
+      expect(lastTablePropsHolder.current.emptyMessage).toBe('Nothing here yet.');
+    });
+
+    it('drops emptyMessage when the list failed', () => {
+      renderTable({
+        columns,
+        data: [],
+        emptyMessage: 'Nothing here yet.',
+        errors: [{ cluster: 'test-cluster', error: new Error('boom') }],
+      });
+      expect(lastTablePropsHolder.current.emptyMessage).toBeUndefined();
+    });
+  });
 });
