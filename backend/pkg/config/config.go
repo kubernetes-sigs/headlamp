@@ -24,9 +24,14 @@ import (
 )
 
 const (
-	defaultPort       = 4466
-	defaultSessionTTL = 86400 // 24 hours in seconds
-	osWindows         = "windows"
+	defaultPort               = 4466
+	defaultSessionTTL         = 86400 // 24 hours in seconds
+	defaultCacheMaxClientsets = 256
+	osWindows                 = "windows"
+)
+
+const (
+	DefaultCacheMaxClientsets = defaultCacheMaxClientsets
 )
 
 const (
@@ -49,6 +54,7 @@ type Config struct {
 	// It has no effect in in-cluster mode or when running without embedded frontend.
 	NoBrowser              bool   `koanf:"no-browser"`
 	CacheEnabled           bool   `koanf:"cache-enabled"`
+	CacheMaxClientsets     int    `koanf:"cache-max-clientsets"`
 	EnableHelm             bool   `koanf:"enable-helm"`
 	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
 	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
@@ -215,13 +221,8 @@ func (c *Config) Validate() error {
 		return errors.New("base-url needs to start with a '/' or be empty")
 	}
 
-	if c.SessionTTL <= 0 {
-		return errors.New("session-ttl cannot be negative or equal to zero")
-	}
-
-	const oneYearInSeconds = 31536000
-	if c.SessionTTL > oneYearInSeconds {
-		return errors.New("session-ttl cannot be greater than 1 year")
+	if err := c.validateTTLAndCache(); err != nil {
+		return err
 	}
 
 	if c.TracingEnabled != nil && *c.TracingEnabled {
@@ -243,6 +244,24 @@ func (c *Config) Validate() error {
 
 	if err := c.validateClusterInventory(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateTTLAndCache ensures session-ttl and cache-max-clientsets are within valid bounds.
+func (c *Config) validateTTLAndCache() error {
+	if c.SessionTTL <= 0 {
+		return errors.New("session-ttl cannot be negative or equal to zero")
+	}
+
+	const oneYearInSeconds = 31536000
+	if c.SessionTTL > oneYearInSeconds {
+		return errors.New("session-ttl cannot be greater than 1 year")
+	}
+
+	if c.CacheMaxClientsets <= 0 {
+		return errors.New("cache-max-clientsets cannot be negative or equal to zero")
 	}
 
 	return nil
@@ -648,12 +667,19 @@ func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	addGeneralFlags(f, appName)
+	addCacheFlags(f)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
 	addTLSFlags(f)
 
 	return f
+}
+
+func addCacheFlags(f *flag.FlagSet) {
+	f.Bool("cache-enabled", false, "K8s cache in backend")
+	f.Int("cache-max-clientsets", defaultCacheMaxClientsets,
+		"Maximum number of Kubernetes clientsets to keep in the authorization cache")
 }
 
 func addGeneralFlags(f *flag.FlagSet, appName string) {
@@ -669,7 +695,6 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 			"If unset, it is derived from the kube-system/kubeadm-config ConfigMap (treating \"kubernetes\" as unset), "+
 			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
-	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
