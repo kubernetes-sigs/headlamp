@@ -88,10 +88,13 @@ export default function ClusterContextMenu({
 
   function removeClusterDescription(cluster: Cluster) {
     const description = deleteFromKubeconfig
-      ? t('translation|This action will delete cluster "{{ clusterName }}" from "{{ source }}"', {
-          clusterName: cluster.name,
-          source: kubeconfigOrigin,
-        })
+      ? t(
+          'translation|This action will remove context "{{ clusterName }}" from "{{ source }}". It will not delete the cluster.',
+          {
+            clusterName: cluster.name,
+            source: kubeconfigOrigin,
+          }
+        )
       : t('translation|This action will remove cluster "{{ clusterName }}".', {
           clusterName: cluster.name,
         });
@@ -174,7 +177,9 @@ export default function ClusterContextMenu({
               handleMenuClose();
             }}
           >
-            <ListItemText>{t('translation|Delete')}</ListItemText>
+            <ListItemText>
+              {deleteFromKubeconfig ? t('translation|Remove Context') : t('translation|Delete')}
+            </ListItemText>
           </MenuItem>
         )}
         {menuItems.map((Item, index) => {
@@ -191,12 +196,14 @@ export default function ClusterContextMenu({
       <ConfirmDialog
         open={openConfirmDialog === 'deleteDynamic'}
         handleClose={() => setOpenConfirmDialog('')}
-        confirmLabel={t('translation|Delete')}
+        confirmLabel={deleteFromKubeconfig ? t('translation|Remove') : t('translation|Delete')}
         onConfirm={() => {
           setOpenConfirmDialog('');
           removeCluster(cluster);
         }}
-        title={t('translation|Delete Cluster')}
+        title={
+          deleteFromKubeconfig ? t('translation|Remove Context') : t('translation|Delete Cluster')
+        }
         description={removeClusterDescription(cluster)}
       />
       {openConfirmDialog !== null &&

@@ -16,9 +16,12 @@
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
 import { ReactNode, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link as RouterLink } from 'react-router-dom';
 import { useCluster } from '../../lib/k8s';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import ErrorComponent from '../common/ErrorPage';
 import ClusterPreparingDialog from './ClusterPreparingDialog';
 import { useClusterPreOpen } from './useClusterPreOpen';
@@ -36,9 +39,25 @@ export interface ClusterPreOpenGateProps {
  * @returns Preparation, error, or prepared cluster content.
  */
 export default function ClusterPreOpenGate({ children }: ClusterPreOpenGateProps) {
-  const { t } = useTranslation();
   const cluster = useCluster();
   const preOpen = useClusterPreOpen();
+
+  if (!preOpen.enabled || preOpen.isSuccess) {
+    return <>{children}</>;
+  }
+
+  return <ClusterPreOpenStatus cluster={cluster!} preOpen={preOpen} />;
+}
+
+/** App-owned pending/error actions, shared by cold opens and prepared navigation. */
+export function ClusterPreOpenStatus({
+  cluster,
+  preOpen,
+}: {
+  cluster: string;
+  preOpen: ReturnType<typeof useClusterPreOpen>;
+}) {
+  const { t } = useTranslation();
   const retryButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -47,20 +66,23 @@ export default function ClusterPreOpenGate({ children }: ClusterPreOpenGateProps
     }
   }, [preOpen.isError]);
 
-  if (!preOpen.enabled || preOpen.isSuccess) {
-    return <>{children}</>;
-  }
-
   if (preOpen.isError) {
     const detail = preOpen.error instanceof Error ? preOpen.error.message : String(preOpen.error);
     return (
       <ErrorComponent
-        title={t('translation|Could not open cluster')}
+        withTypography={false}
+        title={
+          <Typography variant="h4" component="h1">
+            {t('translation|Could not open cluster')}
+          </Typography>
+        }
         error={preOpen.error instanceof Error ? preOpen.error : undefined}
         message={
           <>
-            {detail}
-            <Box mt={2}>
+            <Typography sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+              {detail}
+            </Typography>
+            <Box mt={2} display="flex" gap={2} justifyContent="center">
               <Button
                 ref={retryButtonRef}
                 variant="contained"
@@ -69,6 +91,9 @@ export default function ClusterPreOpenGate({ children }: ClusterPreOpenGateProps
               >
                 {t('translation|Retry')}
               </Button>
+              <Button component={RouterLink} role={undefined} to={createRouteURL('chooser')}>
+                {t('translation|Back to clusters')}
+              </Button>
             </Box>
           </>
         }
@@ -76,5 +101,5 @@ export default function ClusterPreOpenGate({ children }: ClusterPreOpenGateProps
     );
   }
 
-  return <ClusterPreparingDialog cluster={cluster!} message={preOpen.message} />;
+  return <ClusterPreparingDialog cluster={cluster} message={preOpen.message} />;
 }

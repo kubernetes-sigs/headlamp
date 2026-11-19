@@ -68,19 +68,50 @@ describe('PureAlertNotification', () => {
     await act(async () => await vi.advanceTimersByTimeAsync(5000));
     expect(checkerFunction).toHaveBeenCalledTimes(3);
   });
+
+  it('keeps polling cadence and backoff across same-cluster navigation and supports retry', async () => {
+    const checker = vi.fn().mockRejectedValue(new Error('down'));
+    render(
+      <TestContext urlPrefix="/c" routerMap={{ cluster: 'test-cluster' }}>
+        <Navigate to="/c/test-cluster/pods" />
+        <PureAlertNotification checkerFunction={checker} />
+      </TestContext>
+    );
+
+    await act(async () => await vi.advanceTimersByTimeAsync(4000));
+    fireEvent.click(screen.getByRole('button', { name: 'Navigate' }));
+    await act(async () => await vi.advanceTimersByTimeAsync(1000));
+    expect(checker).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert')).toHaveTextContent('down');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Navigate' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await act(async () => await vi.advanceTimersByTimeAsync(9000));
+    expect(checker).toHaveBeenCalledTimes(1);
+    checker.mockRejectedValueOnce(new Error('still down'));
+    await act(async () => await vi.advanceTimersByTimeAsync(1000));
+    expect(checker).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('alert')).toHaveTextContent('still down');
+
+    checker.mockResolvedValue({});
+    fireEvent.click(screen.getByRole('button', { name: 'Try Again' }));
+    await act(async () => await vi.advanceTimersByTimeAsync(5000));
+    expect(checker).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });
 
-function NavigateToOtherCluster() {
+function Navigate({ to }: { to: string }) {
   const history = useHistory();
-  return <button onClick={() => history.push('/c/other-cluster/pods')}>Navigate</button>;
+  return <button onClick={() => history.push(to)}>Navigate</button>;
 }
 
 describe('PureAlertNotification - navigation', () => {
-  it('ignores an interval check that settles after navigating to another cluster', async () => {
+  it('keeps a slow check across same-cluster navigation without restarting polling', async () => {
     const intervalSpy = vi
       .spyOn(globalThis, 'setInterval')
       .mockImplementation(() => 1 as unknown as NodeJS.Timeout);
-    const onlineSpy = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
     try {
       let rejectCheck!: (error: Error) => void;
       const checker = vi.fn(
@@ -89,28 +120,65 @@ describe('PureAlertNotification - navigation', () => {
             rejectCheck = reject;
           })
       );
-
       render(
-        <MemoryRouter initialEntries={['/c/test-cluster/pods']}>
-          <TestContext routerMap={{ cluster: 'test-cluster' }}>
-            <NavigateToOtherCluster />
-            <PureAlertNotification checkerFunction={checker} />
-          </TestContext>
-        </MemoryRouter>
+        <TestContext urlPrefix="/c" routerMap={{ cluster: 'test-cluster' }}>
+          <Navigate to="/c/test-cluster/pods" />
+          <PureAlertNotification checkerFunction={checker} />
+        </TestContext>
       );
 
       const intervalCallback = intervalSpy.mock.calls.find(([, delay]) => delay === 5000)?.[0];
-      expect(intervalCallback).toBeTypeOf('function');
       await act(async () => intervalCallback!());
-      expect(checker).toHaveBeenCalledTimes(1);
-
       fireEvent.click(screen.getByRole('button', { name: 'Navigate' }));
-      await act(async () => rejectCheck(new Error('cluster A is unreachable')));
+      expect(intervalSpy).toHaveBeenCalledTimes(1);
+      await act(async () => rejectCheck(new Error('slow health failure')));
 
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('slow health failure');
     } finally {
-      onlineSpy.mockRestore();
+      cleanup();
       intervalSpy.mockRestore();
     }
   });
+
+  it.each(['/c/other-cluster/pods', '/c/test-cluster+other-cluster/pods'])(
+    'ignores an interval check after selected clusters change to %s',
+    async to => {
+      const intervalSpy = vi
+        .spyOn(globalThis, 'setInterval')
+        .mockImplementation(() => 1 as unknown as NodeJS.Timeout);
+      const onlineSpy = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(true);
+      try {
+        let rejectCheck!: (error: Error) => void;
+        const checker = vi.fn(
+          () =>
+            new Promise<void>((_resolve, reject) => {
+              rejectCheck = reject;
+            })
+        );
+
+        render(
+          <MemoryRouter initialEntries={['/c/test-cluster/pods']}>
+            <TestContext routerMap={{ cluster: 'test-cluster' }}>
+              <Navigate to={to} />
+              <PureAlertNotification checkerFunction={checker} />
+            </TestContext>
+          </MemoryRouter>
+        );
+
+        const intervalCallback = intervalSpy.mock.calls.find(([, delay]) => delay === 5000)?.[0];
+        expect(intervalCallback).toBeTypeOf('function');
+        await act(async () => intervalCallback!());
+        expect(checker).toHaveBeenCalledTimes(1);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Navigate' }));
+        await act(async () => rejectCheck(new Error('cluster A is unreachable')));
+
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      } finally {
+        cleanup();
+        onlineSpy.mockRestore();
+        intervalSpy.mockRestore();
+      }
+    }
+  );
 });

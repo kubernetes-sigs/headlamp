@@ -15,9 +15,10 @@
  */
 
 import GlobalStyles from '@mui/material/GlobalStyles';
+import { createBrowserHistory, createHashHistory } from 'history';
 import { SnackbarProvider } from 'notistack';
 import React, { useEffect } from 'react';
-import { BrowserRouter, HashRouter, useHistory, useLocation } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
 import { DesktopBackendApi, initializeDesktopBackend } from '../../helpers/backendTokenFetch';
 import { getBaseUrl } from '../../helpers/getBaseUrl';
 import { isElectron } from '../../helpers/isElectron';
@@ -27,6 +28,7 @@ import store from '../../redux/stores/store';
 import { uiSlice } from '../../redux/uiSlice';
 import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
 import { MonacoEditorLoaderInitializer } from '../monaco/MonacoEditorLoaderInitializer';
+import ClusterRouter from './ClusterRouter';
 import Layout from './Layout';
 import { PreviousRouteProvider } from './RouteSwitcher';
 
@@ -157,12 +159,12 @@ export function RouteZoomSync() {
   return null;
 }
 
-const Router = ({ children }: React.PropsWithChildren<{}>) =>
-  isElectron() ? (
-    <HashRouter>{children}</HashRouter>
-  ) : (
-    <BrowserRouter basename={getBaseUrl()}>{children}</BrowserRouter>
+const Router = ({ children }: React.PropsWithChildren<{}>) => {
+  const [history] = React.useState(() =>
+    isElectron() ? createHashHistory() : createBrowserHistory({ basename: getBaseUrl() })
   );
+  return <ClusterRouter history={history}>{children}</ClusterRouter>;
+};
 
 export default function AppContainer() {
   // Desktop rendering waits until both authenticated backend connection details arrive.

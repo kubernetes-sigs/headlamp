@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import MenuItem from '@mui/material/MenuItem';
 import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
@@ -29,6 +30,8 @@ import ClusterTable from './ClusterTable';
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 let ClusterEmptyState: ComponentType<{ defaultContent: ReactNode }> | null = null;
 let ClusterMenuItems: ComponentType<any>[] = [];
+let isElectron = true;
+let allowKubeconfigChanges = true;
 const { dispatchMock } = vi.hoisted(() => ({ dispatchMock: vi.fn() }));
 
 function renderWithTheme(ui: ReactNode) {
@@ -59,7 +62,7 @@ vi.mock('../../../lib/k8s/api/v1/clusterApi', () => ({
 
 vi.mock('../../../helpers', () => ({
   default: {
-    isElectron: () => true,
+    isElectron: () => isElectron,
   },
 }));
 
@@ -73,7 +76,7 @@ vi.mock('../../../redux/hooks', () => ({
         clusterEmptyState: ClusterEmptyState,
       },
       config: {
-        allowKubeconfigChanges: true,
+        allowKubeconfigChanges,
         isDynamicClusterEnabled: true,
       },
     }),
@@ -435,6 +438,58 @@ describe('ClusterContextMenu', () => {
   afterEach(() => {
     vi.clearAllMocks();
     ClusterMenuItems = [];
+    isElectron = true;
+    allowKubeconfigChanges = true;
+  });
+
+  it.each([true, false])(
+    'distinguishes kubeconfig removal from destructive plugin deletion (desktop: %s)',
+    desktop => {
+      isElectron = desktop;
+      ClusterMenuItems = [() => <MenuItem>Delete</MenuItem>];
+
+      render(
+        <SnackbarProvider>
+          <MemoryRouter>
+            <ClusterContextMenu
+              cluster={
+                {
+                  name: 'minikube',
+                  auth_type: '',
+                  meta_data: { source: 'kubeconfig' },
+                } as Cluster
+              }
+            />
+          </MemoryRouter>
+        </SnackbarProvider>
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+
+      expect(screen.getByRole('menuitem', { name: 'Remove Context' })).toBeInTheDocument();
+      expect(screen.getAllByRole('menuitem', { name: 'Delete' })).toHaveLength(1);
+    }
+  );
+
+  it('does not offer kubeconfig removal when web config editing is disabled', () => {
+    isElectron = false;
+    allowKubeconfigChanges = false;
+    ClusterMenuItems = [() => <MenuItem>Delete</MenuItem>];
+
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            cluster={
+              { name: 'minikube', auth_type: '', meta_data: { source: 'kubeconfig' } } as Cluster
+            }
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+
+    expect(screen.queryByRole('menuitem', { name: 'Remove Context' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
   it('keeps Delete when a plugin registers an additive cluster action', () => {
@@ -486,8 +541,9 @@ describe('ClusterContextMenu', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
-    fireEvent.click(screen.getByText('Delete'));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove Context' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('It will not delete the cluster.');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     await waitFor(() => expect(onClusterRemoved).toHaveBeenCalledOnce());
     expect(dispatchMock).toHaveBeenCalledOnce();

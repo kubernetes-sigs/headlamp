@@ -49,7 +49,6 @@ vi.mock('../common/ObjectEventList', () => ({ default: () => null }));
 vi.mock('./Home', () => ({ default: () => null }));
 
 import '../../lib/router/index';
-import { useCluster } from '../../lib/k8s';
 import ClusterPreOpenGate from './ClusterPreOpenGate';
 import RouteSwitcher, { AuthRoute } from './RouteSwitcher';
 

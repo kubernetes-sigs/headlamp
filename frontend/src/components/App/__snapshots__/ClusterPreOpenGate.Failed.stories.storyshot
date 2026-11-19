@@ -1,0 +1,61 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1b95sop-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <img
+          alt=""
+          class="css-8atqhb"
+          src="/src/assets/headlamp-broken.svg"
+        />
+        <h1
+          class="MuiTypography-root MuiTypography-h4 css-1nsdt9j-MuiTypography-root"
+        >
+          Could not open cluster
+        </h1>
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-o27isg-MuiTypography-root"
+        >
+          Proxy exited with code 1
+stderr: could not connect to the cluster
+        </p>
+        <div
+          class="MuiBox-root css-12aeijf"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-focusVisible MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Retry
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            >
+              <span
+                class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+                style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
+              >
+                <span
+                  class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+                />
+              </span>
+            </span>
+          </button>
+          <a
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+            href="/"
+            tabindex="0"
+          >
+            Back to clusters
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

@@ -15,12 +15,16 @@
  */
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
+import { Link as RouterLink } from 'react-router-dom';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 
 export interface ClusterPreparingDialogProps {
   /** Name of the cluster being connected to. */
@@ -60,6 +64,11 @@ export default function ClusterPreparingDialog({ cluster, message }: ClusterPrep
           </Typography>
         </Box>
       </DialogContent>
+      <DialogActions>
+        <Button component={RouterLink} role={undefined} to={createRouteURL('chooser')}>
+          {t('translation|Back to clusters')}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }
