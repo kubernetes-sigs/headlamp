@@ -142,6 +142,10 @@ type DiscoveryOrigin struct {
 	Entry       string
 }
 
+// proxyMu guards the lazily set up proxy field of every Context. It is package-level rather than a
+// field because Context is copied by value in many places, which would copy a lock (go vet copylocks).
+var proxyMu sync.RWMutex
+
 // Context contains all information related to a kubernetes context.
 type Context struct {
 	Discovery         *DiscoveryOrigin           `json:"-"`
@@ -743,14 +747,33 @@ func parseAPIProxyConfig(cfg map[string]string) (*APIProxySettings, error) {
 
 // ProxyRequest proxies the given request to the cluster.
 func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request) error {
-	if c.proxy == nil {
-		err := c.SetupProxy()
+	proxyMu.RLock()
+
+	proxy := c.proxy
+
+	proxyMu.RUnlock()
+
+	if proxy == nil {
+		// Build the proxy before taking the lock, as it reads token and cert files and the lock is
+		// shared by every context.
+		built, err := c.buildProxy()
 		if err != nil {
 			return err
 		}
+
+		proxyMu.Lock()
+
+		// Another request may have set the proxy up meanwhile. If so, drop the one built here.
+		if c.proxy == nil {
+			c.proxy = built
+		}
+
+		proxy = c.proxy
+
+		proxyMu.Unlock()
 	}
 
-	c.proxy.ServeHTTP(writer, request)
+	proxy.ServeHTTP(writer, request)
 
 	return nil
 }
@@ -856,22 +879,32 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 // user's bearer token is forwarded as-is in the Authorization header by the
 // request handler.
 func (c *Context) SetupProxy() error {
-	c.proxy = nil
+	proxy, err := c.buildProxy()
 
+	proxyMu.Lock()
+	defer proxyMu.Unlock()
+
+	// A failed setup leaves no proxy behind, so a stale one is never used.
+	c.proxy = proxy
+
+	return err
+}
+
+// buildProxy builds the reverse proxy without storing it, so it can run without holding proxyMu.
+// It returns a nil proxy on error.
+func (c *Context) buildProxy() (*httputil.ReverseProxy, error) {
 	URL, err := c.UpstreamURL()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
 	if err := c.setupProxyTransport(proxy); err != nil {
-		return err
+		return nil, err
 	}
 
-	c.proxy = proxy
-
-	return nil
+	return proxy, nil
 }
 
 // AuthType returns the authentication type for the context.
