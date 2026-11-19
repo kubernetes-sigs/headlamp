@@ -32,6 +32,40 @@ vi.mock('../lib/k8s/api/v1/clusterRequests', async importOriginal => {
 });
 import { request } from '../lib/k8s/api/v1/clusterRequests';
 
+describe('getStatelessClusterKubeConfigs open failures', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each(['callback', 'throw'])(
+    'rejects browser open %s failures rather than hanging',
+    async mode => {
+      const error = new Error('IndexedDB unavailable');
+      const request: any = {};
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+        if (mode === 'throw') throw error;
+        return request;
+      });
+      const result = getStatelessClusterKubeConfigs().then(
+        value => ({ value }),
+        reason => ({ error: reason })
+      );
+      if (mode === 'callback') {
+        try {
+          request.onerror({ target: { error } });
+        } catch {
+          // Browser event-handler exceptions must not terminate this regression test.
+        }
+      }
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(await Promise.race([result, Promise.resolve('pending')])).toEqual({ error });
+    }
+  );
+});
+
 describe('findAndReplaceKubeconfig', () => {
   beforeEach(() => {
     // Clear any existing data

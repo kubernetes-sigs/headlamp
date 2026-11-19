@@ -45,14 +45,15 @@ func IsAuthBypassURL(urlPath string) bool {
 }
 
 // IsSelfSubjectReviewAPIPath returns true when path targets a self-subject review API endpoint
-// under /apis/authorization.k8s.io/{version} (either directly, or proxied via
-// /clusters/{name}/...). The version segment is intentionally not enumerated so
-// future authorization API versions keep the same cache-bypass behavior.
+// under /apis/authorization.k8s.io/{version} or /apis/authentication.k8s.io/{version}
+// (either directly, or proxied via /clusters/{name}/...). The version segment is intentionally
+// not enumerated so future API versions keep the same cache-bypass behavior.
 func IsSelfSubjectReviewAPIPath(urlPath string) bool {
 	urlPath = strings.TrimRight(urlPath, "/")
 
 	return isDirectOrProxiedAPIResourceEndpoint(urlPath, "authorization.k8s.io", "selfsubjectaccessreviews") ||
-		isDirectOrProxiedAPIResourceEndpoint(urlPath, "authorization.k8s.io", "selfsubjectrulesreviews")
+		isDirectOrProxiedAPIResourceEndpoint(urlPath, "authorization.k8s.io", "selfsubjectrulesreviews") ||
+		isDirectOrProxiedAPIResourceEndpoint(urlPath, "authentication.k8s.io", "selfsubjectreviews")
 }
 
 func isDirectOrProxiedEndpoint(urlPath, endpoint string) bool {
