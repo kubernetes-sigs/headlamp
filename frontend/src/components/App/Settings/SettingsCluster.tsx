@@ -142,12 +142,16 @@ export default function SettingsCluster() {
   const [defaultNamespaceInput, setDefaultNamespaceInput] = React.useState(defaultNamespace);
   React.useEffect(() => {
     setDefaultNamespaceInput(defaultNamespace);
-  }, [defaultNamespace]);
+  }, [defaultNamespace, cluster]);
 
   const allowedNamespacesSelector = clusterSettings.allowedNamespacesSelector || '';
   React.useEffect(() => {
     setNamespacesSelectorInput(allowedNamespacesSelector);
   }, [allowedNamespacesSelector, cluster]);
+
+  React.useEffect(() => {
+    setNewAllowedNamespace('');
+  }, [cluster]);
 
   // Resolve the configured selector (via Namespace.useList) and keep the cache in
   // sync. The resolution is keyed on the persisted selector, so it re-runs after

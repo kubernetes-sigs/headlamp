@@ -276,6 +276,26 @@ describe('SettingsCluster states and namespaces', () => {
     expect(screen.getByText('zeta')).toBeInTheDocument();
   });
 
+  it('clears typed namespaces when switching to another cluster', async () => {
+    mockState.clustersConf['other-cluster'] = {
+      name: 'other-cluster',
+      meta_data: { namespace: 'default', source: 'kubeconfig' },
+    };
+    renderSettings();
+    const allowedInput = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+    const defaultInput = screen.getByRole('textbox', { name: 'Default namespace' });
+
+    await userEvent.type(allowedInput, 'team-a');
+    // Never a valid namespace, so it isn't saved and only the cluster switch can reset it.
+    await userEvent.type(defaultInput, 'Team');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Cluster' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'other-cluster' }));
+
+    await waitFor(() => expect(allowedInput).toHaveValue(''));
+    expect(defaultInput).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Add namespace' })).toBeDisabled();
+  });
+
   it('renders Electron controls and removes a dynamic cluster', async () => {
     mockState.electron = true;
     mockState.clustersConf[clusterName].meta_data.source = 'dynamic_cluster';
