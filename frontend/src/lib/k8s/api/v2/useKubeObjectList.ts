@@ -1009,11 +1009,14 @@ export function useKubeObjectList<K extends KubeObject>({
             error.cluster = cached.cluster;
             error.namespace = cached.namespace;
 
-            if (error.status === 410) {
+            if (error.status === 410 && isCurrentLoadMore()) {
               queryClient.invalidateQueries({ queryKey: q.queryKey! });
             }
 
             throw error;
+          }
+          if (!isCurrentLoadMore()) {
+            return;
           }
 
           const kind = raw.kind.replace(/List$/, '');
@@ -1028,6 +1031,7 @@ export function useKubeObjectList<K extends KubeObject>({
           });
 
           queryClient.setQueryData<ListResponse<K>>(q.queryKey!, old => {
+            if (!isCurrentLoadMore()) return old;
             if (!old) return old;
             return {
               ...old,

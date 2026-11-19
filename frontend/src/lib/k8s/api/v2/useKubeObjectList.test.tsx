@@ -1738,7 +1738,7 @@ describe('useKubeObjectList', () => {
     } finally {
       await act(async () => {
         oldPage.resolve({
-          json: () => Promise.reject(new ApiError('old B page failed', { status: 500 })),
+          json: () => Promise.reject(new ApiError('old B page expired', { status: 410 })),
         } as Response);
 
         if (pendingLoad) {
@@ -1834,7 +1834,7 @@ describe('useKubeObjectList', () => {
       await waitFor(() => expect(aPageRequests).toBe(2));
     } finally {
       oldAPage.resolve({
-        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a2', '2')] })),
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a-stale', '2')] })),
       } as Response);
 
       await act(async () => {
@@ -1845,6 +1845,15 @@ describe('useKubeObjectList', () => {
         );
       });
     }
+    await waitFor(() => {
+      expect(result.current.error).toBeNull();
+      expect(result.current.items?.map(item => item.jsonData.metadata.name)).toEqual([
+        'pod-a1',
+        'pod-a2',
+      ]);
+    });
+
+    expect(aPageRequests).toBe(2);
   });
 
   it('should call useKubeObjectList with 1 namespace after reducing amount of namespaces', async () => {
