@@ -24,6 +24,10 @@ const KEY_RE = /^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$/;
 const PREFIX_RE = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
 const VALUE_RE = /^([A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?)?$/;
 
+function isValidValue(value: string): boolean {
+  return value.length <= 63 && VALUE_RE.test(value);
+}
+
 /** Validates a label name with an optional DNS subdomain prefix. */
 function isValidKey(key: string): boolean {
   const parts = key.split('/');
@@ -88,7 +92,7 @@ function parseRequirement(raw: string): Requirement {
     const operator = setMatch[2] === 'in' ? 'in' : 'notIn';
     // Empty values, including the sole value in (), are valid Kubernetes labels.
     const values = setMatch[3].split(',').map(value => value.trim());
-    if (!isValidKey(key) || !values.every(value => VALUE_RE.test(value))) {
+    if (!isValidKey(key) || !values.every(isValidValue)) {
       throw new Error(`invalid set requirement: ${text}`);
     }
     return { operator, key, values };
@@ -98,7 +102,7 @@ function parseRequirement(raw: string): Requirement {
   if (notEqualsMatch) {
     const key = notEqualsMatch[1].trim();
     const value = notEqualsMatch[2].trim();
-    if (!isValidKey(key) || !VALUE_RE.test(value)) {
+    if (!isValidKey(key) || !isValidValue(value)) {
       throw new Error(`invalid requirement: ${text}`);
     }
     return { operator: 'notEquals', key, value };
@@ -108,7 +112,7 @@ function parseRequirement(raw: string): Requirement {
   if (equalsMatch) {
     const key = equalsMatch[1].trim();
     const value = equalsMatch[2].trim();
-    if (!isValidKey(key) || !VALUE_RE.test(value)) {
+    if (!isValidKey(key) || !isValidValue(value)) {
       throw new Error(`invalid requirement: ${text}`);
     }
     return { operator: 'equals', key, value };

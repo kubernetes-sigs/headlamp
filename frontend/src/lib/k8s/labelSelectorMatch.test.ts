@@ -191,6 +191,18 @@ describe('matchesLabelSelector', () => {
     });
   });
 
+  describe('label values', () => {
+    it.each([
+      `foo=${'a'.repeat(64)}`,
+      `foo==${'a'.repeat(64)}`,
+      `foo!=${'a'.repeat(64)}`,
+      `foo in (${'a'.repeat(64)})`,
+      `foo notin (${'a'.repeat(64)})`,
+    ])('fails closed for an overlong value in %s', selector => {
+      expect(matchesLabelSelector({}, selector)).toBe(false);
+    });
+  });
+
   describe('malformed input', () => {
     it('fails closed without throwing on an unbalanced set', () => {
       expect(() => matchesLabelSelector({ foo: 'a' }, 'foo in (a,b')).not.toThrow();
