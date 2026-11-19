@@ -121,8 +121,14 @@ function ProjectDetailsPage() {
  * @returns The gated project details page.
  */
 export default function ProjectDetails() {
+  const { t } = useTranslation();
   const clusterConf = useClustersConf();
-  const clusters = Object.values(clusterConf ?? {}).map(cluster => cluster.name);
+
+  if (clusterConf === null) {
+    return <Loader title={t('Loading')} />;
+  }
+
+  const clusters = Object.values(clusterConf).map(cluster => cluster.name);
 
   return (
     <AllowedNamespacesSelectorGate clusters={clusters}>
