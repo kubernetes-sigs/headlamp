@@ -144,9 +144,11 @@ their mutable cursors because that transport does not reconnect on its own.
 After a single-object watch expires, a name-filtered collection LIST supplies a
 fresh snapshot and collection cursor: a named GET can keep returning an expired
 object version. This recovery requires LIST permission, and failures are surfaced
-through the query error. All observers adopt the fresh cursor, including when the
-fetching observer unmounts. Deleted objects report 404 while the watch remains
-active to observe recreation.
+through the query error. If a snapshot fails, the last successfully loaded object
+remains visible with a warning in the details view; its expired watch stays
+disabled until a snapshot succeeds. All observers adopt the fresh cursor,
+including when the fetching observer unmounts. Deleted objects report 404 while
+the watch remains active to observe recreation.
 New browser multiplexer sessions reconcile watches that have already applied
 events before resubscribing, rather than replaying their pinned opening queries
 into newer cached objects. This uses the same snapshot/error path on both v2

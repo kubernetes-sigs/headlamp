@@ -560,30 +560,73 @@ describe('useKubeObject watch wiring', () => {
     client.clear();
   });
 
-  it('surfaces a failed collection snapshot rather than restarting an expired watch', async () => {
-    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
-    mockClusterFetch.mockResolvedValue(
-      mockJsonResponse({ metadata: { name: 'my-pod', resourceVersion: '1' } })
-    );
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const { result, unmount } = renderHook(
-      () => useKubeObject({ kubeObjectClass: MockPod, name: 'my-pod', cluster: 'test' }),
-      { wrapper: createWrapper(client) }
-    );
-    await waitFor(() => expect(mockUseWebSocket.mock.calls.at(-1)![0].enabled).toBe(true));
-    mockClusterFetch.mockRejectedValue(new ApiError('Forbidden', { status: 403 }));
-    act(() =>
-      mockUseWebSocket.mock.calls.at(-1)![0].onMessage({
-        type: 'ERROR',
-        object: { code: 410 },
-      })
-    );
+  it.each(['true', 'false'])(
+    'retains the last object and reports a failed recovery snapshot (multiplexer=%s)',
+    async enabled => {
+      vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', enabled);
+      mockClusterFetch.mockResolvedValue(mockJsonResponse(watchPod('1')));
+      const { result, client } = renderWatchedPod();
+      const watch = () =>
+        enabled === 'true'
+          ? mockUseWebSocket.mock.calls.at(-1)![0]
+          : {
+              ...mockUseWebSockets.mock.calls.at(-1)![0].connections[0],
+              enabled: mockUseWebSockets.mock.calls.at(-1)![0].enabled,
+            };
+      await waitFor(() => expect(watch().enabled).toBe(true));
+      const loaded = result.current.data;
+      const onMessage = watch().onMessage;
+      const forbidden = new ApiError('Cannot list pods', { status: 403 });
+      mockClusterFetch.mockRejectedValue(forbidden);
+      act(() => onMessage({ type: 'ERROR', object: { code: 410 } }));
+      await waitFor(() => expect(result.current.error).toBe(forbidden));
+      expect(result.current.data).toBe(loaded);
+      expect([...result.current]).toEqual([loaded, forbidden]);
+      expect(result.current.isError).toBe(true);
+      expect(watch().enabled).toBe(false);
+      // A late event from the expired watch must not overwrite the retained object.
+      act(() => onMessage({ type: 'MODIFIED', object: watchPod('2') }));
+      expect(result.current.data).toBe(loaded);
+
+      mockClusterFetch.mockResolvedValue(
+        mockJsonResponse({ items: [watchPod('3')], metadata: { resourceVersion: '20' } })
+      );
+      await act(async () => {
+        await client.invalidateQueries({
+          queryKey: kubeObjectQueryKey({
+            cluster: 'test',
+            endpoint: MockPod.apiEndpoint.apiInfo[0],
+            name: 'my-pod',
+            namespace: 'my-ns',
+          }),
+          exact: true,
+        });
+      });
+      await waitFor(() => expect(result.current.error).toBeNull());
+      expect(result.current.data?.jsonData.metadata.resourceVersion).toBe('3');
+      expect(watch().enabled).toBe(true);
+    }
+  );
+
+  it('does not retain an object after a failed named GET', async () => {
+    mockClusterFetch.mockResolvedValue(mockJsonResponse(watchPod('1')));
+    const { result, client } = renderWatchedPod();
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+    mockClusterFetch.mockRejectedValue(new ApiError('Cannot get pod', { status: 403 }));
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: kubeObjectQueryKey({
+          cluster: 'test',
+          endpoint: MockPod.apiEndpoint.apiInfo[0],
+          name: 'my-pod',
+          namespace: 'my-ns',
+        }),
+        exact: true,
+      });
+    });
     await waitFor(() => expect(result.current.error?.status).toBe(403));
-    expect(result.current.isError).toBe(true);
-    expect(mockUseWebSocket.mock.calls.at(-1)![0].enabled).toBe(false);
-    unmount();
-    await client.cancelQueries();
-    client.clear();
+    expect(result.current.data).toBeNull();
+    expect(mockClusterFetch.mock.calls.at(-1)![0]).toBe('api/v1/namespaces/my-ns/pods/my-pod');
   });
 
   it('does not repin the shared cursor when a cancelled fetch settles late', async () => {

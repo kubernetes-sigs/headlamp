@@ -241,7 +241,8 @@ export function useKubeObject<K extends KubeObject>({
     setWatchSnapshot(initialData.jsonData.metadata.resourceVersion);
   }, [client, endpoint, initialData, queryKey, setWatchSnapshot]);
 
-  const queryData: Instance | null = query.error ? null : query.data ?? null;
+  // A failed watch snapshot must not discard a successfully loaded object.
+  const queryData: Instance | null = query.error && !watchState.expired ? null : query.data ?? null;
   const data = initialData && seededInitialData !== initialData ? initialData : queryData;
   useLayoutEffect(() => {
     if (data && watchState.resourceVersion === null) {
