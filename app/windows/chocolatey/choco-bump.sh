@@ -14,7 +14,7 @@ Bump Headlamp's version for the chocolatey entry.
   VERSION             Headlamp's new version
   CHECKSUM            The Windows binary SHA256 checksum
 
-The VERSION and CHECKSUM can be ommitted if the --file option is used.
+The VERSION and CHECKSUM can be omitted if the --file option is used.
 
 Optional:
 
