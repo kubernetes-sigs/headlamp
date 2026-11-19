@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 import App from '../../App';
 import ResourceSlice from '../../lib/k8s/resourceSlice';
 import { TestContext } from '../../test';
-import ResourceSliceNode from './ResourceSliceNode';
+import ResourceSliceNode, { ResourceSliceDeviceNode } from './ResourceSliceNode';
 import { RESOURCE_SLICE_DUMMY_DATA } from './storyHelper';
 
 // cyclic imports fix
@@ -74,5 +74,53 @@ describe('ResourceSliceNode', () => {
       </TestContext>
     );
     expect(screen.getByText('Set per device')).toBeVisible();
+  });
+});
+
+describe('ResourceSliceDeviceNode', () => {
+  const perDeviceSlice = new ResourceSlice(
+    {
+      ...nodeSlice,
+      spec: { ...nodeSlice.spec, nodeName: undefined, perDeviceNodeSelection: true },
+    },
+    'gpu-cluster'
+  );
+
+  it('links a device published for one node to that node', () => {
+    render(
+      <TestContext>
+        <ResourceSliceDeviceNode
+          slice={perDeviceSlice}
+          device={{ name: 'gpu-0', nodeName: 'gpu-worker-1' }}
+        />
+      </TestContext>
+    );
+
+    expect(screen.getByRole('link', { name: 'gpu-worker-1' })).toHaveAttribute(
+      'href',
+      '/c/gpu-cluster/nodes/gpu-worker-1'
+    );
+  });
+
+  it('says when a device can be used from every node or selected nodes', () => {
+    const { rerender } = render(
+      <TestContext>
+        <ResourceSliceDeviceNode
+          slice={perDeviceSlice}
+          device={{ name: 'gpu-0', allNodes: true }}
+        />
+      </TestContext>
+    );
+    expect(screen.getByText('All nodes')).toBeVisible();
+
+    rerender(
+      <TestContext>
+        <ResourceSliceDeviceNode
+          slice={perDeviceSlice}
+          device={{ name: 'gpu-0', nodeSelector: { nodeSelectorTerms: [] } }}
+        />
+      </TestContext>
+    );
+    expect(screen.getByText('Selected nodes')).toBeVisible();
   });
 });

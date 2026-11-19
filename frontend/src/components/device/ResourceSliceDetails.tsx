@@ -18,6 +18,8 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import ResourceSlice from '../../lib/k8s/resourceSlice';
 import { DetailsGrid } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
+import ResourceSliceDevices from './ResourceSliceDevices';
 import ResourceSliceNode from './ResourceSliceNode';
 
 export default function ResourceSliceDetails(props: { name?: string; cluster?: string }) {
@@ -54,8 +56,20 @@ export default function ResourceSliceDetails(props: { name?: string; cluster?: s
             value: <ResourceSliceNode slice={item} />,
           },
           {
-            name: t('glossary|Devices'),
+            name: t('translation|Devices'),
             value: item.devices.length,
+          },
+        ]
+      }
+      extraSections={item =>
+        item && [
+          {
+            id: 'headlamp.resourceslice-devices',
+            section: (
+              <SectionBox title={t('translation|Devices')}>
+                <ResourceSliceDevices slice={item} />
+              </SectionBox>
+            ),
           },
         ]
       }

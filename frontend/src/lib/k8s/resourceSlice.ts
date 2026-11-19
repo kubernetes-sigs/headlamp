@@ -45,6 +45,15 @@ export interface ResourceSliceDevice {
   attributes?: Record<string, DeviceAttribute>;
   /** The amounts of resources the device has, keyed by a qualified name. */
   capacity?: Record<string, DeviceCapacity>;
+  /**
+   * The one node that can use the device. The node fields of a device are set only
+   * when the slice uses `perDeviceNodeSelection`, and then exactly one of them is set.
+   */
+  nodeName?: string;
+  /** The nodes that can use the device. */
+  nodeSelector?: { nodeSelectorTerms: NodeSelectorTerm[] };
+  /** Set when every node in the cluster can use the device. */
+  allNodes?: boolean;
 }
 
 /** The pool a slice belongs to. A pool can span several slices. */
