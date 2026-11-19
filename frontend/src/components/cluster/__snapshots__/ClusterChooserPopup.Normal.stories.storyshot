@@ -149,7 +149,7 @@
           </li>
           <hr
             class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"
-            role="separator"
+            role="presentation"
           />
           <li
             aria-selected="false"

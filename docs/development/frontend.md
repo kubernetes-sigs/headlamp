@@ -167,6 +167,10 @@ This command will:
 
 The tests will fail if any accessibility issues are detected, making it useful for CI/CD pipelines.
 
+Listboxes must expose selectable items as options. Keep decorative dividers
+presentation-only so they do not appear as unsupported separator children.
+When changing component markup, update the affected Storybook snapshots as well.
+
 #### Baseline Storybook a11y Configuration
 
 Known failures are tracked in `frontend/.axe-storybook-baseline.test-a11y.json`. This file is
