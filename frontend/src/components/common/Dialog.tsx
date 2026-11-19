@@ -47,6 +47,8 @@ export interface OurDialogTitleProps extends DialogTitleProps {
  */
 export function DialogTitle(props: OurDialogTitleProps) {
   const { children, focusTitle, buttons, disableTypography = false, id, ...other } = props;
+  const generatedId = React.useId();
+  const titleId = id ?? generatedId;
   const focusedRef = React.useCallback(
     (node: HTMLElement | null) => {
       if (node !== null && focusTitle) {
@@ -63,15 +65,14 @@ export function DialogTitle(props: OurDialogTitleProps) {
   }
 
   return (
-    <MuiDialogTitle style={{ display: 'flex' }} {...other}>
+    <MuiDialogTitle id={titleId} style={{ display: 'flex' }} {...other}>
       <Grid container justifyContent="space-between" alignItems="center">
         {children && (
           <Grid item>
             {disableTypography ? (
-              <div id={id}>{children}</div>
+              <div>{children}</div>
             ) : (
               <Typography
-                id={id}
                 ref={focusedRef}
                 variant="h1"
                 style={{
