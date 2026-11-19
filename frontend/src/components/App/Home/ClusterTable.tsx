@@ -286,7 +286,7 @@ export default function ClusterTable({
           icon="mdi:hexagon-multiple-outline"
           style={{ fontSize: 64, color: '#ccc', marginBottom: 16 }}
         />
-        <Typography variant="h6" gutterBottom>
+        <Typography variant="h6" component="h1" gutterBottom>
           {t('No clusters found')}
         </Typography>
         <Typography variant="body2" color="text.secondary" paragraph>

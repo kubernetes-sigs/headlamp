@@ -20,7 +20,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react';
 import { afterEach, vi } from 'vitest';
 
-const { MockKubeObject } = vi.hoisted(() => {
+const { MockKubeObject, mockUseProject } = vi.hoisted(() => {
   class MockKubeObject {
     static kind = '';
     jsonData: any;
@@ -34,10 +34,17 @@ const { MockKubeObject } = vi.hoisted(() => {
     }
   }
 
-  return { MockKubeObject };
+  return { MockKubeObject, mockUseProject: vi.fn() };
 });
 
 vi.mock('../../lib/k8s/KubeObject', () => ({ KubeObject: MockKubeObject }));
+vi.mock('../../lib/k8s/allowedNamespaces', () => ({
+  useAllowedNamespacesFromSelector: () => ({
+    error: null,
+    isSuccess: false,
+    namespaces: [],
+  }),
+}));
 vi.mock('./ProjectDeleteButton', () => ({ ProjectDeleteButton: () => null }));
 const eventProject = {
   id: 'project-1',
@@ -46,10 +53,11 @@ const eventProject = {
 };
 
 vi.mock('./ProjectList', () => ({
-  useProject: () => ({ project: eventProject, isLoading: false }),
+  useProject: (...args: unknown[]) => mockUseProject(...args),
 }));
 
 import App from '../../App';
+import { setConfig } from '../../redux/configSlice';
 import { HeadlampEventType } from '../../redux/headlampEventSlice';
 import {
   addDetailsTab,
@@ -58,6 +66,7 @@ import {
   ProjectDefinition,
 } from '../../redux/projectsSlice';
 import reducers from '../../redux/reducers/reducers';
+import defaultStore from '../../redux/stores/store';
 import { recordHeadlampEvents, TestContext } from '../../test';
 import ProjectDetails, { ProjectDetailsContent } from './ProjectDetails';
 import { useProjectItems } from './useProjectResources';
@@ -75,6 +84,8 @@ const overviewProject: ProjectDefinition = {
   namespaces: ['namespace-a'],
   clusters: ['cluster-a'],
 };
+
+mockUseProject.mockReturnValue({ project: eventProject, isLoading: false });
 
 function renderProjectOverview(
   sections: Array<{
@@ -96,6 +107,43 @@ function renderProjectOverview(
   );
 }
 
+describe('ProjectDetails selector readiness', () => {
+  it('does not mount project details before cluster configuration loads', () => {
+    const store = configureStore({
+      reducer: reducers,
+      middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
+    });
+    store.dispatch(setConfig({ clusters: null }));
+    localStorage.setItem(
+      'cluster_settings.cluster-1',
+      JSON.stringify({ allowedNamespacesSelector: 'team=frontend' })
+    );
+    mockUseProject.mockClear();
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    render(
+      <TestContext store={store} routerMap={{ name: eventProject.id }}>
+        <QueryClientProvider client={queryClient}>
+          <ProjectDetails />
+        </QueryClientProvider>
+      </TestContext>
+    );
+
+    expect(mockUseProject).not.toHaveBeenCalled();
+
+    act(() => {
+      store.dispatch(
+        setConfig({
+          clusters: { 'cluster-1': { name: 'cluster-1', auth_type: '' } },
+        })
+      );
+    });
+
+    expect(mockUseProject).not.toHaveBeenCalled();
+  });
+});
+
 describe('ProjectDetails events', () => {
   beforeEach(() => {
     vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
@@ -105,6 +153,9 @@ describe('ProjectDetails events', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+    defaultStore.dispatch(
+      setConfig({ clusters: { 'cluster-1': { name: 'cluster-1', auth_type: '' } } })
+    );
     return render(
       <TestContext routerMap={{ name: eventProject.id }}>
         <QueryClientProvider client={queryClient}>

@@ -19,6 +19,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
 import { expect, within } from 'storybook/test';
 import { pluginsLoaded } from '../../plugin/pluginsSlice';
+import { setConfig } from '../../redux/configSlice';
 import reducers from '../../redux/reducers/reducers';
 import { API_BASE, TestContext } from '../../test';
 import Layout from './Layout';
@@ -27,6 +28,7 @@ import { applyBackendThemeConfig } from './themeSlice';
 function createLayoutStore(themeConfigReady = true) {
   const store = configureStore({ reducer: reducers });
   store.dispatch(pluginsLoaded());
+  store.dispatch(setConfig({ clusters: {} }));
   if (themeConfigReady) {
     store.dispatch(applyBackendThemeConfig({}));
   }

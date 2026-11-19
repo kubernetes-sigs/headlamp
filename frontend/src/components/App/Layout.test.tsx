@@ -22,10 +22,19 @@ import {
   getBackstageToken,
   setRuntimeBackstageOrigins,
 } from '../../helpers/backstageMessageReceiver';
+import { pluginsSlice } from '../../plugin/pluginsSlice';
 import { setConfig } from '../../redux/configSlice';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
+import { applyBackendThemeConfig } from './themeSlice';
 
+const { mockK8sState, mockRouteMount } = vi.hoisted(() => ({
+  mockK8sState: {
+    cluster: null as string | null,
+    clusters: null as Record<string, { name: string }> | null,
+  },
+  mockRouteMount: vi.fn(),
+}));
 const mockRequest = vi.fn();
 
 vi.mock('../../lib/k8s/api/v1/clusterRequests', () => ({
@@ -37,8 +46,8 @@ vi.mock('../../helpers/isBackstage', () => ({
 }));
 
 vi.mock('../../lib/k8s', () => ({
-  useCluster: vi.fn(() => null),
-  useClustersConf: vi.fn(() => ({})),
+  useCluster: vi.fn(() => mockK8sState.cluster),
+  useClustersConf: vi.fn(() => mockK8sState.clusters),
   useSelectedClusters: vi.fn(() => []),
 }));
 
@@ -56,9 +65,19 @@ vi.mock('../Sidebar', () => ({
 }));
 
 vi.mock('./TopBar', () => ({ default: () => null }));
-vi.mock('./RouteSwitcher', () => ({ default: () => null }));
+vi.mock('./RouteSwitcher', async () => {
+  const ReactModule = await vi.importActual<typeof import('react')>('react');
+  return {
+    default: function MockRouteSwitcher() {
+      ReactModule.useEffect(() => mockRouteMount(), []);
+      return null;
+    },
+  };
+});
 vi.mock('./VersionDialog', () => ({ default: () => null }));
-vi.mock('./AllowedNamespacesSelectorGate', () => ({ default: () => null }));
+vi.mock('./AllowedNamespacesSelectorGate', () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
+}));
 vi.mock('./ResourceShortcuts', () => ({ default: () => null }));
 vi.mock('./Settings/ShortcutsSettings', () => ({ default: () => null }));
 vi.mock('../activity/Activity', () => ({ ActivitiesRenderer: () => null }));
@@ -90,6 +109,9 @@ describe('Layout Backstage readiness and message receiver', () => {
     setRuntimeBackstageOrigins(undefined);
     store.dispatch(setConfig({ clusters: null, backstageOrigin: '' }));
     vi.clearAllMocks();
+    mockK8sState.cluster = null;
+    mockK8sState.clusters = null;
+    mockRouteMount.mockClear();
     mockRequest.mockResolvedValue({ clusters: [] });
     vi.spyOn(window.parent, 'postMessage').mockImplementation(() => {});
   });
@@ -101,6 +123,35 @@ describe('Layout Backstage readiness and message receiver', () => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
     localStorage.clear();
+  });
+
+  it('keeps the routed subtree mounted while cluster configuration becomes available', async () => {
+    store.dispatch(pluginsSlice.actions.pluginsLoaded());
+    store.dispatch(applyBackendThemeConfig({}));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <TestContext>
+          <Layout />
+        </TestContext>
+      </QueryClientProvider>
+    );
+
+    expect(mockRouteMount).not.toHaveBeenCalled();
+
+    mockK8sState.cluster = 'cluster-a';
+    mockK8sState.clusters = { 'cluster-a': { name: 'cluster-a' } };
+    await act(async () => {
+      view.rerender(
+        <QueryClientProvider client={queryClient}>
+          <TestContext>
+            <Layout />
+          </TestContext>
+        </QueryClientProvider>
+      );
+    });
+
+    expect(mockRouteMount).toHaveBeenCalledTimes(1);
   });
 
   it('notifies the single configured origin once', async () => {
