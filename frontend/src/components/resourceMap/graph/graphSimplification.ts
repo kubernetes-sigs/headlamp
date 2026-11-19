@@ -110,8 +110,22 @@ export function getGraphForSelectedNamespace(
 ) {
   if (!simplifiedGraph.simplified || !namespaceName) return simplifiedGraph;
 
+  const inNamespaceIds = new Set(
+    filteredGraph.nodes
+      .filter(node => node.kubeObject?.metadata?.namespace === namespaceName)
+      .map(node => node.id)
+  );
+  // Keep the cluster-scoped resources those nodes link to, such as the DeviceClass a claim
+  // asks for, so the drill-down shows the same relations as the overview.
+  const linkedNodeIds = new Set<string>();
+  filteredGraph.edges.forEach(edge => {
+    if (inNamespaceIds.has(edge.source)) linkedNodeIds.add(edge.target);
+    if (inNamespaceIds.has(edge.target)) linkedNodeIds.add(edge.source);
+  });
   const namespaceNodes = filteredGraph.nodes.filter(
-    node => node.kubeObject?.metadata?.namespace === namespaceName
+    node =>
+      inNamespaceIds.has(node.id) ||
+      (linkedNodeIds.has(node.id) && !!node.kubeObject && !node.kubeObject.metadata?.namespace)
   );
   const namespaceNodeIds = new Set(namespaceNodes.map(node => node.id));
   const namespaceEdges = filteredGraph.edges.filter(

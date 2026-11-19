@@ -19,6 +19,7 @@ import App from '../../../../App';
 import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
+import DeviceClass from '../../../../lib/k8s/deviceClass';
 import Gateway from '../../../../lib/k8s/gateway';
 import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
@@ -26,6 +27,8 @@ import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PodGroup from '../../../../lib/k8s/podGroup';
+import ResourceClaim from '../../../../lib/k8s/resourceClaim';
+import ResourceClaimTemplate from '../../../../lib/k8s/resourceClaimTemplate';
 import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
@@ -731,5 +734,169 @@ describe('useGetAllRelations', () => {
       nonGroupingSide: 'source',
     });
     expect(relation.edgeAttributes?.(node(pvc(['ReadWriteOnce'])), node(matchingPod))).toEqual({});
+  });
+});
+
+describe('DRA relations', () => {
+  beforeEach(() => {
+    vi.mocked(useNamespaces).mockReturnValue(['namespace-a']);
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const ids = [
+    'pod-resourceclaim',
+    'pod-resourceclaimtemplate',
+    'resourceclaim-deviceclass',
+    'resourceclaimtemplate-deviceclass',
+  ];
+
+  const draPod = pod(
+    { uid: 'trainer', name: 'trainer', namespace: 'namespace-a' },
+    {
+      resourceClaims: [
+        { name: 'shared', resourceClaimName: 'shared-gpu' },
+        { name: 'gpu', resourceClaimTemplateName: 'single-gpu' },
+        { name: 'scratch', resourceClaimTemplateName: 'scratch-nvme' },
+      ],
+    }
+  );
+  draPod.jsonData.status = {
+    ...draPod.jsonData.status,
+    resourceClaimStatuses: [{ name: 'gpu', resourceClaimName: 'trainer-gpu-x7k2q' }],
+  };
+
+  const devices = (deviceClassNames: string[]) => ({
+    devices: {
+      requests: [
+        { name: 'gpu', exactly: { deviceClassName: deviceClassNames[0] } },
+        {
+          name: 'fallback',
+          firstAvailable: deviceClassNames
+            .slice(1)
+            .map((deviceClassName, index) => ({ name: `alt-${index}`, deviceClassName })),
+        },
+      ],
+    },
+  });
+
+  const claim = (
+    name: string,
+    { namespace = 'namespace-a', cluster = 'cluster-a', classes = ['gpu.example.com'] } = {}
+  ) =>
+    new ResourceClaim(
+      {
+        apiVersion: 'resource.k8s.io/v1',
+        kind: 'ResourceClaim',
+        metadata: { uid: `${cluster}/${namespace}/${name}`, name, namespace },
+        spec: devices(classes),
+      } as any,
+      cluster
+    );
+
+  const template = (name: string, classes = ['gpu.example.com']) =>
+    new ResourceClaimTemplate(
+      {
+        apiVersion: 'resource.k8s.io/v1',
+        kind: 'ResourceClaimTemplate',
+        metadata: { uid: `template/${name}`, name, namespace: 'namespace-a' },
+        spec: { spec: devices(classes) },
+      } as any,
+      'cluster-a'
+    );
+
+  const deviceClass = (name: string, cluster = 'cluster-a') =>
+    new DeviceClass(
+      {
+        apiVersion: 'resource.k8s.io/v1',
+        kind: 'DeviceClass',
+        metadata: { uid: `${cluster}/${name}`, name },
+        spec: {},
+      } as any,
+      cluster
+    );
+
+  const edgesOf = (id: string, from: KubeObject[], targets: KubeObject[]) => {
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, id);
+    const nodesByUid = new Map(targets.map(target => [target.metadata.uid, node(target)]));
+    const edges = relation.buildEdgesWithIndex!(from.map(node), nodesByUid);
+
+    for (const source of from) {
+      for (const target of targets) {
+        const linked = edges.some(
+          edge => edge.source === source.metadata.uid && edge.target === target.metadata.uid
+        );
+        expect(relation.predicate(node(source), node(target))).toBe(linked);
+      }
+    }
+    return edges;
+  };
+
+  const targetsOf = (edges: { target: string }[]) => edges.map(edge => edge.target).sort();
+
+  it('registers the DRA relation IDs as built-in', () => {
+    const { result } = renderUseGetAllRelations();
+
+    expect(result.current.map(relation => relation.id)).toEqual(expect.arrayContaining(ids));
+    expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(ids));
+  });
+
+  it('links a Pod to the claims it names and to the claims made for it', () => {
+    const edges = edgesOf(
+      'pod-resourceclaim',
+      [draPod],
+      [
+        claim('shared-gpu'),
+        claim('trainer-gpu-x7k2q'),
+        claim('shared-gpu', { namespace: 'namespace-b' }),
+        claim('shared-gpu', { cluster: 'cluster-b' }),
+        claim('unrelated'),
+      ]
+    );
+
+    expect(targetsOf(edges)).toEqual([
+      'cluster-a/namespace-a/shared-gpu',
+      'cluster-a/namespace-a/trainer-gpu-x7k2q',
+    ]);
+  });
+
+  it('links a Pod to the templates its claims come from', () => {
+    const edges = edgesOf(
+      'pod-resourceclaimtemplate',
+      [draPod],
+      [template('single-gpu'), template('scratch-nvme'), template('multiple-gpus')]
+    );
+
+    expect(targetsOf(edges)).toEqual(['template/scratch-nvme', 'template/single-gpu']);
+    expect(edges.every(edge => edge.nonGroupingSide === 'target')).toBe(true);
+  });
+
+  it('links claims and templates to every device class they can use, once each', () => {
+    const classes = ['big-gpu.example.com', 'gpu.example.com', 'big-gpu.example.com'];
+    const targets = [
+      deviceClass('big-gpu.example.com'),
+      deviceClass('gpu.example.com'),
+      deviceClass('gpu.example.com', 'cluster-b'),
+      deviceClass('nvme.example.com'),
+    ];
+    const expected = ['cluster-a/big-gpu.example.com', 'cluster-a/gpu.example.com'];
+
+    const claimEdges = edgesOf(
+      'resourceclaim-deviceclass',
+      [claim('fallback-gpu', { namespace: 'namespace-b', classes })],
+      targets
+    );
+    const templateEdges = edgesOf(
+      'resourceclaimtemplate-deviceclass',
+      [template('prioritized-gpu', classes)],
+      targets
+    );
+
+    expect(targetsOf(claimEdges)).toEqual(expected);
+    expect(targetsOf(templateEdges)).toEqual(expected);
+    expect(claimEdges.every(edge => edge.nonGroupingSide === 'target')).toBe(true);
+    expect(templateEdges.every(edge => edge.nonGroupingSide === 'both')).toBe(true);
   });
 });

@@ -24,6 +24,7 @@ import CustomResourceDefinition from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
+import DeviceClass from '../../../../lib/k8s/deviceClass';
 import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
@@ -45,6 +46,8 @@ import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PodGroup from '../../../../lib/k8s/podGroup';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
+import ResourceClaim from '../../../../lib/k8s/resourceClaim';
+import ResourceClaimTemplate from '../../../../lib/k8s/resourceClaimTemplate';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
 import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
@@ -213,6 +216,68 @@ const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
   },
 });
 
+/**
+ * Create a relation whose source names its targets, such as a Pod naming its claims.
+ *
+ * The edges come from one lookup per name instead of comparing every pair of nodes, so
+ * the cost grows with the number of nodes rather than with their product.
+ * @param id - The id of the relation.
+ * @param from - The class of the objects that name their targets.
+ * @param to - The class of the named objects.
+ * @param targetNames - The names an object refers to, in its own namespace when `to` is
+ * namespaced.
+ * @param edgeAttributes - Extra attributes for every edge of the relation.
+ */
+const makeNamedRelation = <From extends KubeObjectClass>(
+  id: string,
+  from: From,
+  to: KubeObjectClass,
+  targetNames: (object: InstanceType<From>) => string[],
+  edgeAttributes: Partial<Omit<GraphEdge, 'id' | 'source' | 'target'>> = {}
+): Relation => {
+  const targetKey = (object: KubeObject, name: string) =>
+    JSON.stringify([object.cluster, to.isNamespaced ? object.metadata.namespace : '', name]);
+
+  return {
+    id,
+    fromSource: makeKubeSourceId(from),
+    toSource: makeKubeSourceId(to),
+    predicate(fromNode, toNode) {
+      const source = fromNode.kubeObject as InstanceType<From>;
+      const target = toNode.kubeObject as KubeObject;
+      return targetNames(source).some(
+        name => targetKey(source, name) === targetKey(target, target.metadata.name)
+      );
+    },
+    edgeAttributes: () => edgeAttributes,
+    buildEdgesWithIndex(fromNodes, nodesByUid) {
+      const targetsByKey = new Map<string, GraphNode>();
+      for (const node of nodesByUid.values()) {
+        if (node.kubeObject && to.isClassOf(node.kubeObject)) {
+          targetsByKey.set(targetKey(node.kubeObject, node.kubeObject.metadata.name), node);
+        }
+      }
+
+      const edges: GraphEdge[] = [];
+      for (const fromNode of fromNodes) {
+        const source = fromNode.kubeObject as InstanceType<From>;
+        for (const name of new Set(targetNames(source))) {
+          const toNode = targetsByKey.get(targetKey(source, name));
+          if (toNode) {
+            edges.push({
+              ...edgeAttributes,
+              id: `${fromNode.id}-${toNode.id}-${id}`,
+              source: fromNode.id,
+              target: toNode.id,
+            });
+          }
+        }
+      }
+      return edges;
+    },
+  };
+};
+
 const configMapUsedInPods = makeRelation('pod-configmap', Pod, ConfigMap, (pod, configMap) =>
   pod.spec.volumes?.find(volume => volume.configMap?.name === configMap.metadata.name)
 );
@@ -357,6 +422,37 @@ const pvcToPods = makeRelation(
   // eslint-disable-next-line no-unused-vars
   (pvc, _pod) =>
     pvc.spec?.accessModes?.includes('ReadWriteMany') ? { nonGroupingSide: 'source' } : {}
+);
+
+const podToResourceClaim = makeNamedRelation('pod-resourceclaim', Pod, ResourceClaim, pod =>
+  pod.resourceClaims.flatMap(claim => (claim.claimName ? [claim.claimName] : []))
+);
+
+const podToResourceClaimTemplate = makeNamedRelation(
+  'pod-resourceclaimtemplate',
+  Pod,
+  ResourceClaimTemplate,
+  pod => pod.resourceClaims.flatMap(claim => (claim.templateName ? [claim.templateName] : [])),
+  { nonGroupingSide: 'target' }
+);
+
+// Every claim for the same kind of device names one device class, and Pods of unrelated
+// workloads can share one template, so splitting them out keeps them from merging all of
+// those workloads into a single group.
+const resourceClaimToDeviceClass = makeNamedRelation(
+  'resourceclaim-deviceclass',
+  ResourceClaim,
+  DeviceClass,
+  claim => claim.requestedClasses,
+  { nonGroupingSide: 'target' }
+);
+
+const resourceClaimTemplateToDeviceClass = makeNamedRelation(
+  'resourceclaimtemplate-deviceclass',
+  ResourceClaimTemplate,
+  DeviceClass,
+  template => template.requestedClasses,
+  { nonGroupingSide: 'both' }
 );
 
 const podToOwner = makeOwnerRelation(Pod);
@@ -554,6 +650,10 @@ const staticRelations = [
   serviceAccountToDeployments,
   serviceAccountToDaemonSets,
   pvcToPods,
+  podToResourceClaim,
+  podToResourceClaimTemplate,
+  resourceClaimToDeviceClass,
+  resourceClaimTemplateToDeviceClass,
   podToOwner,
   replicaSetToOwner,
   jobToCronJob,

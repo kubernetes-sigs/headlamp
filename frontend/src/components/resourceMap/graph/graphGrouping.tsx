@@ -168,6 +168,34 @@ const getConnectedComponentGroups = (
 };
 
 /**
+ * Whether every edge touching a node names that node as its
+ * {@link GraphEdge.nonGroupingSide}, which makes it a resource that others share, such as a
+ * ReadWriteMany PVC or a DeviceClass.
+ *
+ * @param nodeId - The node to check
+ * @param graphLookup - Lookup structure built over the graph
+ * @returns True when the node has edges and every one of them names it
+ */
+export const isShareableNode = (
+  nodeId: string,
+  graphLookup: ReturnType<typeof makeGraphLookup>
+): boolean => {
+  const edges = [
+    ...(graphLookup.getIncomingEdges(nodeId) ?? []),
+    ...(graphLookup.getOutgoingEdges(nodeId) ?? []),
+  ];
+  return (
+    edges.length > 0 &&
+    edges.every(
+      edge =>
+        edge.nonGroupingSide === 'both' ||
+        (edge.target === nodeId && edge.nonGroupingSide === 'target') ||
+        (edge.source === nodeId && edge.nonGroupingSide === 'source')
+    )
+  );
+};
+
+/**
  * Finds nodes that must not be allowed to merge otherwise-separate components together.
  *
  * A node qualifies as "shared" when *every* edge touching it names that same node as
@@ -191,21 +219,17 @@ const findSharedNodeIds = (
   graphLookup: ReturnType<typeof makeGraphLookup>
 ): Set<string> => {
   const sharedNodeIds = new Set<string>();
+  const neighborsOfCandidates = new Map<string, Set<string>>();
 
   nodes.forEach(node => {
-    const incomingEdges = graphLookup.getIncomingEdges(node.id) ?? [];
-    const outgoingEdges = graphLookup.getOutgoingEdges(node.id) ?? [];
-    const allEdges = [...incomingEdges, ...outgoingEdges];
-
     // A node is only a shareable-resource candidate if every edge touching it names
     // *this* node (by its role on that edge) as the shareable endpoint.
-    const isShareableEndpoint = (edge: GraphEdge) =>
-      (edge.target === node.id && edge.nonGroupingSide === 'target') ||
-      (edge.source === node.id && edge.nonGroupingSide === 'source');
-
-    if (allEdges.length === 0 || !allEdges.every(isShareableEndpoint)) {
+    if (!isShareableNode(node.id, graphLookup)) {
       return;
     }
+
+    const incomingEdges = graphLookup.getIncomingEdges(node.id) ?? [];
+    const outgoingEdges = graphLookup.getOutgoingEdges(node.id) ?? [];
 
     const neighborNodeIds = new Set<string>();
     outgoingEdges.forEach(edge => neighborNodeIds.add(edge.target));
@@ -213,6 +237,22 @@ const findSharedNodeIds = (
 
     if (neighborNodeIds.size > 1) {
       sharedNodeIds.add(node.id);
+    } else {
+      neighborsOfCandidates.set(node.id, neighborNodeIds);
+    }
+  });
+
+  // A receiving endpoint whose only neighbor is shared (e.g. a DeviceClass that only a shared
+  // ResourceClaimTemplate asks for) follows that neighbor into its components. The referring
+  // endpoint is left alone, so an unused template stays in a component of its own instead of
+  // showing up beside workloads that don't use it.
+  neighborsOfCandidates.forEach((neighborNodeIds, nodeId) => {
+    const incomingEdges = graphLookup.getIncomingEdges(nodeId) ?? [];
+    if (
+      incomingEdges.some(edge => edge.nonGroupingSide === 'both') &&
+      [...neighborNodeIds].every(neighborId => sharedNodeIds.has(neighborId))
+    ) {
+      sharedNodeIds.add(nodeId);
     }
   });
 
@@ -283,15 +323,10 @@ const getComponentsWithSharedNodesCloned = (
     component.nodes?.forEach(node => componentByNodeId.set(node.id, component));
   });
 
+  const edgesByComponentBySharedNode = new Map<string, Map<GraphNode, GraphEdge[]>>();
   sharedNodeIds.forEach(sharedId => {
-    const sharedNode = sharedNodesById.get(sharedId);
-    const incidentEdges = edgesBySharedNode.get(sharedId);
-    if (!sharedNode || !incidentEdges || incidentEdges.length === 0) {
-      return;
-    }
-
     const edgesByComponent = new Map<GraphNode, GraphEdge[]>();
-    incidentEdges.forEach(edge => {
+    edgesBySharedNode.get(sharedId)?.forEach(edge => {
       const otherNodeId = edge.source === sharedId ? edge.target : edge.source;
       const component = componentByNodeId.get(otherNodeId);
       if (!component) {
@@ -302,33 +337,94 @@ const getComponentsWithSharedNodesCloned = (
       list.push(edge);
       edgesByComponent.set(component, list);
     });
+    edgesByComponentBySharedNode.set(sharedId, edgesByComponent);
+  });
 
-    if (edgesByComponent.size === 0) {
-      return;
+  // An edge between two shared nodes (e.g. a ResourceClaimTemplate used by several workloads
+  // and the DeviceClass it asks for) puts its target into every component of its source, so
+  // each workload using the template also shows the class, while a workload that only uses
+  // the class doesn't get the template. Repeat until nothing changes, for longer chains.
+  const edgesBetweenSharedNodes = edges.filter(
+    edge => sharedNodeIds.has(edge.source) && sharedNodeIds.has(edge.target)
+  );
+  const followSources = () => {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      edgesBetweenSharedNodes.forEach(edge => {
+        const targetComponents = edgesByComponentBySharedNode.get(edge.target)!;
+        edgesByComponentBySharedNode.get(edge.source)!.forEach((_, component) => {
+          if (!targetComponents.has(component)) {
+            targetComponents.set(component, []);
+            changed = true;
+          }
+        });
+      });
     }
+  };
+  followSources();
 
-    // Only one component is actually touched: reattach the node as-is, no cloning needed.
-    if (edgesByComponent.size === 1) {
-      const [[component, componentEdges]] = edgesByComponent;
-      component.nodes = [...(component.nodes ?? []), sharedNode];
-      component.edges = [...(component.edges ?? []), ...componentEdges];
-      return;
-    }
+  // Shared nodes that no component reached (e.g. two templates asking for one class, with no
+  // Pods selected) form components of their own, so they stay on the map.
+  const unplacedNodes = nodes.filter(
+    node => sharedNodeIds.has(node.id) && edgesByComponentBySharedNode.get(node.id)!.size === 0
+  );
+  if (unplacedNodes.length > 0) {
+    const unplacedNodeIds = new Set(unplacedNodes.map(node => node.id));
+    const unplacedLookup = makeGraphLookup(
+      unplacedNodes,
+      edgesBetweenSharedNodes.filter(
+        edge => unplacedNodeIds.has(edge.source) && unplacedNodeIds.has(edge.target)
+      )
+    );
+    getConnectedComponentGroups(unplacedNodes, unplacedLookup).forEach(group => {
+      const component: GraphNode = { id: group.id, nodes: [], edges: [] };
+      group.nodes?.forEach(node => edgesByComponentBySharedNode.get(node.id)!.set(component, []));
+      baseComponents.push(component);
+    });
+    followSources();
+  }
 
-    // Genuinely bridges multiple components: clone the node per-component with a unique ID.
+  // A shared node that touches only one component keeps its original ID. One that bridges
+  // several components is cloned per component with a unique ID.
+  const placedNodeId = (sharedId: string, component: GraphNode) =>
+    edgesByComponentBySharedNode.get(sharedId)!.size === 1
+      ? sharedId
+      : `${sharedId}--${component.id}`;
+
+  const placeEdge = (edge: GraphEdge, component: GraphNode): GraphEdge => {
+    const source = sharedNodeIds.has(edge.source)
+      ? placedNodeId(edge.source, component)
+      : edge.source;
+    const target = sharedNodeIds.has(edge.target)
+      ? placedNodeId(edge.target, component)
+      : edge.target;
+    return source === edge.source && target === edge.target
+      ? edge
+      : { ...edge, id: `${edge.id}--${component.id}`, source, target };
+  };
+
+  edgesByComponentBySharedNode.forEach((edgesByComponent, sharedId) => {
+    const sharedNode = sharedNodesById.get(sharedId)!;
     edgesByComponent.forEach((componentEdges, component) => {
-      const clonedId = `${sharedId}--${component.id}`;
-      component.nodes = [...(component.nodes ?? []), { ...sharedNode, id: clonedId }];
-
+      const id = placedNodeId(sharedId, component);
+      component.nodes = [
+        ...(component.nodes ?? []),
+        id === sharedId ? sharedNode : { ...sharedNode, id },
+      ];
       component.edges = [
         ...(component.edges ?? []),
-        ...componentEdges.map(edge => ({
-          ...edge,
-          id: `${edge.id}--${clonedId}`,
-          source: edge.source === sharedId ? clonedId : edge.source,
-          target: edge.target === sharedId ? clonedId : edge.target,
-        })),
+        ...componentEdges.map(edge => placeEdge(edge, component)),
       ];
+    });
+  });
+
+  edgesBetweenSharedNodes.forEach(edge => {
+    const targetComponents = edgesByComponentBySharedNode.get(edge.target)!;
+    edgesByComponentBySharedNode.get(edge.source)!.forEach((_, component) => {
+      if (targetComponents.has(component)) {
+        component.edges = [...(component.edges ?? []), placeEdge(edge, component)];
+      }
     });
   });
 
