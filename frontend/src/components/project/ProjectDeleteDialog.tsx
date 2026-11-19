@@ -55,6 +55,9 @@ export function ProjectDeleteDialog({
   const [deleteNamespaces, setDeleteNamespaces] = useState(false);
   const dispatchDeleteProjectEvent = useEventCallback(HeadlampEventType.DELETE_PROJECT);
 
+  // The dialog stays mounted while it's closed, so untick the box each time it opens.
+  const handleEnter = () => setDeleteNamespaces(false);
+
   const handleDelete = () => {
     const projectNamespaces = namespaces.filter(ns =>
       projectIncludesNamespace(project, { name: ns.metadata.name, cluster: ns.cluster })
@@ -108,6 +111,7 @@ export function ProjectDeleteDialog({
     <Dialog
       open={open}
       onClose={onClose}
+      TransitionProps={{ onEnter: handleEnter }}
       aria-labelledby="project-delete-dialog-title"
       aria-describedby="project-delete-dialog-description"
       maxWidth="sm"

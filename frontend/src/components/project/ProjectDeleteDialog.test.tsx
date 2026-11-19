@@ -346,4 +346,36 @@ describe('ProjectDeleteDialog', () => {
 
     expect(screen.getByText(/This action cannot be undone/i)).toBeInTheDocument();
   });
+
+  test('unticks namespace deletion when the dialog is opened again after Cancel', () => {
+    // Like ProjectDeleteButton, keep the dialog mounted and only toggle open.
+    function DialogWithOpenButton() {
+      const [open, setOpen] = React.useState(true);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Open dialog</button>
+          <ProjectDeleteDialog
+            open={open}
+            project={mockProject}
+            onClose={() => setOpen(false)}
+            namespaces={makeMockNamespaces()}
+          />
+        </>
+      );
+    }
+
+    render(
+      <TestContext>
+        <DialogWithOpenButton />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    fireEvent.click(screen.getByText('Open dialog'));
+
+    expect(screen.getByRole('checkbox', { name: /also delete the namespaces/i })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Delete Project' })).toBeInTheDocument();
+    expect(screen.queryByText(/This action cannot be undone/i)).not.toBeInTheDocument();
+  });
 });
