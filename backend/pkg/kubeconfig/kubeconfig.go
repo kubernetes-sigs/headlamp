@@ -126,6 +126,10 @@ type DiscoveryOrigin struct {
 	Entry       string
 }
 
+// proxyMu guards the lazily set up proxy field of every Context. It is package-level rather than a
+// field because Context is copied by value in many places, which would copy a lock (go vet copylocks).
+var proxyMu sync.RWMutex
+
 // Context contains all information related to a kubernetes context.
 type Context struct {
 	Discovery         *DiscoveryOrigin           `json:"-"`
@@ -727,14 +731,29 @@ func parseAPIProxyConfig(cfg map[string]string) (*APIProxySettings, error) {
 
 // ProxyRequest proxies the given request to the cluster.
 func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request) error {
-	if c.proxy == nil {
-		err := c.SetupProxy()
-		if err != nil {
-			return err
+	proxyMu.RLock()
+
+	proxy := c.proxy
+
+	proxyMu.RUnlock()
+
+	if proxy == nil {
+		proxyMu.Lock()
+
+		// Another request may have set the proxy up while we waited for the lock.
+		if c.proxy == nil {
+			if err := c.setupProxyLocked(); err != nil {
+				proxyMu.Unlock()
+				return err
+			}
 		}
+
+		proxy = c.proxy
+
+		proxyMu.Unlock()
 	}
 
-	c.proxy.ServeHTTP(writer, request)
+	proxy.ServeHTTP(writer, request)
 
 	return nil
 }
@@ -840,6 +859,14 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 // user's bearer token is forwarded as-is in the Authorization header by the
 // request handler.
 func (c *Context) SetupProxy() error {
+	proxyMu.Lock()
+	defer proxyMu.Unlock()
+
+	return c.setupProxyLocked()
+}
+
+// setupProxyLocked sets up the reverse proxy. The caller must hold proxyMu for writing.
+func (c *Context) setupProxyLocked() error {
 	c.proxy = nil
 
 	URL, err := c.UpstreamURL()
