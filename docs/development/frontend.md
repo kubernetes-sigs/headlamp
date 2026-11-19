@@ -78,6 +78,15 @@ cd frontend && npm run ci-lint
 
 You can run `ci-lint` locally before pushing to catch any react-hooks violations that CI would flag.
 
+## Welcome accessibility checks
+
+The welcome experience has keyboard, narrow-screen reflow, and WCAG A/AA
+regression checks. With the frontend running at `localhost:3000`, run them with:
+
+```bash
+cd e2e-tests && npx playwright test tests/welcome.spec.ts --project=chromium
+```
+
 ## Unit test reliability
 
 Sidebar hook tests mock CRD listing and resource availability rather than

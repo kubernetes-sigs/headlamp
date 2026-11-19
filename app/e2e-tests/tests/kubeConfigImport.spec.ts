@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { _electron, ElectronApplication, Page } from 'playwright';
 import { parse } from 'yaml';
+import { dismissWelcome } from './welcome';
 
 const appPath = path.resolve(__dirname, '../..');
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
@@ -139,6 +140,7 @@ test.beforeEach(async () => {
   });
   page = await electronApp.firstWindow();
   await page.setViewportSize({ width: 1280, height: 900 });
+  await dismissWelcome(page);
   await page.evaluate(() => {
     localStorage.setItem('disable_update_check', 'true');
     window.location.hash = '/load-kube-config';

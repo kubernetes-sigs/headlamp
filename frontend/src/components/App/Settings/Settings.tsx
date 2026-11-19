@@ -73,6 +73,7 @@ export default function Settings() {
   const sidebarSort = useSetting<boolean>('sidebarSortAlphabetically');
   const expandGraphSetting = useSetting<boolean>('expandLargeGraph');
   const evict = useSetting<boolean>('useEvict');
+  const tutorialTooltips = useSetting<boolean>('tutorialTooltips');
   const themeDisplay = useSetting('theme');
 
   const [trayIcon, setTrayIcon] = useState<boolean>(true);
@@ -112,6 +113,7 @@ export default function Settings() {
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
   const expandGraphID = 'expand-graph-label';
+  const tutorialTooltipsID = 'tutorial-tooltips-label';
 
   return (
     <SectionBox
@@ -246,6 +248,24 @@ export default function Settings() {
             ),
             nameID: expandGraphID,
             hide: expandGraphSetting.hidden,
+          },
+          {
+            name: t('translation|Enable guided tooltips'),
+            value: (
+              <AdminControlled disabled={tutorialTooltips.disabled} t={t}>
+                <Switch
+                  color="primary"
+                  checked={tutorialTooltips.value ?? true}
+                  onChange={e => dispatch(setAppSettings({ tutorialTooltips: e.target.checked }))}
+                  disabled={tutorialTooltips.disabled}
+                  inputProps={{
+                    'aria-labelledby': tutorialTooltipsID,
+                  }}
+                />
+              </AdminControlled>
+            ),
+            nameID: tutorialTooltipsID,
+            hide: tutorialTooltips.hidden,
           },
         ]}
       />
