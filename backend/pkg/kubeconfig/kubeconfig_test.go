@@ -1275,6 +1275,19 @@ func TestResolveKubeconfigPathsNoopForEmptyOrigin(t *testing.T) {
 	assert.Equal(t, "pki/token", cfg.AuthInfos["u"].TokenFile)
 }
 
+func TestLoadContextsFromFileAcceptsNullCollections(t *testing.T) {
+	// client-go writes this after the last context, cluster and user are removed.
+	path := filepath.Join(t.TempDir(), "config")
+	require.NoError(t, os.WriteFile(path, []byte(
+		"apiVersion: v1\nclusters: null\ncontexts: null\ncurrent-context: \"\"\nkind: Config\nusers: null\n",
+	), 0o600))
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(path, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	assert.Empty(t, contexts)
+	assert.Empty(t, contextErrors)
+}
+
 func TestLoadContextsFromFileResolvesRelativePKIPaths(t *testing.T) {
 	t.Parallel()
 
