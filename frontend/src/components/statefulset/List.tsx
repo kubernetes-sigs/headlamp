@@ -59,7 +59,7 @@ export function StatefulSetsListRenderer(props: StatefulSetsListRendererProps) {
   const { t } = useTranslation('glossary');
 
   function renderPods(statefulSet: StatefulSet) {
-    const { readyReplicas, replicas } = statefulSet.status;
+    const { readyReplicas, replicas } = statefulSet.status ?? {};
 
     return `${readyReplicas || 0}/${replicas || 0}`;
   }
@@ -87,7 +87,7 @@ export function StatefulSetsListRenderer(props: StatefulSetsListRendererProps) {
       {
         id: 'replicas',
         label: t('Replicas'),
-        getValue: statefulSet => statefulSet.spec.replicas,
+        getValue: statefulSet => statefulSet.spec?.replicas || 0,
         gridTemplate: 'min-content',
       },
       {
