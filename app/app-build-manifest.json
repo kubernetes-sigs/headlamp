@@ -255,18 +255,6 @@
         }
       ],
       "commandSets": ["ai-assistant"]
-    },
-    {
-      "environment": "development",
-      "pluginLocation": "development",
-      "plugins": [{ "bundleName": "azure-aks", "packageName": "azure-aks" }],
-      "commands": [
-        {
-          "tool": "scriptjs",
-          "args": ["azure-aks/azure-api.js"],
-          "allowTrailingArgs": true
-        }
-      ]
     }
   ],
   "legalDocuments": [

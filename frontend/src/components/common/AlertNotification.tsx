@@ -24,7 +24,7 @@ import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { matchPath, useLocation } from 'react-router-dom';
-import { getCluster } from '../../lib/cluster';
+import { getCluster, getClusterPathParam } from '../../lib/cluster';
 import { testClusterHealth } from '../../lib/k8s/api/v1/clusterApi';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
@@ -65,8 +65,9 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
   const { t } = useTranslation();
   const { pathname } = useLocation();
+  const selectedClusterIdentity = getClusterPathParam(pathname);
 
-  function registerSetInterval(): NodeJS.Timeout {
+  function registerSetInterval(isStale: () => boolean): NodeJS.Timeout {
     return setInterval(() => {
       if (!window.navigator.onLine) {
         setError(t('translation|Offline') as string);
@@ -80,6 +81,11 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
       checkerFunction()
         .then(() => {
+          // Ignore results from a previous cluster or polling generation,
+          // but keep slow checks alive across routes within the same cluster.
+          if (isStale()) {
+            return;
+          }
           setError(false);
           // Reset the backoff so polling returns to the normal cadence once the
           // cluster recovers; otherwise the interval stays elevated for the rest
@@ -87,6 +93,9 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
           setNetworkStatusCheckTimeFactor(0);
         })
         .catch(err => {
+          if (isStale()) {
+            return;
+          }
           const message = err instanceof Error ? err.message : String(err);
           setError(message);
           setNetworkStatusCheckTimeFactor(
@@ -97,10 +106,9 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
   }
 
   React.useEffect(() => {
-    if (!getCluster()) {
-      setError(null);
-    }
-  }, [pathname]);
+    setError(null);
+    setNetworkStatusCheckTimeFactor(0);
+  }, [selectedClusterIdentity]);
 
   // Show the bar again whenever the error changes, even if it was dismissed before.
   React.useEffect(() => {
@@ -109,11 +117,15 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
   React.useEffect(
     () => {
-      const id = registerSetInterval();
-      return () => clearInterval(id);
+      let stale = false;
+      const id = registerSetInterval(() => stale);
+      return () => {
+        stale = true;
+        clearInterval(id);
+      };
     },
     // eslint-disable-next-line
-    [networkStatusCheckTimeFactor]
+    [networkStatusCheckTimeFactor, selectedClusterIdentity]
   );
 
   const showOnRoute = React.useMemo(() => {

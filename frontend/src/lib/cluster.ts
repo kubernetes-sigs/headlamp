@@ -19,6 +19,7 @@ import { without } from 'lodash';
 import { matchPath } from 'react-router';
 import { getBaseUrl } from '../helpers/getBaseUrl';
 import { isElectron } from '../helpers/isElectron';
+import { getCommittedClusterPathname } from './router/clusterLocation';
 
 /**
  * @returns A path prefixed with cluster path, and the given path.
@@ -64,11 +65,16 @@ export function getCluster(urlPath?: string): string | null {
   return clusterString;
 }
 
-/** Returns cluster URL parameter from the current path or the given path */
+/**
+ * Returns the cluster parameter from the selected app location or an explicit
+ * path. During a pending browser POP the selected location is still the previous
+ * prepared cluster, even though the address bar already shows the destination.
+ */
 export function getClusterPathParam(maybeUrlPath?: string): string | undefined {
   const prefix = getBaseUrl();
   const urlPath =
     maybeUrlPath ??
+    getCommittedClusterPathname() ??
     (isElectron()
       ? window.location.hash.substring(1)
       : window.location.pathname.slice(prefix.length));
