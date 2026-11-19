@@ -326,7 +326,9 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
               ))}
             </>
           )}
-          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider role="separator" />}
+          {clustersToShow.length > 0 && recentClusters.length > 0 && (
+            <Divider role="presentation" />
+          )}
           {clustersToShow.map(cluster => (
             <ClusterListItem
               key={`cluster_button_${cluster.name}`}
