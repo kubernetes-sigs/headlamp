@@ -927,7 +927,14 @@ func UnmarshalKubeconfig(data []byte) (map[string]interface{}, error) {
 
 // GetContextsFromKubeconfig gets the contexts from the kubeconfig.
 func GetContextsFromKubeconfig(kubeconfig map[string]interface{}) ([]interface{}, error) {
-	rawContexts, ok := kubeconfig["contexts"].([]interface{})
+	value, present := kubeconfig["contexts"]
+	// client-go writes an empty context list as null, for example after the last context is
+	// deleted or pruned; that file has no contexts rather than invalid ones.
+	if present && value == nil {
+		return []interface{}{}, nil
+	}
+
+	rawContexts, ok := value.([]interface{})
 	if !ok {
 		return nil, DataError{Field: "contexts", Reason: "invalid or missing contexts in kubeconfig"}
 	}
