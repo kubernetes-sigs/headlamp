@@ -135,6 +135,56 @@ describe('clusterRequest transports', () => {
     });
   });
 
+  it.each([true, false])('preserves plain-text rename errors when isJSON is %s', async isJSON => {
+    const message = 'ambiguous DNS-friendly cluster name "a--b--c"';
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(`${message}\n`, {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      })
+    );
+
+    await expect(
+      clusterRequest('/cluster/a--b--c', { method: 'PUT', isJSON })
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringContaining(message),
+    });
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('preserves JSON error messages when isJSON is %s', async isJSON => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ message: 'custom name already in use' }), {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    await expect(clusterRequest('/cluster/test', { method: 'PUT', isJSON })).rejects.toMatchObject({
+      status: 400,
+      message: 'Bad Request - custom name already in use',
+    });
+  });
+
+  it('keeps the HTTP status message for an empty plain-text error body', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response('', {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      })
+    );
+
+    await expect(clusterRequest('/cluster/test', { method: 'PUT' })).rejects.toMatchObject({
+      status: 400,
+      message: 'Bad Request',
+    });
+  });
+
   it('keeps the timeout active while consuming the response body', async () => {
     vi.useFakeTimers();
     const abortError = new Error('aborted');
