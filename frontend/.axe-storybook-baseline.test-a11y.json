@@ -44,6 +44,7 @@
       "listitem",
       "aria-input-field-name"
     ],
+    "cluster/ClusterChooserPopup/Recency Order": ["aria-required-children"],
     "DropZoneBox/Upload Files": ["aria-allowed-role"],
     "common/Loader/With Empty Title": ["aria-progressbar-name"],
     "common/ReleaseNotes/ReleaseNotes/Default": ["heading-order"],
