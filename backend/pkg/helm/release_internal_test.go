@@ -401,7 +401,9 @@ func clientConfigFor(url string) clientcmd.ClientConfig {
 }
 
 func TestReleaseLookupErrorStatus(t *testing.T) {
-	h := &Handler{Cache: cache.New[interface{}](), EnvSettings: cli.New()}
+	// The upgrade route only accepts charts from a registered repository, so register "repo".
+	h := newChartRefHandler(t, "repo")
+	h.Cache = cache.New[interface{}]()
 	query := "?name=test-release&namespace=default"
 	routes := []struct {
 		name, method, target, body string

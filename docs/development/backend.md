@@ -143,6 +143,22 @@ cookie-only browser clients should use the cluster-scoped routes.
 before Helm accesses the cluster. Valid requests retain the existing
 `{"releases": [...]}` response and release-lookup error handling.
 
+## Helm chart sources
+
+Helm install (`POST /clusters/<cluster>/helm/release/install`) and
+upgrade (`PUT /clusters/<cluster>/helm/releases/upgrade`) requests
+accept only a `chart` of the form
+`<repository>/<chart>`, where `<repository>` is a Helm repository
+registered with the backend through the repository routes. Other values
+are rejected with `400`: `http(s)` and `oci://` URLs, absolute and
+relative paths, and references that also exist as a path on the
+backend's filesystem. This only checks the `chart` value in the request,
+so a client cannot pass a chart URL or a local path. It does not limit
+which repository URLs can be registered, or the chart URLs listed in a
+repository's index; those are not covered by this check. Clients that
+installed charts from a direct URL must add the repository first and
+install from it.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
