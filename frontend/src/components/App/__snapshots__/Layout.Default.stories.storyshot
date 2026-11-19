@@ -387,29 +387,18 @@
                             </div>
                           </div>
                           <div
-                            class="MuiBox-root css-5cned0"
+                            class="MuiBox-root css-1pr5e03"
                           >
-                            <span
-                              aria-label="Loading..."
-                              class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
-                              role="progressbar"
-                              style="width: 40px; height: 40px;"
-                              title="Loading..."
+                            <h6
+                              class="MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-r34k9t-MuiTypography-root"
                             >
-                              <svg
-                                class="MuiCircularProgress-svg css-1idz92c-MuiCircularProgress-svg"
-                                viewBox="22 22 44 44"
-                              >
-                                <circle
-                                  class="MuiCircularProgress-circle MuiCircularProgress-circleIndeterminate css-176wh8e-MuiCircularProgress-circle"
-                                  cx="44"
-                                  cy="44"
-                                  fill="none"
-                                  r="20.2"
-                                  stroke-width="3.6"
-                                />
-                              </svg>
-                            </span>
+                              No clusters found
+                            </h6>
+                            <p
+                              class="MuiTypography-root MuiTypography-body2 MuiTypography-paragraph css-16b0dx8-MuiTypography-root"
+                            >
+                              Add a cluster to get started.
+                            </p>
                           </div>
                         </div>
                       </div>
