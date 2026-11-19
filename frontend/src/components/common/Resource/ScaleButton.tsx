@@ -169,7 +169,7 @@ function ScaleDialog(props: ScaleDialogProps) {
                 {t('translation|Desired number of replicas:')}
               </DialogContentText>
             </Grid>
-            <Grid item spacing={2} sm="auto" sx={{ padding: '6px', textAlign: 'left' }}>
+            <Grid item sm="auto" sx={{ padding: '6px', textAlign: 'left' }}>
               <Fab
                 size="small"
                 color="secondary"
