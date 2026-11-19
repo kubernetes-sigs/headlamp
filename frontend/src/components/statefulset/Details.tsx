@@ -63,11 +63,15 @@ export default function StatefulSetDetails(props: {
           ...statefulSetExtraInfo(item, t),
           {
             name: t('Update Strategy'),
-            value: item.spec.updateStrategy.type,
+            value: item.spec?.updateStrategy?.type,
+            hide: !item.spec?.updateStrategy?.type,
           },
           {
             name: t('Selector'),
-            value: <MetadataDictGrid dict={item.spec.selector.matchLabels as StringDict} />,
+            value: item.spec?.selector?.matchLabels ? (
+              <MetadataDictGrid dict={item.spec.selector.matchLabels as StringDict} />
+            ) : null,
+            hide: !item.spec?.selector?.matchLabels,
           },
         ]
       }
