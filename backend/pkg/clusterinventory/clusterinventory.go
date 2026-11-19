@@ -635,9 +635,10 @@ func clusterInventoryMetadataFromProfile(
 ) *inventorymetadata.Metadata {
 	metadata := &inventorymetadata.Metadata{
 		Profile: inventorymetadata.Profile{
-			Namespace: cp.Namespace,
-			Name:      cp.Name,
-			Key:       profileKey,
+			Namespace:   cp.Namespace,
+			Name:        cp.Name,
+			Key:         profileKey,
+			DisplayName: cp.Spec.DisplayName,
 		},
 		Conditions: append([]metav1.Condition(nil), cp.Status.Conditions...),
 	}
