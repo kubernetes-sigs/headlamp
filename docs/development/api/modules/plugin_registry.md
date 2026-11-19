@@ -18,6 +18,7 @@
 - [AppLogoProps](../interfaces/plugin_registry.AppLogoProps.md)
 - [AppThemeRegistrationOptions](../interfaces/plugin_registry.AppThemeRegistrationOptions.md)
 - [ClusterChooserProps](../interfaces/plugin_registry.ClusterChooserProps.md)
+- [ClusterDeleteHandler](../interfaces/plugin_registry.ClusterDeleteHandler.md)
 - [CreateResourceEvent](../interfaces/plugin_registry.CreateResourceEvent.md)
 - [DeleteResourceEvent](../interfaces/plugin_registry.DeleteResourceEvent.md)
 - [DetailsViewSectionProps](../interfaces/plugin_registry.DetailsViewSectionProps.md)
@@ -427,6 +428,61 @@ registerClusterEmptyState(({ defaultContent }) => (
 #### Defined in
 
 [plugin/registry.tsx:972](https://github.com/kubernetes-sigs/headlamp/blob/558672b5a/frontend/src/plugin/registry.tsx#L972)
+
+___
+
+### registerClusterProviderDeleteHandler
+
+▸ **registerClusterProviderDeleteHandler**(`handler`): `void`
+
+Route Delete in the Home page's cluster action menu to a plugin's dialog.
+
+Headlamp's Delete removes a cluster from the kubeconfig. A plugin that manages
+a cluster's lifecycle can claim that cluster's Delete instead: the menu then
+opens the plugin's dialog (registered with `registerClusterProviderDialog`)
+for every cluster `owns` returns true for. The first registered handler that
+owns a cluster is used; a handler that throws owns nothing. `owns` must be a
+function, and `dialog` must be a non-empty name other than Headlamp's own
+`deleteDynamic`, which opens the kubeconfig-only confirmation; any other
+handler is ignored.
+
+**`example`**
+
+```tsx
+import {
+  registerClusterProviderDeleteHandler,
+  registerClusterProviderDialog,
+} from '@kinvolk/headlamp-plugin/lib';
+
+registerClusterProviderDeleteHandler({
+  owns: cluster =>
+    cluster.meta_data?.extensions?.context_info?.provider === 'minikube.sigs.k8s.io',
+  dialog: 'deleteMinikube',
+});
+registerClusterProviderDialog(({ cluster, openConfirmDialog, setOpenConfirmDialog }) => (
+  <DeleteMinikube
+    cluster={cluster}
+    open={openConfirmDialog === 'deleteMinikube'}
+    onClose={() => setOpenConfirmDialog('')}
+  />
+));
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `handler` | [`ClusterDeleteHandler`](../interfaces/plugin_registry.ClusterDeleteHandler.md) | Which clusters the plugin owns, and the dialog that deletes them. |
+
+#### Returns
+
+`void`
+
+Nothing.
+
+#### Defined in
+
+[plugin/registry.tsx:1087](https://github.com/kubernetes-sigs/headlamp/blob/26c4d351d/frontend/src/plugin/registry.tsx#L1087)
 
 ___
 
