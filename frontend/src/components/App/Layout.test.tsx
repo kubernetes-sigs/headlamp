@@ -68,7 +68,7 @@ vi.mock('./TopBar', () => ({ default: () => null }));
 vi.mock('./RouteSwitcher', async () => {
   const ReactModule = await vi.importActual<typeof import('react')>('react');
   return {
-    default: () => {
+    default: function MockRouteSwitcher() {
       ReactModule.useEffect(() => mockRouteMount(), []);
       return null;
     },
