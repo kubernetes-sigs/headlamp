@@ -332,7 +332,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 
 		tlsSkipTransport := base.Clone()
 
-		//nolint:gosec // Insecure skip verify explicitly requested by configuration
+		//nolint:gosec // G402: InsecureSkipVerify enabled for OIDC provider when skipTLSVerify is requested.
 		tlsCfg := &tls.Config{InsecureSkipVerify: true}
 		if base.TLSClientConfig != nil {
 			tlsCfg = base.TLSClientConfig.Clone()
