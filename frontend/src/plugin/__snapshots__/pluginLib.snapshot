@@ -866,6 +866,7 @@
   "registerAppTheme": [Function],
   "registerClusterChooser": [Function],
   "registerClusterEmptyState": [Function],
+  "registerClusterProviderDeleteHandler": [Function],
   "registerClusterProviderDialog": [Function],
   "registerClusterProviderMenuItem": [Function],
   "registerClusterStatus": [Function],

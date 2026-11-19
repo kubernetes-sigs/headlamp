@@ -31,10 +31,28 @@ import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useId } from '../../../lib/util';
+import { BUILT_IN_DELETE_DIALOG, ClusterDeleteHandler } from '../../../redux/clusterProviderSlice';
 import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
+
+/**
+ * The dialog of the first plugin delete handler that owns the cluster, or null when no plugin
+ * owns it. A handler that throws owns nothing.
+ */
+function findPluginDeleteDialog(handlers: ClusterDeleteHandler[], cluster: Cluster): string | null {
+  for (const handler of handlers) {
+    try {
+      if (handler.owns(cluster)) {
+        return handler.dialog;
+      }
+    } catch (err) {
+      console.error('Cluster delete handler failed', err);
+    }
+  }
+  return null;
+}
 
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
@@ -58,12 +76,15 @@ export default function ClusterContextMenu({
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<string | null>(null);
   const dialogs = useTypedSelector(state => state.clusterProvider.dialogs);
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
+  const deleteHandlers = useTypedSelector(state => state.clusterProvider.deleteHandlers);
   const isDynamicClusterEnabled = useTypedSelector(state => state.config.isDynamicClusterEnabled);
   const allowKubeconfigChanges = useTypedSelector(state => state.config.allowKubeconfigChanges);
   const { enqueueSnackbar } = useSnackbar();
 
   const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
   const deleteFromKubeconfig = cluster.meta_data?.source === 'kubeconfig';
+  // A plugin that owns this cluster handles its Delete with the plugin's own dialog.
+  const pluginDeleteDialog = findPluginDeleteDialog(deleteHandlers, cluster);
 
   function removeCluster(cluster: Cluster) {
     const clusterID = cluster.meta_data?.clusterID;
@@ -164,20 +185,21 @@ export default function ClusterContextMenu({
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
-        {(!menuItems || menuItems.length === 0) &&
-          ((cluster.meta_data?.source === 'dynamic_cluster' &&
-            (helpers.isElectron() || isDynamicClusterEnabled)) ||
-            (cluster.meta_data?.source === 'kubeconfig' &&
-              (helpers.isElectron() || allowKubeconfigChanges))) && (
-            <MenuItem
-              onClick={() => {
-                setOpenConfirmDialog('deleteDynamic');
-                handleMenuClose();
-              }}
-            >
-              <ListItemText>{t('translation|Delete')}</ListItemText>
-            </MenuItem>
-          )}
+        {(pluginDeleteDialog !== null ||
+          ((!menuItems || menuItems.length === 0) &&
+            ((cluster.meta_data?.source === 'dynamic_cluster' &&
+              (helpers.isElectron() || isDynamicClusterEnabled)) ||
+              (cluster.meta_data?.source === 'kubeconfig' &&
+                (helpers.isElectron() || allowKubeconfigChanges))))) && (
+          <MenuItem
+            onClick={() => {
+              setOpenConfirmDialog(pluginDeleteDialog ?? BUILT_IN_DELETE_DIALOG);
+              handleMenuClose();
+            }}
+          >
+            <ListItemText>{t('translation|Delete')}</ListItemText>
+          </MenuItem>
+        )}
         {menuItems.map((Item, index) => {
           return (
             <Item
@@ -190,7 +212,7 @@ export default function ClusterContextMenu({
         })}
       </Menu>
       <ConfirmDialog
-        open={openConfirmDialog === 'deleteDynamic'}
+        open={openConfirmDialog === BUILT_IN_DELETE_DIALOG}
         handleClose={() => setOpenConfirmDialog('')}
         confirmLabel={t('translation|Delete')}
         onConfirm={() => {

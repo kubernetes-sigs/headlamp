@@ -93,6 +93,21 @@ Change the Cluster Chooser button in the top right of the app bar with
 - Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
 - API reference: [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser)
 
+### Cluster Delete Handlers
+
+A plugin that manages a cluster's lifecycle can take over Delete in the Home
+page's cluster action menu with
+[registerClusterProviderDeleteHandler](../../api/plugin/registry/functions/registerclusterproviderdeletehandler).
+For each cluster the handler's `owns` function accepts, Delete opens the
+plugin's dialog named by `dialog`, registered with `registerClusterProviderDialog`,
+instead of removing the cluster from the kubeconfig. The first registered
+handler that owns a cluster is used; Delete for other clusters behaves as it
+does without a handler. A handler is ignored unless `owns` is a function and
+the dialog name is neither empty nor `deleteDynamic`, the name of Headlamp's own
+confirmation.
+
+- API reference: [registerClusterProviderDeleteHandler](../../api/plugin/registry/functions/registerclusterproviderdeletehandler)
+
 ### Cluster Empty State
 
 Customize the Home page shown when no clusters are configured with
