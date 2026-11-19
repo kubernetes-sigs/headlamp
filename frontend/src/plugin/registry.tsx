@@ -950,8 +950,13 @@ export function registerClusterProviderMenuItem(item: MenuItemComponent) {
 /**
  * Register a new cluster status component.
  *
- * @param item - The component to add to the cluster status.
- * Item is a function/component and its props are cluster and error.
+ * Registered callbacks are tried in registration order for each cluster row;
+ * the first one that returns a React element is shown. Return `null` to let
+ * the next registered callback (and finally Headlamp's default status) handle
+ * the cluster. The callback is rendered as a React component, so it may use
+ * hooks.
+ *
+ * @param item - The component to register. Receives `{ cluster, error }` props.
  *
  * @example
  * ```tsx
