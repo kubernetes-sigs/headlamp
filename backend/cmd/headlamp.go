@@ -2944,6 +2944,13 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 	}
 
 	contexts, setupErrors := c.processClusterRequest(clusterReq)
+	if len(contexts) == 0 && len(setupErrors) > 0 {
+		// Every context was rejected, so log why before answering, for example an invalid OIDC CA.
+		_ = c.handleSetupErrors(setupErrors, ctx, w, span)
+
+		return
+	}
+
 	if len(contexts) == 0 {
 		c.TelemetryHandler.RecordError(span, errors.New("no contexts found in kubeconfig"), "no contexts found in kubeconfig")
 		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "no_contexts_found"))

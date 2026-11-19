@@ -37,6 +37,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1402,6 +1403,32 @@ func TestConfigureTLSContext_EmptyCACert(t *testing.T) {
 	emptyCert := ""
 	resultCtx := auth.ConfigureTLSContext(baseCtx, nil, &emptyCert)
 	assert.Equal(t, baseCtx, resultCtx, "Context should not be modified when caCert is empty")
+}
+
+// TestConfigureTLSContext_BlankCACert verifies that a whitespace-only caCert is treated as unset,
+// so it does not log "failed to append ca cert to pool" on every login, while a value that is
+// set but is not a certificate still does.
+func TestConfigureTLSContext_BlankCACert(t *testing.T) {
+	var logged []string
+
+	original := logger.SetLogFunc(func(_ uint, _ map[string]string, _ interface{}, msg string) {
+		logged = append(logged, msg)
+	})
+
+	t.Cleanup(func() { logger.SetLogFunc(original) })
+
+	baseCtx := context.Background()
+
+	for _, blank := range []string{"\n", "  ", " \t\n"} {
+		resultCtx := auth.ConfigureTLSContext(baseCtx, nil, &blank)
+		assert.Equal(t, baseCtx, resultCtx, "Context should not be modified for a blank caCert %q", blank)
+	}
+
+	assert.Empty(t, logged, "a blank caCert is not an error")
+
+	notACert := "not a certificate"
+	auth.ConfigureTLSContext(baseCtx, nil, &notACert)
+	assert.Equal(t, []string{"couldn't add custom cert to context"}, logged)
 }
 
 // TestConfigureTLSContext_SkipTLS_PreservesDefaults verifies that cloning

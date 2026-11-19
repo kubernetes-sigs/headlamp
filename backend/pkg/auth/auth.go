@@ -354,7 +354,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		})
 	}
 
-	if caCert != nil && *caCert != "" {
+	if caCert != nil && strings.TrimSpace(*caCert) != "" {
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
 			logger.Log(logger.LevelError, nil,

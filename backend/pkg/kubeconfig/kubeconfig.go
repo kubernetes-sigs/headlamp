@@ -741,6 +741,138 @@ func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 	return transport.New(cfg)
 }
 
+// InvalidOIDCCAError reports a kubeconfig OIDC CA that is set but is not a PEM certificate.
+type InvalidOIDCCAError struct {
+	// Setting is the auth provider setting that held the value.
+	Setting string
+	// Reason says why the setting was rejected. It defaults to "not a PEM certificate".
+	Reason string
+}
+
+func (e *InvalidOIDCCAError) Error() string {
+	if e.Reason != "" {
+		return e.Setting + " " + e.Reason
+	}
+
+	return e.Setting + " does not contain a PEM encoded certificate"
+}
+
+const (
+	oidcCAFileSetting = "idp-certificate-authority"
+	oidcCADataSetting = "idp-certificate-authority-data"
+
+	// maxOIDCCAFileSize bounds how much of an idp-certificate-authority file is read. Kubeconfigs
+	// can be submitted by users, so the path must not be able to point at an endless file such as
+	// /dev/zero.
+	maxOIDCCAFileSize = 1 << 20
+)
+
+// readOIDCCAFile reads the CA file named by idp-certificate-authority. Only a regular file of
+// at most maxOIDCCAFileSize bytes is read.
+func readOIDCCAFile(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading ca file: %w", err)
+	}
+
+	if !info.Mode().IsRegular() {
+		return nil, &InvalidOIDCCAError{Setting: oidcCAFileSetting, Reason: "must be a regular file"}
+	}
+
+	file, err := os.Open(path) //nolint:gosec // CA certificate file path is loaded from kubeconfig
+	if err != nil {
+		return nil, fmt.Errorf("error reading ca file: %w", err)
+	}
+
+	defer func() { _ = file.Close() }()
+
+	data, err := io.ReadAll(io.LimitReader(file, maxOIDCCAFileSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("error reading ca file: %w", err)
+	}
+
+	if len(data) > maxOIDCCAFileSize {
+		return nil, &InvalidOIDCCAError{Setting: oidcCAFileSetting, Reason: "must be at most 1 MiB"}
+	}
+
+	return data, nil
+}
+
+// oidcCAFromConfig returns the PEM CA set in an OIDC auth provider config, or nil when none is
+// set, plus the CA settings that were blank. A blank or whitespace-only value means no custom
+// CA, so it never replaces another one. A value that is not a PEM certificate bundle is an
+// *InvalidOIDCCAError, otherwise every login would only log "failed to append ca cert to pool"
+// and silently fall back to the system roots.
+func oidcCAFromConfig(config map[string]string) (*string, []string, error) {
+	var (
+		caCert  *string
+		blanks  []string
+		setting string
+	)
+
+	// The arg idp-certificate-authority is the path to the CA certificate file.
+	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
+	if caFilePath, ok := config[oidcCAFileSetting]; ok {
+		caFileContents, err := readOIDCCAFile(caFilePath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if text := string(caFileContents); strings.TrimSpace(text) != "" {
+			caCert, setting = &text, oidcCAFileSetting
+		} else {
+			blanks = append(blanks, oidcCAFileSetting)
+		}
+	}
+
+	if caFileData, ok := config[oidcCADataSetting]; ok {
+		decodedData, err := base64.StdEncoding.DecodeString(caFileData)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error decoding base64 ca data: %w", err)
+		}
+
+		if text := string(decodedData); strings.TrimSpace(text) != "" {
+			caCert, setting = &text, oidcCADataSetting
+		} else {
+			blanks = append(blanks, oidcCADataSetting)
+		}
+	}
+
+	if caCert != nil && !x509.NewCertPool().AppendCertsFromPEM([]byte(*caCert)) {
+		return nil, nil, &InvalidOIDCCAError{Setting: setting}
+	}
+
+	return caCert, blanks, nil
+}
+
+// checkOIDCCA rejects an auth provider whose CA is set but is not usable, and drops blank CA
+// settings so they behave like unset ones. It runs before the proxy is set up because client-go
+// reads these settings itself and would fail on them with a less helpful error. Other errors,
+// such as a missing CA file, are left to surface when the OIDC config is used.
+func checkOIDCCA(authInfo *api.AuthInfo) error {
+	if authInfo == nil || authInfo.AuthProvider == nil {
+		return nil
+	}
+
+	config := authInfo.AuthProvider.Config
+
+	_, blanks, err := oidcCAFromConfig(config)
+	if err != nil {
+		var invalidCA *InvalidOIDCCAError
+		if errors.As(err, &invalidCA) {
+			return err
+		}
+
+		return nil
+	}
+
+	for _, setting := range blanks {
+		delete(config, setting)
+	}
+
+	return nil
+}
+
 // OidcConfig returns the oidc config for the context.
 func (c *Context) OidcConfig() (*OidcConfig, error) {
 	if c.OidcConf != nil {
@@ -751,32 +883,10 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		return nil, errors.New("authProvider is nil")
 	}
 
-	var caCert *string
-
-	// if custom CA is configured in the kubeconfig auth provider use it.
-	// The arg idp-certificate-authority is the path to the CA certificate file.
-	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
-	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
-	if ok {
-		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec // CA certificate file path is loaded from kubeconfig
-		if err != nil {
-			return nil, fmt.Errorf("error reading ca file: %w", err)
-		}
-
-		caCertFileContentString := string(caFileContents)
-		caCert = &caCertFileContentString
-	}
-
-	caFileData, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority-data"]
-	if ok {
-		// Decode base64-encoded certificate data
-		decodedData, err := base64.StdEncoding.DecodeString(caFileData)
-		if err != nil {
-			return nil, fmt.Errorf("error decoding base64 ca data: %w", err)
-		}
-
-		caCertString := string(decodedData)
-		caCert = &caCertString
+	// If a custom CA is configured in the kubeconfig auth provider, use it.
+	caCert, _, err := oidcCAFromConfig(c.AuthInfo.AuthProvider.Config)
+	if err != nil {
+		return nil, err
 	}
 
 	apiProxy, err := parseAPIProxyConfig(c.AuthInfo.AuthProvider.Config)
@@ -1729,6 +1839,11 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 		Cluster:               cluster,
 		AuthInfo:              authInfo,
 		Source:                source,
+	}
+
+	// An unusable OIDC CA would only fail at login, so reject the context now, like other invalid ones.
+	if err := checkOIDCCA(authInfo); err != nil {
+		return Context{}, ContextError{ContextName: contextName, Reason: err.Error()}
 	}
 
 	if _, err := newContext.APIProxy(); err != nil {

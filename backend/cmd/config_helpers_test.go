@@ -59,4 +59,9 @@ func TestLoadOidcCACert(t *testing.T) {
 	require.NoError(t, os.WriteFile(caFile, []byte("test-ca-cert"), 0o600))
 
 	assert.Equal(t, "test-ca-cert", loadOidcCACert(caFile))
+
+	blankFile := filepath.Join(t.TempDir(), "blank.crt")
+	require.NoError(t, os.WriteFile(blankFile, []byte(" \n\t\n"), 0o600))
+
+	assert.Equal(t, "", loadOidcCACert(blankFile), "a blank file should mean no custom CA")
 }
