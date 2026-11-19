@@ -19,7 +19,7 @@ import React from 'react';
 import { vi } from 'vitest';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import { TestContext } from '../../test';
-import { CreateNew } from './ProjectCreateFromYaml';
+import { CreateNew, splitKubernetesResources } from './ProjectCreateFromYaml';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 const { apply, push, namespaces } = vi.hoisted(() => ({
@@ -181,6 +181,78 @@ it('uploads multiple YAML documents through the file input', async () => {
 
   expect(await screen.findByText('settings')).toBeInTheDocument();
   expect(screen.getByText('credentials')).toBeInTheDocument();
+});
+
+it('keeps Kubernetes resources and reports why each other YAML document is rejected', () => {
+  const configMap = { apiVersion: 'v1', kind: 'ConfigMap', metadata: { name: 'settings' } };
+
+  expect(
+    splitKubernetesResources([
+      configMap,
+      null,
+      undefined,
+      'a plain string',
+      [configMap],
+      { apiVersion: 'kustomize.config.k8s.io/v1beta1', kind: 'Kustomization', resources: [] },
+      { apiVersion: 'v1', kind: 'ConfigMap', metadata: {} },
+      { replicaCount: 2 },
+      { apiVersion: '', kind: '', metadata: { name: '' } },
+    ])
+  ).toEqual({
+    resources: [configMap],
+    rejected: [
+      { index: 4, missingFields: [] },
+      { index: 5, missingFields: [] },
+      { index: 6, missingFields: ['metadata.name'] },
+      { index: 7, missingFields: ['metadata.name'] },
+      { index: 8, missingFields: ['apiVersion', 'kind', 'metadata.name'] },
+      { index: 9, missingFields: ['apiVersion', 'kind', 'metadata.name'] },
+    ],
+  });
+});
+
+it.each([
+  ['the file input', 'file'],
+  ['a URL', 'url'],
+])('lists each YAML document that is not a Kubernetes resource from %s', async (_name, source) => {
+  const mixed = `${yaml}---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - settings.yaml
+`;
+  renderForm();
+  if (source === 'url') {
+    await loadUrl(mixed);
+  } else {
+    const file = new File([mixed], 'project.yaml', { type: 'application/x-yaml' });
+    fireEvent.change(screen.getByLabelText('Choose Files'), { target: { files: [file] } });
+  }
+
+  expect(await screen.findByText('settings')).toBeInTheDocument();
+  expect(screen.getByText('credentials')).toBeInTheDocument();
+  const name = source === 'url' ? 'https://example.test/project.yaml' : 'project.yaml';
+  expect(screen.getByRole('alert')).toHaveTextContent(`${name}, document 4: metadata.name not set`);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('lets the user clear an upload that has only rejected documents', async () => {
+  renderForm();
+  const kustomization = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: []
+`;
+  const file = new File([kustomization], 'kustomization.yaml', { type: 'application/x-yaml' });
+  fireEvent.change(screen.getByLabelText('Choose Files'), { target: { files: [file] } });
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'kustomization.yaml, document 1: metadata.name not set'
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Clear All' })).not.toBeInTheDocument();
 });
 
 it('logs malformed YAML uploads without adding invalid resources', async () => {
