@@ -13,6 +13,8 @@ COPY ./plugins/headlamp-plugin /headlamp-plugins/headlamp-plugin
 # Install dependencies.
 # We are doing so that we can use the local binary to build
 # the example plugin.
+# INSTALL_JOBS limits how many plugins install in parallel (default: the number of CPUs).
+ARG INSTALL_JOBS
 RUN chmod +x /headlamp-plugins/headlamp-plugin/install-dependencies.sh && /headlamp-plugins/headlamp-plugin/install-dependencies.sh
 
 # Create a build directory

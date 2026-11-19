@@ -63,6 +63,14 @@ function firstRowLink(table: Locator): Locator {
   return table.locator('tbody').nth(0).locator('tr').nth(0).locator('td').nth(1).locator('a');
 }
 
+/**
+ * The newest kube-system pod. Tests only create pods in other namespaces, so this pod stays
+ * stable while other tests run in parallel; the list's first row may be one of their pods.
+ */
+function kubeSystemPodLink(table: Locator): Locator {
+  return table.locator('a[href*="/pods/kube-system/"]').first();
+}
+
 /** Whether an auth-gated action button appears; it renders only after an async access review. */
 async function actionButtonAppears(button: Locator): Promise<boolean> {
   return button
@@ -91,8 +99,8 @@ async function requireResource(page: Page, resource: string) {
   ).toBe(true);
 }
 
-/** Navigate to the first pod's details page. */
-async function openFirstPodDetails(page: Page): Promise<{ podName: string }> {
+/** Navigate to a stable kube-system pod's details page. */
+async function openKubeSystemPodDetails(page: Page): Promise<{ podName: string }> {
   const headlampPage = new HeadlampPage(page);
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 
@@ -103,14 +111,8 @@ async function openFirstPodDetails(page: Page): Promise<{ podName: string }> {
   const podsTable = page.getByRole('table');
   await expect(podsTable).toBeVisible();
 
-  // Skip when the cluster is reachable but has no pods to open — otherwise we
-  // would fall through to a non-existent `tbody > tr:nth(0)` row and fail.
-  const podRowCount = await podsTable.locator('tbody > tr').count();
-  if (podRowCount === 0) {
-    test.skip(true, 'No pods on this cluster to open.');
-  }
-
-  const podLink = firstRowLink(podsTable);
+  const podLink = kubeSystemPodLink(podsTable);
+  await expect(podLink, 'expected a kube-system pod on cluster "test"').toBeVisible();
   const podName = (await podLink.textContent()) ?? '';
   await podLink.click();
 
@@ -126,7 +128,7 @@ async function openFirstPodDetails(page: Page): Promise<{ podName: string }> {
  * locator (the element whose background is the theme-derived color).
  */
 async function openLogs(page: Page): Promise<Locator> {
-  await openFirstPodDetails(page);
+  await openKubeSystemPodDetails(page);
 
   const showLogsButton = page.getByRole('button', { name: /^Show Logs$/ });
   await showLogsButton.click();
@@ -146,7 +148,7 @@ async function openLogs(page: Page): Promise<Locator> {
  * subresource="exec">`).
  */
 async function openExecTerminal(page: Page): Promise<Locator> {
-  await openFirstPodDetails(page);
+  await openKubeSystemPodDetails(page);
 
   const execButton = page.getByRole('button', { name: 'Terminal / Exec' });
   if (!(await actionButtonAppears(execButton))) {
@@ -218,9 +220,15 @@ test.describe('xterm routes are theme-aware and a11y-clean', () => {
 
         const viewport = await openXtermRoute(page, route);
 
-        const bg = await viewport.evaluate(
-          el => getComputedStyle(el as HTMLElement).backgroundColor
-        );
+        // The terminal can re-mount right after opening, and a detached element has no
+        // computed color, so read it once the viewport is attached and styled.
+        let bg = '';
+        await expect
+          .poll(async () => {
+            bg = await viewport.evaluate(el => getComputedStyle(el as HTMLElement).backgroundColor);
+            return bg;
+          })
+          .toMatch(/^rgba?\(/);
         const luminance = luminanceOf(bg);
         if (theme === 'light') {
           expect(luminance, `expected light background, got ${bg}`).toBeGreaterThan(0.7);

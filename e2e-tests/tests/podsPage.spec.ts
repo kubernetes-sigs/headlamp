@@ -181,41 +181,9 @@ test('recovers from a corrected config error on scheduled refetch', async ({ pag
   await expect(page.locator('table tbody tr td a', { hasText: /^test2$/ })).toBeVisible();
 });
 
-test('multi tab create delete pod', async ({ browser }) => {
-  // This test may be slow to create and delete a pod
-  test.setTimeout(60000);
-  const name = 'examplepodlol';
-
-  const instance1 = await browser.newContext();
-  const page1 = await instance1.newPage();
-  const window1 = new HeadlampPage(page1);
-  await window1.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
-
-  const page2 = await instance1.newPage();
-  const window2 = new HeadlampPage(page2);
-  await window2.navigateTopage('/c/test/pods', /Pods/);
-  await window1.navigateTopage('/c/test/pods', /Pods/);
-
-  // if no pod permission, return
-  const content1 = await page1.content();
-  const content2 = await page2.content();
-  if (
-    !content1.includes('Pods') ||
-    !content1.includes('href="/c/test/pods') ||
-    !content2.includes('Pods') ||
-    !content2.includes('href="/c/test/pods')
-  ) {
-    return;
-  }
-
-  const realtimeUpdate1 = new podsPage(page1);
-  const realtimeUpdate2 = new podsPage(page2);
-
-  await realtimeUpdate1.createPod(name);
-  await realtimeUpdate2.confirmPodCreation(name);
-});
-
-test('removes a pod from the list when it is deleted with kubectl', async ({ page }) => {
+test('creates a pod from YAML and every open tab follows it until kubectl deletes it', async ({
+  page,
+}) => {
   test.setTimeout(90000);
   const name = `headlamp-watch-${Date.now()}`;
   const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
@@ -224,25 +192,62 @@ test('removes a pod from the list when it is deleted with kubectl', async ({ pag
   try {
     const { stdout } = await execFileAsync('kind', ['get', 'kubeconfig', '--name', 'test']);
     await writeFile(kubeconfig, stdout);
-    await kubectl(
-      kubeconfig,
-      '--namespace=default',
-      'run',
-      name,
-      '--image=registry.k8s.io/pause:3.10',
-      '--restart=Never'
-    );
 
     const headlampPage = new HeadlampPage(page);
     await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
     await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+    // A second tab in the same browser session must receive the same live updates.
+    const secondTab = await page.context().newPage();
+    await new HeadlampPage(secondTab).navigateTopage('/c/test/pods', /Pods/);
 
-    const podLink = page.getByRole('link', { name, exact: true });
-    await expect(podLink).toBeVisible({ timeout: 15000 });
+    // Both lists are open before the pod exists, so the second tab can only show it through
+    // live updates.
+    const podLinks = [page, secondTab].map(tab => tab.getByRole('link', { name, exact: true }));
+    for (const podLink of podLinks) {
+      await expect(podLink.page().getByRole('table')).toBeVisible();
+      await expect(podLink).toHaveCount(0);
+    }
+
+    // Create the pod the way a user pastes a manifest: Create, minimal YAML editor, Apply.
+    const assistantPrompt = page.getByRole('dialog').filter({
+      has: page.getByRole('heading', { name: 'Configure AI Assistant' }),
+    });
+    await page.addLocatorHandler(assistantPrompt, async () => {
+      await assistantPrompt.getByRole('button', { name: 'Dismiss configuration prompt' }).click();
+    });
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.getByText('Use minimal editor').click();
+    await page
+      .locator('textarea[aria-label="yaml Code"]')
+      .fill(
+        [
+          'apiVersion: v1',
+          'kind: Pod',
+          'metadata:',
+          `  name: ${name}`,
+          '  namespace: default',
+          'spec:',
+          '  containers:',
+          '    - name: main',
+          '      image: registry.k8s.io/pause:3.10',
+        ].join('\n')
+      );
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
+    // Headlamp waits out a short cancellable delay before applying.
+    await expect(page.getByText(new RegExp(`^Applied ${name}\\.?$`))).toBeVisible({
+      timeout: 15000,
+    });
+
+    for (const podLink of podLinks) {
+      await expect(podLink).toBeVisible({ timeout: 15000 });
+    }
+    await new podsPage(secondTab).a11y();
 
     await kubectl(kubeconfig, '--namespace=default', 'delete', 'pod', name, '--wait=false');
 
-    await expect(podLink).toHaveCount(0, { timeout: 45000 });
+    for (const podLink of podLinks) {
+      await expect(podLink).toHaveCount(0, { timeout: 45000 });
+    }
   } finally {
     await kubectl(
       kubeconfig,
@@ -279,20 +284,10 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
       '--restart=Never'
     );
 
-    const headlampPage = new HeadlampPage(page);
-    await page.goto('/c/test', { waitUntil: 'domcontentloaded' });
-    const needsAuthentication = await Promise.race([
-      page
-        .getByRole('button', { name: 'Authenticate' })
-        .waitFor({ state: 'visible' })
-        .then(() => true),
-      page
-        .getByRole('heading', { name: 'Overview' })
-        .waitFor({ state: 'visible' })
-        .then(() => false),
-    ]);
-    if (needsAuthentication) {
-      await headlampPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
+    // Clusters that authenticate with a client certificate need no token.
+    const token = process.env.HEADLAMP_TEST_TOKEN;
+    if (token) {
+      await new HeadlampPage(page).setAuthCookie('test', token);
     }
     await page.goto('/c/test/pods', { waitUntil: 'domcontentloaded' });
 
@@ -366,27 +361,10 @@ test('positions the resource YAML viewer for each viewport size', async ({ page 
       `--from-literal=line100=${hundredColumnValue}`
     );
 
-    await page.goto('/c/test', { waitUntil: 'domcontentloaded' });
-    const needsAuthentication = await Promise.race([
-      page
-        .getByRole('heading', { level: 1, name: 'Authentication' })
-        .waitFor({ state: 'visible' })
-        .then(() => true),
-      page
-        .getByRole('heading', { name: 'Overview' })
-        .waitFor({ state: 'visible' })
-        .then(() => false),
-    ]);
-    if (needsAuthentication) {
-      const useTokenButton = page.getByRole('button', { name: 'Use A Token' });
-      if (await useTokenButton.isVisible()) {
-        await useTokenButton.click();
-      }
-      const token = process.env.HEADLAMP_TEST_TOKEN;
-      expect(token).toBeTruthy();
-      await page.getByRole('textbox', { name: 'ID token' }).fill(token!);
-      await page.getByRole('button', { name: 'Authenticate' }).click();
-      await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+    // Clusters that authenticate with a client certificate need no token.
+    const token = process.env.HEADLAMP_TEST_TOKEN;
+    if (token) {
+      await new HeadlampPage(page).setAuthCookie('test', token);
     }
     await page.route(`**/clusters/test/api/v1/namespaces/default/configmaps/${name}`, route =>
       route.abort('failed')
@@ -483,14 +461,8 @@ test('react-hotkey for logs search', async ({ page }) => {
   const podsTable = page.getByRole('table');
   await expect(podsTable).toBeVisible();
 
-  const podLink = podsTable
-    .locator('tbody')
-    .nth(0)
-    .locator('tr')
-    .nth(0)
-    .locator('td')
-    .nth(1)
-    .locator('a');
+  // Tests only create pods outside kube-system, so this pod stays stable under parallel runs.
+  const podLink = podsTable.locator('a[href*="/pods/kube-system/"]').first();
   const podName = await podLink.textContent();
 
   await podLink.click();

@@ -334,7 +334,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       >
         <div
           id="xterm-container"
-          ref={x => setTerminalContainerRef(x)}
+          ref={setTerminalContainerRef}
           style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse' }}
         />
       </Box>

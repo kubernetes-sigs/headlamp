@@ -31,7 +31,10 @@ test.describe('Headlamp plugin manager via Helm', () => {
   test.beforeEach(async ({ page }) => {
     headlampPage = new HeadlampPage(page);
 
-    await headlampPage.navigateToCluster('main', process.env.HEADLAMP_TEST_TOKEN);
+    // Log in through the form rather than navigateToCluster's cookie shortcut: this is the only
+    // run against a non-root base URL, so it covers the backend setting its auth cookie there.
+    await headlampPage.navigateTopage('/c/main');
+    await headlampPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
   });
 
   test('plugin manager should have installed plugins via helm', async ({ page }) => {
