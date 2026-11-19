@@ -5,6 +5,7 @@ backend/tools
 backend/cmd/static/*
 backend/dist/*
 backend/coverage.out
+backend/e2e/.multiplexer-e2e-*
 backend/pkg/spa/static/*
 app/coverage/
 app/electron/src/*
