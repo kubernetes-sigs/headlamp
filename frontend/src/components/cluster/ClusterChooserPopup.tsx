@@ -326,7 +326,10 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
               ))}
             </>
           )}
-          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider role="separator" />}
+          {clustersToShow.length > 0 && recentClusters.length > 0 && (
+            // A listbox may only contain options, so the divider is hidden from assistive technology.
+            <Divider component="li" role="presentation" aria-hidden="true" />
+          )}
           {clustersToShow.map(cluster => (
             <ClusterListItem
               key={`cluster_button_${cluster.name}`}
