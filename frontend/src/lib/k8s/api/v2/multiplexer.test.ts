@@ -265,6 +265,43 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.completedPaths.has(key)).toBe(true);
     });
 
+    it('should not pass STATUS messages to the data listeners', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage; // Skip subscription message
+
+      // The backend sends this when the watch opens, tagged with the same query as the data
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          userId,
+          data: JSON.stringify({ state: 'connected', error: '' }),
+          type: 'STATUS',
+        })
+      );
+
+      const podData = { type: 'ADDED', object: { kind: 'Pod', metadata: { name: 'test-pod' } } };
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify(podData),
+          type: 'DATA',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledWith(podData);
+      });
+      expect(onMessage).toHaveBeenCalledTimes(1);
+    });
+
     it('should handle unsubscribe', async () => {
       const path = '/api/v1/pods';
       const query = 'watch=true';
