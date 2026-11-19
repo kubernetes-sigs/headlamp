@@ -539,13 +539,7 @@ describe('LogsButton', () => {
     expect(streamedClusters).toEqual(['test-cluster']);
   });
 
-  it('streams a selected pod in chunks and ignores updates after unmount', async () => {
-    const requestAnimationFrameSpy = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation(callback => {
-        callback(0);
-        return 1;
-      });
+  it('streams every record of a selected pod and ignores updates after unmount', async () => {
     mockClusterFetch.mockResolvedValue({
       json: async () => ({ items: [mockPodData] }),
     });
@@ -573,14 +567,12 @@ describe('LogsButton', () => {
     act(() => {
       onLogsCallback({ logs: Array.from({ length: 1001 }, (_, index) => `line ${index}\n`) });
     });
-    expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('line 999'));
-    expect(requestAnimationFrameSpy).toHaveBeenCalled();
+    expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('line 1000'));
 
     mockXTermWrite.mockClear();
     unmount();
     act(() => onLogsCallback({ logs: ['after unmount\n'] }));
     expect(mockXTermWrite).not.toHaveBeenCalled();
-    requestAnimationFrameSpy.mockRestore();
   });
 
   it('clears the reconnect prompt when requested', async () => {

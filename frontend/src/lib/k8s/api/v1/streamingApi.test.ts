@@ -103,6 +103,33 @@ describe('connectStreamWithParams protocols', () => {
     expect(onMessage).toHaveBeenCalledWith({ kind: 'Pod' });
   });
 
+  it('passes the close event to onFail, so callers can tell a normal end', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const listeners: Record<string, EventListener> = {};
+    const socket = {
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners[type] = listener;
+      }),
+      removeEventListener: vi.fn(),
+      binaryType: '',
+      close: vi.fn(),
+    };
+    vi.stubGlobal(
+      'WebSocket',
+      vi.fn(function () {
+        return socket;
+      })
+    );
+    (findKubeconfigByClusterName as Mock).mockResolvedValue(null);
+    const onFail = vi.fn();
+
+    await connectStreamWithParams('/api/v1/pods', vi.fn(), onFail, { cluster: 'test-cluster' });
+    const closeEvent = new CloseEvent('close', { code: 1000 });
+    listeners.close(closeEvent);
+
+    expect(onFail).toHaveBeenCalledWith(closeEvent);
+  });
+
   it('returns a closable connection when socket construction fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.stubGlobal(
