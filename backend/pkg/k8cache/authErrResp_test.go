@@ -39,6 +39,7 @@ func TestIsAuthBypassURL(t *testing.T) {
 		{"Resource named healthz", "/clusters/kind/api/v1/namespaces/ns/configmaps/healthz", true},
 		{"Direct selfsubjectrulesreviews v1 endpoint", "/apis/authorization.k8s.io/v1/selfsubjectrulesreviews", false},
 		{"Direct selfsubjectaccessreviews v1 endpoint", "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", false},
+		{"Direct selfsubjectreviews v1 endpoint", "/apis/authentication.k8s.io/v1/selfsubjectreviews", false},
 		{
 			name:     "Proxied selfsubjectrulesreviews endpoint",
 			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectrulesreviews",
@@ -47,6 +48,11 @@ func TestIsAuthBypassURL(t *testing.T) {
 		{
 			name:     "Proxied selfsubjectaccessreviews endpoint",
 			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+			expected: false,
+		},
+		{
+			name:     "Proxied selfsubjectreviews endpoint",
+			urlPath:  "/clusters/kind/apis/authentication.k8s.io/v1/selfsubjectreviews",
 			expected: false,
 		},
 		{
@@ -88,6 +94,11 @@ func TestIsAuthBypassURLSelfSubjectReviewVersions(t *testing.T) {
 		{
 			name:     "proxied future rules review version",
 			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v2/selfsubjectrulesreviews",
+			expected: false,
+		},
+		{
+			name:     "future authentication review version",
+			urlPath:  "/apis/authentication.k8s.io/v2/selfsubjectreviews",
 			expected: false,
 		},
 		{
