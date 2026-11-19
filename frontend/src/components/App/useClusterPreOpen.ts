@@ -27,7 +27,7 @@ import { useTypedSelector } from '../../redux/hooks';
 
 let nextClusterPreOpenRunId = 0;
 
-/** Preparation state for the cluster currently in the URL. */
+/** Preparation state for the active or requested destination cluster. */
 export interface ClusterPreOpenState {
   /** Whether preparation applies at all (single cluster, hooks registered). */
   enabled: boolean;
@@ -43,8 +43,8 @@ export interface ClusterPreOpenState {
 }
 
 /**
- * Runs the registered cluster pre-open hooks for the cluster in the URL, once
- * per open.
+ * Runs registered hooks once per open. The router can observe a destination
+ * before committing its location; the cold-load gate observes the active cluster.
  *
  * Hooks let plugins prepare a cluster (start a proxy, refresh credentials, write
  * a kubeconfig context, …) before its views load. They run for a single opened
@@ -60,10 +60,14 @@ export interface ClusterPreOpenState {
  * say. Observing it per route instead would tie preparation to the shortest-
  * lived component in the tree and re-run every hook whenever a route unmounts
  * with a gap before the next mounts (a suspended route, for instance).
+ *
+ * @param destinationClusters - Internal router override before committing navigation.
  */
-export function useClusterPreOpen(): ClusterPreOpenState {
+export function useClusterPreOpen(destinationClusters?: string[]): ClusterPreOpenState {
   const dispatch = useDispatch();
-  const cluster = useCluster();
+  const activeCluster = useCluster();
+  const activeClusters = useSelectedClusters();
+  const cluster = destinationClusters ? destinationClusters[0] ?? null : activeCluster;
   const clusters = useClustersConf();
   const currentClusterConf = (cluster && clusters ? clusters[cluster] : null) ?? null;
 
@@ -76,12 +80,20 @@ export function useClusterPreOpen(): ClusterPreOpenState {
   // Reactive, not a render-time snapshot: going from a multi-cluster view to one
   // of its clusters can leave `cluster` unchanged (both resolve to the first
   // one), so a snapshot would keep reporting "multi" and skip preparation.
-  const isSingleCluster = useSelectedClusters().length <= 1;
+  const isSingleCluster = (destinationClusters ?? activeClusters).length <= 1;
   const enabled = !!cluster && isSingleCluster && hasClusterPreOpenHooks();
   const configLoaded = clusters !== null && statelessConfigLoaded;
 
   const query = useQuery({
-    queryKey: ['clusterPreOpen', cluster, isSingleCluster, preOpenHooksRevision],
+    queryKey: [
+      'clusterPreOpen',
+      cluster,
+      isSingleCluster,
+      preOpenHooksRevision,
+      // A stateless config fetch may initially fail. Reconsider a provider's
+      // no-op decision when this cluster's config becomes available later.
+      currentClusterConf !== null,
+    ],
     // `signal` is consumed deliberately: React Query only aborts an in-flight
     // fetch if the query function takes it. Without that, a query whose fetch is
     // still pending is not evicted by gcTime, so leaving and reopening the

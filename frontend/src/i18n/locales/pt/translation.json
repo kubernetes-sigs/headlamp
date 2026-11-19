@@ -1326,5 +1326,9 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "Back to clusters": "",
+  "This action will remove context \"{{ clusterName }}\" from \"{{ source }}\". It will not delete the cluster.": "",
+  "Remove Context": "",
+  "Remove": ""
 }

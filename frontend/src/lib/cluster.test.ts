@@ -16,7 +16,8 @@
 
 import * as getBaseUrl from '../helpers/getBaseUrl';
 import * as isElectron from '../helpers/isElectron';
-import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
+import { getCluster, getClusterGroup, getClusterPrefixedPath, getSelectedClusters } from './cluster';
+import { registerClusterLocation } from './router/clusterLocation';
 
 vi.mock('../helpers/getBaseUrl', () => ({
   getBaseUrl: vi.fn(),
@@ -79,6 +80,21 @@ describe('getCluster', () => {
   describe('Browser Environment', () => {
     beforeEach(() => {
       vi.mocked(isElectron.isElectron).mockReturnValue(false);
+    });
+
+    it('uses the committed app selection during POP, without changing explicit path parsing', () => {
+      vi.mocked(getBaseUrl.getBaseUrl).mockReturnValue('/base');
+      window.location.pathname = '/base/c/destination/pods';
+      const unregister = registerClusterLocation(() => '/c/current+second/pods');
+      try {
+        expect(getCluster()).toBe('current');
+        expect(getSelectedClusters()).toEqual(['current', 'second']);
+        expect(getCluster('/c/destination/pods')).toBe('destination');
+        expect(getSelectedClusters([], '/c/destination/pods')).toEqual(['destination']);
+      } finally {
+        unregister();
+      }
+      expect(getCluster()).toBe('destination');
     });
 
     it('should extract cluster name from pathname without base URL', () => {

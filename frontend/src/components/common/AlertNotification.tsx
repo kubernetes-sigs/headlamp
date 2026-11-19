@@ -24,7 +24,7 @@ import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { matchPath, useLocation } from 'react-router-dom';
-import { getCluster } from '../../lib/cluster';
+import { getCluster, getClusterPathParam } from '../../lib/cluster';
 import { testClusterHealth } from '../../lib/k8s/api/v1/clusterApi';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
@@ -65,6 +65,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
   const { t } = useTranslation();
   const { pathname } = useLocation();
+  const selectedClusterIdentity = getClusterPathParam(pathname);
 
   function registerSetInterval(isStale: () => boolean): NodeJS.Timeout {
     return setInterval(() => {
@@ -80,8 +81,8 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
       checkerFunction()
         .then(() => {
-          // A check whose effect has been torn down by navigation or backoff
-          // re-registration describes a route that is no longer current.
+          // Ignore results from a previous cluster or polling generation,
+          // but keep slow checks alive across routes within the same cluster.
           if (isStale()) {
             return;
           }
@@ -105,10 +106,9 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
   }
 
   React.useEffect(() => {
-    if (!getCluster()) {
-      setError(null);
-    }
-  }, [pathname]);
+    setError(null);
+    setNetworkStatusCheckTimeFactor(0);
+  }, [selectedClusterIdentity]);
 
   // Show the bar again whenever the error changes, even if it was dismissed before.
   React.useEffect(() => {
@@ -125,7 +125,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
       };
     },
     // eslint-disable-next-line
-    [networkStatusCheckTimeFactor, pathname]
+    [networkStatusCheckTimeFactor, selectedClusterIdentity]
   );
 
   const showOnRoute = React.useMemo(() => {

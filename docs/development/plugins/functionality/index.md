@@ -217,12 +217,29 @@ Prepare a cluster before Headlamp renders its views with
 Pre-open hooks can start a proxy or tunnel, refresh credentials, warm a cache, or
 perform another asynchronous prerequisite. While hooks run, Headlamp displays a
 connecting dialog. Rejecting a hook shows its error with a retry action.
+Both states include **Back to clusters**, which returns to Home and aborts
+pending preparation.
+
+In-app links and programmatic router navigation prepare the destination before
+committing the selected cluster. Existing panels and activity sessions remain
+mounted while preparation is pending or failed. On browser back/forward the
+address bar may change immediately, but the router and the default
+`getCluster()`/`getSelectedClusters()` helpers continue to report the previous
+prepared selection until the destination is ready. This also keeps existing
+polling callbacks on that selection. Preparation hooks should use the supplied
+`context.cluster` and `context.clusterConf`, not the current selection, to address
+their destination. Direct links and reloads still gate the initial cluster views.
 
 Hooks run sequentially whenever a single cluster is opened. Combined
 multi-cluster views currently skip pre-open hooks. Hooks that apply only to some
 clusters should inspect the supplied context and resolve immediately for other
 clusters. Long-running work should use the supplied `AbortSignal`, and hooks can
 report status text through `reportProgress`.
+
+Preparation is reused while navigating within the opened cluster. If a hook
+initially receives `clusterConf: null`, Headlamp runs preparation again when that
+cluster's configuration becomes available; ordinary config refreshes do not
+re-run hooks.
 
 - API reference: [registerClusterProviderPreOpen](../../api/modules/plugin_registry#registerclusterproviderpreopen)
 
