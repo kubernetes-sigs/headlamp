@@ -16,20 +16,20 @@
 
 import type { ChildProcessWithoutNullStreams } from 'child_process';
 import { EventEmitter } from 'events';
-import { mkdtemp, writeFile } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createConnectionMock, createServerMock, execFileMock, probedPorts, spawnMock } = vi.hoisted(
-  () => ({
+const { createConnectionMock, createServerMock, execFileMock, probedPorts, spawnMock, statMock } =
+  vi.hoisted(() => ({
     createConnectionMock: vi.fn(),
     createServerMock: vi.fn(),
     execFileMock: vi.fn(),
     probedPorts: [] as number[],
     spawnMock: vi.fn(),
-  })
-);
+    statMock: vi.fn(),
+  }));
 const PROXY_CAPABILITY = '0123456789abcdef0123456789abcdef';
 const createdProxyChildren: ChildProcessWithoutNullStreams[] = [];
 
@@ -40,6 +40,14 @@ vi.mock('child_process', async importOriginal => ({
 }));
 
 vi.mock('net', () => ({ createConnection: createConnectionMock, createServer: createServerMock }));
+vi.mock('fs/promises', async importOriginal => ({
+  ...(await importOriginal<typeof import('fs/promises')>()),
+  stat: statMock,
+}));
+
+beforeEach(() => {
+  statMock.mockReset().mockResolvedValue({ isFile: () => true });
+});
 
 import {
   buildProxySpawnSpec,
@@ -147,6 +155,20 @@ function proxyRequest(cluster: string, capabilitySecret = PROXY_CAPABILITY) {
 }
 
 describe('buildProxySpawnSpec', () => {
+  it('removes quoted Windows plugin paths before executable lookup', async () => {
+    await withPlatform('win32', () => {
+      expect(
+        sanitizeProxyEnvironment(
+          {
+            Path: 'C:\\unsafe',
+            PATH: '"C:\\Headlamp\\user-plugins\\evil\\bin";"";"C:\\Program Files\\Azure\\bin"',
+          },
+          'C:\\Headlamp\\user-plugins'
+        )
+      ).toEqual({ PATH: 'C:\\Program Files\\Azure\\bin' });
+    });
+  });
+
   it('removes user-plugin executables from the proxy PATH', () => {
     const userPlugins = path.join(tmpdir(), 'Headlamp', 'user-plugins');
     const systemBin = path.join(tmpdir(), 'system-bin');
@@ -165,8 +187,8 @@ describe('buildProxySpawnSpec', () => {
     expect(environment.PATH).toBe([bundledBin, systemBin].join(path.delimiter));
   });
 
-  it('runs az directly without a shell on POSIX', () => {
-    const spec = buildProxySpawnSpec(proxyRequest('cluster-a'), 47011, 'linux');
+  it('runs az directly without a shell on POSIX', async () => {
+    const spec = await buildProxySpawnSpec(proxyRequest('cluster-a'), 47011, 'linux');
 
     expect(spec).toEqual({
       command: 'az',
@@ -179,8 +201,6 @@ describe('buildProxySpawnSpec', () => {
         'valid-rg',
         '--name',
         'cluster-a',
-        '--client-proxy-port',
-        '47010',
         '--port',
         '47011',
       ],
@@ -188,12 +208,13 @@ describe('buildProxySpawnSpec', () => {
     });
   });
 
-  it('uses cmd.exe explicitly for the Azure CLI Windows entry point', () => {
-    const spec = buildProxySpawnSpec(
+  it('uses an exact Windows Azure CLI path with delayed expansion disabled', async () => {
+    const spec = await buildProxySpawnSpec(
       { ...proxyRequest('cluster-a'), resourceGroup: 'rg(prod)' },
       47011,
       'win32',
-      'C:\\Windows\\cmd.exe'
+      'C:\\Windows\\cmd.exe',
+      { PATH: 'C:\\Program Files\\Azure\\bin' }
     );
 
     expect(spec).toEqual({
@@ -201,8 +222,9 @@ describe('buildProxySpawnSpec', () => {
       args: [
         '/d',
         '/s',
+        '/v:off',
         '/c',
-        'az.cmd connectedk8s proxy --subscription "00000000-0000-0000-0000-000000000000" --resource-group "rg(prod)" --name "cluster-a" --client-proxy-port "47010" --port "47011"',
+        '""C:\\Program Files\\Azure\\bin\\az.cmd" connectedk8s proxy --subscription "00000000-0000-0000-0000-000000000000" --resource-group "rg(prod)" --name "cluster-a" --port "47011""',
       ],
       options: {
         detached: false,
@@ -213,38 +235,75 @@ describe('buildProxySpawnSpec', () => {
     });
   });
 
+  it('resolves Windows Azure CLI only from the provided search path', async () => {
+    statMock.mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }));
+    const spec = await buildProxySpawnSpec(
+      proxyRequest('cluster-a'),
+      47011,
+      'win32',
+      'C:\\Windows\\cmd.exe',
+      { PATH: 'C:\\missing;C:\\trusted' }
+    );
+    expect(statMock.mock.calls).toEqual([['C:\\missing\\az.cmd'], ['C:\\trusted\\az.cmd']]);
+    expect(spec.args.at(-1)).toMatch(/^""C:\\trusted\\az\.cmd" /);
+  });
+
+  it('rejects Windows executable paths that cmd.exe would expand', async () => {
+    await expect(
+      buildProxySpawnSpec(proxyRequest('cluster-a'), 47011, 'win32', 'C:\\Windows\\cmd.exe', {
+        PATH: 'C:\\%UNTRUSTED%\\bin',
+      })
+    ).rejects.toThrow('unsafe Windows characters');
+  });
+
   it.runIf(process.platform === 'win32')('executes a real .cmd entry point', async () => {
     const { spawn: actualSpawn } = await vi.importActual<typeof import('child_process')>(
       'child_process'
     );
-    const directory = await mkdtemp(path.join(tmpdir(), 'headlamp-az-cmd-'));
+    const { stat } = await vi.importActual<typeof import('fs/promises')>('fs/promises');
+    statMock.mockImplementation(stat);
+    const directory = await mkdtemp(path.join(tmpdir(), 'headlamp Azure CLI '));
+    const untrustedDirectory = await mkdtemp(path.join(tmpdir(), 'headlamp-untrusted-cwd-'));
     await writeFile(path.join(directory, 'az.cmd'), '@echo off\r\necho %*\r\n');
-    const spec = buildProxySpawnSpec(
+    await writeFile(path.join(untrustedDirectory, 'az.cmd'), '@echo UNTRUSTED\r\n');
+    const spec = await buildProxySpawnSpec(
       {
         ...proxyRequest('cluster-a'),
         resourceGroup: 'rg(prod)',
       },
-      47011
+      47011,
+      'win32',
+      path.win32.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe'),
+      { PATH: directory }
     );
 
-    const stdout = await new Promise<string>((resolve, reject) => {
-      const child = actualSpawn(spec.command, spec.args, {
-        ...spec.options,
-        env: { ...process.env, PATH: `${directory}${path.delimiter}${process.env.PATH}` },
+    try {
+      const stdout = await new Promise<string>((resolve, reject) => {
+        const child = actualSpawn(spec.command, spec.args, {
+          ...spec.options,
+          cwd: untrustedDirectory,
+          env: { ...process.env, PATH: `${directory}${path.delimiter}${process.env.PATH}` },
+        });
+        let output = '';
+        child.stdout?.on('data', data => (output += data.toString()));
+        child.once('error', reject);
+        child.once('exit', code =>
+          code === 0 ? resolve(output) : reject(new Error(`exit ${code}`))
+        );
       });
-      let output = '';
-      child.stdout?.on('data', data => (output += data.toString()));
-      child.once('error', reject);
-      child.once('exit', code =>
-        code === 0 ? resolve(output) : reject(new Error(`exit ${code}`))
-      );
-    });
 
-    expect(stdout).toContain('connectedk8s proxy');
-    expect(stdout).toContain('--name "cluster-a"');
-    expect(stdout).toContain('--resource-group "rg(prod)"');
-    expect(stdout).toContain('--client-proxy-port "47010"');
-    expect(stdout).toContain('--port "47011"');
+      expect(stdout).toContain('connectedk8s proxy');
+      expect(stdout).toContain('--name "cluster-a"');
+      expect(stdout).toContain('--resource-group "rg(prod)"');
+      expect(stdout).not.toContain('--client-proxy-port');
+      expect(stdout).not.toContain('UNTRUSTED');
+      expect(stdout).toContain('--port "47011"');
+    } finally {
+      await Promise.all([
+        rm(directory, { recursive: true, force: true }),
+        rm(untrustedDirectory, { recursive: true, force: true }),
+      ]);
+    }
   });
 });
 
@@ -545,6 +604,63 @@ describe('cluster proxy handler', () => {
     await expect(
       start({} as Electron.IpcMainInvokeEvent, proxyRequest('cluster-a', 'invalid-capability'))
     ).resolves.toEqual({
+      success: false,
+      error: 'Cluster proxy capability is invalid.',
+    });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a revoked queued caller without retiring the current proxy', async () => {
+    const { handlers, ipcMain } = ipcMainMock();
+    const child = proxyChild();
+    spawnMock.mockReturnValue(child);
+    const kill = vi.spyOn(process, 'kill').mockReturnValue(true);
+    let queuedCallerAllowed = true;
+    setupProxyHandlers(
+        { id: 1 } as Electron.BrowserWindow,
+        ipcMain,
+        PROXY_CAPABILITY,
+        async () => ({ PATH: '/test/bin' }),
+        event => event.sender.id === 1 || queuedCallerAllowed
+    );
+    const start = handlers.get('start-cluster-proxy')!;
+    const first = start({ sender: { id: 1 } }, proxyRequest('cluster-a'));
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1));
+    const queued = start(
+        { sender: { id: 2 } },
+        { ...proxyRequest('cluster-a'), resourceGroup: 'replacement-rg' }
+    );
+    queuedCallerAllowed = false;
+    child.stdout.emit('data', 'Start sending kubectl requests');
+    await expect(first).resolves.toEqual({ success: true });
+    await expect(queued).resolves.toEqual({
+      success: false,
+      error: 'Cluster proxy caller is invalid.',
+    });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the original capability after environment resolution', async () => {
+    const { handlers, ipcMain } = ipcMainMock();
+    let capability = PROXY_CAPABILITY;
+    let resolveEnvironment!: (environment: NodeJS.ProcessEnv) => void;
+    const environment = vi.fn(
+        () => new Promise<NodeJS.ProcessEnv>(resolve => (resolveEnvironment = resolve))
+    );
+    setupProxyHandlers(
+        { id: 1 } as Electron.BrowserWindow,
+        ipcMain,
+        () => capability,
+        environment
+    );
+    const request = proxyRequest('cluster-a');
+    const result = handlers.get('start-cluster-proxy')!({}, request);
+    await vi.waitFor(() => expect(environment).toHaveBeenCalledOnce());
+    capability = 'replacement-capability';
+    request.capabilitySecret = capability;
+    resolveEnvironment({ PATH: '/test/bin' });
+    await expect(result).resolves.toEqual({
       success: false,
       error: 'Cluster proxy capability is invalid.',
     });
@@ -957,6 +1073,78 @@ describe('cluster proxy handler', () => {
     });
   });
 
+  it('does not trust a reachable port after its detached process group exits', async () => {
+    await withPlatform('linux', async () => {
+      const firstChild = proxyChild(1111);
+      const secondChild = proxyChild(2222);
+      spawnMock.mockReturnValueOnce(firstChild).mockReturnValueOnce(secondChild);
+      const start = startHandler();
+      const first = start({}, proxyRequest('cluster-a'));
+      await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1));
+      firstChild.stdout.emit('data', 'Start sending kubectl requests');
+      await expect(first).resolves.toEqual({ success: true });
+      firstChild.emit('exit', 0, null);
+      vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw Object.assign(new Error('group is gone'), { code: 'ESRCH' });
+      });
+
+      const restarted = start({}, proxyRequest('cluster-a'));
+      await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(2));
+      secondChild.stdout.emit('data', 'Start sending kubectl requests');
+      await expect(restarted).resolves.toEqual({ success: true });
+      expect(createConnectionMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('does not reuse a Windows endpoint after its owned listener exits', async () => {
+    await withPlatform('win32', async () => {
+      const firstChild = proxyChild(1111);
+      const secondChild = proxyChild(2222);
+      spawnMock.mockReturnValueOnce(firstChild).mockReturnValueOnce(secondChild);
+      const start = startHandler();
+      const first = start({}, proxyRequest('cluster-a'));
+      await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(1));
+      firstChild.stdout.emit('data', 'Start sending kubectl requests');
+      await expect(first).resolves.toEqual({ success: true });
+      firstChild.emit('exit', 0, null);
+      execFileMock
+        .mockImplementationOnce((_command, _args, _options, callback) => callback(null, '', ''))
+        .mockImplementationOnce((_command, _args, _options, callback) => callback(null, '', ''));
+
+      const restarted = start({}, proxyRequest('cluster-a'));
+      await vi.waitFor(() => expect(spawnMock).toHaveBeenCalledTimes(2));
+      secondChild.stdout.emit('data', 'Start sending kubectl requests');
+      await expect(restarted).resolves.toEqual({ success: true });
+      expect(createConnectionMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('rechecks authorization after resolving the Windows executable', async () => {
+    await withPlatform('win32', async () => {
+      const { handlers, ipcMain } = ipcMainMock();
+      let capability = PROXY_CAPABILITY;
+      let resolveStat!: (value: { isFile: () => boolean }) => void;
+      statMock.mockImplementationOnce(
+        () => new Promise(resolve => (resolveStat = resolve))
+      );
+      setupProxyHandlers(
+        { id: 1 } as Electron.BrowserWindow,
+        ipcMain,
+        () => capability,
+        async () => ({ PATH: 'C:\\trusted' })
+      );
+      const result = handlers.get('start-cluster-proxy')!({}, proxyRequest('cluster-a'));
+      await vi.waitFor(() => expect(statMock).toHaveBeenCalledOnce());
+      capability = 'replacement-capability';
+      resolveStat({ isFile: () => true });
+      await expect(result).resolves.toEqual({
+        success: false,
+        error: 'Cluster proxy capability is invalid.',
+      });
+      expect(spawnMock).not.toHaveBeenCalled();
+    });
+  });
+
   it('retains a detached proxy group after its launcher exits', async () => {
     await withPlatform('linux', async () => {
       const child = proxyChild();
@@ -972,6 +1160,9 @@ describe('cluster proxy handler', () => {
       child.emit('exit', 0, null);
       const kill = vi.spyOn(process, 'kill').mockReturnValue(true);
 
+      await expect(start({}, proxyRequest('cluster-a'))).resolves.toEqual({ success: true });
+      expect(kill).toHaveBeenCalledWith(-4242, 0);
+      expect(spawnMock).toHaveBeenCalledTimes(1);
       await expect(killAllProxies()).resolves.toBeUndefined();
       expect(kill).toHaveBeenCalledWith(-4242, 'SIGKILL');
     });

@@ -17,9 +17,56 @@
 import { execFile } from 'node:child_process';
 import * as fsPromises from 'node:fs/promises';
 import { userInfo } from 'node:os';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
 const execFilePromisify = promisify(execFile);
+
+/**
+ * Removes excluded and relative directories from executable lookup.
+ *
+ * @param environment - Environment whose PATH variants need normalization.
+ * @param excludedRoots - Directories whose executables must not be used.
+ * @param platform - Platform defining PATH delimiters and quoting.
+ * @returns A copied environment with one sanitized PATH value.
+ */
+export function sanitizeExecutableEnvironment(
+  environment: NodeJS.ProcessEnv,
+  excludedRoots: readonly string[],
+  platform: NodeJS.Platform = process.platform
+): NodeJS.ProcessEnv {
+  const entries = Object.entries(environment).filter(([key]) => key.toUpperCase() === 'PATH');
+  const value =
+    entries.find(([key, value]) => key === 'PATH' && value !== undefined)?.[1] ??
+    entries.find(([, value]) => value !== undefined)?.[1];
+  const sanitized = Object.fromEntries(
+    Object.entries(environment).filter(([key]) => key.toUpperCase() !== 'PATH')
+  );
+  if (value === undefined) {
+    return sanitized;
+  }
+  const paths = platform === 'win32' ? path.win32 : path.posix;
+  return {
+    ...sanitized,
+    PATH: value
+      .split(paths.delimiter)
+      .map(directory =>
+        platform === 'win32' ? directory.trim().replace(/^"([^"]*)"$/, '$1') : directory
+      )
+      .filter(directory => {
+        if (!paths.isAbsolute(directory) || (platform === 'win32' && directory.includes('"'))) {
+          return false;
+        }
+        return excludedRoots.every(root => {
+          const relative = paths.relative(paths.resolve(root), paths.resolve(directory));
+          return (
+            relative === '..' || relative.startsWith(`..${paths.sep}`) || paths.isAbsolute(relative)
+          );
+        });
+      })
+      .join(paths.delimiter),
+  };
+}
 
 /** Dependencies used to locate an available login shell. */
 export interface ShellLookupDependencies {

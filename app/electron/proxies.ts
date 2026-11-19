@@ -16,9 +16,11 @@
 
 import { ChildProcessWithoutNullStreams, execFile, spawn, SpawnOptions } from 'child_process';
 import type { BrowserWindow } from 'electron';
+import { stat } from 'fs/promises';
 import { createConnection, createServer } from 'net';
 import path from 'path';
 import { defaultUserPluginsDir } from './plugin-management';
+import { sanitizeExecutableEnvironment } from './shellEnv';
 
 /** Minimum identity shared by every managed cluster proxy target. */
 export interface ManagedProxyTarget {
@@ -95,8 +97,12 @@ export interface ManagedProxyProvider<TTarget extends ManagedProxyTarget> {
   validateRequest: (request: unknown) => ManagedProxyValidation<TTarget>;
   /** Returns the provider-specific part of a target's stable identity. */
   targetKey: (target: TTarget) => string;
-  /** Builds a shell-free process invocation for the allocated local port. */
-  buildSpawnSpec: (target: TTarget, localPort: number) => ProxySpawnSpec;
+  /** Builds a process invocation using only the sanitized executable search path. */
+  buildSpawnSpec: (
+    target: TTarget,
+    localPort: number,
+    environment: NodeJS.ProcessEnv
+  ) => ProxySpawnSpec | Promise<ProxySpawnSpec>;
   /** Waits until the provider has made its local endpoint usable. */
   waitUntilReady: (context: ProxyReadinessContext) => Promise<StartProxyResult>;
 }
@@ -167,33 +173,39 @@ export function sanitizeProxyEnvironment(
   environment: NodeJS.ProcessEnv,
   userPluginsDir: string = defaultUserPluginsDir()
 ): NodeJS.ProcessEnv {
-  const sanitizedEnvironment = { ...environment };
-  const resolvedUserPluginsDir = path.resolve(userPluginsDir);
-
-  for (const [name, value] of Object.entries(sanitizedEnvironment)) {
-    if (name.toLowerCase() !== 'path' || value === undefined) {
-      continue;
-    }
-    sanitizedEnvironment[name] = value
-      .split(path.delimiter)
-      .filter(entry => {
-        if (!entry) {
-          return false;
-        }
-        const relative = path.relative(resolvedUserPluginsDir, path.resolve(entry));
-        return (
-          relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
-        );
-      })
-      .join(path.delimiter);
-  }
-
-  return sanitizedEnvironment;
+  return sanitizeExecutableEnvironment(environment, [userPluginsDir]);
 }
 
 /** Quotes a validated dynamic value for an explicit `cmd.exe` command string. */
 function quoteWindowsCommandArg(value: string): string {
+  if (/["%\r\n]/.test(value)) {
+    throw new Error('The cluster proxy command contains unsafe Windows characters.');
+  }
   return `"${value}"`;
+}
+
+/** Resolves Azure CLI without allowing cmd.exe to search the current directory. */
+async function resolveWindowsAzureCli(environment: NodeJS.ProcessEnv): Promise<string> {
+  for (const directory of environment.PATH?.split(';') ?? []) {
+    if (!path.win32.isAbsolute(directory)) {
+      continue;
+    }
+    const executable = path.win32.join(directory, 'az.cmd');
+    try {
+      if ((await stat(executable)).isFile()) {
+        return executable;
+      }
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !('code' in error) ||
+        (error.code !== 'ENOENT' && error.code !== 'ENOTDIR')
+      ) {
+        throw error;
+      }
+    }
+  }
+  throw new Error('Azure CLI az.cmd was not found on the sanitized executable search path.');
 }
 
 /**
@@ -208,16 +220,16 @@ function quoteWindowsCommandArg(value: string): string {
  * @param port - Local API server port reserved for this proxy target.
  * @param platform - Host platform, overridable for tests.
  * @param commandShell - Windows command interpreter path.
+ * @param environment - Sanitized environment used to resolve the Windows entry point.
  * @returns Process launch specification.
  */
-export function buildProxySpawnSpec(
+export async function buildProxySpawnSpec(
   target: ClusterProxyTarget,
   port: number,
   platform: NodeJS.Platform = process.platform,
-  commandShell: string = windowsSystem32Path('cmd.exe')
-): ProxySpawnSpec {
-  // The allocator reserves adjacent ports: Azure's client proxy uses the lower one.
-  const clientProxyPort = port - 1;
+  commandShell: string = windowsSystem32Path('cmd.exe'),
+  environment: NodeJS.ProcessEnv = process.env
+): Promise<ProxySpawnSpec> {
   const proxyArgs = [
     'connectedk8s',
     'proxy',
@@ -227,14 +239,13 @@ export function buildProxySpawnSpec(
     target.resourceGroup,
     '--name',
     target.cluster,
-    '--client-proxy-port',
-    String(clientProxyPort),
     '--port',
     String(port),
   ];
   const options = { detached: true, shell: false, windowsHide: true };
 
   if (platform === 'win32') {
+    const executable = await resolveWindowsAzureCli(environment);
     const windowsProxyArgs = [
       'connectedk8s',
       'proxy',
@@ -244,14 +255,18 @@ export function buildProxySpawnSpec(
       quoteWindowsCommandArg(target.resourceGroup),
       '--name',
       quoteWindowsCommandArg(target.cluster),
-      '--client-proxy-port',
-      quoteWindowsCommandArg(String(clientProxyPort)),
       '--port',
       quoteWindowsCommandArg(String(port)),
     ];
     return {
       command: commandShell,
-      args: ['/d', '/s', '/c', ['az.cmd', ...windowsProxyArgs].join(' ')],
+      args: [
+        '/d',
+        '/s',
+        '/v:off',
+        '/c',
+        `"${[quoteWindowsCommandArg(executable), ...windowsProxyArgs].join(' ')}"`,
+      ],
       options: { ...options, detached: false, windowsVerbatimArguments: true },
     };
   }
@@ -437,6 +452,37 @@ function childHasExited(child: ChildProcessWithoutNullStreams): boolean {
   );
 }
 
+/** Checks owned process identity before trusting a cached proxy endpoint. */
+async function isOwnedProxyRunning(entry: ProxyChildEntry): Promise<boolean> {
+  if (process.platform === 'win32') {
+    const identity = entry.windowsListenerProcessIdentity;
+    if (!identity) {
+      return false;
+    }
+    const lookup = await windowsProcessIdentity(identity.pid);
+    return (
+      lookup.status === 'found' &&
+      lookup.identity.creationDate === identity.creationDate &&
+      lookup.identity.executablePath === identity.executablePath
+    );
+  }
+  if (!childHasExited(entry.child)) {
+    return true;
+  }
+  if (!entry.group || !entry.child.pid) {
+    return false;
+  }
+  try {
+    process.kill(-entry.child.pid, 0);
+    return true;
+  } catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ESRCH') {
+      console.error('Could not verify the cluster proxy process group:', error);
+    }
+    return false;
+  }
+}
+
 /** Waits until Azure reports readiness, or returns a stable startup failure. */
 function waitForAzureProxyReady({
   child,
@@ -533,7 +579,8 @@ export const azureConnectedK8sProxyProvider: ManagedProxyProvider<ClusterProxyTa
   },
   targetKey: target =>
     JSON.stringify([target.subscriptionId, target.resourceGroup, target.cluster]),
-  buildSpawnSpec: (target, localPort) => buildProxySpawnSpec(target, localPort),
+  buildSpawnSpec: (target, localPort, environment) =>
+    buildProxySpawnSpec(target, localPort, process.platform, windowsSystem32Path('cmd.exe'), environment),
   waitUntilReady: waitForAzureProxyReady,
 };
 
@@ -721,9 +768,10 @@ async function startProxy<TTarget extends ManagedProxyTarget>(
   provider: ManagedProxyProvider<TTarget>,
   target: TTarget,
   port: number,
-  getEnvironment: () => Promise<NodeJS.ProcessEnv>
+  getEnvironment: () => Promise<NodeJS.ProcessEnv>,
+  authorizationError: () => string | undefined
 ): Promise<ProxyStart> {
-  const spec = provider.buildSpawnSpec(target, port);
+  let spec: ProxySpawnSpec;
   let child: ChildProcessWithoutNullStreams;
   try {
     if (isShuttingDown) {
@@ -733,11 +781,23 @@ async function startProxy<TTarget extends ManagedProxyTarget>(
       ...(await getEnvironment()),
       PYTHONUNBUFFERED: '1',
     });
+    const invalidAuthorization = authorizationError();
+    if (invalidAuthorization) {
+      return { result: { success: false, error: invalidAuthorization } };
+    }
     const executablePaths = Object.entries(env)
       .filter(([name]) => name.toLowerCase() === 'path')
       .map(([, value]) => value);
     if (executablePaths.length === 0 || executablePaths.every(value => !value)) {
       throw new Error('The cluster proxy executable search path is empty.');
+    }
+    if (isShuttingDown) {
+      return { result: { success: false, error: 'The app is shutting down.' } };
+    }
+    spec = await provider.buildSpawnSpec(target, port, env);
+    const revokedAuthorization = authorizationError();
+    if (revokedAuthorization) {
+      return { result: { success: false, error: revokedAuthorization } };
     }
     if (isShuttingDown) {
       return { result: { success: false, error: 'The app is shutting down.' } };
@@ -834,14 +894,21 @@ export function setupManagedProxyHandler<TTarget extends ManagedProxyTarget>(
 
   ipcMain.removeHandler(channel);
   ipcMain.handle(channel, async (event, request): Promise<StartProxyResult> => {
-    if (!authorizeEvent(event)) {
-      return { success: false, error: 'Cluster proxy caller is invalid.' };
-    }
     const data = (request ?? {}) as { capabilitySecret?: unknown };
-    const currentCapabilitySecret =
-      typeof capabilitySecret === 'function' ? capabilitySecret() : capabilitySecret;
-    if (data.capabilitySecret !== currentCapabilitySecret) {
-      return { success: false, error: 'Cluster proxy capability is invalid.' };
+    const requestedCapability = data.capabilitySecret;
+    const authorizationError = () => {
+      if (!authorizeEvent(event)) {
+        return 'Cluster proxy caller is invalid.';
+      }
+      const currentCapability =
+        typeof capabilitySecret === 'function' ? capabilitySecret() : capabilitySecret;
+      if (requestedCapability !== currentCapability) {
+        return 'Cluster proxy capability is invalid.';
+      }
+    };
+    const invalidAuthorization = authorizationError();
+    if (invalidAuthorization) {
+      return { success: false, error: invalidAuthorization };
     }
     const validation = provider.validateRequest(request);
     if (!validation.target) {
@@ -858,15 +925,29 @@ export function setupManagedProxyHandler<TTarget extends ManagedProxyTarget>(
       return existingStart;
     }
     const started = proxyStartQueue.then(async () => {
+      let invalidAuthorization = authorizationError();
+      if (invalidAuthorization) {
+        return { success: false, error: invalidAuthorization };
+      }
       const sameClusterEntries = liveChildrenForCluster(target.cluster);
       const exactTarget = liveChildForTarget(provider, target);
       const reusableTarget =
-        exactTarget?.readyResult?.success && (await isProxyEndpointReachable(exactTarget.port))
+        exactTarget?.readyResult?.success &&
+        (await isOwnedProxyRunning(exactTarget)) &&
+        (await isProxyEndpointReachable(exactTarget.port))
           ? exactTarget
           : undefined;
       for (const entry of sameClusterEntries) {
+        invalidAuthorization = authorizationError();
+        if (invalidAuthorization) {
+          return { success: false, error: invalidAuthorization };
+        }
         if (entry === reusableTarget) {
           continue;
+        }
+        invalidAuthorization = authorizationError();
+        if (invalidAuthorization) {
+          return { success: false, error: invalidAuthorization };
         }
         if (!(await terminateChildEntry(entry))) {
           return {
@@ -883,7 +964,13 @@ export function setupManagedProxyHandler<TTarget extends ManagedProxyTarget>(
       if (!port) {
         return { success: false, error: 'No local port pair is available for the cluster proxy.' };
       }
-      const proxyStart = await startProxy(provider, target, port, getEnvironment);
+      const proxyStart = await startProxy(
+        provider,
+        target,
+        port,
+        getEnvironment,
+        authorizationError
+      );
       if (!proxyStart.result.success || !proxyStart.entry) {
         return proxyStart.result;
       }
@@ -927,6 +1014,12 @@ export function setupManagedProxyHandler<TTarget extends ManagedProxyTarget>(
         }
         if (result.success) {
           entry.readyResult = result;
+        }
+      }
+      if (result.success) {
+        invalidAuthorization = authorizationError();
+        if (invalidAuthorization) {
+          result = { success: false, error: invalidAuthorization };
         }
       }
       if (!result.success && proxyChildren.has(entry)) {

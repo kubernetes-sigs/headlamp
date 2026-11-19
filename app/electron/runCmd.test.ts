@@ -15,6 +15,7 @@
  */
 
 import crypto from 'crypto';
+import type { BrowserWindow } from 'electron';
 import { EventEmitter } from 'events';
 import fs from 'fs';
 import os from 'os';
@@ -899,6 +900,31 @@ describe('handleRunCommand', () => {
     );
   });
 
+  it('rejects a bare legacy command when filtering empties PATH', async () => {
+    getShellEnvironmentMock.mockResolvedValueOnce({ PATH: '/plugins/user/attacker/bin' });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'empty-path',
+        command: 'gh',
+        args: ['auth', 'token'],
+        options: { cwd: '/plugins/user/attacker' },
+        permissionSecrets: { 'runCmd-gh': 99 },
+      },
+      { id: 1 } as BrowserWindow,
+      { 'runCmd-gh': 99 }
+    );
+    expect(spawnMock).not.toHaveBeenCalled();
+    expect(sentMessages).toContainEqual([
+      'command-stderr',
+      'empty-path',
+      'The command executable search path is empty.',
+    ]);
+    expect(sentMessages).toContainEqual(['command-exit', 'empty-path', -1]);
+    consoleError.mockRestore();
+  });
+
   it('reports exit only after stdout and stderr close', async () => {
     const eventData = {
       id: 'test-id',
@@ -1331,13 +1357,14 @@ describe('handleRunCommand', () => {
     fs.rmSync(userRoot, { recursive: true, force: true });
   });
 
-  it('runs a confined development-inventory executable without an installation receipt', async () => {
+  it('runs a confined development executable even with an empty PATH', async () => {
     const developmentRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-command-bin-'));
     const executable = path.join(developmentRoot, 'minikube', 'bin', 'minikube');
     fs.mkdirSync(path.dirname(executable), { recursive: true });
     fs.writeFileSync(executable, 'development');
     const capability = 'a'.repeat(64);
     fakeEvent.sender.id = 7;
+    getShellEnvironmentMock.mockResolvedValueOnce({ PATH: '' });
     try {
       await handleRunCommand(
         fakeEvent,

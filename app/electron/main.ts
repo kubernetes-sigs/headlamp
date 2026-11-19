@@ -2085,7 +2085,6 @@ function startElectron() {
   const beforeQuit = createBeforeQuitHandler(
     async () => {
       isQuitting = true;
-      await killAllProxies();
       // Persist any zoom change still waiting on the debounced save.
       flushZoomFactorSave();
       cleanupHeadlampTray();
@@ -2095,14 +2094,18 @@ function startElectron() {
         mainWindow.removeAllListeners('close');
       }
 
-      if (mcpClient) {
+      const cleanupMcp = async () => {
+        if (!mcpClient) {
+          return;
+        }
         try {
           await mcpClient.cleanup();
           mcpClient = null;
         } catch (err) {
           console.error('Failed to clean up mcpClient:', err);
         }
-      }
+      };
+      await Promise.all([killAllProxies(), cleanupMcp()]);
     },
     () => app.quit()
   );

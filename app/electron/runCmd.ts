@@ -37,6 +37,7 @@ import { setupProxyHandlers } from './proxies';
 import { isRunCommandAllowed, RunCommandGrant } from './runCommandPolicy';
 import { isTrustedDocumentUrl } from './secureStorage';
 import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
+import { sanitizeExecutableEnvironment } from './shellEnv';
 
 /**
  * Data sent from the renderer process when a 'run-command' event is emitted.
@@ -582,29 +583,7 @@ export function systemCommandEnvironment(
   environment: NodeJS.ProcessEnv,
   pluginRoots: PluginRoots = defaultPluginRoots()
 ): NodeJS.ProcessEnv {
-  const pathEntries = Object.entries(environment).filter(([key]) => key.toUpperCase() === 'PATH');
-  const pathValue =
-    pathEntries.find(([key, value]) => key === 'PATH' && value !== undefined)?.[1] ??
-    pathEntries.find(([, value]) => value !== undefined)?.[1];
-  const sanitizedEnvironment = Object.fromEntries(
-    Object.entries(environment).filter(([key]) => key.toUpperCase() !== 'PATH')
-  );
-  if (pathValue === undefined) {
-    return sanitizedEnvironment;
-  }
-  const roots = Object.values(pluginRoots);
-  return {
-    ...sanitizedEnvironment,
-    PATH: pathValue
-      .split(path.delimiter)
-      .filter(
-        directory =>
-          directory !== '' &&
-          path.isAbsolute(directory) &&
-          !roots.some(root => isPathWithin(root, directory))
-      )
-      .join(path.delimiter),
-  };
+  return sanitizeExecutableEnvironment(environment, Object.values(pluginRoots));
 }
 
 /** Resolved plugin executable and the canonical bundle that owns it. */
@@ -1236,18 +1215,20 @@ export async function handleRunCommand(
   // env var so that the Headlamp or Electron process runs the script.
   let child: ChildProcessWithoutNullStreams;
   try {
+    const env =
+      commandData.command === 'scriptjs'
+        ? { ...shellEnvironment, HEADLAMP_RUN_SCRIPT: 'true' }
+        : systemCommandEnvironment(shellEnvironment, pluginRoots);
+    if (env.PATH === '' && !path.isAbsolute(command)) {
+      throw new Error('The command executable search path is empty.');
+    }
     child = spawn(command, args, {
       // Electron has no console on Windows, so each console program it
       // starts would open a new, visible console window.
       windowsHide: true,
       ...commandData.options,
       shell: false,
-      env: {
-        ...(commandData.command !== 'scriptjs'
-          ? systemCommandEnvironment(shellEnvironment, pluginRoots)
-          : shellEnvironment),
-        ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
-      },
+      env,
     }) as ChildProcessWithoutNullStreams;
   } catch (error) {
     removePreparedFiles();
