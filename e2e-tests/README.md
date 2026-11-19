@@ -124,6 +124,24 @@ kubectl config set-credentials admin@kind-test2 \
 
 ### Additional suites
 
+`tests/logStreaming.spec.ts` creates a temporary namespace and a logging Deployment
+on the real test cluster, then exercises pod logs and workload logs in both
+All Pods and selected-pod modes.
+It verifies incoming log lines, Since query parameters, cancellation of replaced
+streams, and Reconnect after a deliberately interrupted WebSocket. Log messages
+are forwarded from Kubernetes, not mocked. The namespace is deleted after each test.
+Run it against Headlamp built from the branch under test:
+
+```bash
+cd e2e-tests
+npx playwright test tests/logStreaming.spec.ts --project=chromium
+```
+
+It uses `HEADLAMP_TEST_URL` and `HEADLAMP_TEST_TOKEN` from the setup above.
+`HEADLAMP_TEST_CLUSTER` defaults to `test`; `HEADLAMP_TEST_BACKEND_TOKEN` defaults
+to `headlamp`. `HEADLAMP_TEST_TOKEN` is required. The test identity needs permission
+to create and delete namespaces and Deployments and to read pods and pod logs.
+
 `tests/pomeriumProxyAuth.spec.ts` verifies Headlamp behind the Pomerium Ingress Controller. Its harness creates a disposable kind cluster on the active Docker engine, deploys Dex as a test identity provider, and installs the local Headlamp chart. The harness pins the Kubernetes node image to `kindest/node:v1.36.1`.
 
 Prerequisites are Docker, kind, kubectl, Helm, OpenSSL, curl, Node.js, and Google Chrome. Run it from the repository root:
