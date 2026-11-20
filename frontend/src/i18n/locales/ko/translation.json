@@ -1018,6 +1018,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "최소 Available",
+  "All pods in the namespace": "",
   "Allowed disruptions": "허용된 장애",
   "Current//context:pods": "Current",
   "Total": "전체",

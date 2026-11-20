@@ -1042,6 +1042,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Min. k dispozici",
+  "All pods in the namespace": "",
   "Allowed disruptions": "Povolená přerušení",
   "Current//context:pods": "Aktuální",
   "Total": "Celkem",

@@ -1018,6 +1018,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "最小利用可能",
+  "All pods in the namespace": "",
   "Allowed disruptions": "許可された中断",
   "Current//context:pods": "現在",
   "Total": "合計",

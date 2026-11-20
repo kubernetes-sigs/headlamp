@@ -1034,6 +1034,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Minimo Disponibile",
+  "All pods in the namespace": "",
   "Allowed disruptions": "Interruzioni Consentite",
   "Current//context:pods": "Attuale",
   "Total": "Totale",

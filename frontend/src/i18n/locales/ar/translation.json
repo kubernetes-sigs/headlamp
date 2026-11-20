@@ -1058,6 +1058,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "الحد الأدنى المتاح",
+  "All pods in the namespace": "",
   "Allowed disruptions": "الاضطرابات المسموح بها",
   "Current//context:pods": "الحالي",
   "Total": "الإجمالي",

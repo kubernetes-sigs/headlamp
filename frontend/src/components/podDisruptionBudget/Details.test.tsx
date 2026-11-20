@@ -84,6 +84,26 @@ describe('PDBDetails', () => {
     expect(names).toContain('Status');
   });
 
+  it('says an empty selector matches all pods in the namespace', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
+        <PDBDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const selectorRow = (item: any) =>
+      props.extraInfo(item).find((f: any) => String(f.name).endsWith('Selector'));
+
+    const emptySelector = { ...pdb, spec: { ...pdb.spec, selector: {} }, selectors: [] };
+    const { container } = render(<>{selectorRow(emptySelector).value}</>);
+    expect(container.textContent).toBe('All pods in the namespace');
+
+    const noSelector = { ...pdb, selectors: [] };
+    const { container: noSelectorContainer } = render(<>{selectorRow(noSelector).value}</>);
+    expect(noSelectorContainer.textContent).toBe('');
+  });
+
   it('returns nothing from extraInfo when there is no item', () => {
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>

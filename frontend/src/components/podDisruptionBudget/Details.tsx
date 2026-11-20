@@ -59,7 +59,14 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
           },
           {
             name: t('glossary|Selector'),
-            value: <>{selectorsToJSX(item.selectors)}</>,
+            // In policy/v1 an empty selector ({}) selects every pod in the
+            // namespace, while a missing selector selects none.
+            value:
+              item.spec?.selector && item.selectors.length === 0 ? (
+                <StatusLabel status="">{t('translation|All pods in the namespace')}</StatusLabel>
+              ) : (
+                <>{selectorsToJSX(item.selectors)}</>
+              ),
           },
           {
             name: t('translation|Status'),

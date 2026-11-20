@@ -24,6 +24,11 @@ import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 export { ResourceClasses } from './resourceClasses';
+import { matchExpressionSimplifier, matchLabelsSimplifier } from './labelSelector';
+
+// Defined in a leaf module so resource classes can use them without importing
+// this file, which re-exports ResourceClasses and would create a cycle.
+export { matchExpressionSimplifier, matchLabelsSimplifier };
 
 /** Hook for getting or fetching the clusters configuration.
  * This gets the clusters from the redux store. The redux store is updated
@@ -83,111 +88,6 @@ export function labelSelectorToQuery(labelSelector: LabelSelector) {
   }
 
   return segments.join(',');
-}
-
-/**
- * Simplifies a matchLabels object into an array of string expressions.
- *
- * @param matchLabels - the matchLabels object from a LabelSelector.
- * @param isEqualSeperator - whether to use "=" as the separator instead of ":".
- * @returns an array of simplified label strings, or an empty string.
- */
-export function matchLabelsSimplifier(
-  matchLabels: LabelSelector['matchLabels'],
-  isEqualSeperator = false
-): string[] | '' {
-  if (!matchLabels) {
-    return '';
-  }
-
-  const segments: string[] = [];
-  for (const k in matchLabels) {
-    if (isEqualSeperator) {
-      segments.push(`${k}=${matchLabels[k]}`);
-      continue;
-    }
-    segments.push(`${k}: ${matchLabels[k]}`);
-  }
-
-  return segments;
-}
-
-/**
- * Simplifies a matchExpressions array into an array of string representations.
- *
- * @param matchExpressions - the matchExpressionss array from a LabelSelector.
- * @returns an array of simplified expression strings, or an empty string.
- */
-export function matchExpressionSimplifier(
-  matchExpressions: LabelSelector['matchExpressions']
-): string[] | '' {
-  if (!matchExpressions) {
-    return '';
-  }
-
-  const segments: string[] = [];
-  for (const expr of matchExpressions) {
-    let segment = '';
-    if (expr.operator === 'DoesNotExist') {
-      segment += '!';
-    }
-
-    let needsParensWrap = false;
-    const NoLengthLimits = -1;
-    let expectedValuesLength = NoLengthLimits;
-
-    segment += expr.key;
-    switch (expr.operator) {
-      case 'Equals':
-        segment += '=';
-        expectedValuesLength = 1;
-        break;
-      case 'DoubleEquals':
-        segment += '==';
-        expectedValuesLength = 1;
-        break;
-      case 'NotEquals':
-        segment += '!=';
-        expectedValuesLength = 1;
-        break;
-      case 'In':
-        segment += ' in ';
-        needsParensWrap = true;
-        break;
-      case 'NotIn':
-        segment += ' notin ';
-        needsParensWrap = true;
-        break;
-      case 'GreaterThan':
-        segment += '>';
-        expectedValuesLength = 1;
-        break;
-      case 'LessThan':
-        segment += '<';
-        expectedValuesLength = 1;
-        break;
-      case 'Exists':
-      case 'DoesNotExist':
-        expectedValuesLength = 0;
-        break;
-    }
-
-    let values = '';
-
-    if (expectedValuesLength === 1) {
-      values = expr.values[0] ?? '';
-    } else if (expectedValuesLength === NoLengthLimits) {
-      values = [...(expr.values ?? [])].sort().join(',');
-      if (needsParensWrap) {
-        values = '(' + values + ')';
-      }
-    }
-
-    segment += values;
-    segments.push(segment);
-  }
-
-  return segments;
 }
 
 const versionFetchInterval = 10000; // ms
