@@ -88,6 +88,9 @@ export function streamResult<T extends KubeObjectInterface>(
 
       cb(item);
 
+      // The callback may have cancelled the stream, e.g. to read the object only once.
+      if (isCancelled) return;
+
       const watchUrl =
         url +
         asQuery({ ...queryParams, ...{ watch: '1', fieldSelector: `metadata.name=${name}` } });
@@ -184,6 +187,9 @@ export function streamResultsForCluster(
       if (isCancelled) return;
 
       add(items, kind);
+
+      // The callback may have cancelled the stream, e.g. to read the list only once.
+      if (isCancelled) return;
 
       const watchUrl =
         url +
