@@ -24,6 +24,14 @@ func ExportedRunWatcher(
 // ResetRegistries clears both registries for test isolation.
 // If no keys are provided, it clears all entries.
 func ResetRegistries(keys ...string) {
+	resourceIndexMu.Lock()
+	resourceKeyIndex = make(map[string]map[string]time.Time)
+	resourceIndexMu.Unlock()
+
+	registeredCachesMu.Lock()
+	registeredCaches = make(map[cache.Cache[string]]struct{})
+	registeredCachesMu.Unlock()
+
 	if len(keys) == 0 {
 		watcherRegistry.Range(func(key, _ interface{}) bool {
 			watcherRegistry.Delete(key)
@@ -41,6 +49,11 @@ func ResetRegistries(keys ...string) {
 		watcherRegistry.Delete(k)
 		contextCancel.Delete(k)
 	}
+}
+
+// ExportedIndexCacheKey exposes indexCacheKey for testing.
+func ExportedIndexCacheKey(key string) {
+	indexCacheKey(key)
 }
 
 // StoreTestRegistry populates both registries for test setup.
@@ -194,4 +207,55 @@ func ExportedClientsetPrefixBlocked(prefix string) bool {
 	_, blocked := blockedClientsetPrefixes[prefix]
 
 	return blocked
+}
+
+// ExportedIndexCacheKeyWithTTL indexes a key with an explicit expiration TTL for testing.
+func ExportedIndexCacheKeyWithTTL(key string, ttl time.Duration) {
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	indexCacheKeyLocked(key, time.Now().Add(ttl))
+}
+
+// ExportedUnindexIfExpired invokes unindexIfExpiredLocked for testing.
+func ExportedUnindexIfExpired(key string, now time.Time) {
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	unindexIfExpiredLocked(key, now)
+}
+
+// ExportedEvictExpiredIndexEntries invokes evictExpiredIndexEntriesLocked for testing.
+func ExportedEvictExpiredIndexEntries(now time.Time) {
+	resourceIndexMu.Lock()
+	defer resourceIndexMu.Unlock()
+
+	evictExpiredIndexEntriesLocked(now)
+}
+
+// ExportedIsKeyIndexed reports whether key is present in the resource key index.
+func ExportedIsKeyIndexed(key string) bool {
+	group, _, kind, namespace, contextKey, ok := parseCacheKey(key)
+	if !ok || contextKey == "" {
+		return false
+	}
+
+	resource := extractBaseResource(kind)
+	if resource == "" {
+		return false
+	}
+
+	bucketKey := buildIndexBucketKey(contextKey, group, resource, namespace)
+
+	resourceIndexMu.RLock()
+	defer resourceIndexMu.RUnlock()
+
+	bucket, exists := resourceKeyIndex[bucketKey]
+	if !exists {
+		return false
+	}
+
+	_, found := bucket[key]
+
+	return found
 }
