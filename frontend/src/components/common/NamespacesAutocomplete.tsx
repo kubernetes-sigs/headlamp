@@ -27,8 +27,13 @@ import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
-import { useCluster, useClustersConf } from '../../lib/k8s';
+import {
+  getCombinedAllowedNamespaces,
+  getDiscoveredNamespaces,
+  isRestrictedOnlyByDiscovery,
+  subscribeDiscoveredNamespaces,
+} from '../../helpers/clusterSettings';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
@@ -199,26 +204,52 @@ export function NamespacesAutocomplete() {
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
   const cluster = useCluster();
+  const selectedClusters = useSelectedClusters();
   const [namespaceNames, setNamespaceNames] = React.useState<string[]>([]);
+  // When namespace discovery is the only restriction of every selected cluster,
+  // follow the discovery store directly so background refreshes, an empty result
+  // and a dropped restriction show up in the options. With several clusters the
+  // options are the union of their discovered names. null means discovery does
+  // not apply to all selected clusters, so the existing behaviour is kept.
+  const discoveredNamespacesKey = React.useSyncExternalStore(subscribeDiscoveredNamespaces, () => {
+    const clusters = selectedClusters.length > 0 ? selectedClusters : [cluster || ''];
+    if (!clusters.every(isRestrictedOnlyByDiscovery)) {
+      return null;
+    }
+    const names = new Set(clusters.flatMap(name => getDiscoveredNamespaces(name) ?? []));
+    return [...names].sort().join('\n');
+  });
+  const discoveredNamespaceNames = React.useMemo(
+    () =>
+      discoveredNamespacesKey === null
+        ? null
+        : discoveredNamespacesKey
+        ? discoveredNamespacesKey.split('\n')
+        : [],
+    [discoveredNamespacesKey]
+  );
 
   React.useEffect(() => {
+    // Only namespaces configured in the settings go through this path; discovered
+    // ones are handled above or, with mixed clusters, by the cluster list.
+    if (discoveredNamespacesKey !== null || isRestrictedOnlyByDiscovery(cluster || '')) {
+      return;
+    }
     const allowedNamespaces = getCombinedAllowedNamespaces(cluster || '');
     if (allowedNamespaces.length > 0) {
       setNamespaceNames(allowedNamespaces);
     }
-  }, [cluster]);
+  }, [cluster, discoveredNamespacesKey]);
+
+  const optionNames = discoveredNamespaceNames ?? namespaceNames;
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
     dispatch(setNamespaceFilter(newValue));
   };
 
-  return namespaceNames.length > 0 ? (
-    <PureNamespacesAutocomplete
-      namespaceNames={namespaceNames}
-      onChange={onChange}
-      filter={filter}
-    />
+  return optionNames.length > 0 ? (
+    <PureNamespacesAutocomplete namespaceNames={optionNames} onChange={onChange} filter={filter} />
   ) : (
     <NamespacesFromClusterAutocomplete onChange={onChange} filter={filter} />
   );

@@ -17,8 +17,13 @@
 import { ReactNode, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { loadClusterSettings, loadResolvedAllowedNamespaces } from '../../helpers/clusterSettings';
+import {
+  shouldDiscoverNamespaces,
+  useAccessibleNamespaces,
+} from '../../lib/k8s/accessibleNamespaces';
 import { useAllowedNamespacesFromSelector } from '../../lib/k8s/allowedNamespaces';
 import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
+import { useTypedSelector } from '../../redux/hooks';
 import { Loader } from '../common';
 
 /** Result state for a single allowed namespace selector. */
@@ -62,7 +67,35 @@ function AllowedNamespacesSelectorResolver({
 }
 
 /**
- * Delays child rendering until every relevant namespace selector has resolved.
+ * Discovers one cluster's accessible namespaces and reports stable result changes.
+ * The hook updates the discovered-namespaces store before this component's
+ * effect reports the result, so children never render with a stale store.
+ *
+ * @param props - Cluster and result callback.
+ * @returns No rendered content.
+ */
+function AccessibleNamespacesResolver({
+  cluster,
+  onDiscovered,
+}: {
+  cluster: string;
+  onDiscovered: (cluster: string, resultKey: string | null) => void;
+}) {
+  const { isPending, namespaces } = useAccessibleNamespaces(cluster);
+  const resultKey = isPending ? null : JSON.stringify(namespaces ?? null);
+
+  // Report pending (null) too: after a login or token change discovery starts
+  // over, and dependent routes must wait for the new identity's result.
+  useEffect(() => {
+    onDiscovered(cluster, resultKey);
+  }, [cluster, resultKey, onDiscovered]);
+
+  return null;
+}
+
+/**
+ * Delays child rendering until every relevant namespace selector and namespace
+ * discovery has resolved.
  *
  * @param props - Relevant clusters and selector-dependent content.
  * @returns Selector resolvers followed by a loader or the child content.
@@ -75,7 +108,14 @@ export default function AllowedNamespacesSelectorGate({
   children: ReactNode;
 }) {
   const { t } = useTranslation();
+  const discoveryEnabled = useTypedSelector(state => state.config.namespaceDiscoveryEnabled);
   const [resolutions, setResolutions] = useState<Record<string, SelectorResolution>>({});
+  const [discovered, setDiscovered] = useState<Record<string, string | null>>({});
+  const onDiscovered = useCallback((cluster: string, resultKey: string | null) => {
+    setDiscovered(current =>
+      current[cluster] === resultKey ? current : { ...current, [cluster]: resultKey }
+    );
+  }, []);
   const onResolved = useCallback((cluster: string, resolution: SelectorResolution) => {
     setResolutions(current =>
       current[cluster]?.resultKey === resolution.resultKey
@@ -97,8 +137,11 @@ export default function AllowedNamespacesSelectorGate({
 
     return resolution?.selector === selector && resolution.isError ? resolution.resultKey : null;
   });
-  const waiting = resolutionKeys.some(key => key === null);
-  const resolutionKey = JSON.stringify(resolutionKeys);
+  const discoveryKeys = clusters.map(cluster =>
+    shouldDiscoverNamespaces(cluster, discoveryEnabled) ? discovered[cluster] ?? null : ''
+  );
+  const waiting = [...resolutionKeys, ...discoveryKeys].some(key => key === null);
+  const resolutionKey = JSON.stringify([resolutionKeys, discoveryKeys]);
 
   return (
     <>
@@ -108,6 +151,9 @@ export default function AllowedNamespacesSelectorGate({
           cluster={cluster}
           onResolved={onResolved}
         />
+      ))}
+      {clusters.map(cluster => (
+        <AccessibleNamespacesResolver key={cluster} cluster={cluster} onDiscovered={onDiscovered} />
       ))}
       {waiting ? (
         <Loader title={t('Loading')} />

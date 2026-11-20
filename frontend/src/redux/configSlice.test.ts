@@ -66,6 +66,20 @@ describe('configSlice', () => {
     expect(nextState.isDynamicClusterEnabled).toBe(true);
   });
 
+  it('should handle setConfig with namespaceDiscoveryEnabled', () => {
+    expect(initialState.namespaceDiscoveryEnabled).toBe(false);
+
+    const enabled = configReducer(
+      initialState,
+      setConfig({ clusters: {}, namespaceDiscoveryEnabled: true })
+    );
+    expect(enabled.namespaceDiscoveryEnabled).toBe(true);
+
+    // Omitting the field keeps the previous value.
+    const unchanged = configReducer(enabled, setConfig({ clusters: {} }));
+    expect(unchanged.namespaceDiscoveryEnabled).toBe(true);
+  });
+
   it('should handle setConfig with oidcAutoLogin', () => {
     const clusters: ConfigState['clusters'] = {
       'cluster-1': { name: 'cluster-1' } as Cluster,

@@ -95,6 +95,53 @@ The management identity needs `get`, `list`, and `watch` on `clusters` in
 See [Cluster API discovery](../../development/cluster-api-discovery.md) for the Secret
 contract and supported settings.
 
+### Namespace discovery for namespace-scoped users
+
+Users who may not list namespaces (for example OIDC users with only
+namespace-scoped RoleBindings) otherwise see empty lists until they configure
+**Settings > Allowed namespaces** by hand. With namespace discovery enabled,
+Headlamp finds the namespaces they can work in:
+
+```yaml
+config:
+  extraArgs:
+    - -enable-namespace-discovery
+```
+
+How it works:
+
+- The Headlamp service account lists the namespace **names**. This is the only
+  request made with the service account, so it needs `list` on `namespaces`
+  (the chart's default `cluster-admin` binding covers that).
+- For each namespace, Headlamp sends a SelfSubjectAccessReview **with the
+  user's own token**. A namespace is shown when the user may get that
+  namespace or list pods, deployments, services or configmaps there. Users
+  therefore only see the names of namespaces they can already access, and the
+  decision comes from the API server's authorizers (RBAC, webhooks such as EKS
+  access entries, ...).
+- Users who may list namespaces are not affected. Results are cached for one
+  minute per user, and the UI refreshes them every minute and after every
+  login, logout or token change.
+- Namespaces configured in **Settings > Allowed namespaces** (manual list or
+  label selector) take precedence over discovered namespaces.
+
+The flag only works with `-in-cluster`, and only for the in-cluster context.
+
+One discovery run needs up to 5 access reviews per namespace the user cannot
+access. With the defaults (`-namespace-discovery-qps=100`,
+`-namespace-discovery-timeout=30s`) that covers roughly 600 namespaces. For
+larger clusters raise either value, for example:
+
+```yaml
+config:
+  extraArgs:
+    - -enable-namespace-discovery
+    - -namespace-discovery-qps=300
+```
+
+When a run hits the time limit, Headlamp logs a warning and the UI falls back
+to the behaviour without discovery.
+
 ## Using simple yaml
 
 We also maintain a simple/vanilla [file](https://github.com/kubernetes-sigs/headlamp/blob/main/kubernetes-headlamp.yaml)

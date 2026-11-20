@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
+import { useQueries } from '@tanstack/react-query';
 import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
 import unset from 'lodash/unset';
 import React, { useMemo } from 'react';
 import {
   getCombinedAllowedNamespaces,
+  getDiscoveredNamespacesVersion,
+  getDiscoveryGeneration,
   hasAllowedNamespacesRestriction,
+  isRestrictedOnlyByDiscovery,
+  subscribeDiscoveredNamespaces,
 } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
@@ -399,7 +404,57 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     const fallbackClusters = useSelectedClusters();
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const allowedNamespacesResolutionKey = React.useContext(AllowedNamespacesResolutionContext);
+    // Consumers outside AllowedNamespacesSelectorGate (e.g. the global search in
+    // the top bar) must also re-route when discovered namespaces change.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const discoveredNamespacesVersion = React.useSyncExternalStore(
+      subscribeDiscoveredNamespaces,
+      getDiscoveredNamespacesVersion
+    );
     const isNamespaced = this.isNamespaced;
+    const clusterList = cluster
+      ? [cluster]
+      : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+
+    // Namespace discovery only checks a few resource kinds. Where it is the only
+    // restriction, ask whether the user may list this kind cluster-wide; if so,
+    // keep the cluster-wide request for it instead of limiting it to the
+    // discovered namespaces. Until the answer arrives the discovered set applies.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const discoveryGeneration = React.useSyncExternalStore(
+      subscribeDiscoveredNamespaces,
+      getDiscoveryGeneration
+    );
+    const discoveryOnlyClusters =
+      isNamespaced && !requestedLists ? clusterList.filter(isRestrictedOnlyByDiscovery) : [];
+    const kind = this;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const clusterWideListQueries = useQueries({
+      queries: discoveryOnlyClusters.map(currentCluster => ({
+        queryKey: [
+          'clusterWideList',
+          currentCluster,
+          discoveryGeneration,
+          kind.apiGroupName ?? '',
+          kind.apiName,
+        ],
+        queryFn: async () => {
+          const review = await kind.fetchAuthorization(
+            { verb: 'list', group: kind.apiGroupName ?? '', resource: kind.apiName },
+            currentCluster
+          );
+          return review?.status?.allowed === true;
+        },
+        // Re-check periodically so granted or revoked access changes routing
+        // while the list stays mounted.
+        staleTime: 60 * 1000,
+        refetchInterval: 60 * 1000,
+        retry: false,
+      })),
+    });
+    const clusterWideListKey = discoveryOnlyClusters
+      .filter((_, index) => clusterWideListQueries[index]?.data === true)
+      .join('\0');
 
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -414,28 +469,34 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         };
       }
 
-      const clusterList = cluster
-        ? [cluster]
-        : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+      const clusterWideList = new Set(clusterWideListKey ? clusterWideListKey.split('\0') : []);
+      // An empty string means "all namespaces", not an explicitly named one.
+      const requestedNamespaces = (
+        typeof namespace === 'string' ? [namespace] : Array.isArray(namespace) ? namespace : []
+      ).filter(Boolean);
+      const namespacesFromParams = requestedNamespaces.length > 0 ? requestedNamespaces : undefined;
 
-      const namespacesFromParams =
-        typeof namespace === 'string'
-          ? [namespace]
-          : Array.isArray(namespace)
-          ? namespace
-          : undefined;
+      // The discovered set is not exhaustive, so it never removes namespaces the
+      // caller asked for explicitly, nor kinds the user may list cluster-wide.
+      // Restrictions configured in the settings still apply as before.
+      const liftsDiscovery = (currentCluster: string) =>
+        clusterWideList.has(currentCluster) ||
+        ((namespacesFromParams?.length ?? 0) > 0 && isRestrictedOnlyByDiscovery(currentCluster));
+      const allowedNamespacesFor = (currentCluster: string | null) =>
+        liftsDiscovery(currentCluster ?? '') ? [] : getAllowedNamespaces(currentCluster);
+      const isRestricted = (currentCluster: string) =>
+        !liftsDiscovery(currentCluster) && hasAllowedNamespacesRestriction(currentCluster);
 
       const requests = makeListRequests(
         clusterList,
-        getAllowedNamespaces,
+        allowedNamespacesFor,
         isNamespaced,
         namespacesFromParams,
-        hasAllowedNamespacesRestriction
+        isRestricted
       );
       return {
         requests,
-        emptyWhenNoRequests:
-          requests.length === 0 && clusterList.some(hasAllowedNamespacesRestriction),
+        emptyWhenNoRequests: requests.length === 0 && clusterList.some(isRestricted),
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
@@ -446,6 +507,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       requestedLists,
       isNamespaced,
       allowedNamespacesResolutionKey,
+      discoveredNamespacesVersion,
+      clusterWideListKey,
     ]);
 
     // eslint-disable-next-line react-hooks/rules-of-hooks

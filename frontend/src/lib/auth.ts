@@ -24,7 +24,7 @@ import store from '../redux/stores/store';
 import { backendFetch } from './k8s/api/v2/fetch';
 import { canLogoutFromProvider } from './k8s/clusterAuthType';
 import { encodeClusterPath, redirectToOIDCLogout } from './oidcLogout';
-import { queryClient } from './queryClient';
+import { queryClient, resetAccessibleNamespaces } from './queryClient';
 
 /**
  * Retrieves the authentication token for a given cluster.
@@ -122,10 +122,15 @@ async function setCookieToken(cluster: string, token: string | null) {
 export function setToken(cluster: string, token: string | null) {
   const setTokenMethodToUse = store.getState().ui.functionsToOverride.setToken;
   if (setTokenMethodToUse) {
-    return Promise.resolve(setTokenMethodToUse(cluster, token));
+    return Promise.resolve(setTokenMethodToUse(cluster, token)).then(result => {
+      resetAccessibleNamespaces(cluster);
+      return result;
+    });
   }
 
   return setCookieToken(cluster, token).then(result => {
+    // Accessible namespaces depend on the user's identity, so drop them on any token change.
+    resetAccessibleNamespaces(cluster);
     if (token) {
       queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
     } else {

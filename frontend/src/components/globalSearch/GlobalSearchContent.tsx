@@ -26,12 +26,15 @@ import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
+import {
+  getCombinedAllowedNamespaces,
+  subscribeDiscoveredNamespaces,
+} from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
@@ -200,11 +203,16 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     const namespaceResource = resources.find(resource => resource.kind === Namespace.kind);
     return (namespaceResource?.items as Namespace[]) ?? [];
   }, [resources]);
+  // The top bar renders outside AllowedNamespacesSelectorGate; read the allowed
+  // namespaces as a store snapshot so the options follow namespace discovery.
+  const allowedNamespacesKey = useSyncExternalStore(subscribeDiscoveredNamespaces, () =>
+    selectedClusters.flatMap(c => getCombinedAllowedNamespaces(c)).join('\n')
+  );
   const namespaceOptions = useMemo(() => {
     const knownNamespaces = new Set<string>(
       [
         ...namespaceItems.map(n => n.metadata.name),
-        ...selectedClusters.flatMap(c => getCombinedAllowedNamespaces(c)),
+        ...(allowedNamespacesKey ? allowedNamespacesKey.split('\n') : []),
       ].filter(Boolean)
     );
 
@@ -246,7 +254,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       .forEach(addOption);
 
     return options;
-  }, [query, selectedClusters, namespaceItems, dispatch, t]);
+  }, [query, namespaceItems, dispatch, t, allowedNamespacesKey]);
   const isMap = useRouteMatch(getClusterPrefixedPath(getDefaultRoutes().map?.path));
   const location = useLocation();
   const items = useMemo(

@@ -21,7 +21,7 @@ import { deleteTokens, getUserInfo, logout, setToken } from './auth';
 import { backendFetch } from './k8s/api/v2/fetch';
 import { canLogoutFromProvider } from './k8s/clusterAuthType';
 import { encodeClusterPath } from './oidcLogout';
-import { queryClient } from './queryClient';
+import { queryClient, resetAccessibleNamespaces } from './queryClient';
 
 // Mock the dependencies
 vi.mock('./k8s/api/v2/fetch');
@@ -37,6 +37,7 @@ vi.mock('./queryClient', () => ({
     removeQueries: vi.fn(),
     invalidateQueries: vi.fn(),
   },
+  resetAccessibleNamespaces: vi.fn(),
 }));
 
 const mockBackendFetch = vi.mocked(backendFetch);
@@ -79,6 +80,8 @@ describe('auth', () => {
           body: JSON.stringify({ token }),
         }
       );
+      // Discovered namespaces belong to the previous identity.
+      expect(resetAccessibleNamespaces).toHaveBeenCalledWith(cluster);
     });
 
     it('should successfully clear a token when token is null', async () => {
@@ -104,6 +107,7 @@ describe('auth', () => {
           body: JSON.stringify({ token: null }),
         }
       );
+      expect(resetAccessibleNamespaces).toHaveBeenCalledWith(cluster);
     });
 
     it('should throw an error when backend returns error response', async () => {
