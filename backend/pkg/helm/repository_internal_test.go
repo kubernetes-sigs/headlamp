@@ -17,16 +17,46 @@ limitations under the License.
 package helm
 
 import (
+	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/repo"
 )
+
+func TestRepositoryLockPath(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		config string
+		lock   string
+	}{
+		{"standard", "repositories.yaml", "repositories.lock"},
+		{"extension in directory", "helm.yaml/repositories.yaml", "helm.yaml/repositories.lock"},
+		{"repeated extension", "repositories.yaml.yaml", "repositories.yaml.lock"},
+		{"no extension", "repositories", "repositories.lock"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			configPath := filepath.Join(root, filepath.FromSlash(tt.config))
+			require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o700))
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			locked, lock, err := lockRepositoryFile(ctx, configPath)
+			t.Cleanup(func() { require.NoError(t, lock.Close()) })
+			require.NoError(t, err)
+			require.True(t, locked)
+			assert.Equal(t, filepath.Join(root, filepath.FromSlash(tt.lock)), lock.Path())
+		})
+	}
+}
 
 func TestRemoveRepositoryReturnsNotFoundError(t *testing.T) {
 	settings := cli.New()
