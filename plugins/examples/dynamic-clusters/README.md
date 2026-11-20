@@ -35,5 +35,5 @@ The main code for the plugin is in [src/index.tsx](src/index.tsx).
 
 See:
 
-- API documentation for [Headlamp.setCluster](https://headlamp.dev/docs/latest/development/api/classes/plugin_lib.headlamp/#setcluster)
+- API documentation for [Headlamp.setCluster](https://headlamp.dev/docs/latest/development/api/plugin/lib/classes/Headlamp#setcluster)
 - The [getting started documentation for Headlamp plugin development](https://headlamp.dev/docs/latest/development/plugins/building/)

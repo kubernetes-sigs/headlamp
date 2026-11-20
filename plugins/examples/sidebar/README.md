@@ -19,7 +19,7 @@ The main code for the plugin is in [src/index.tsx](src/index.tsx).
 
 See the API documentation for:
 
-- [registerSidebarEntry](https://headlamp.dev/docs/latest/development/api/modules/plugin_registry/#registersidebarentry)
-- [registerSidebarEntryFilter](https://headlamp.dev/docs/latest/development/api/modules/plugin_registry/#registersidebarentryfilter)
-- [registerRoute](https://headlamp.dev/docs/latest/development/api/modules/plugin_registry/#registerroute)
-- [registerRouteFilter](https://headlamp.dev/docs/latest/development/api/modules/plugin_registry/#registerroutefilter)
+- [registerSidebarEntry](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerSidebarEntry)
+- [registerSidebarEntryFilter](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerSidebarEntryFilter)
+- [registerRoute](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerRoute)
+- [registerRouteFilter](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerRouteFilter)
