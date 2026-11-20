@@ -19,7 +19,7 @@ import React from 'react';
 import { vi } from 'vitest';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import { TestContext } from '../../test';
-import { CreateNew } from './ProjectCreateFromYaml';
+import { CreateNew, splitKubernetesResources } from './ProjectCreateFromYaml';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 const { apply, push, namespaces } = vi.hoisted(() => ({
@@ -183,6 +183,78 @@ it('uploads multiple YAML documents through the file input', async () => {
   expect(screen.getByText('credentials')).toBeInTheDocument();
 });
 
+it('keeps Kubernetes resources and reports why each other YAML document is rejected', () => {
+  const configMap = { apiVersion: 'v1', kind: 'ConfigMap', metadata: { name: 'settings' } };
+
+  expect(
+    splitKubernetesResources([
+      configMap,
+      null,
+      undefined,
+      'a plain string',
+      [configMap],
+      { apiVersion: 'kustomize.config.k8s.io/v1beta1', kind: 'Kustomization', resources: [] },
+      { apiVersion: 'v1', kind: 'ConfigMap', metadata: {} },
+      { replicaCount: 2 },
+      { apiVersion: '', kind: '', metadata: { name: '' } },
+    ])
+  ).toEqual({
+    resources: [configMap],
+    rejected: [
+      { index: 4, missingFields: [] },
+      { index: 5, missingFields: [] },
+      { index: 6, missingFields: ['metadata.name'] },
+      { index: 7, missingFields: ['metadata.name'] },
+      { index: 8, missingFields: ['apiVersion', 'kind', 'metadata.name'] },
+      { index: 9, missingFields: ['apiVersion', 'kind', 'metadata.name'] },
+    ],
+  });
+});
+
+it.each([
+  ['the file input', 'file'],
+  ['a URL', 'url'],
+])('lists each YAML document that is not a Kubernetes resource from %s', async (_name, source) => {
+  const mixed = `${yaml}---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - settings.yaml
+`;
+  renderForm();
+  if (source === 'url') {
+    await loadUrl(mixed);
+  } else {
+    const file = new File([mixed], 'project.yaml', { type: 'application/x-yaml' });
+    fireEvent.change(screen.getByLabelText('Choose Files'), { target: { files: [file] } });
+  }
+
+  expect(await screen.findByText('settings')).toBeInTheDocument();
+  expect(screen.getByText('credentials')).toBeInTheDocument();
+  const name = source === 'url' ? 'https://example.test/project.yaml' : 'project.yaml';
+  expect(screen.getByRole('alert')).toHaveTextContent(`${name}, document 4: metadata.name not set`);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('lets the user clear an upload that has only rejected documents', async () => {
+  renderForm();
+  const kustomization = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: []
+`;
+  const file = new File([kustomization], 'kustomization.yaml', { type: 'application/x-yaml' });
+  fireEvent.change(screen.getByLabelText('Choose Files'), { target: { files: [file] } });
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'kustomization.yaml, document 1: metadata.name not set'
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Clear All' })).not.toBeInTheDocument();
+});
+
 it('logs malformed YAML uploads without adding invalid resources', async () => {
   const logError = vi.spyOn(console, 'error').mockImplementation(() => {});
   renderForm();
@@ -265,15 +337,39 @@ it('creates the namespace first, reports progress, then applies resources in tha
   expect(push).toHaveBeenCalledWith('/projects/new-project');
 });
 
-it('shows apply failures and does not apply the remaining resources or navigate', async () => {
+it('applies the remaining resources after a failure and reports what failed', async () => {
   apply.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('permission denied'));
   renderForm();
   fillProject();
   await loadUrl();
   fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-  expect(await screen.findByText('permission denied')).toBeInTheDocument();
+  expect(await screen.findByText('Some resources could not be created')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('ConfigMap settings: permission denied');
+  expect(screen.getByText('Secret credentials')).toBeInTheDocument();
+  expect(apply).toHaveBeenCalledTimes(3);
+  expect(apply).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      kind: 'Secret',
+      metadata: expect.objectContaining({ name: 'credentials' }),
+    }),
+    'cluster-a'
+  );
+  expect(push).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Go to project' }));
+  expect(push).toHaveBeenCalledWith('/projects/new-project');
+});
+
+it('stops and shows the error when the namespace cannot be created', async () => {
+  apply.mockRejectedValueOnce(new Error('namespaces is forbidden'));
+  renderForm();
+  fillProject();
+  await loadUrl();
+  fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+  expect(await screen.findByText('namespaces is forbidden')).toBeInTheDocument();
   expect(screen.getByText('Something went wrong')).toBeInTheDocument();
-  expect(apply).toHaveBeenCalledTimes(2);
+  expect(apply).toHaveBeenCalledTimes(1);
   expect(push).not.toHaveBeenCalled();
 });
