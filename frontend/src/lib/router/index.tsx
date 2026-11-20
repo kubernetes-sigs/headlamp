@@ -165,6 +165,7 @@ const LazyGraphView = React.lazy(() =>
 const CronJobDetails = React.lazy(() => import('../../components/cronjob/Details'));
 const CronJobList = React.lazy(() => import('../../components/cronjob/List'));
 const KubeConfigLoader = React.lazy(() => import('../../components/cluster/KubeConfigLoader'));
+const LazyRbacVisualizer = React.lazy(() => import('../../components/rbac'));
 
 function SettingsClusterRedirect() {
   const cluster = useCluster();
@@ -718,6 +719,13 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'roleBindings',
     component: () => <RoleBindingDetails />,
+  },
+  rbacVisualizer: {
+    path: '/security/rbac-visualizer',
+    exact: true,
+    name: 'RBAC Visualizer',
+    sidebar: 'rbacVisualizer',
+    component: () => <LazyRbacVisualizer />,
   },
   secrets: {
     path: '/secrets',
