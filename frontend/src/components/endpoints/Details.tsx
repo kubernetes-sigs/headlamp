@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
-import { ResourceClasses } from '../../lib/k8s';
+import { getResourceClass } from '../../lib/k8s';
 import Endpoints, { KubeEndpoint } from '../../lib/k8s/endpoints';
 import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
@@ -77,10 +77,11 @@ export default function EndpointDetails(props: {
                             {
                               label: t('Target'),
                               getter: address => {
-                                const targetRefClass = !!address.targetRef?.kind
-                                  ? ResourceClasses[
-                                      address.targetRef?.kind as keyof typeof ResourceClasses
-                                    ]
+                                const targetRefClass = address.targetRef?.kind
+                                  ? getResourceClass(
+                                      address.targetRef.kind,
+                                      address.targetRef.apiVersion
+                                    )
                                   : null;
                                 if (!!targetRefClass) {
                                   return (

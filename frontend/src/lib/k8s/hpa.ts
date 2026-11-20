@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+import { getResourceClass } from './getResourceClass';
 import type { KubeMetadata } from './KubeMetadata';
-import { KubeObject, type KubeObjectClass, type KubeObjectInterface } from './KubeObject';
-import { ResourceClasses } from './resourceClasses';
+import { KubeObject, type KubeObjectInterface } from './KubeObject';
 export interface CrossVersionObjectReference {
   apiVersion: string;
   kind: string;
@@ -370,7 +370,7 @@ class HPA extends KubeObject<KubeHPA> {
       return null;
     }
 
-    const TargetObjectClass = (ResourceClasses as Record<string, KubeObjectClass>)[target.kind];
+    const TargetObjectClass = getResourceClass(target.kind, target.apiVersion);
     let objInstance: KubeObject | null = null;
     if (!!TargetObjectClass) {
       objInstance = new TargetObjectClass({

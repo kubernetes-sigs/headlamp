@@ -23,7 +23,10 @@ import { getCluster } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
+
 export { ResourceClasses } from './resourceClasses';
+
+export { getResourceClass } from './getResourceClass';
 
 /** Hook for getting or fetching the clusters configuration.
  * This gets the clusters from the redux store. The redux store is updated
