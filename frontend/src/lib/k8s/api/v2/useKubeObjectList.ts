@@ -731,9 +731,20 @@ export function useKubeObjectList<K extends KubeObject>({
     setActiveListRequestCount(initialListRequestCount);
   }, [initialListRequestCount, listRequestInputKey]);
 
+  const previousListRequestInputKeyRef = useRef(listRequestInputKey);
+
+  const effectiveActiveListRequestCount =
+    previousListRequestInputKeyRef.current === listRequestInputKey
+      ? activeListRequestCount
+      : initialListRequestCount;
+
+  useEffect(() => {
+    previousListRequestInputKeyRef.current = listRequestInputKey;
+  }, [listRequestInputKey]);
+
   const activeListRequests = useMemo(
-    () => listRequests.slice(0, activeListRequestCount),
-    [activeListRequestCount, listRequests]
+    () => listRequests.slice(0, effectiveActiveListRequestCount),
+    [effectiveActiveListRequestCount, listRequests]
   );
   const hasPendingListRequests = activeListRequests.length < listRequests.length;
   const perRequestQueryParams = getPerRequestQueryParams(cleanedUpQueryParams, requests);
@@ -741,19 +752,26 @@ export function useKubeObjectList<K extends KubeObject>({
   const queries = useMemo(
     () =>
       endpoint
-        ? activeListRequests.map(({ cluster, namespace }) =>
-            kubeObjectListQuery<K>(
+        ? activeListRequests.map(({ cluster, namespace }, index) => {
+            const query = kubeObjectListQuery<K>(
               kubeObjectClass,
               endpoint,
               namespace,
               cluster,
               perRequestQueryParams,
               refetchInterval
-            )
-          )
+            );
+            if (index >= initialListRequestCount) {
+              return {
+                ...query,
+                refetchOnMount: false,
+              };
+            }
+            return query;
+          })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeListRequests, kubeObjectClass, endpoint, perRequestQueryParams]
+    [activeListRequests, kubeObjectClass, endpoint, perRequestQueryParams, initialListRequestCount]
   );
 
   const query = useQueries({
@@ -900,24 +918,46 @@ export function useKubeObjectList<K extends KubeObject>({
   );
 
   const queryClient = useQueryClient();
-  const loadMorePromiseRef = useRef<Promise<void> | null>(null);
+
+  const loadMoreInputKey = JSON.stringify([listRequestInputKey, paginationInputKey]);
+  const loadMoreGenerationRef = useRef(0);
+  const previousLoadMoreInputKeyRef = useRef(loadMoreInputKey);
+
+  if (previousLoadMoreInputKeyRef.current !== loadMoreInputKey) {
+    previousLoadMoreInputKeyRef.current = loadMoreInputKey;
+    loadMoreGenerationRef.current += 1;
+  }
+
+  const loadMorePromiseRef = useRef<{
+    generation: number;
+    promise: Promise<void>;
+  } | null>(null);
 
   const loadMore = useCallback(async () => {
     if (!endpoint) return;
 
-    if (loadMorePromiseRef.current) {
-      return loadMorePromiseRef.current;
+    const loadMoreGeneration = loadMoreGenerationRef.current;
+
+    const isCurrentLoadMore = () => loadMoreGenerationRef.current === loadMoreGeneration;
+
+    if (loadMorePromiseRef.current?.generation === loadMoreGeneration) {
+      return loadMorePromiseRef.current.promise;
     }
 
-    loadMorePromiseRef.current = (async () => {
+    const promise = (async () => {
       setPaginationError(null);
 
       if (hasPendingListRequests) {
         const nextListRequestCount = Math.min(
           listRequests.length,
-          activeListRequestCount + (limit ?? listRequests.length)
+          effectiveActiveListRequestCount + (limit ?? listRequests.length)
         );
-        const nextListRequests = listRequests.slice(activeListRequestCount, nextListRequestCount);
+
+        const nextListRequests = listRequests.slice(
+          effectiveActiveListRequestCount,
+          nextListRequestCount
+        );
+
         const nextQueries = nextListRequests.map(({ cluster, namespace }) =>
           kubeObjectListQuery<K>(
             kubeObjectClass,
@@ -930,8 +970,12 @@ export function useKubeObjectList<K extends KubeObject>({
         );
 
         const results = await Promise.allSettled(
-          nextQueries.map(q => queryClient.fetchQuery(q as any))
+          nextQueries.map(q => queryClient.ensureQueryData(q as any))
         );
+
+        if (!isCurrentLoadMore()) {
+          return;
+        }
 
         const rejectedResultIndex = results.findIndex(result => result.status === 'rejected');
         const rejectedResult = results[rejectedResultIndex];
@@ -978,11 +1022,15 @@ export function useKubeObjectList<K extends KubeObject>({
             error.cluster = cached.cluster;
             error.namespace = cached.namespace;
 
-            if (error.status === 410) {
+            if (error.status === 410 && isCurrentLoadMore()) {
               queryClient.invalidateQueries({ queryKey: q.queryKey! });
             }
 
             throw error;
+          }
+
+          if (!isCurrentLoadMore()) {
+            return;
           }
 
           const kind = raw.kind.replace(/List$/, '');
@@ -997,7 +1045,9 @@ export function useKubeObjectList<K extends KubeObject>({
           });
 
           queryClient.setQueryData<ListResponse<K>>(q.queryKey!, old => {
-            if (!old) return old;
+            if (!old || old.list.metadata.continue !== continueToken) {
+              return old;
+            }
             return {
               ...old,
               list: {
@@ -1013,7 +1063,9 @@ export function useKubeObjectList<K extends KubeObject>({
           });
         })
       );
-
+      if (!isCurrentLoadMore()) {
+        return;
+      }
       const rejectedResultIndex = results.findIndex(result => result.status === 'rejected');
       const rejectedResult = results[rejectedResultIndex];
       if (rejectedResult?.status === 'rejected') {
@@ -1024,10 +1076,17 @@ export function useKubeObjectList<K extends KubeObject>({
       }
     })();
 
+    loadMorePromiseRef.current = {
+      generation: loadMoreGeneration,
+      promise,
+    };
+
     try {
-      return await loadMorePromiseRef.current;
+      return await promise;
     } finally {
-      loadMorePromiseRef.current = null;
+      if (loadMorePromiseRef.current?.promise === promise) {
+        loadMorePromiseRef.current = null;
+      }
     }
   }, [
     endpoint,
