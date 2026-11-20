@@ -18,14 +18,26 @@
 // @see https://testing-library.com/docs/react-testing-library/intro
 
 import '@testing-library/jest-dom';
+import { configureStore } from '@reduxjs/toolkit';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Provider } from 'react-redux';
 import Message from './Message';
 
 describe('Message', () => {
+  const store = configureStore({
+    reducer: {
+      pluginConfigs: () => ({}),
+    },
+  });
+
   it('renders a message', async () => {
     // Arrange
-    render(<Message msg="Hello World" error={false} />);
+    render(
+      <Provider store={store}>
+        <Message msg="Hello World" error={false} />
+      </Provider>
+    );
 
     // Act
     //   Clicking on this doesn't do anything, but it's a good example of how to
@@ -39,7 +51,11 @@ describe('Message', () => {
   // A test showing the error=true state
   it('renders an error message', async () => {
     // Arrange
-    render(<Message msg="Hello World" error />);
+    render(
+      <Provider store={store}>
+        <Message msg="Hello World" error />
+      </Provider>
+    );
 
     // Act
     await userEvent.click(screen.getByText('Uh, pods!?'));
