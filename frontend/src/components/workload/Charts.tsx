@@ -129,7 +129,7 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
     }
 
     if (partial !== 0) {
-      return `${partial} ${partialLabel} / ${total} ${totalLabel}`;
+      return `${partial} ${partialLabel} / ${total - partial} ${totalLabel}`;
     }
 
     return `${total} ${totalLabel}`;
