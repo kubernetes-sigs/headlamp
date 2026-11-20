@@ -48,6 +48,7 @@ vi.mock('./ActivityPanel', () => ({ default: () => null }));
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
   // launchActivity forces location:'full' on narrow windows; use a wide viewport
   // so split-right activities keep their location in the test store.
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
@@ -56,6 +57,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   store.dispatch(activitySlice.actions.reset());
+  // Activity resize callbacks must not run after jsdom has been torn down.
+  vi.clearAllTimers();
+  vi.useRealTimers();
 });
 
 function setup(initialPath = '/pods') {
@@ -83,7 +87,7 @@ function setup(initialPath = '/pods') {
 
 describe('ActivitiesRenderer — route-change activity policy', () => {
   it('minimizes a non-split-right activity when the route changes', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     store.dispatch(
       activitySlice.actions.launchActivity({
         id: 'log-1',
@@ -99,7 +103,7 @@ describe('ActivitiesRenderer — route-change activity policy', () => {
   });
 
   it('preserves an ordinary split-right activity when the route changes', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     // This is the policy that minimizeAll() violated: ordinary split-right
     // activities stay open so users can see them alongside the new route.
     store.dispatch(
@@ -118,7 +122,7 @@ describe('ActivitiesRenderer — route-change activity policy', () => {
   });
 
   it('minimizes a temporary resource-details drawer without removing it', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     store.dispatch(
       activitySlice.actions.launchActivity({
         id: 'resource-details-1',
