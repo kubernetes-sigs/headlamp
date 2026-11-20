@@ -1,8 +1,8 @@
 config:
+  oidc:
+    clientID: headlamp
+    issuerURL: https://idp.example.com
   clusterInventory:
     enabled: true
-    accessProvidersConfig:
-      providers:
-        - name: static-provider
     namespaces:
       - Team-A

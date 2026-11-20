@@ -26,6 +26,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CREATED_CLUSTERS=false
 REUSED_CLUSTERS=false
 SKIP_IMAGE_BUILD=false
+OIDC_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/headlamp-inventory-oidc.XXXXXX")"
 
 log() {
   printf '\n==> %s\n' "$*"
@@ -95,6 +96,7 @@ print_headlamp_logs() {
 }
 
 cleanup() {
+  rm -rf "${OIDC_WORK_DIR}"
   local status="$1"
 
   if [[ "${status}" -eq 0 ]]; then
@@ -116,8 +118,7 @@ cleanup() {
 trap 'status=$?; cleanup "${status}"; exit "${status}"' EXIT
 trap 'exit 130' INT TERM
 
-# wait_for_inventory blocks until discovery has converged. Which ClusterProfile is
-# expected is asserted by tests/clusterInventory.spec.ts, not here.
+# Wait until both sources have published their connections.
 wait_for_inventory() {
   local service_url="$1"
   local config=""
@@ -126,7 +127,8 @@ wait_for_inventory() {
   for ((attempt = 0; attempt < 120; attempt++)); do
     config="$(curl -fsS --connect-timeout 2 --max-time 5 "${service_url}/config" 2>/dev/null || true)"
     if jq -e '
-      [.clusters[] | select(.meta_data.source == "cluster_inventory")] | length == 1
+      ([.clusters[] | select(.meta_data.source == "cluster_inventory")] | length == 1) and
+      ([.clusters[] | select(.meta_data.source == "cluster_api")] | length == 1)
     ' <<<"${config}" >/dev/null 2>&1; then
       return
     fi
@@ -134,8 +136,8 @@ wait_for_inventory() {
     sleep 1
   done
 
-  printf 'error: timed out waiting for a discovered ClusterProfile\n' >&2
-  jq -c '[.clusters[] | select(.meta_data.source == "cluster_inventory")]' \
+  printf 'error: timed out waiting for discovered connections\n' >&2
+  jq -c '[.clusters[] | select(.meta_data.source == "cluster_inventory" or .meta_data.source == "cluster_api")]' \
     <<<"${config}" >&2 || printf '%s\n' "${config}" >&2
   return 1
 }
@@ -193,7 +195,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-for command in curl docker envsubst grep jq kind kubectl uname; do
+for command in curl docker envsubst grep jq kind kubectl openssl uname; do
   require_command "${command}"
 done
 if [[ "${SKIP_IMAGE_BUILD}" != true ]]; then
@@ -288,6 +290,35 @@ kubectl --context="${HUB_CONTEXT}" apply -f \
 kubectl --context="${HUB_CONTEXT}" wait --for=condition=Established \
   crd/clusterprofiles.multicluster.x-k8s.io --timeout=120s
 
+log "Install the Cluster API discovery test resource"
+kubectl --context="${HUB_CONTEXT}" apply -f - <<'CAPI_CRD'
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusters.cluster.x-k8s.io
+spec:
+  group: cluster.x-k8s.io
+  scope: Namespaced
+  names:
+    plural: clusters
+    singular: cluster
+    kind: Cluster
+    listKind: ClusterList
+  versions:
+    - name: v1beta2
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+CAPI_CRD
+kubectl --context="${HUB_CONTEXT}" wait --for=condition=Established \
+  crd/clusters.cluster.x-k8s.io --timeout=120s
+
 HUB_NODE_IP="$(node_ip "${HUB_CONTEXT}")"
 TEST_CA_DATA="$(cluster_ca_data "${HUB_CONTEXT}")"
 TEST_SERVER="https://${HUB_NODE_IP}:6443"
@@ -297,13 +328,80 @@ INVENTORY_SPOKE_TOKEN="$(
   kubectl --context="${SPOKE_CONTEXT}" -n kube-system \
     create token headlamp-admin --duration=24h
 )"
-export TEST_CA_DATA TEST_SERVER TEST2_CA_DATA TEST2_SERVER INVENTORY_SPOKE_TOKEN
+INVENTORY_OIDC_ISSUER_URL="https://${HUB_NODE_IP}:5556/dex"
+INVENTORY_OIDC_CALLBACK_URL="http://${HUB_NODE_IP}:30466/oidc-callback"
+export TEST_CA_DATA TEST_SERVER TEST2_CA_DATA TEST2_SERVER
+export INVENTORY_OIDC_ISSUER_URL INVENTORY_OIDC_CALLBACK_URL
+
+log "Publish a Cluster API workload connection"
+kubectl --context="${HUB_CONTEXT}" apply -f - <<CAPI_CLUSTER
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: capi-test2
+  namespace: kube-system
+CAPI_CLUSTER
+kubectl --context="${SPOKE_CONTEXT}" config view --raw --minify --flatten >"${OIDC_WORK_DIR}/capi.kubeconfig"
+kubectl --kubeconfig="${OIDC_WORK_DIR}/capi.kubeconfig" config set-cluster "kind-${SPOKE_CLUSTER}" --server="${TEST2_SERVER}"
+apply_generated "${HUB_CONTEXT}" -n kube-system create secret generic capi-test2-kubeconfig \
+  --type=cluster.x-k8s.io/secret --from-file=value="${OIDC_WORK_DIR}/capi.kubeconfig"
+kubectl --context="${HUB_CONTEXT}" -n kube-system label secret capi-test2-kubeconfig \
+  cluster.x-k8s.io/cluster-name=capi-test2 --overwrite
+
+log "Configure the Inventory OIDC identity provider"
+if kubectl --context="${HUB_CONTEXT}" -n kube-system get secret headlamp-inventory-oidc-tls >/dev/null 2>&1; then
+  kubectl --context="${HUB_CONTEXT}" -n kube-system get secret headlamp-inventory-oidc-tls \
+    -o jsonpath='{.data.tls\.crt}' | base64 -d >"${OIDC_WORK_DIR}/tls.crt"
+else
+  openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 7 \
+    -subj /CN=headlamp-inventory-oidc \
+    -addext "subjectAltName=IP:${HUB_NODE_IP}" \
+    -keyout "${OIDC_WORK_DIR}/tls.key" -out "${OIDC_WORK_DIR}/tls.crt"
+  kubectl --context="${HUB_CONTEXT}" -n kube-system create secret tls headlamp-inventory-oidc-tls \
+    --cert="${OIDC_WORK_DIR}/tls.crt" --key="${OIDC_WORK_DIR}/tls.key"
+fi
+# kube-apiserver's existing PKI mount makes this test CA available inside the static pod.
+docker exec -i "${SPOKE_CLUSTER}-control-plane" sh -c \
+  'cat > /etc/kubernetes/pki/inventory-oidc.crt' <"${OIDC_WORK_DIR}/tls.crt"
 
 log "Deploy Headlamp and the inventory-test2 ClusterProfile on ${HUB_CLUSTER}"
 envsubst \
-  '${TEST_CA_DATA} ${TEST_SERVER} ${TEST2_CA_DATA} ${TEST2_SERVER} ${INVENTORY_SPOKE_TOKEN}' \
+  '${TEST_CA_DATA} ${TEST_SERVER} ${TEST2_CA_DATA} ${TEST2_SERVER} ${INVENTORY_OIDC_ISSUER_URL} ${INVENTORY_OIDC_CALLBACK_URL}' \
   <"${REPO_ROOT}/e2e-tests/kubernetes-headlamp-ci.yaml" |
   kubectl --context="${HUB_CONTEXT}" apply -f -
+
+kubectl --context="${HUB_CONTEXT}" -n kube-system \
+  rollout status deployment/headlamp-inventory-dex --timeout=180s
+
+docker exec "${SPOKE_CLUSTER}-control-plane" sh -c '
+  sed -i "/--oidc-/d" /etc/kubernetes/manifests/kube-apiserver.yaml
+  sed -i "/    - kube-apiserver/a\\
+    - --oidc-issuer-url='"${INVENTORY_OIDC_ISSUER_URL}"'\\
+    - --oidc-client-id=headlamp-e2e\\
+    - --oidc-ca-file=/etc/kubernetes/pki/inventory-oidc.crt\\
+    - --oidc-username-claim=email\\
+    - \"--oidc-username-prefix=oidc:\"" /etc/kubernetes/manifests/kube-apiserver.yaml
+'
+
+for attempt in $(seq 1 90); do
+  if kubectl --context="${SPOKE_CONTEXT}" -n kube-system \
+    get pod "kube-apiserver-${SPOKE_CLUSTER}-control-plane" \
+    -o jsonpath='{.spec.containers[0].command}' 2>/dev/null | grep -Fq -- --oidc-issuer-url=; then
+    if kubectl --context="${SPOKE_CONTEXT}" get --raw=/readyz >/dev/null 2>&1; then
+      break
+    fi
+  fi
+  if [[ "${attempt}" -eq 90 ]]; then
+    printf 'error: spoke API server did not become ready with OIDC enabled\n' >&2
+    exit 1
+  fi
+  sleep 2
+done
+
+apply_generated "${SPOKE_CONTEXT}" -n inventory-demo create role inventory-reader \
+  --verb=get,list,watch --resource=pods
+apply_generated "${SPOKE_CONTEXT}" -n inventory-demo create rolebinding inventory-reader \
+  --role=inventory-reader --user=oidc:headlamp-e2e@example.com
 
 SPOKE_VERSION="$(
   kubectl --context="${SPOKE_CONTEXT}" version -o json |
@@ -318,7 +416,7 @@ STATUS_PATCH="$(
       status: {
         version: {kubernetes: $version},
         accessProviders: [{
-          name: "headlamp-e2e-token",
+          name: "headlamp-e2e",
           cluster: {
             server: $server,
             "certificate-authority-data": $ca
@@ -346,7 +444,7 @@ SERVICE_PORT="$(
 )"
 SERVICE_URL="http://${HUB_NODE_IP}:${SERVICE_PORT}"
 
-log "Wait for Cluster Inventory discovery at ${SERVICE_URL}"
+log "Wait for cluster discovery at ${SERVICE_URL}"
 wait_for_inventory "${SERVICE_URL}"
 write_playwright_env "${SERVICE_URL}" "${INVENTORY_SPOKE_TOKEN}"
 

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 //nolint:testpackage // fuzz target covers unexported normalizeServerURL behavior.
-package clusterinventory
+package clusterdiscovery
 
 import (
 	"strings"

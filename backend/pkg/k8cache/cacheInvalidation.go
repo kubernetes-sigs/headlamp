@@ -21,376 +21,534 @@ package k8cache
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
-	"net/http/httptest"
-	"slices"
+	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	watchCache "k8s.io/client-go/tools/cache"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/metadata"
+	"k8s.io/client-go/rest"
 )
 
-// DeleteKeys deletes keys from the cache if data is present
-// in cache, this delete keys having namespace non-empty and
-// also empty namespace.
-func DeleteKeys(key string, k8scache cache.Cache[string]) {
-	_ = k8scache.Delete(context.Background(), key)
+const responseTTL = 10 * time.Minute
 
-	keyPart := strings.Split(key, "+")
-	if len(keyPart) < 4 {
-		return // malformed key; nothing to namespace-strip
-	}
-
-	keyPart[2] = ""
-	key = strings.Join(keyPart, "+")
-	_ = k8scache.Delete(context.Background(), key)
+// resourceScope identifies the objects that one shared watch covers: a resource within a
+// connection, narrowed by namespace and selectors.
+type resourceScope struct {
+	Context                   string
+	Resource                  schema.GroupVersionResource
+	Namespace, Labels, Fields string
 }
 
-// handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
-// the data is present in the cache, if present PURGE the keys from the cache and make a fresh new
-// request to k8s server and store into the cache, the cache has now latest changes.
-func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.ResponseWriter, r *http.Request,
-	next http.Handler, contextKey string,
-) error {
-	// Skip cache invalidation if this is a GET request or the path is not allowed for auth error handling.
-	if r.Method == http.MethodGet || !IsAuthBypassURL(r.URL.Path) {
+// resourceWatcher is the shared watch of one scope. It invalidates the cached responses
+// of the scope when an object changes or the watch is interrupted.
+type resourceWatcher struct {
+	scope         resourceScope
+	cache         cache.Cache[string]
+	cancel        context.CancelFunc
+	done          chan struct{}
+	generation    uint64
+	ready, failed bool
+	lastUsed      time.Time
+	credential    [32]byte
+	idleTimer     *time.Timer
+}
+
+var (
+	watcherMu        sync.Mutex
+	resourceWatchers = map[resourceScope]*resourceWatcher{}
+	cacheGeneration  uint64
+)
+
+// CacheRead binds an in-flight GET to the generation of its shared watch.
+// An event, disconnect or replacement invalidates both hits and late fills.
+type CacheRead struct {
+	watcher    *resourceWatcher
+	key        string
+	generation uint64
+}
+
+// scopeForKey derives the watch scope of a cache key. It reports false for a key that
+// does not address a resource collection or object, such as one for a subresource.
+func scopeForKey(key string) (resourceScope, bool) {
+	parsed, ok := parseCacheKey(key)
+	if !ok {
+		return resourceScope{}, false
+	}
+
+	request, ok := parseAPIResourceRequest(parsed.Path)
+	if !ok || request.subresource != "" {
+		return resourceScope{}, false
+	}
+
+	query, err := url.ParseQuery(parsed.Query)
+	if err != nil {
+		return resourceScope{}, false
+	}
+
+	selector, err := fields.ParseSelector(query.Get("fieldSelector"))
+	if err != nil {
+		return resourceScope{}, false
+	}
+
+	if request.name != "" {
+		selector = fields.AndSelectors(selector, fields.OneTermEqualSelector("metadata.name", request.name))
+	}
+
+	return resourceScope{
+		Context:   parsed.Context,
+		Resource:  schema.GroupVersionResource{Group: request.group, Version: request.version, Resource: request.resource},
+		Namespace: request.namespace, Labels: query.Get("labelSelector"), Fields: selector.String(),
+	}, true
+}
+
+// BeginCacheRead shares a watch by resource scope, never by requesting user.
+// The registered credential watches where possible; credential-free contexts
+// borrow the requesting token without copying it into the context store.
+func BeginCacheRead(c cache.Cache[string], key string, k *kubeconfig.Context, token string) *CacheRead {
+	scope, ok := scopeForKey(key)
+	if !ok {
 		return nil
 	}
 
-	key, err := GenerateKey(r.URL, contextKey)
+	config, err := watcherConfig(k, token)
 	if err != nil {
-		logger.Log(logger.LevelWarn, nil, err, "could not generate cache key; skipping invalidation")
+		return nil
+	}
 
+	credential := sha256.Sum256([]byte(config.BearerToken))
+
+	watcherMu.Lock()
+	defer watcherMu.Unlock()
+
+	mu.Lock()
+	blocked := isClientsetPrefixBlockedLocked(scope.Context)
+	mu.Unlock()
+
+	if blocked {
+		return nil
+	}
+
+	current := resourceWatchers[scope]
+	if current != nil && current.failed && current.credential != credential {
+		retireLocked(current)
+
+		current = nil
+	}
+
+	if current == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		current = &resourceWatcher{
+			scope: scope, cache: c, cancel: cancel, done: make(chan struct{}),
+			lastUsed: time.Now(), credential: credential,
+		}
+
+		resourceWatchers[scope] = current
+
+		current.idleTimer = time.AfterFunc(responseTTL, func() { current.stopIfIdle(time.Now()) })
+		go current.run(ctx, config)
+	}
+
+	current.lastUsed = time.Now()
+	current.idleTimer.Reset(responseTTL)
+
+	return &CacheRead{watcher: current, key: key, generation: current.generation}
+}
+
+// watcherConfig returns the client config for a shared watch. It keeps the credential
+// stored in the context when there is one, and uses the requesting user's token otherwise.
+func watcherConfig(k *kubeconfig.Context, token string) (*rest.Config, error) {
+	if k == nil {
+		return nil, errors.New("cache context is required")
+	}
+
+	config, err := k.Copy().RESTConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	stored := config.BearerToken != "" || config.BearerTokenFile != "" || config.Username != "" ||
+		config.ExecProvider != nil || config.CertFile != "" || len(config.CertData) != 0 ||
+		(config.AuthProvider != nil && (config.AuthProvider.Name != "oidc" ||
+			config.AuthProvider.Config["id-token"] != "" || config.AuthProvider.Config["refresh-token"] != ""))
+	if !stored {
+		if token == "" && k.RequiresUserAuthentication() {
+			return nil, errors.New("no credential for cache invalidation")
+		}
+
+		config.AuthProvider = nil
+		config.BearerToken = token
+	}
+
+	return config, nil
+}
+
+// validLocked reports whether r still belongs to the registered watch, and that watch is
+// synchronized and on the same generation. The caller holds watcherMu.
+func (r *CacheRead) validLocked() bool {
+	return r != nil && resourceWatchers[r.watcher.scope] == r.watcher &&
+		r.watcher.ready && r.generation == r.watcher.generation
+}
+
+// Ready reports whether a GET can safely participate in the shared cache.
+func (r *CacheRead) Ready() bool {
+	watcherMu.Lock()
+	defer watcherMu.Unlock()
+
+	return r.validLocked()
+}
+
+// Load serves a hit only while the same synchronized watch remains active.
+func (r *CacheRead) Load(w http.ResponseWriter, request *http.Request) (bool, error) {
+	watcherMu.Lock()
+	if !r.validLocked() {
+		watcherMu.Unlock()
+		return false, nil
+	}
+
+	encoded, err := r.watcher.cache.Get(request.Context(), r.key)
+	watcherMu.Unlock()
+
+	if err != nil {
+		return false, nil
+	}
+
+	var data CachedResponseData
+	if err := json.Unmarshal([]byte(encoded), &data); err != nil {
+		return false, err
+	}
+
+	if data.Generation != r.generation {
+		return false, nil
+	}
+
+	SetHeader(data, w)
+	_, err = io.WriteString(w, data.Body)
+
+	return true, err
+}
+
+// Store cannot repopulate a generation invalidated while the GET was running.
+func (r *CacheRead) Store(response *ResponseCapture) error {
+	// Skip encoding a response whose watch was already invalidated; the check is repeated under the lock.
+	if !r.Ready() {
+		return nil
+	}
+
+	encoded, err := encodeResponse(response, r.generation)
+	if err != nil || encoded == "" {
+		return err
+	}
+
+	watcherMu.Lock()
+	defer watcherMu.Unlock()
+
+	if !r.validLocked() {
+		return nil
+	}
+
+	return r.watcher.cache.SetWithTTL(context.Background(), r.key, encoded, responseTTL)
+}
+
+// run keeps the watch going until ctx is cancelled or the watcher is replaced, retrying
+// with a backoff of up to thirty seconds. Each interruption invalidates the cached
+// responses of the scope.
+func (w *resourceWatcher) run(ctx context.Context, config *rest.Config) {
+	defer close(w.done)
+	defer func() {
+		watcherMu.Lock()
+		defer watcherMu.Unlock()
+
+		w.idleTimer.Stop()
+
+		if resourceWatchers[w.scope] == w {
+			retireLocked(w)
+		}
+	}()
+
+	client, err := metadata.NewForConfig(config)
+	if err != nil {
+		return
+	}
+
+	delay := time.Second
+
+	for ctx.Err() == nil {
+		err := w.watch(ctx, client)
+
+		watcherMu.Lock()
+		if resourceWatchers[w.scope] != w {
+			watcherMu.Unlock()
+			return
+		}
+
+		if w.ready {
+			delay = time.Second
+		}
+
+		invalidateWatchLocked(w)
+		w.failed = true
+		watcherMu.Unlock()
+
+		if ctx.Err() != nil {
+			return
+		}
+
+		if err != nil {
+			logger.Log(logger.LevelInfo, nil, nil, "cache invalidation watch unavailable; forwarding resource requests")
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+
+		delay = min(delay*2, 30*time.Second)
+	}
+}
+
+// watch lists the scope to learn where to start, then watches it until the stream ends.
+// The watcher becomes ready once the stream is open.
+func (w *resourceWatcher) watch(ctx context.Context, client metadata.Interface) error {
+	resource := client.Resource(w.scope.Resource).Namespace(w.scope.Namespace)
+	// The list only supplies the snapshot resourceVersion to start watching from.
+	options := metav1.ListOptions{LabelSelector: w.scope.Labels, FieldSelector: w.scope.Fields, Limit: 1}
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	list, err := resource.List(listCtx, options)
+
+	cancel()
+
+	if err != nil {
+		return err
+	}
+
+	if list.GetResourceVersion() == "" {
+		return errors.New("resource list has no resourceVersion")
+	}
+
+	options.Limit = 0
+	options.ResourceVersion = list.GetResourceVersion()
+	options.AllowWatchBookmarks = true
+	timeout := int64(300)
+	options.TimeoutSeconds = &timeout
+
+	stream, err := resource.Watch(ctx, options)
+	if err != nil {
+		return err
+	}
+	defer stream.Stop()
+
+	watcherMu.Lock()
+	if resourceWatchers[w.scope] != w || ctx.Err() != nil {
+		watcherMu.Unlock()
+		return ctx.Err()
+	}
+
+	w.fenceLocked()
+	w.ready, w.failed = true, false
+	watcherMu.Unlock()
+
+	return w.consume(ctx, stream)
+}
+
+// consume invalidates the cached responses affected by each changed object until the
+// stream closes or fails, or ctx is cancelled.
+func (w *resourceWatcher) consume(ctx context.Context, stream watch.Interface) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case event, open := <-stream.ResultChan():
+			if !open {
+				return nil
+			}
+
+			switch event.Type {
+			case watch.Bookmark:
+			case watch.Added, watch.Modified, watch.Deleted:
+				object, err := meta.Accessor(event.Object)
+				if err != nil {
+					return err
+				}
+
+				invalidateCacheKeysForResourceEvent(
+					w.scope.Resource, object.GetNamespace(), object.GetName(), w.scope.Context, w.cache,
+				)
+			case watch.Error:
+				return errors.New("resource watch failed")
+			default:
+				return errors.New("unexpected resource watch event")
+			}
+		}
+	}
+}
+
+// stopIfIdle retires the watcher if no request has used it for responseTTL, and reports
+// whether it did.
+func (w *resourceWatcher) stopIfIdle(now time.Time) bool {
+	watcherMu.Lock()
+	defer watcherMu.Unlock()
+
+	if resourceWatchers[w.scope] != w || now.Sub(w.lastUsed) < responseTTL {
+		return false
+	}
+
+	retireLocked(w)
+
+	return true
+}
+
+// fenceLocked moves w to a fresh generation, so earlier hits and in-flight fills are rejected.
+func (w *resourceWatcher) fenceLocked() {
+	cacheGeneration++
+	w.generation = cacheGeneration
+}
+
+// retireLocked stops w and removes it from the registry together with its cached responses.
+func retireLocked(w *resourceWatcher) {
+	invalidateWatchLocked(w)
+	w.cancel()
+	delete(resourceWatchers, w.scope)
+}
+
+// invalidateWatchLocked marks w as not ready, rejects the reads of its earlier generations
+// and purges the responses stored for its scope. The caller holds watcherMu.
+func invalidateWatchLocked(w *resourceWatcher) {
+	wasReady := w.ready
+	w.ready = false
+	w.fenceLocked()
+
+	// Responses are stored only while the watch is ready, so a watcher that never
+	// synchronized (or already failed) has nothing to purge from the shared cache.
+	if wasReady {
+		purgeMatching(w.cache, func(key string) bool { scope, ok := scopeForKey(key); return ok && scope == w.scope })
+	}
+}
+
+// purgeMatching deletes the cached entries whose keys satisfy matches.
+func purgeMatching(c cache.Cache[string], matches func(string) bool) {
+	if c == nil {
+		return
+	}
+
+	entries, err := c.GetAll(context.Background(), matches)
+	if err != nil {
+		return
+	}
+
+	for key := range entries {
+		_ = c.Delete(context.Background(), key)
+	}
+}
+
+func invalidateCacheKeysForResourceEvent(
+	gvr schema.GroupVersionResource, namespace, name, contextKey string, c cache.Cache[string],
+) {
+	watcherMu.Lock()
+
+	for scope, w := range resourceWatchers {
+		if scope.Context == contextKey && scope.Resource.Group == gvr.Group && scope.Resource.Resource == gvr.Resource &&
+			(namespace == "" || scope.Namespace == "" || scope.Namespace == namespace) {
+			w.fenceLocked()
+		}
+	}
+
+	watcherMu.Unlock()
+
+	// Fenced entries are already unreachable (Load rejects other generations), so
+	// the key scan only reclaims memory and does not need to block other requests.
+	purgeMatching(c, func(key string) bool {
+		parsed, ok := parseCacheKey(key)
+		if !ok || parsed.Context != contextKey {
+			return false
+		}
+
+		request, ok := parseAPIResourceRequest(parsed.Path)
+
+		return ok && request.group == gvr.Group && request.resource == gvr.Resource &&
+			(namespace == "" || request.namespace == "" || request.namespace == namespace) &&
+			(name == "" || request.name == "" || request.name == name)
+	})
+}
+
+// SyncWatchers removes every scope and authorization client for obsolete connections.
+func SyncWatchers(c cache.Cache[string], activeContexts []string) {
+	watcherMu.Lock()
+	defer watcherMu.Unlock()
+
+	clearBlockedClientsetPrefixesForActiveContexts(activeContexts)
+
+	active := make(map[string]bool, len(activeContexts))
+	for _, key := range activeContexts {
+		active[key] = true
+	}
+
+	obsolete := collectCachedContextKeys(c)
+
+	for scope, w := range resourceWatchers {
+		if !active[scope.Context] {
+			retireLocked(w)
+
+			obsolete[scope.Context] = struct{}{}
+		}
+	}
+
+	for key := range obsolete {
+		if !active[key] {
+			cleanupRemovedContext(c, key)
+		}
+	}
+}
+
+// HandleNonGETCacheInvalidation forwards a mutation exactly once, invalidating
+// every affected response variant without issuing a synthetic GET.
+func HandleNonGETCacheInvalidation(
+	c cache.Cache[string], w http.ResponseWriter, r *http.Request, next http.Handler, contextKey string,
+) error {
+	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
+		return nil
+	}
+
+	resource, ok := requestedResource(r.URL)
+	if !ok {
 		next.ServeHTTP(w, r)
-
 		return ErrHandled
 	}
 
-	DeleteKeys(key, k8scache)
-
-	freshURL := *r.URL
-
-	//nolint:gosec // Internal request re-fetches URL from original incoming request
-	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil)
-	if err != nil {
-		return err
+	invalidate := func() {
+		gvr := schema.GroupVersionResource{Group: resource.group, Version: resource.version, Resource: resource.resource}
+		invalidateCacheKeysForResourceEvent(gvr, resource.namespace, "", contextKey, c)
 	}
-
-	freshReq.Header = r.Header.Clone()
+	invalidate()
 	next.ServeHTTP(w, r)
-
-	rr := httptest.NewRecorder()
-	freshRcw := NewResponseCapture(rr)
-	next.ServeHTTP(freshRcw, freshReq)
-
-	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, key); err != nil {
-		return err
-	}
+	invalidate()
 
 	return ErrHandled
 }
 
-// ErrHandled indicates the request was fully handled by cache invalidation; middleware must return.
-var ErrHandled = errors.New("handled by cache invalidation")
+// ErrHandled indicates that the request was forwarded already.
+var ErrHandled = errors.New("handled by invalidation")
 
-// SkipWebSocket skip all the websocket requests coming from the client/ frontend to ensure
-// real time data updation in the frontend.
+// SkipWebSocket passes streaming upgrades directly to Kubernetes.
 func SkipWebSocket(r *http.Request, next http.Handler, w http.ResponseWriter) bool {
 	if strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") {
-		logger.Log(logger.LevelInfo, nil, nil, "skipping websocket url")
 		next.ServeHTTP(w, r)
-
 		return true
 	}
 
 	return false
-}
-
-// returnGVRList returns list+watch GroupVersionResources filtered to an allowlisted set of
-// API resource names (e.g. pods, deployments) used for cache invalidation watchers.
-func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
-	skipKinds := map[string]bool{
-		"Lease": true,
-		"Event": true,
-	}
-
-	var gvrList []schema.GroupVersionResource
-
-	for _, apiResource := range apiResourceLists {
-		for _, resource := range apiResource.APIResources {
-			if strings.Contains(resource.Name, "/") || skipKinds[resource.Kind] {
-				continue
-			}
-
-			if slices.Contains(resource.Verbs, "list") && slices.Contains(resource.Verbs, "watch") {
-				gv, err := schema.ParseGroupVersion(apiResource.GroupVersion)
-				if err != nil {
-					continue
-				}
-
-				gvrList = append(gvrList, schema.GroupVersionResource{
-					Group:    gv.Group,
-					Version:  gv.Version,
-					Resource: resource.Name,
-				})
-			}
-		}
-	}
-
-	filtered := filterImportantResources(gvrList)
-
-	return filtered
-}
-
-// filterImportantResources filters the provided list of GroupVersionResources to
-// include only those that are deemed important for caching and watching.
-func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
-	allowed := map[string]struct{}{
-		"pods":         {},
-		"services":     {},
-		"deployments":  {},
-		"replicasets":  {},
-		"statefulsets": {},
-		"daemonsets":   {},
-		"nodes":        {},
-		"configmaps":   {},
-		"secrets":      {},
-		"jobs":         {},
-		"cronjobs":     {},
-	}
-
-	filtered := make([]schema.GroupVersionResource, 0, len(allowed))
-
-	for _, gvr := range gvrList {
-		if _, ok := allowed[gvr.Resource]; ok {
-			filtered = append(filtered, gvr)
-		}
-	}
-
-	return filtered
-}
-
-// Corrected CheckForChanges.
-var (
-	watcherRegistry sync.Map
-	contextCancel   sync.Map
-)
-
-// CheckForChanges lets 1 go routine to run for a contextKey which prevents
-// running go routines for every requests which can become performance issue if
-// there are many resource and events are going on.
-func CheckForChanges(
-	k8scache cache.Cache[string],
-	contextKey string,
-	kContext kubeconfig.Context,
-) {
-	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	contextCancel.Store(contextKey, cancel)
-
-	go runWatcher(ctx, k8scache, contextKey, kContext)
-}
-
-// SyncWatchers stops watchers for contexts that are no longer active and purges
-// their cached API responses and authorization clientsets.
-// activeContexts is a list of currently valid context keys.
-func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
-	clearBlockedClientsetPrefixesForActiveContexts(activeContexts)
-
-	activeMap := make(map[string]bool, len(activeContexts))
-	for _, ctx := range activeContexts {
-		activeMap[ctx] = true
-	}
-
-	cleaned := make(map[string]struct{})
-
-	contextCancel.Range(func(key, value interface{}) bool {
-		contextKey, ok := key.(string)
-		if !ok {
-			return true
-		}
-
-		if !activeMap[contextKey] {
-			if cancel, ok := value.(context.CancelFunc); ok {
-				logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
-				cancel()
-				watcherRegistry.Delete(contextKey)
-				contextCancel.Delete(contextKey)
-				cleanupRemovedContext(k8scache, contextKey)
-				cleaned[contextKey] = struct{}{}
-			}
-		}
-
-		return true
-	})
-
-	for contextKey := range collectCachedContextKeys(k8scache) {
-		if activeMap[contextKey] {
-			continue
-		}
-
-		if _, alreadyCleaned := cleaned[contextKey]; alreadyCleaned {
-			continue
-		}
-
-		cleanupRemovedContext(k8scache, contextKey)
-	}
-}
-
-// runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.
-// It watches for resource changes and invalidates corresponding cache entries.
-// This function will only exit when its context is cancelled.
-func runWatcher(
-	ctx context.Context,
-	k8scache cache.Cache[string],
-	contextKey string,
-	kContext kubeconfig.Context,
-) {
-	defer func() {
-		watcherRegistry.Delete(contextKey)
-		contextCancel.Delete(contextKey)
-	}()
-
-	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
-
-	config, err := kContext.RESTConfig()
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error getting REST config for context:")
-		return
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+redactContextKey(contextKey))
-		return
-	}
-
-	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
-
-	apiResourceLists, err := discoveryClient.ServerPreferredResources()
-	if apiResourceLists == nil && err != nil {
-		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+redactContextKey(contextKey))
-		return
-	}
-
-	gvrList := returnGVRList(apiResourceLists)
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, "", nil)
-
-	RunInformerToWatch(gvrList, factory, contextKey, k8scache)
-
-	factory.Start(ctx.Done())
-
-	factory.WaitForCacheSync(ctx.Done())
-
-	<-ctx.Done()
-	logger.Log(logger.LevelInfo, nil, nil, "Watcher for context "+redactContextKey(contextKey)+" is shutting down...")
-}
-
-// RunInformerToWatch registers informers for the provided resources and watches
-// for add, update, and delete events. When a change is observed, it invalidates
-// the related cache entries for the given context.
-func RunInformerToWatch(gvrList []schema.GroupVersionResource,
-	factory dynamicinformer.DynamicSharedInformerFactory,
-	contextKey string, k8scache cache.Cache[string],
-) {
-	for _, gvr := range gvrList {
-		informer := factory.ForResource(gvr).Informer()
-
-		// hasSynced gates cache invalidation so that events from the informer's
-		// initial list-and-watch sync do not trigger unnecessary evictions.
-		hasSynced := informer.HasSynced
-
-		if _, err := informer.AddEventHandler(watchCache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) { // resources which are added in the informers, like creation of a resource.
-				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache, hasSynced)
-			},
-			UpdateFunc: func(oldObj, newObj interface{}) { // resources which are updated
-				// or changed, like pods configurations was changed.
-				handleKeyGenerationAndDeletion(newObj, gvr, contextKey, k8scache, hasSynced)
-			},
-			DeleteFunc: func(obj interface{}) { // resources which are removed from the informers,
-				// deletion of pods or any other resources.
-				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache, hasSynced)
-			},
-		}); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to add event handler for resource: "+gvr.Resource)
-			return
-		}
-	}
-}
-
-// handleKeyGenerationAndDeletion generates a cache key from the GVR and deletes
-// the corresponding entry from the cache so that stale data is not served.
-//
-// hasSynced must be informer.HasSynced. Cache eviction is skipped until the
-// informer's initial list-and-watch sync is complete.
-func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionResource,
-	contextKey string, k8scache cache.Cache[string], hasSynced func() bool,
-) {
-	unstructuredObj, ok := obj.(*unstructured.Unstructured)
-	if !ok {
-		// Handle tombstones for Delete events where the object is unknown.
-		if tombstone, isTombstone := obj.(watchCache.DeletedFinalStateUnknown); isTombstone {
-			unstructuredObj, ok = tombstone.Obj.(*unstructured.Unstructured)
-		}
-	}
-
-	if !ok {
-		logger.Log(logger.LevelError, nil, nil, "unexpected object type")
-		return
-	}
-
-	// Skip cache invalidation until the informer has completed its initial
-	// list-and-watch sync, preventing unnecessary evictions during startup.
-	if !hasSynced() {
-		return
-	}
-
-	invalidateCacheKeysForResourceEvent(
-		gvr,
-		unstructuredObj.GetNamespace(),
-		unstructuredObj.GetName(),
-		contextKey,
-		k8scache,
-	)
-}
-
-// invalidateCacheKeysForResourceEvent evicts cached list responses (including the
-// all-namespace list variant via DeleteKeys) and a cached named GET response.
-// GenerateKey stores list paths with gvr.Resource as the kind segment, but named
-// GET paths use the object name as the kind segment.
-func invalidateCacheKeysForResourceEvent(
-	gvr schema.GroupVersionResource,
-	namespace, name, contextKey string,
-	k8scache cache.Cache[string],
-) {
-	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
-
-	logger.Log(logger.LevelInfo, nil, nil,
-		redactCacheKey(listKey)+" and related cache keys will be deleted from the cache")
-
-	DeleteKeys(listKey, k8scache)
-
-	if name == "" {
-		return
-	}
-
-	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
-	}
 }

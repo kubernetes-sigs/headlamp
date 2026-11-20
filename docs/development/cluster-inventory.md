@@ -4,144 +4,96 @@ title: Cluster Inventory development
 
 # Cluster Inventory development
 
-:::warning Experimental alpha feature
+Headlamp's experimental Cluster Inventory API integration watches
+`sigs.k8s.io/cluster-inventory-api v0.1.3` ClusterProfiles and creates in-memory
+contexts. It is disabled by default. Enabling it requires Headlamp's global
+OIDC configuration, including a client ID, issuer URL, and non-empty scopes.
+See the [installation configuration](../installation/in-cluster/index.md#cluster-inventory).
 
-Headlamp Cluster Inventory support is alpha/experimental and disabled by
-default. The upstream Cluster Inventory API is currently `v1alpha1` and the
-Headlamp integration uses the `v0.1.x` API, so fields and behavior may change.
+Discovery runs through the [shared source engine](./cluster-discovery-architecture.md),
+alongside [Cluster API discovery](./cluster-api-discovery.md).
 
-:::
+## Discovery and user access
 
-Headlamp can discover additional clusters from Cluster Inventory API
-`ClusterProfile` resources when started with Cluster Inventory enabled. The
-backend uses `sigs.k8s.io/cluster-inventory-api v0.1.3`, the `pkg/access`
-provider configuration package, and `ClusterProfile.status.accessProviders`.
+| Operation | Connection and credentials |
+| --- | --- |
+| Watch ClusterProfiles in-cluster | Pod service account and pod namespace |
+| Watch ClusterProfiles outside a cluster | Existing non-internal kubeconfig contexts and their default namespaces |
+| Access a discovered Kubernetes API | Connection metadata from ClusterProfile, authenticated with the requesting user's OIDC token |
 
-For a local end-to-end environment, follow the setup in
-[`e2e-tests/README.md`](https://github.com/kubernetes-sigs/headlamp/blob/main/e2e-tests/README.md).
-It uses the regular E2E `test` and `test2` kind clusters and deploys Cluster
-Inventory into the same Headlamp instance as the multi-cluster tests.
+Root credentials are used for discovery only. Each access provider is converted
+to an in-memory OIDC kubeconfig and loaded through the same context loader as
+file-backed kubeconfigs. Generated users contain login settings, without stored
+cluster credentials. Each connection has its own copy of Headlamp's OIDC settings
+and source `cluster_inventory`, and cannot become a discovery root.
 
-Explicit namespace lists, all-namespace discovery, label filtering, and
-kubeconfig context namespace changes are covered by the backend tests:
+Headlamp trusts the connection and TLS settings published in watched
+ClusterProfiles; use Kubernetes RBAC to restrict updates to ClusterProfile
+status to trusted cluster managers.
 
-```bash
-npm run backend:test
-```
+Each access-provider entry with valid connection metadata appears separately in
+the cluster list. Its context name ends in `-<access-provider-name>`, so a profile
+with providers named `direct` and `fleet-gateway` offers two selectable connections.
+The Cluster Inventory API tab shows the ClusterProfile name, resource namespace,
+and access provider in separate columns. The generated context name is available
+in Connection details.
 
-The provider configuration file is not a `ClusterProfile` status object. It uses
-the upstream access configuration shape with a top-level `providers` array:
+Names and cluster IDs stay stable when providers are reordered or their connection
+settings change. Removing a provider removes only its connection; renaming a
+provider replaces that connection. There is no automatic failover between them.
 
-```json
-{
-  "providers": [
-    {
-      "name": "static-token-spoke-a",
-      "execConfig": {
-        "apiVersion": "client.authentication.k8s.io/v1",
-        "command": "/tmp/headlamp-ci/static-token-exec.sh",
-        "provideClusterInfo": true
-      }
-    }
-  ]
-}
-```
+For example, this connection has the suffix `-fleet-gateway` and reaches a gateway
+while validating the certificate for `kubernetes.internal`:
 
-Start the backend explicitly while testing:
-
-```bash
-npm run backend:build
-KUBECONFIG="$WORK/hub.kubeconfig" \
-HEADLAMP_BACKEND_TOKEN=headlamp \
-HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
-./backend/headlamp-server -dev -listen-addr=localhost \
-  --enable-cluster-inventory \
-  --cluster-inventory-provider-file "$WORK/provider-config.json" \
-  --cluster-inventory-label-selector='!headlamp.dev/ignore' \
-  --cluster-inventory-namespaces=inventory-e2e \
-  --cluster-inventory-root-reconcile-interval=10s \
-  --cluster-inventory-no-crd-cache-ttl=30s
-```
-
-Without `--cluster-inventory-namespaces`, each root is watched in its own
-default namespace: the pod namespace when running in-cluster, and the
-kubecontext namespace (or `default`) for roots seeded from the kubeconfig.
-Pass a comma-separated list to watch more than one namespace. Use `*` on its
-own to watch all namespaces.
-
-In another terminal:
-
-```bash
-npm run frontend:start
-```
-
-Install the `v0.1.3` CRD on clusters that publish inventory:
-
-```bash
-kubectl --context kind-ci-hub apply -f \
-  https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/v0.1.3/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml
-```
-
-Patch sample status with `status.accessProviders` and health conditions:
-
-`ClusterProfile.spec.clusterManager.name` is required by the v0.1.3 CRD, even
-when the access details are patched later through the status subresource. The
-CRD also requires `reason` on each condition, so include it even when adapting
-examples that omit the field.
-
-```bash
-kubectl --context kind-ci-hub -n inventory-e2e apply -f - <<'EOF'
+```yaml
 apiVersion: multicluster.x-k8s.io/v1alpha1
 kind: ClusterProfile
 metadata:
   name: spoke-a
+  namespace: inventory-team-a
 spec:
   clusterManager:
-    name: headlamp-local-e2e
-EOF
-
-kubectl --context kind-ci-hub -n inventory-e2e patch clusterprofiles spoke-a \
-  --subresource=status --type=merge \
-  -p "$(jq -n --arg server "$SPOKE_A_SERVER" --arg ca "$SPOKE_A_CA" '{
-    status: {
-      conditions: [{
-        type: "ControlPlaneHealthy",
-        status: "True",
-        reason: "HealthCheckSucceeded",
-        message: "control plane endpoint is ready",
-        lastTransitionTime: "2026-05-10T00:00:00Z"
-      }],
-      accessProviders: [{
-        name: "static-token-spoke-a",
-        cluster: {
-          server: $server,
-          "certificate-authority-data": $ca
-        }
-      }]
-    }
-  }')"
+    name: fleet-controller
+status:
+  accessProviders:
+    - name: fleet-gateway
+      cluster:
+        server: https://gateway.example.com/clusters/spoke-a/kubernetes
+        tls-server-name: kubernetes.internal
 ```
 
-To hide a `ClusterProfile` from Headlamp, add the ignore label. The default
-Helm chart selector is `!headlamp.dev/ignore`, so profiles with that label are
-not watched or converted into Headlamp contexts:
+Headlamp copies inline CA data, TLS server name, TLS verification settings,
+proxy URL, and compression settings. It ignores local certificate file paths
+and exec extensions. The server must use HTTPS without embedded credentials,
+query parameters, or a fragment. The CA data must be valid PEM and cannot be
+combined with the insecure TLS setting. Invalid TLS settings fail proxy setup.
+Invalid connection metadata removes that
+provider's existing connection without affecting other valid providers. Removing
+a profile or excluding it with the label selector removes all its connections.
 
-```bash
-kubectl --context kind-ci-hub -n inventory-e2e label clusterprofile spoke-a \
-  headlamp.dev/ignore=true
-```
+Generated kubeconfigs are held in memory. Their names are managed by the profile
+and provider names, so Headlamp does not offer renaming for these connections.
+File-backed and IndexedDB-backed connections retain their existing name editing.
 
-Run the focused web E2E only after the local topology is running:
+## Configuration
 
-```bash
-cd e2e-tests
-HEADLAMP_CLUSTER_INVENTORY_E2E=true \
-HEADLAMP_TEST_URL=http://localhost:3000 \
-npx playwright test -g "Cluster Inventory"
-```
+| Flag | Behavior |
+| --- | --- |
+| `--enable-cluster-inventory` | Enables discovery and requires user OIDC authentication for discovered clusters |
+| `--cluster-inventory-namespaces=inventory-team-a,inventory-team-b` | Watches the listed namespaces instead of each root's default namespace |
+| `--cluster-inventory-namespaces='*'` | Watches all namespaces; cannot be combined with namespace names |
+| `--cluster-inventory-label-selector='!headlamp.dev/ignore'` | Excludes labelled profiles; this is the Helm default |
+| `--cluster-inventory-root-reconcile-interval=10s` | Overrides the five-minute root reconciliation interval |
+| `--cluster-inventory-no-crd-cache-ttl=30s` | Overrides the two-hour cache for roots without the ClusterProfile CRD |
 
-Before cleanup, verify that setup artifacts stayed outside tracked paths:
+Provider files and exec authentication are unsupported. User requests without a
+token are rejected before cache access or cluster proxying. The regular OIDC
+login and refresh flow is shared with other OIDC contexts, and each discovered
+API server must trust the configured issuer and client.
 
-```bash
-git status --short
-```
+## Tests
+
+`npm run backend:test` covers discovery, namespace and label selection,
+connection validation, updates, deletion, and user authentication. The
+[existing multi-cluster E2E fixture](../../e2e-tests/README.md#cluster-inventory)
+uses Dex and verifies user-specific RBAC through HTTP and WebSocket requests.

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -62,8 +63,7 @@ func TestHeadlampCFGZeroValues(t *testing.T) {
 	assert.Nil(t, cfg.KubeConfigStore)
 	assert.Nil(t, cfg.Telemetry)
 	assert.Nil(t, cfg.Metrics)
-	assert.Equal(t, time.Duration(0), cfg.ClusterInventoryRootReconcileInterval)
-	assert.Equal(t, time.Duration(0), cfg.ClusterInventoryNoCRDCacheTTL)
+	assert.Nil(t, cfg.DiscoverySources)
 }
 
 func TestHeadlampConfigZeroValues(t *testing.T) {
@@ -99,49 +99,52 @@ func TestHeadlampConfigNilEmbeddedPanics(t *testing.T) {
 // field-name guard.
 func newTestCFG(store kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{ //nolint:gosec // test fixture, not real credentials
-		AppName:                               "Headlamp",
-		UseInCluster:                          true,
-		InClusterContextName:                  "main",
-		ListenAddr:                            "localhost",
-		Port:                                  4466,
-		DevMode:                               true,
-		Insecure:                              true,
-		EnableHelm:                            true,
-		EnableDynamicClusters:                 true,
-		AllowKubeconfigChanges:                true,
-		WatchPluginsChanges:                   true,
-		CacheEnabled:                          true,
-		KubeConfigPath:                        "/tmp/kubeconfig",
-		KubeConfigDir:                         "/tmp/kubeconfigs",
-		SkippedKubeContexts:                   "skip-me",
-		StaticDir:                             "static",
-		PluginDir:                             "plugins",
-		UserPluginDir:                         "user-plugins",
-		StaticPluginDir:                       "static-plugins",
-		KubeConfigStore:                       store,
-		Telemetry:                             nil,
-		Metrics:                               nil,
-		BaseURL:                               "/headlamp",
-		ProxyURLs:                             []string{"https://example.com"},
-		TLSCertPath:                           "/tls/cert.pem",
-		TLSKeyPath:                            "/tls/key.pem",
-		SessionTTL:                            3600,
-		PodDebugImage:                         "busybox",
-		NodeShellImage:                        "alpine",
-		NodeShellNamespace:                    "kube-system",
-		OidcUseCookie:                         true,
-		OidcUseTokenBroadcast:                 true,
-		DefaultLightTheme:                     "light",
-		DefaultDarkTheme:                      "dark",
-		ForceTheme:                            "light",
-		UnsafeUseServiceAccountToken:          true,
-		ServiceAccountTokenPath:               "/var/run/token",
-		EnableClusterInventory:                true,
-		ClusterInventoryProviderFile:          "providers.yaml",
-		ClusterInventoryLabelSelector:         "app=headlamp",
-		ClusterInventoryNamespaces:            "team-a,team-b",
-		ClusterInventoryRootReconcileInterval: 5 * time.Minute,
-		ClusterInventoryNoCRDCacheTTL:         time.Minute,
+		AppName:                      "Headlamp",
+		UseInCluster:                 true,
+		InClusterContextName:         "main",
+		ListenAddr:                   "localhost",
+		Port:                         4466,
+		DevMode:                      true,
+		Insecure:                     true,
+		EnableHelm:                   true,
+		EnableDynamicClusters:        true,
+		AllowKubeconfigChanges:       true,
+		WatchPluginsChanges:          true,
+		CacheEnabled:                 true,
+		KubeConfigPath:               "/tmp/kubeconfig",
+		KubeConfigDir:                "/tmp/kubeconfigs",
+		SkippedKubeContexts:          "skip-me",
+		StaticDir:                    "static",
+		PluginDir:                    "plugins",
+		UserPluginDir:                "user-plugins",
+		StaticPluginDir:              "static-plugins",
+		KubeConfigStore:              store,
+		Telemetry:                    nil,
+		Metrics:                      nil,
+		BaseURL:                      "/headlamp",
+		ProxyURLs:                    []string{"https://example.com"},
+		TLSCertPath:                  "/tls/cert.pem",
+		TLSKeyPath:                   "/tls/key.pem",
+		SessionTTL:                   3600,
+		PodDebugImage:                "busybox",
+		NodeShellImage:               "alpine",
+		NodeShellNamespace:           "kube-system",
+		OidcUseCookie:                true,
+		OidcUseTokenBroadcast:        true,
+		DefaultLightTheme:            "light",
+		DefaultDarkTheme:             "dark",
+		ForceTheme:                   "light",
+		UnsafeUseServiceAccountToken: true,
+		ServiceAccountTokenPath:      "/var/run/token",
+		DiscoverySources: map[string]clusterdiscovery.Settings{
+			"cluster_inventory": {
+				Enabled:               true,
+				LabelSelector:         "app=headlamp",
+				Namespaces:            "team-a,team-b",
+				RootReconcileInterval: 5 * time.Minute,
+				NoCRDCacheTTL:         time.Minute,
+			},
+		},
 	}
 }
 
