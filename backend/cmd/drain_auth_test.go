@@ -486,7 +486,7 @@ func TestDrainPreservesUserRBACDenial(t *testing.T) {
 		value, err := cfg.Cache.Get(context.Background(), key)
 		drainStatus = value
 
-		return err == nil
+		return err == nil && value != drainStatusInProgress
 	}, 2*time.Second, 10*time.Millisecond)
 	require.Contains(t, drainStatus, "forbidden")
 	require.Equal(t, "Bearer restricted-user", <-requests)
