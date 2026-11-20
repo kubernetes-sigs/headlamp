@@ -1090,7 +1090,7 @@ export function useKubeObjectList<K extends KubeObject>({
     }
   }, [
     endpoint,
-    activeListRequestCount,
+    effectiveActiveListRequestCount,
     hasPendingListRequests,
     limit,
     listRequests,
