@@ -47,20 +47,67 @@ export const WebSocketManager = {
   completedPaths: new Set<string>(),
 
   /** Map of active WebSocket subscriptions with their details */
-  activeSubscriptions: new Map<string, { clusterId: string; path: string; query: string }>(),
+  activeSubscriptions: new Map<
+    string,
+    { clusterId: string; path: string; query: string; streamQuery: string; opened?: boolean }
+  >(),
 
   /** Map to track pending unsubscribe operations for debouncing */
   pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
 
   /**
-   * Creates a unique key for identifying WebSocket subscriptions
+   * Creates a unique key for identifying WebSocket subscriptions.
+   * Normalizes the query by omitting `resourceVersion`, which is only
+   * the stream resume token and not part of the subscription identity.
+   *
    * @param clusterId - Cluster identifier
    * @param path - API resource path
    * @param query - Query parameters
    * @returns Unique subscription key
    */
   createKey(clusterId: string, path: string, query: string): string {
-    return `${clusterId}:${path}:${query}`;
+    if (!query) {
+      return `${clusterId}:${path}:`;
+    }
+    try {
+      const params = new URLSearchParams(query);
+      params.delete('resourceVersion');
+      return `${clusterId}:${path}:${params.toString()}`;
+    } catch {
+      return `${clusterId}:${path}:${query}`;
+    }
+  },
+
+  /**
+   * Updates the query parameters used when reconnecting an active subscription.
+   * This allows advancing the resourceVersion with each delivered watch event
+   * so that transport reconnects resume from the latest delivered version instead
+   * of the initial LIST resourceVersion.
+   *
+   * @param clusterId - Cluster identifier
+   * @param path - API resource path
+   * @param query - Query parameters (used to identify the subscription)
+   * @param resourceVersion - New resourceVersion to set for reconnection
+   */
+  updateSubscriptionResourceVersion(
+    clusterId: string,
+    path: string,
+    query: string,
+    resourceVersion: string
+  ): void {
+    const key = this.createKey(clusterId, path, query);
+    const sub = this.activeSubscriptions.get(key);
+    if (sub && resourceVersion) {
+      try {
+        const params = new URLSearchParams(sub.query);
+        if (params.has('resourceVersion')) {
+          params.set('resourceVersion', resourceVersion);
+          sub.query = params.toString();
+        }
+      } catch {
+        // Ignore malformed query string
+      }
+    }
   },
 
   /**
@@ -151,7 +198,9 @@ export const WebSocketManager = {
    * @param socket - WebSocket connection to subscribe to
    */
   resubscribeAll(socket: WebSocket): void {
-    this.activeSubscriptions.forEach(({ clusterId, path, query }) => {
+    this.activeSubscriptions.forEach(subscription => {
+      const { clusterId, path, query } = subscription;
+      subscription.streamQuery = query;
       const userId = getUserIdFromLocalStorage();
       const requestMsg: WebSocketMessage = {
         clusterId,
@@ -181,9 +230,38 @@ export const WebSocketManager = {
     onError?: (err: Error) => void
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
+    const existing = this.activeSubscriptions.get(key);
+    const existingListeners = this.listeners.get(key);
+    const isStreamCompleted = this.completedPaths.has(key);
+    const hasOtherListeners = Boolean(
+      existingListeners &&
+        (existingListeners.size > 1 ||
+          (existingListeners.size === 1 && !existingListeners.has(onMessage)))
+    );
+    // Only restart the backend stream when replacing an unshared subscription with a
+    // different query (e.g. a LIST-generation transition) or reopening a terminated/completed stream.
+    // Attaching another consumer to an active stream must preserve the shared stream and its reconnect cursor.
+    const shouldRestart = Boolean(
+      (existing && !hasOtherListeners && existing.query !== query) || isStreamCompleted
+    );
 
-    // Add to active subscriptions
-    this.activeSubscriptions.set(key, { clusterId, path, query });
+    // Cancel any pending debounced unsubscription for this key
+    const pendingTimeout = this.pendingUnsubscribes.get(key);
+    if (pendingTimeout) {
+      clearTimeout(pendingTimeout);
+      this.pendingUnsubscribes.delete(key);
+    }
+
+    // Add or replace active subscription metadata unless attaching to an active shared stream
+    if (!existing || !hasOtherListeners || isStreamCompleted) {
+      this.activeSubscriptions.set(key, {
+        clusterId,
+        path,
+        query,
+        streamQuery: shouldRestart || !existing ? query : existing.streamQuery,
+        opened: Boolean(existing?.opened && !shouldRestart),
+      });
+    }
 
     // Add message listener
     const listeners = this.listeners.get(key) || new Set();
@@ -197,17 +275,51 @@ export const WebSocketManager = {
       this.errorListeners.set(key, errListeners);
     }
 
-    // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
+    // Establish connection and send REQUEST when opening or restarting a subscription
+    let socket: WebSocket;
+    try {
+      socket = await this.connect();
+    } catch (err) {
+      this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+      throw err;
+    }
+
+    // Check if subscription was cancelled while waiting for connect()
+    const currentListeners = this.listeners.get(key);
+    if (!currentListeners || !currentListeners.has(onMessage)) {
+      return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+    }
+
+    const currentSub = this.activeSubscriptions.get(key);
+    if (!currentSub?.opened || shouldRestart) {
+      if (currentSub) {
+        currentSub.opened = true;
+      }
+      this.completedPaths.delete(key);
+      const userId = getUserIdFromLocalStorage();
+
+      // If restarting an active subscription with a new query (e.g. from a LIST-generation change),
+      // explicitly CLOSE the existing backend connection first so the backend applies the new query.
+      if (shouldRestart && !isStreamCompleted && socket.readyState === WebSocket.OPEN) {
+        const closeMsg: WebSocketMessage = {
+          clusterId,
+          path,
+          query: existing?.streamQuery || existing?.query || query,
+          userId: userId || '',
+          type: 'CLOSE',
+        };
+        socket.send(JSON.stringify(closeMsg));
+      }
+
+      const requestMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query,
+        userId: userId || '',
+        type: 'REQUEST',
+      };
+      socket.send(JSON.stringify(requestMsg));
+    }
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
@@ -243,55 +355,58 @@ export const WebSocketManager = {
     onMessage: (data: any) => void,
     onError?: (err: Error) => void
   ): void {
-    // Clear any pending unsubscribe for this key
-    const pendingTimeout = this.pendingUnsubscribes.get(key);
-    if (pendingTimeout) {
-      clearTimeout(pendingTimeout);
-      this.pendingUnsubscribes.delete(key);
-    }
+    const subKey = key || this.createKey(clusterId, path, query);
 
     // Remove the listener
-    const listeners = this.listeners.get(key);
+    const listeners = this.listeners.get(subKey);
     if (listeners) {
+      // Clear any pending unsubscribe for this key while adjusting listeners
+      const pendingTimeout = this.pendingUnsubscribes.get(subKey);
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        this.pendingUnsubscribes.delete(subKey);
+      }
+
       listeners.delete(onMessage);
       if (listeners.size === 0) {
-        this.listeners.delete(key);
+        this.listeners.delete(subKey);
 
         // Delay unsubscription to handle rapid re-subscriptions
         // This prevents unnecessary WebSocket churn when a component quickly unmounts and remounts
         // For example: during route changes or component updates in React's strict mode
         const timeout = setTimeout(() => {
           // Only unsubscribe if there are still no listeners
-          if (!this.listeners.has(key)) {
-            this.activeSubscriptions.delete(key);
-            this.completedPaths.delete(key);
+          if (!this.listeners.has(subKey)) {
+            const sub = this.activeSubscriptions.get(subKey);
+            this.activeSubscriptions.delete(subKey);
+            this.completedPaths.delete(subKey);
 
             if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
               const userId = getUserIdFromLocalStorage();
               const closeMsg: WebSocketMessage = {
                 clusterId,
                 path,
-                query,
+                query: sub?.streamQuery || query,
                 userId: userId || '',
                 type: 'CLOSE',
               };
               this.socketMultiplexer.send(JSON.stringify(closeMsg));
             }
           }
-          this.pendingUnsubscribes.delete(key);
+          this.pendingUnsubscribes.delete(subKey);
         }, 100); // 100ms debounce
 
-        this.pendingUnsubscribes.set(key, timeout);
+        this.pendingUnsubscribes.set(subKey, timeout);
       }
     }
 
     // Remove the error listener
     if (onError) {
-      const errListeners = this.errorListeners.get(key);
+      const errListeners = this.errorListeners.get(subKey);
       if (errListeners) {
         errListeners.delete(onError);
         if (errListeners.size === 0) {
-          this.errorListeners.delete(key);
+          this.errorListeners.delete(subKey);
         }
       }
     }
@@ -323,6 +438,17 @@ export const WebSocketManager = {
       }
 
       const key = this.createKey(data.clusterId, data.path, data.query || '');
+      const activeSub = this.activeSubscriptions.get(key);
+
+      // Ignore frames belonging to a retired stream incarnation for this subscription key
+      if (
+        activeSub &&
+        data.query &&
+        activeSub.streamQuery &&
+        data.query !== activeSub.streamQuery
+      ) {
+        return;
+      }
 
       // Handle COMPLETE messages
       if (data.type === 'COMPLETE') {
@@ -388,8 +514,27 @@ export const WebSocketManager = {
         return;
       }
 
+      // A DATA frame after COMPLETE indicates the watch stream is still active
+      // (backend sends COMPLETE before each new-version DATA frame).
+      this.completedPaths.delete(key);
+
       // Notify listeners if update is valid
       if (update && typeof update === 'object') {
+        if (update.type !== 'ERROR') {
+          const rv = update.object?.metadata?.resourceVersion || update.metadata?.resourceVersion;
+          if (rv && activeSub) {
+            try {
+              const params = new URLSearchParams(activeSub.query);
+              if (params.has('resourceVersion')) {
+                params.set('resourceVersion', rv);
+                activeSub.query = params.toString();
+              }
+            } catch {
+              // Ignore malformed query string
+            }
+          }
+        }
+
         const listeners = this.listeners.get(key);
         if (listeners) {
           for (const listener of listeners) {

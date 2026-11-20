@@ -366,12 +366,139 @@ describe('WebSocket Multiplexer', () => {
       });
 
       // Verify no CLOSE message was sent
-      try {
-        const msg = JSON.parse((await mockServer.nextMessage) as string);
-        expect(msg.type).not.toBe('CLOSE');
-      } catch (e) {
-        // No message is also acceptable
+      const msg = await Promise.race([
+        mockServer.nextMessage,
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 150)),
+      ]);
+      if (msg !== null) {
+        expect(JSON.parse(msg as string).type).not.toBe('CLOSE');
       }
+    });
+
+    it('should update reconnect metadata on watch events and resubscribe with the latest resourceVersion', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+
+      await WebSocketManager.subscribe(clusterName, path, initialQuery, onMessage);
+      await mockServer.connected;
+
+      // Verify initial subscription was sent with resourceVersion 100
+      const initialMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(initialMsg.query).toContain('resourceVersion=100');
+
+      // Deliver an incoming watch event with a newer resourceVersion 105
+      const watchEvent = {
+        clusterId: clusterName,
+        path,
+        query: initialQuery,
+        data: JSON.stringify({
+          type: 'MODIFIED',
+          object: {
+            metadata: {
+              resourceVersion: '105',
+            },
+          },
+        }),
+      };
+      await mockServer.send(JSON.stringify(watchEvent));
+
+      // Verify listener received update
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalled();
+      });
+
+      // Simulate connection drop
+      mockServer.close();
+      WebSocketManager.handleWebSocketClose();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+
+      // Clean old server and set up new server for reconnect
+      WS.clean();
+      const reconnectServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+
+      // Reconnect
+      await WebSocketManager.connect();
+      await reconnectServer.connected;
+
+      // Verify resubscription uses the updated resourceVersion 105 instead of stale 100
+      const resubMsg = JSON.parse((await reconnectServer.nextMessage) as string);
+      expect(resubMsg.type).toBe('REQUEST');
+      expect(resubMsg.path).toBe(path);
+      expect(resubMsg.query).toContain('resourceVersion=105');
+      expect(resubMsg.query).not.toContain('resourceVersion=100');
+
+      // Deliver another watch event on the reconnected stream
+      const subsequentEvent = {
+        clusterId: clusterName,
+        path,
+        query: resubMsg.query,
+        data: JSON.stringify({
+          type: 'MODIFIED',
+          object: {
+            metadata: {
+              resourceVersion: '110',
+            },
+          },
+        }),
+      };
+      await reconnectServer.send(JSON.stringify(subsequentEvent));
+
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it('should keep initially unversioned detail watches unversioned on reconnect after receiving events with old resourceVersion', async () => {
+      const path = '/api/v1/namespaces/default/pods';
+      const initialQuery = 'watch=1&fieldSelector=metadata.name%3Dmy-pod';
+
+      await WebSocketManager.subscribe(clusterName, path, initialQuery, onMessage);
+      await mockServer.connected;
+
+      // Verify initial subscription was sent without resourceVersion
+      const initialMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(initialMsg.query).not.toContain('resourceVersion');
+
+      // Deliver an incoming ADDED event with an old resourceVersion (e.g. '5')
+      const watchEvent = {
+        clusterId: clusterName,
+        path,
+        query: initialQuery,
+        data: JSON.stringify({
+          type: 'ADDED',
+          object: {
+            metadata: {
+              name: 'my-pod',
+              resourceVersion: '5',
+            },
+          },
+        }),
+      };
+      await mockServer.send(JSON.stringify(watchEvent));
+
+      // Verify listener received update
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalled();
+      });
+
+      // Simulate connection drop
+      mockServer.close();
+      WebSocketManager.handleWebSocketClose();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+
+      // Clean old server and set up new server for reconnect
+      WS.clean();
+      const reconnectServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+
+      // Reconnect
+      await WebSocketManager.connect();
+      await reconnectServer.connected;
+
+      // Verify resubscription stays unversioned so it does not fail with 410
+      const resubMsg = JSON.parse((await reconnectServer.nextMessage) as string);
+      expect(resubMsg.type).toBe('REQUEST');
+      expect(resubMsg.path).toBe(path);
+      expect(resubMsg.query).not.toContain('resourceVersion');
     });
   });
 
@@ -855,6 +982,303 @@ describe('WebSocket Multiplexer', () => {
       );
 
       expect(onMessage).not.toHaveBeenCalled();
+    });
+
+    it('should explicitly send CLOSE before REQUEST when re-subscribing with an updated query', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+      const updatedQuery = 'watch=1&resourceVersion=200';
+
+      await WebSocketManager.subscribe(clusterName, path, initialQuery, onMessage);
+      await mockServer.connected;
+
+      const firstMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(firstMsg.type).toBe('REQUEST');
+      expect(firstMsg.query).toBe(initialQuery);
+
+      // Re-subscribing with a different query (e.g. fresh LIST generation) on the same normalized key
+      await WebSocketManager.subscribe(clusterName, path, updatedQuery, onMessage);
+
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg.type).toBe('CLOSE');
+      expect(closeMsg.query).toBe(initialQuery);
+
+      const restartMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(restartMsg.type).toBe('REQUEST');
+      expect(restartMsg.query).toBe(updatedQuery);
+    });
+
+    it('should ignore delayed frames from a retired stream after restarting with a new query', async () => {
+      const path = '/api/v1/pods';
+      const initialQuery = 'watch=1&resourceVersion=100';
+      const restartedQuery = 'watch=1&resourceVersion=200';
+      const oldListener = vi.fn();
+      const newListener = vi.fn();
+
+      const cleanupOld = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        initialQuery,
+        oldListener
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage; // initial REQUEST
+
+      // Unsubscribe old listener and restart with new query (LIST generation change)
+      cleanupOld();
+      await WebSocketManager.subscribe(clusterName, path, restartedQuery, newListener);
+
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg.type).toBe('CLOSE');
+      expect(closeMsg.query).toBe(initialQuery);
+
+      const restartMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(restartMsg.type).toBe('REQUEST');
+      expect(restartMsg.query).toBe(restartedQuery);
+
+      // Deliver a delayed frame from the retired stream (old query) with RV 300
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: initialQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'pod-b', resourceVersion: '300' } },
+          }),
+          type: 'DATA',
+        })
+      );
+
+      // Wait a microtask and verify neither listener nor reconnect cursor was affected
+      await Promise.resolve();
+      expect(oldListener).not.toHaveBeenCalled();
+      expect(newListener).not.toHaveBeenCalled();
+
+      const key = WebSocketManager.createKey(clusterName, path, restartedQuery);
+      expect(WebSocketManager.activeSubscriptions.get(key)?.query).toBe(restartedQuery);
+
+      // Deliver a frame from the new stream incarnation (new query) with RV 205
+      const newUpdate = {
+        type: 'MODIFIED',
+        object: { metadata: { name: 'pod-a', resourceVersion: '205' } },
+      };
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: restartedQuery,
+          data: JSON.stringify(newUpdate),
+          type: 'DATA',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(newListener).toHaveBeenCalledWith(newUpdate);
+      });
+      expect(WebSocketManager.activeSubscriptions.get(key)?.query).toContain('resourceVersion=205');
+    });
+
+    it('should preserve shared stream and reconnect cursor when a second consumer attaches with a different resourceVersion', async () => {
+      const path = '/api/v1/pods';
+      const consumerAQuery = 'watch=1&resourceVersion=100';
+      const consumerBQuery = 'watch=1&resourceVersion=200';
+      const listenerA = vi.fn();
+      const listenerB = vi.fn();
+
+      await WebSocketManager.subscribe(clusterName, path, consumerAQuery, listenerA);
+      await mockServer.connected;
+
+      const initialMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(initialMsg.type).toBe('REQUEST');
+      expect(initialMsg.query).toBe(consumerAQuery);
+
+      // Second consumer attaches while consumer A is still active
+      await WebSocketManager.subscribe(clusterName, path, consumerBQuery, listenerB);
+
+      const key = WebSocketManager.createKey(clusterName, path, consumerAQuery);
+      expect(WebSocketManager.activeSubscriptions.get(key)?.query).toBe(consumerAQuery);
+      expect(WebSocketManager.activeSubscriptions.get(key)?.streamQuery).toBe(consumerAQuery);
+
+      // Deliver an update on consumer A's active stream — both consumers receive it
+      const update = {
+        type: 'MODIFIED',
+        object: { metadata: { name: 'pod-1', resourceVersion: '105' } },
+      };
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: consumerAQuery,
+          data: JSON.stringify(update),
+          type: 'DATA',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(listenerA).toHaveBeenCalledWith(update);
+        expect(listenerB).toHaveBeenCalledWith(update);
+      });
+
+      // Ensure no CLOSE was ever sent while consumer A remained active
+      expect(mockServer.messages).toHaveLength(1);
+      expect(WebSocketManager.activeSubscriptions.get(key)?.query).toContain('resourceVersion=105');
+    });
+
+    it('should normalize query encoding consistently in createKey regardless of resourceVersion presence', () => {
+      const path = '/api/v1/pods';
+      const keyWithRV = WebSocketManager.createKey(
+        clusterName,
+        path,
+        'labelSelector=app%20in%20(a)&watch=1&resourceVersion=10'
+      );
+      const keyWithoutRV = WebSocketManager.createKey(
+        clusterName,
+        path,
+        'labelSelector=app%20in%20(a)&watch=1'
+      );
+      expect(keyWithRV).toBe(keyWithoutRV);
+    });
+
+    it('should unsubscribe failed attempt and allow subsequent retry after connect() failure', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+      const connectSpy = vi.spyOn(WebSocketManager, 'connect');
+
+      // First connection fails
+      connectSpy.mockRejectedValueOnce(new Error('Connection failure'));
+      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
+        'Connection failure'
+      );
+
+      // Failed attempt must not leave listeners registered
+      expect(WebSocketManager.listeners.get(key)?.size ?? 0).toBe(0);
+
+      // Subsequent subscription must succeed and send REQUEST without seeing phantom listeners
+      connectSpy.mockRestore();
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+
+      const msg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(msg.type).toBe('REQUEST');
+      expect(msg.path).toBe(path);
+    });
+
+    it('should reopen stream and send REQUEST when resubscribing after COMPLETE', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage; // initial REQUEST
+
+      // Backend terminates the stream with COMPLETE
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          type: 'COMPLETE',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(WebSocketManager.completedPaths.has(key)).toBe(true);
+      });
+
+      // Replacement subscription attaches under the same key
+      const secondListener = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, secondListener);
+
+      // Reopening sends REQUEST and clears completedPaths
+      const restartMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(restartMsg.type).toBe('REQUEST');
+      expect(WebSocketManager.completedPaths.has(key)).toBe(false);
+    });
+
+    it('should send CLOSE before REQUEST when refetching after COMPLETE followed by DATA', async () => {
+      const path = '/api/v1/pods';
+      const query1 = 'watch=1&resourceVersion=1';
+      const query2 = 'watch=1&resourceVersion=2';
+
+      await WebSocketManager.subscribe(clusterName, path, query1, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage; // initial REQUEST
+
+      // Backend sends COMPLETE before a new-version DATA frame (stream stays live)
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query1,
+          type: 'COMPLETE',
+        })
+      );
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query1,
+          type: 'DATA',
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-1', resourceVersion: '10' } },
+          }),
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledTimes(1);
+      });
+
+      // Refetch with a new resourceVersion must still CLOSE the live backend stream first
+      await WebSocketManager.subscribe(clusterName, path, query2, onMessage);
+
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg.type).toBe('CLOSE');
+      const requestMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(requestMsg.type).toBe('REQUEST');
+      expect(requestMsg.query).toBe(query2);
+    });
+
+    it('should open the stream for a surviving subscriber if the first subscriber unmounts during handshake', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1&resourceVersion=1';
+      const key = WebSocketManager.createKey(clusterName, path, query);
+
+      const resolvers: ((socket: WebSocket) => void)[] = [];
+      const connectSpy = vi.spyOn(WebSocketManager, 'connect').mockImplementation(
+        () =>
+          new Promise<WebSocket>(resolve => {
+            resolvers.push(resolve);
+          })
+      );
+
+      const sentMessages: any[] = [];
+      const fakeSocket = {
+        readyState: WebSocket.OPEN,
+        send: (msg: string) => sentMessages.push(JSON.parse(msg)),
+      } as unknown as WebSocket;
+
+      const listenerA = vi.fn();
+      const listenerB = vi.fn();
+
+      const subAPromise = WebSocketManager.subscribe(clusterName, path, query, listenerA);
+      const subBPromise = WebSocketManager.subscribe(clusterName, path, query, listenerB);
+
+      // First subscriber unmounts before the handshake completes
+      WebSocketManager.unsubscribe(key, clusterName, path, query, listenerA);
+
+      resolvers.forEach(resolve => resolve(fakeSocket));
+      await subAPromise;
+      await subBPromise;
+
+      expect(sentMessages).toHaveLength(1);
+      expect(sentMessages[0].type).toBe('REQUEST');
+
+      connectSpy.mockRestore();
     });
   });
 });
