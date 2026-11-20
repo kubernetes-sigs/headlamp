@@ -420,13 +420,14 @@ func TestStatelessContextKeyWithoutUserID(t *testing.T) {
 	assert.Equal(t, "cluster-a", statelessContextKey("cluster-a", ""))
 }
 
-func TestWebsocketConnContextKey(t *testing.T) {
+func TestWebsocketConnContextKey(t *testing.T) { //nolint:funlen // Table covers comma spacing and header deletion.
 	testCases := []struct {
 		name           string
 		protocols      string
 		clusterName    string
 		expectedKey    string
 		expectedHeader string
+		headerDeleted  bool
 	}{
 		{
 			name:           "With authorization protocol",
@@ -442,6 +443,34 @@ func TestWebsocketConnContextKey(t *testing.T) {
 			expectedKey:    "test-cluster",
 			expectedHeader: "v4.channel.k8s.io",
 		},
+		{
+			name:           "No spaces with identity first",
+			protocols:      "base64url.headlamp.authorization.k8s.io.user123,v4.channel.k8s.io",
+			clusterName:    "test-cluster",
+			expectedKey:    statelessContextKey("test-cluster", "user123"),
+			expectedHeader: "v4.channel.k8s.io",
+		},
+		{
+			name:           "No spaces with channel first",
+			protocols:      "v4.channel.k8s.io,base64url.headlamp.authorization.k8s.io.user123",
+			clusterName:    "test-cluster",
+			expectedKey:    statelessContextKey("test-cluster", "user123"),
+			expectedHeader: "v4.channel.k8s.io",
+		},
+		{
+			name:           "Multiple remaining protocols without spaces",
+			protocols:      "base64url.headlamp.authorization.k8s.io.user123,v4.channel.k8s.io,v3.channel.k8s.io",
+			clusterName:    "test-cluster",
+			expectedKey:    statelessContextKey("test-cluster", "user123"),
+			expectedHeader: "v4.channel.k8s.io, v3.channel.k8s.io",
+		},
+		{
+			name:          "Only identity protocol removes the header",
+			protocols:     "base64url.headlamp.authorization.k8s.io.user123",
+			clusterName:   "test-cluster",
+			expectedKey:   statelessContextKey("test-cluster", "user123"),
+			headerDeleted: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -451,7 +480,12 @@ func TestWebsocketConnContextKey(t *testing.T) {
 
 			key := websocketConnContextKey(req, tc.clusterName)
 			assert.Equal(t, tc.expectedKey, key)
-			assert.Equal(t, tc.expectedHeader, req.Header.Get("Sec-Websocket-Protocol"))
+
+			if tc.headerDeleted {
+				assert.Empty(t, req.Header.Values("Sec-Websocket-Protocol"))
+			} else {
+				assert.Equal(t, tc.expectedHeader, req.Header.Get("Sec-Websocket-Protocol"))
+			}
 		})
 	}
 }
