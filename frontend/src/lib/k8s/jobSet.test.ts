@@ -40,7 +40,15 @@ describe('JobSet class', () => {
         resources: [{ name: 'jobsets' }, { name: 'jobsets/status' }],
       });
       await expect(JobSet.isEnabled()).resolves.toBe(true);
-      expect(mockedRequest).toHaveBeenCalledWith('/apis/jobset.x-k8s.io/v1alpha2');
+      expect(mockedRequest).toHaveBeenCalledWith('/apis/jobset.x-k8s.io/v1alpha2', {});
+    });
+
+    it('asks the given cluster', async () => {
+      mockedRequest.mockResolvedValue({ resources: [{ name: 'jobsets' }] });
+      await expect(JobSet.isEnabled('cluster-b')).resolves.toBe(true);
+      expect(mockedRequest).toHaveBeenCalledWith('/apis/jobset.x-k8s.io/v1alpha2', {
+        cluster: 'cluster-b',
+      });
     });
 
     it('returns false when the jobsets resource is missing', async () => {
