@@ -418,6 +418,9 @@ probes:
   # Set to HTTPS when TLS is enabled at the backend server.
   scheme: HTTP
   livenessProbe:
+    # -- Optional complete Kubernetes probe; replaces the default HTTP probe when set.
+    # Other livenessProbe settings and probes.scheme do not apply to this override.
+    custom: {}
     # -- Initial delay in seconds before starting liveness probe
     initialDelaySeconds: 0
     # -- Period in seconds between liveness probe checks
@@ -429,6 +432,9 @@ probes:
     # -- Minimum consecutive failures for the probe to be considered failed
     failureThreshold: 3
   readinessProbe:
+    # -- Optional complete Kubernetes probe; replaces the default HTTP probe when set.
+    # Other readinessProbe settings and probes.scheme do not apply to this override.
+    custom: {}
     # -- Initial delay in seconds before starting readiness probe
     initialDelaySeconds: 0
     # -- Period in seconds between readiness probe checks

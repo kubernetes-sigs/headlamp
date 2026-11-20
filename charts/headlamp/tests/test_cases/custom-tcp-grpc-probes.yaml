@@ -1,0 +1,11 @@
+probes:
+  livenessProbe:
+    custom:
+      tcpSocket:
+        port: 8080
+      timeoutSeconds: 2
+  readinessProbe:
+    custom:
+      grpc:
+        port: 9090
+      periodSeconds: 9

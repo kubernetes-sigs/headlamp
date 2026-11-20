@@ -440,7 +440,9 @@ httpRoute:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| probes.scheme | string | `"HTTP"` | Scheme for liveness/readiness probes (HTTP or HTTPS). Set to HTTPS when TLS is enabled at the backend. |
+| probes.scheme | string | `"HTTP"` | Scheme for the default liveness/readiness HTTP probes. Set to HTTPS when TLS is enabled at the backend. |
+| probes.livenessProbe.custom | object | `{}` | Complete Kubernetes liveness probe; when nonempty, replaces the default HTTP probe and its settings. |
+| probes.readinessProbe.custom | object | `{}` | Complete Kubernetes readiness probe; when nonempty, replaces the default HTTP probe and its settings. |
 | probes.livenessProbe.initialDelaySeconds | int | `0` | Initial delay before liveness probe starts |
 | probes.livenessProbe.periodSeconds | int | `10` | Period between liveness checks |
 | probes.livenessProbe.timeoutSeconds | int | `1` | Timeout for liveness probe |
@@ -452,7 +454,35 @@ httpRoute:
 | probes.readinessProbe.successThreshold | int | `1` | Minimum consecutive successes |
 | probes.readinessProbe.failureThreshold | int | `3` | Minimum consecutive failures |
 
-When using TLS termination at the backend server, you must set `probes.scheme` to `HTTPS`:
+By default, both probes use HTTP against the chart's `http` port and
+`config.baseURL`. Set either `custom` value to a complete Kubernetes probe to
+use a different handler (such as `exec`, `httpGet`, `tcpSocket`, or `grpc`). A
+nonempty override replaces that probe completely: `probes.scheme` and the
+other settings for that probe are ignored. Kubernetes defaults apply to any
+omitted timing fields, and a custom liveness probe's `successThreshold` must
+be 1.
+
+For example, if Headlamp is configured to listen on container loopback port
+4467 behind an authentication proxy, an exec probe can check the backend without
+exposing an unauthenticated network endpoint. Verify the configured executable
+exists in your chosen image:
+
+```yaml
+probes:
+  livenessProbe:
+    custom:
+      exec:
+        command: ["/usr/bin/wget", "-q", "--spider", "-T", "3", "http://127.0.0.1:4467/"]
+      timeoutSeconds: 5
+  readinessProbe:
+    custom:
+      exec:
+        command: ["/usr/bin/wget", "-q", "--spider", "-T", "3", "http://127.0.0.1:4467/"]
+      timeoutSeconds: 5
+```
+
+When using TLS termination at the backend server, set `probes.scheme` to
+`HTTPS` for the default HTTP probes:
 
 ```yaml
 config:

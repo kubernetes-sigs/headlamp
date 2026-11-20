@@ -1,0 +1,6 @@
+probes:
+  livenessProbe:
+    custom:
+      tcpSocket:
+        port: 8080
+      successThreshold: 2
