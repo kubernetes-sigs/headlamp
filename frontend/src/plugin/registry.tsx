@@ -140,7 +140,8 @@ import {
 import { recordPluginRegistration } from './runPlugin';
 
 function dispatchRegistration(action: UnknownAction) {
-  if (recordPluginRegistration(action)) store.dispatch(action);
+  const recordedAction = recordPluginRegistration(action);
+  if (recordedAction) store.dispatch(recordedAction);
 }
 
 export { DefaultCreateProject } from '../redux/projectsSlice';

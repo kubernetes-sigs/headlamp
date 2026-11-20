@@ -25,6 +25,7 @@ import * as MuiLab from '@mui/lab';
 import * as MuiMaterial from '@mui/material';
 import * as MuiMaterialStyles from '@mui/material/styles';
 import { styled } from '@mui/system';
+import { SHOULD_AUTOBATCH } from '@reduxjs/toolkit';
 import * as Lodash from 'lodash';
 import * as MonacoEditor from 'monaco-editor';
 import * as Notistack from 'notistack';
@@ -68,7 +69,7 @@ import {
 } from './developmentPlugins';
 import { fetchPluginResource } from './fetchPluginResource';
 import { Headlamp, Plugin } from './lib';
-import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
+import { changePluginLanguage, initializePluginI18n, resetPluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
@@ -143,7 +144,7 @@ let pluginBaseline: RootState | undefined;
 let loadedPluginSources: string | undefined;
 const registrations = new Map<
   string,
-  PluginRegistration & { signature: string; legacyNames: string[] }
+  PluginRegistration & { signature: string; legacyNames: string[]; packageName: string }
 >();
 const legacyRegistrations = new Map<string, PluginRegistration>();
 const pluginLibrary = window.pluginLib;
@@ -181,7 +182,16 @@ export async function initializePlugins(pluginNames = Object.keys(window.plugins
         // @todo: what should happen if this fails?
         const registration = legacyRegistrations.get(pluginName);
         if (registration) {
-          withPluginRegistration(registration, () => plugin.initialize(new Registry()));
+          const registry = new Proxy(new Registry(), {
+            get(target, property, receiver) {
+              const value = Reflect.get(target, property, receiver);
+              return typeof value === 'function'
+                ? (...args: unknown[]) =>
+                    withPluginRegistration(registration, () => Reflect.apply(value, target, args))
+                : value;
+            },
+          });
+          withPluginRegistration(registration, () => plugin.initialize(registry));
         } else {
           plugin.initialize(new Registry());
         }
@@ -823,20 +833,29 @@ export async function fetchAndExecutePlugins(
   for (const [path, registration] of registrations) {
     if (!signatures.has(path) || changedPaths.has(path)) {
       registration.active = false;
+      resetPluginI18n(registration.packageName);
       for (const name of registration.legacyNames) {
         delete window.plugins[name];
         legacyRegistrations.delete(name);
       }
-      registrations.delete(path);
+      if (!signatures.has(path)) {
+        registrations.delete(path);
+      }
     }
   }
+
+  await initializePluginsI18n(packageInfos, pluginPaths, deadline);
+
   if (pluginBaseline) {
-    store.dispatch(
-      resetPluginRegistrations({
+    store.dispatch({
+      ...resetPluginRegistrations({
         baseline: pluginBaseline,
-        actions: [...registrations.values()].flatMap(registration => registration.actions),
-      })
-    );
+        actions: [...registrations.values()].flatMap(registration =>
+          registration.active ? registration.actions : []
+        ),
+      }),
+      meta: { [SHOULD_AUTOBATCH]: true },
+    });
   } else {
     pluginBaseline = store.getState();
   }
@@ -848,8 +867,10 @@ export async function fetchAndExecutePlugins(
     const path = pluginPathsToExecute[index];
     const registration = {
       active: true,
+      batch: true,
       actions: [],
       signature: signatures.get(path)!,
+      packageName: packageInfosToExecute[index].name,
       legacyNames: [] as string[],
     };
     registrations.set(path, registration);
@@ -876,9 +897,6 @@ export async function fetchAndExecutePlugins(
       }
     }
   });
-
-  // Initialize plugin i18n after plugins are loaded
-  await initializePluginsI18n(packageInfos, pluginPaths, deadline);
 
   await beforePluginStartupDeadline(afterPluginsRun(pluginsLoaded, legacyNames), deadline);
   loadedPluginSources = sourceSignature;
@@ -920,6 +938,20 @@ async function afterPluginsRun(
   legacyNames: string[]
 ) {
   await initializePlugins(legacyNames);
+
+  for (const registration of registrations.values()) {
+    registration.batch = false;
+  }
+  if (pluginBaseline) {
+    store.dispatch(
+      resetPluginRegistrations({
+        baseline: pluginBaseline,
+        actions: [...registrations.values()].flatMap(registration =>
+          registration.active ? registration.actions : []
+        ),
+      })
+    );
+  }
 
   store.dispatch(
     eventAction({

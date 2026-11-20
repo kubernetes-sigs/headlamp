@@ -50,6 +50,7 @@ export interface PluginPackageInfo {
 const pluginI18nInstances: { [pluginName: string]: i18n } = {};
 const pluginPaths: { [pluginName: string]: string } = {};
 const pluginSupportedLocales: { [pluginName: string]: string[] } = {};
+const pluginGenerations: { [pluginName: string]: number } = {};
 
 // In-flight locale loads, keyed by `${pluginName}:${locale}`. A resource bundle
 // only exists once its fetch has finished, so without this every caller that
@@ -61,6 +62,18 @@ const pendingLocaleLoads: { [key: string]: Promise<void> } = {};
 // completions that are no longer the active request are dropped instead of
 // being applied on top of it.
 let latestRequestedLanguage: string | null = null;
+
+export function resetPluginI18n(pluginName: string) {
+  pluginGenerations[pluginName] = (pluginGenerations[pluginName] ?? 0) + 1;
+  delete pluginI18nInstances[pluginName];
+  delete pluginPaths[pluginName];
+  delete pluginSupportedLocales[pluginName];
+  for (const key of Object.keys(pendingLocaleLoads)) {
+    if (key.startsWith(`${pluginName}:`)) {
+      delete pendingLocaleLoads[key];
+    }
+  }
+}
 
 /**
  * Load translations for a plugin from its directory
@@ -104,7 +117,7 @@ async function ensurePluginLocaleLoaded(
   // without this a plugin used by many components refetches it once per caller.
   const key = `${pluginName}:${locale}`;
   if (!pendingLocaleLoads[key]) {
-    pendingLocaleLoads[key] = (async () => {
+    const load = (async () => {
       const translations = await loadPluginTranslations(pluginPath, locale);
       // Register the bundle even when it is empty. It records that the locale
       // has been attempted, so `hasResourceBundle` short-circuits any later
@@ -113,8 +126,11 @@ async function ensurePluginLocaleLoaded(
       // (#4854). Missing keys still fall through to the `en` fallback.
       instance.addResourceBundle(locale, pluginName, translations);
     })().finally(() => {
-      delete pendingLocaleLoads[key];
+      if (pendingLocaleLoads[key] === load) {
+        delete pendingLocaleLoads[key];
+      }
     });
+    pendingLocaleLoads[key] = load;
   }
 
   await pendingLocaleLoads[key];
@@ -158,6 +174,7 @@ async function getPluginI18nInstance(
   }
 
   const instance = createInstance();
+  const generation = pluginGenerations[pluginName] ?? 0;
 
   // Only consider the locales a plugin explicitly declares via `headlamp.i18n`
   // in package.json. Without a declaration there are no translation files to
@@ -220,7 +237,9 @@ async function getPluginI18nInstance(
     saveMissing: false,
   });
 
-  pluginI18nInstances[pluginName] = instance;
+  if ((pluginGenerations[pluginName] ?? 0) === generation) {
+    pluginI18nInstances[pluginName] = instance;
+  }
   return instance;
 }
 

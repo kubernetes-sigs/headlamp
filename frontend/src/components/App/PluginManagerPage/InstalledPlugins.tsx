@@ -31,6 +31,7 @@ interface InstalledRow {
   version?: string;
   managed: boolean;
   loadedInBrowser: boolean;
+  packageName?: string;
   status?: PluginSyncStatus;
 }
 
@@ -85,12 +86,17 @@ export default function InstalledPlugins(props: InstalledPluginsProps) {
     }
 
     for (const plugin of loadedPlugins) {
-      const existing = byName.get(plugin.name);
+      const existing =
+        (plugin.source ?? plugin.type ?? 'user') === 'user'
+          ? byName.get(plugin.folderName || plugin.name)
+          : undefined;
       if (existing) {
         existing.loadedInBrowser = true;
+        existing.packageName = plugin.name;
       } else {
-        byName.set(plugin.name, {
+        byName.set(`${plugin.source ?? plugin.type}:${plugin.folderName ?? plugin.name}`, {
           name: plugin.name,
+          packageName: plugin.name,
           version: plugin.version,
           managed: false,
           loadedInBrowser: true,
@@ -145,7 +151,9 @@ export default function InstalledPlugins(props: InstalledPluginsProps) {
                     description={t('translation|Settings')}
                     icon="mdi:cog"
                     onClick={() =>
-                      history.push(`/settings/plugins/${encodeURIComponent(row.name)}`)
+                      history.push(
+                        `/settings/plugins/${encodeURIComponent(row.packageName || row.name)}`
+                      )
                     }
                   />
                 )}
