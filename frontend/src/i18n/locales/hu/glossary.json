@@ -245,6 +245,7 @@
   "Groups": "Csoportok",
   "Service Accounts": "Szolgáltatásfiókok",
   "Non Resources": "Nem erőforrások",
+  "Resource Names": "",
   "Verbs": "Műveletek",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",

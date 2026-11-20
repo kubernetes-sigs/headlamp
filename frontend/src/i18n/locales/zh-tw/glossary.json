@@ -245,6 +245,7 @@
   "Groups": "群組",
   "Service Accounts": "服務帳戶",
   "Non Resources": "非資源",
+  "Resource Names": "",
   "Verbs": "動詞",
   "RuntimeClass": "運行時類別",
   "Workloads (scheduling)": "工作負載（排程）",

@@ -245,6 +245,7 @@
   "Groups": "Skupiny",
   "Service Accounts": "Účty služby",
   "Non Resources": "Nezdrojové prostředky",
+  "Resource Names": "",
   "Verbs": "Příkazy",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",

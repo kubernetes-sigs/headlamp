@@ -245,6 +245,7 @@
   "Groups": "Grupos",
   "Service Accounts": "Service Accounts",
   "Non Resources": "Não Recursos",
+  "Resource Names": "",
   "Verbs": "Verbos",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",

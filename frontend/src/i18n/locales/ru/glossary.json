@@ -245,6 +245,7 @@
   "Groups": "Группы",
   "Service Accounts": "Служебные аккаунты",
   "Non Resources": "Не ресурсы",
+  "Resource Names": "",
   "Verbs": "Глаголы",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "Рабочие нагрузки (планирование)",

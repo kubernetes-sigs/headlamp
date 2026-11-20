@@ -245,6 +245,7 @@
   "Groups": "المجموعات",
   "Service Accounts": "حسابات الخدمة",
   "Non Resources": "موارد غيرية",
+  "Resource Names": "",
   "Verbs": "الأفعال",
   "RuntimeClass": "فئة التشغيل",
   "Workloads (scheduling)": "أحمال العمل (الجدولة)",
