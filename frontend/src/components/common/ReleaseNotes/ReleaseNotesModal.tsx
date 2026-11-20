@@ -60,7 +60,7 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
   const { t } = useTranslation();
 
   return (
-    <Dialog open={showReleaseNotes} maxWidth="xl">
+    <Dialog open={showReleaseNotes} onClose={() => setShowReleaseNotes(false)} maxWidth="xl">
       <DialogTitle
         buttons={[
           <IconButton aria-label={t('Close')} onClick={() => setShowReleaseNotes(false)}>

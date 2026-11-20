@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { render, screen, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitForElementToBeRemoved,
+  within,
+} from '@testing-library/react';
 import ReleaseNotesModal from './ReleaseNotesModal';
 
 vi.mock('@iconify/react', () => ({ Icon: () => null }));
@@ -90,5 +96,26 @@ describe('ReleaseNotesModal', () => {
       'src',
       'https://example.com/ok.png'
     );
+  });
+
+  it('closes the dialog when the close button is clicked', async () => {
+    render(<ReleaseNotesModal releaseNotes="## v1.0.0\nSome notes" appVersion="1.0.0" />);
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    await waitForElementToBeRemoved(dialog);
+  });
+
+  it('closes the dialog when Escape is pressed', async () => {
+    render(<ReleaseNotesModal releaseNotes="## v1.0.0\nSome notes" appVersion="1.0.0" />);
+
+    const dialog = screen.getByRole('dialog');
+    const dialogContainer = dialog.parentElement;
+    expect(dialogContainer).not.toBeNull();
+
+    fireEvent.keyDown(dialogContainer!, { key: 'Escape' });
+
+    await waitForElementToBeRemoved(dialog);
   });
 });
