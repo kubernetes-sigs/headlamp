@@ -14,12 +14,50 @@
  * limitations under the License.
  */
 
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import StorageClass from '../../lib/k8s/storageClass';
-import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
+import { matchExpressionSimplifier } from '../../lib/k8s';
+import StorageClass, { KubeStorageClass } from '../../lib/k8s/storageClass';
+import { DetailsGrid, MetadataDictGrid, metadataStyles } from '../common/Resource';
+
+function AllowedTopologies(props: { terms: NonNullable<KubeStorageClass['allowedTopologies']> }) {
+  const { t } = useTranslation();
+  // Terms are ORed. Skip empty terms, which have no requirements to show.
+  const terms = props.terms
+    .map(
+      term =>
+        matchExpressionSimplifier(
+          term.matchLabelExpressions?.map(expression => ({ ...expression, operator: 'In' }))
+        ) || []
+    )
+    .filter(expressions => expressions.length > 0);
+
+  if (terms.length === 0) {
+    return <>{t('translation|Only empty topology terms')}</>;
+  }
+
+  return (
+    <Stack spacing={1}>
+      {terms.map((expressions, index) => (
+        <div key={index}>
+          {expressions.map(expression => (
+            <Typography
+              key={expression}
+              display="inline-block"
+              sx={theme => ({ ...metadataStyles(theme), whiteSpace: 'normal' })}
+            >
+              {expression}
+            </Typography>
+          ))}
+        </div>
+      ))}
+    </Stack>
+  );
+}
 
 export default function StorageClassDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
@@ -45,6 +83,11 @@ export default function StorageClassDetails(props: { name?: string; cluster?: st
           {
             name: t('Binding Mode'),
             value: item.volumeBindingMode,
+          },
+          {
+            name: t('Allowed Topologies'),
+            value: <AllowedTopologies terms={item.allowedTopologies ?? []} />,
+            hide: !item.allowedTopologies?.length,
           },
           {
             name: t('Default'),

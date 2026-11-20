@@ -305,6 +305,7 @@
   "Provisioner": "المزوّد",
   "Reclaim Policy": "سياسة الاسترجاع",
   "Binding Mode": "وضع الربط",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "السماح بتوسيع التخزين",
   "Mount Options": "",
   "Volume Binding Mode": "وضع ربط التخزين",

@@ -305,6 +305,7 @@
   "Provisioner": "Поставщик",
   "Reclaim Policy": "Политика возврата",
   "Binding Mode": "Режим привязки",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Разрешить расширение тома",
   "Mount Options": "",
   "Volume Binding Mode": "Режим привязки тома",

@@ -305,6 +305,7 @@
   "Provisioner": "Etablerare",
   "Reclaim Policy": "Återtagningsprincip",
   "Binding Mode": "Bindningsläge",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Tillåt volymexpansion",
   "Mount Options": "",
   "Volume Binding Mode": "Volymbindningsläge",

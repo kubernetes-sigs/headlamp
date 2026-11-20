@@ -45,7 +45,16 @@ Base.parameters = {
     handlers: {
       story: [
         http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses/storage-class-expandable`, () =>
-          HttpResponse.json(BASE_SC_EXPLICIT_EXPANDABLE)
+          HttpResponse.json({
+            ...BASE_SC_EXPLICIT_EXPANDABLE,
+            allowedTopologies: [
+              {
+                matchLabelExpressions: [
+                  { key: 'topology.kubernetes.io/zone', values: ['us-east-1a', 'us-east-1b'] },
+                ],
+              },
+            ],
+          })
         ),
         http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses`, () => HttpResponse.error()),
       ],
