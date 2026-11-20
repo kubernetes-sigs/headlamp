@@ -37,6 +37,7 @@ import TimezoneSelect from '../../common/TimezoneSelect';
 import { PreferredThemeSelectors } from '../../Sidebar/ThemeToggleButton/PreferredThemeSelectors';
 import { rememberThemeChoiceIfEnabled } from '../../Sidebar/ThemeToggleButton/ThemeToggleButton';
 import { setTheme, useAppThemes } from '../themeSlice';
+import ActionDelayInput from './ActionDelayInput';
 import DrawerModeSettings from './DrawerModeSettings';
 import NumRowsInput from './NumRowsInput';
 import { ShortcutsList } from './ShortcutsSettings';
@@ -155,6 +156,11 @@ export default function Settings() {
             ),
             nameID: tableRowsLabelID,
             hide: tableRows.hidden,
+          },
+          {
+            name: t('translation|Action delay'),
+            value: <ActionDelayInput nameLabelID="action-delay-label" />,
+            nameID: 'action-delay-label',
           },
           {
             name: t('translation|Timezone to display for dates'),
