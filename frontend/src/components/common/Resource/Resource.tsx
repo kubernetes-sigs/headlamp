@@ -1957,28 +1957,16 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
   const { resource } = props;
   const { t } = useTranslation('glossary');
 
-  let title = '…';
-
-  function getContainers() {
-    if (!resource) {
-      return [];
+  function getContainers(): { title: string; containers: KubeContainer[] } {
+    if (resource?.spec?.containers) {
+      return { title: t('Containers'), containers: resource.spec.containers };
     }
 
-    let containers: KubeContainer[] = [];
-
-    if (resource.spec) {
-      if (resource.spec.containers) {
-        // eslint-disable-next-line react-hooks/immutability
-        title = t('Containers');
-        containers = resource.spec.containers;
-      } else if (resource.spec.template && resource.spec.template.spec) {
-        // eslint-disable-next-line react-hooks/immutability
-        title = t('Container Spec');
-        containers = resource.spec.template.spec.containers;
-      }
+    if (resource?.spec?.template?.spec) {
+      return { title: t('Container Spec'), containers: resource.spec.template.spec.containers };
     }
 
-    return containers;
+    return { title: '…', containers: [] };
   }
 
   function getInitContainers() {
@@ -2008,7 +1996,7 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
     return statuses;
   }
 
-  const containers = getContainers();
+  const { title, containers } = getContainers();
   const initContainers = getInitContainers();
   const ephemContainers = getEphemeralContainers();
   const statuses = getStatuses('containerStatuses');
