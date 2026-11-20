@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import omit from 'lodash/omit';
 import type { QueryParameters } from './queryParameters';
 
 export function buildUrl(urlOrParts: string | string[], queryParams?: QueryParameters): string {
@@ -53,18 +52,13 @@ export function asQuery(queryParams?: QueryParameters): string {
     return '';
   }
 
-  let newQueryParams;
-  if (typeof queryParams.limit === 'number' || typeof queryParams.limit === 'string') {
-    newQueryParams = {
-      ...queryParams,
-      limit:
-        typeof queryParams.limit === 'number' ? queryParams.limit.toString() : queryParams.limit,
-    };
-  } else {
-    newQueryParams = { ...omit(queryParams, 'limit') };
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(queryParams)) {
+    if (value !== undefined && value !== null) {
+      searchParams.append(key, typeof value === 'number' ? value.toString() : String(value));
+    }
   }
 
-  return !!newQueryParams && !!Object.keys(newQueryParams).length
-    ? '?' + new URLSearchParams(newQueryParams).toString()
-    : '';
+  const queryString = searchParams.toString();
+  return queryString ? `?${queryString}` : '';
 }
