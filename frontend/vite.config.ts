@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+import inject from '@rollup/plugin-inject';
 import react from '@vitejs/plugin-react';
+import { createRequire } from 'node:module';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
@@ -24,6 +26,10 @@ import svgr from 'vite-plugin-svgr';
 const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
 const underTest = process.env.UNDER_TEST === 'true' || process.env.VITEST === 'true';
+// Go's wasm_exec.js initializes globalThis.process with browser-compatible process APIs.
+const processShim = createRequire(import.meta.url).resolve(
+  'vite-plugin-node-polyfills/shims/process'
+);
 const serverBase = process.env.PUBLIC_URL?.startsWith('/')
   ? process.env.PUBLIC_URL.replace(/\/+$/, '')
   : '';
@@ -33,6 +39,23 @@ const encodedClusterPrefix = `${serverBase}/encoded-clusters/`.replace(
 );
 
 export default defineConfig({
+  optimizeDeps: {
+    exclude: [processShim],
+    esbuildOptions: {
+      inject: [processShim],
+      plugins: [
+        {
+          name: 'scoped-process-shim',
+          setup(build) {
+            build.onResolve(
+              { filter: /vite-plugin-node-polyfills[\\/]+shims[\\/]+process/ },
+              () => ({ path: processShim, external: false })
+            );
+          },
+        },
+      ],
+    },
+  },
   define: {
     global: 'globalThis',
     'import.meta.env.UNDER_TEST': JSON.stringify(underTest),
@@ -121,7 +144,15 @@ export default defineConfig({
     react(),
     nodePolyfills({
       include: ['process', 'buffer', 'stream'],
+      globals: { process: false },
     }),
+    {
+      ...inject({ process: 'process' }),
+      enforce: 'post',
+      applyToEnvironment(environment) {
+        return environment.name === 'client';
+      },
+    },
     // Make sure we copy the minified monaco-editor source into the static folder
     // since it's loaded dynamically and not bundled via ESM. We do it this way
     // to support setting the localization language
