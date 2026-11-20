@@ -18,9 +18,9 @@ import { KubeMetadata } from './KubeMetadata';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 
 export interface KubeEndpointSliceEndpointConditions {
-  ready: boolean;
-  serving: boolean;
-  terminating: boolean;
+  ready?: boolean;
+  serving?: boolean;
+  terminating?: boolean;
 }
 
 export interface KubeEndpointSliceEndpoint {
