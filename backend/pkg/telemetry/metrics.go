@@ -162,7 +162,8 @@ func (m *Metrics) RequestCounterMiddleware(next http.Handler) http.Handler {
 // captures the status code of the response for metrics collection.
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode  int
+	wroteHeader bool
 }
 
 // newResponseWriter creates a new responseWriter instance that wraps an existing http.ResponseWriter.
@@ -176,10 +177,34 @@ func newResponseWriter(w http.ResponseWriter) *responseWriter {
 
 // WriteHeader overrides the http.ResponseWriter WriteHeader method to
 // capture the response status code before delegating to the wrapped ResponseWriter.
-// This method updates the internal statusCode field and then calls ethe wrapped ResponseWriter's WriteHeader method.
+// Informational responses do not commit the final status, except protocol switching.
 func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
+	if !rw.wroteHeader && (code >= http.StatusOK || code == http.StatusSwitchingProtocols) {
+		rw.statusCode = code
+		rw.wroteHeader = true
+	}
+
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+// Write records the implicit 200 response before writing the first body bytes.
+func (rw *responseWriter) Write(data []byte) (int, error) {
+	if !rw.wroteHeader {
+		rw.WriteHeader(http.StatusOK)
+	}
+
+	return rw.ResponseWriter.Write(data)
+}
+
+// FlushError preserves ResponseController flushing and tracks its implicit status.
+func (rw *responseWriter) FlushError() error {
+	err := http.NewResponseController(rw.ResponseWriter).Flush()
+	if err == nil && !rw.wroteHeader {
+		rw.statusCode = http.StatusOK
+		rw.wroteHeader = true
+	}
+
+	return err
 }
 
 // Hijack implements the http.Hijacker interface to support WebSocket connections.
