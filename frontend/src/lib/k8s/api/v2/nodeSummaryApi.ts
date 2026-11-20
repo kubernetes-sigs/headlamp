@@ -49,6 +49,7 @@ export async function nodeSummaryStats(
     return () => {};
   }
 
+  let cancelled = false;
   const handle = setInterval(getNodeSummaryStats, 10000);
   const clusterName = cluster || getCluster() || '';
 
@@ -58,8 +59,11 @@ export async function nodeSummaryStats(
         `/api/v1/nodes/${encodeURIComponent(nodeName)}/proxy/stats/summary`,
         { cluster: clusterName }
       ).then(response => response.json());
-      onStats(summary);
+      if (!cancelled) {
+        onStats(summary);
+      }
     } catch (err) {
+      if (cancelled) return;
       if (isDebugVerbose('k8s/apiProxy@nodeSummaryStats')) {
         console.debug('k8s/apiProxy@nodeSummaryStats', { err, nodeName });
       }
@@ -71,6 +75,7 @@ export async function nodeSummaryStats(
   }
 
   function cancel() {
+    cancelled = true;
     clearInterval(handle);
   }
 
