@@ -16,6 +16,7 @@
 
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CreateResourceButton } from '../CreateResourceButton';
 import ResourceListView from './ResourceListView';
 
 const { createButtonProps, lastResourceTablePropsHolder } = vi.hoisted(() => ({
@@ -168,5 +169,50 @@ describe('ResourceListView emptyActions defaulting', () => {
   it('does not inject a default when no resourceClass is provided (nested list on a Details page)', () => {
     renderView({ title: <span>Sub-list</span>, data: [], columns: [] });
     expect(lastResourceTablePropsHolder.current.emptyActions).toBeUndefined();
+  });
+
+  it('auto-injects EmptyStateActions for a data list that has a Create button in its header', () => {
+    renderView({
+      title: 'Pods',
+      data: [],
+      columns: [],
+      headerProps: {
+        titleSideActions: [
+          <span key="other-action" />,
+          <CreateResourceButton key="create" resourceClass={podClass} cluster="dra" />,
+        ],
+      },
+    });
+    const { getByTestId } = render(<>{lastResourceTablePropsHolder.current.emptyActions}</>);
+    expect(getByTestId('empty-state-actions').getAttribute('data-kind')).toBe('Pod');
+    expect(getByTestId('empty-state-actions').getAttribute('data-cluster')).toBe('dra');
+  });
+
+  it('does not inject a default for a data list whose header has no Create button', () => {
+    renderView({
+      title: 'Pods',
+      data: [],
+      columns: [],
+      headerProps: { titleSideActions: [<span key="other-action" />] },
+    });
+    expect(lastResourceTablePropsHolder.current.emptyActions).toBeUndefined();
+  });
+
+  it('does not inject a default for a data list that hides its Create button', () => {
+    renderView({ title: 'Pods', data: [], columns: [], headerProps: { titleSideActions: [] } });
+    expect(lastResourceTablePropsHolder.current.emptyActions).toBeUndefined();
+  });
+
+  it('respects emptyActions={null} on a data list with a Create button in its header', () => {
+    renderView({
+      title: 'Pods',
+      data: [],
+      columns: [],
+      emptyActions: null,
+      headerProps: {
+        titleSideActions: [<CreateResourceButton key="create" resourceClass={podClass} />],
+      },
+    });
+    expect(lastResourceTablePropsHolder.current.emptyActions).toBeNull();
   });
 });

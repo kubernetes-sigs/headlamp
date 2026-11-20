@@ -17,7 +17,7 @@
 import React, { PropsWithChildren, ReactElement, ReactNode } from 'react';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { BackLinkProps } from '../BackLink';
-import { CreateResourceButton } from '../CreateResourceButton';
+import { CreateResourceButton, CreateResourceButtonProps } from '../CreateResourceButton';
 import SectionBox from '../SectionBox';
 import SectionFilterHeader, { SectionFilterHeaderProps } from '../SectionFilterHeader';
 import { EmptyStateActions } from './EmptyStateActions';
@@ -72,8 +72,27 @@ export default function ResourceListView(
   // embedded lists on Details pages don't get the auto-default; they can
   // still opt in by passing `emptyActions` explicitly. Passing
   // `emptyActions={null}` opts out even when a class is present.
+  //
+  // Lists that fetch their own items and pass `data` (Pods, Jobs, Secrets...)
+  // have no `resourceClass` prop, so their default keys off the Create button
+  // they put in the header instead: the empty state offers the same Create
+  // action as the header right above it, plus Refresh. Lists without a header
+  // Create button (including embedded lists that hide it) get no default.
   let emptyActions = tableProps.emptyActions;
-  if (emptyActions === undefined && resourceClass) {
+  const headerCreateButton = !resourceClass
+    ? headerProps?.titleSideActions?.find(
+        (action): action is ReactElement<CreateResourceButtonProps> =>
+          React.isValidElement(action) && action.type === CreateResourceButton
+      )
+    : undefined;
+  if (emptyActions === undefined && headerCreateButton) {
+    emptyActions = (
+      <EmptyStateActions
+        resourceClass={headerCreateButton.props.resourceClass}
+        cluster={headerCreateButton.props.cluster}
+      />
+    );
+  } else if (emptyActions === undefined && resourceClass) {
     // Like the header create action above, the empty-state Create button
     // targets the first of the clusters the list is limited to, and is left
     // out when the list is limited to no cluster (only Refresh remains).

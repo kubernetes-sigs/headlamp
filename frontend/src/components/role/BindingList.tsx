@@ -21,6 +21,7 @@ import RoleBinding from '../../lib/k8s/roleBinding';
 import { useNamespaces } from '../../redux/filterSlice';
 import LabelListItem from '../common/LabelListItem';
 import Link from '../common/Link';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { LightTooltip } from '../common/Tooltip';
 
@@ -125,6 +126,7 @@ export default function RoleBindingList() {
     <ResourceListView
       title={t('glossary|Role Bindings')}
       errors={allErrors}
+      emptyActions={<EmptyStateActions />}
       columns={[
         'type',
         'name',
