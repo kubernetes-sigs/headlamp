@@ -113,68 +113,81 @@ export function GraphRenderer({
   }, [nodes]);
 
   return (
-    <ReactFlow
-      nodes={isLoading ? emptyArray : nodes}
-      edges={isLoading ? emptyArray : edges}
-      edgeTypes={edgeTypes}
-      nodeTypes={nodeTypes}
-      nodesFocusable={false}
-      // Disable dragging and connecting — ResourceMap is read-only
-      nodesDraggable={false}
-      nodesConnectable={false}
-      elementsSelectable
-      onNodeClick={onNodeClick}
-      onEdgeClick={onEdgeClick}
-      onMove={onMove}
-      onClick={e => {
-        if ((e.target as HTMLElement)?.className?.includes?.('react-flow__pane')) {
-          onBackgroundClick?.();
-        }
+    <Box
+      sx={{
+        height: '100%',
+        width: '100%',
+        '& .react-flow__attribution': {
+          backgroundColor: 'background.paper',
+        },
+        '& .react-flow__attribution a': {
+          color: 'text.primary',
+        },
       }}
-      minZoom={minZoom}
-      maxZoom={maxZoom}
-      fitViewOptions={{
-        duration: 0, // Instant instead of animated
-        padding: 0.1,
-        minZoom,
-        maxZoom,
-      }}
-      translateExtent={translateExtent}
-      // Disable keyboard handlers for unused operations (read-only visualization)
-      deleteKeyCode={null}
-      selectionKeyCode={null}
-      multiSelectionKeyCode={null}
-      connectionMode={ConnectionMode.Loose}
     >
-      <Background variant={BackgroundVariant.Dots} color={theme.palette.divider} size={2} />
-      <Controls showInteractive={false} showFitView={false} showZoom={false}>
-        <GraphControls>{controlActions}</GraphControls>
-      </Controls>
-      {isLoading && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        >
-          <Loader title={t('Loading')} />
-        </Box>
-      )}
-      {!isLoading && nodes.length === 0 && (
-        <Typography
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-          }}
-        >
-          {t('No data to be shown. Try to change filters or select a different namespace.')}
-        </Typography>
-      )}
-      {children}
-    </ReactFlow>
+      <ReactFlow
+        nodes={isLoading ? emptyArray : nodes}
+        edges={isLoading ? emptyArray : edges}
+        edgeTypes={edgeTypes}
+        nodeTypes={nodeTypes}
+        nodesFocusable={false}
+        // Disable dragging and connecting — ResourceMap is read-only
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable
+        onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
+        onMove={onMove}
+        onClick={e => {
+          if ((e.target as HTMLElement)?.className?.includes?.('react-flow__pane')) {
+            onBackgroundClick?.();
+          }
+        }}
+        minZoom={minZoom}
+        maxZoom={maxZoom}
+        fitViewOptions={{
+          duration: 0, // Instant instead of animated
+          padding: 0.1,
+          minZoom,
+          maxZoom,
+        }}
+        translateExtent={translateExtent}
+        // Disable keyboard handlers for unused operations (read-only visualization)
+        deleteKeyCode={null}
+        selectionKeyCode={null}
+        multiSelectionKeyCode={null}
+        connectionMode={ConnectionMode.Loose}
+      >
+        <Background variant={BackgroundVariant.Dots} color={theme.palette.divider} size={2} />
+        <Controls showInteractive={false} showFitView={false} showZoom={false}>
+          <GraphControls>{controlActions}</GraphControls>
+        </Controls>
+        {isLoading && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <Loader title={t('Loading')} />
+          </Box>
+        )}
+        {!isLoading && nodes.length === 0 && (
+          <Typography
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            {t('No data to be shown. Try to change filters or select a different namespace.')}
+          </Typography>
+        )}
+        {children}
+      </ReactFlow>
+    </Box>
   );
 }
