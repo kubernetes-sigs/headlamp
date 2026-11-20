@@ -16,8 +16,12 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { createMemoryHistory } from 'history';
+import { Provider } from 'react-redux';
+import { Router } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../lib/themes';
+import defaultStore from '../../redux/stores/store';
 import { TestContext, TestContextProps } from '../../test';
 import SimpleTable, { SimpleTableProps } from './SimpleTable';
 
@@ -248,5 +252,48 @@ describe('SimpleTable', () => {
 
     const table = screen.getByRole('table');
     expect(within(table).getByRole('cell')).toHaveTextContent('second');
+  });
+
+  it('resets page to 1 and keeps changed page size when changing rows per page from page 2 with reflectInURL', async () => {
+    const history = createMemoryHistory({ initialEntries: ['/items?p=2&perPage=10'] });
+    const data = Array.from({ length: 30 }, (_, index) => ({ value: `item-${index + 1}` }));
+
+    render(
+      <Provider store={defaultStore}>
+        <Router history={history}>
+          <ThemeProvider theme={theme}>
+            <SimpleTable
+              columns={columns}
+              data={data}
+              reflectInURL
+              rowsPerPage={[10, 20]}
+              showPagination
+            />
+          </ThemeProvider>
+        </Router>
+      </Provider>
+    );
+
+    // Initial state on page 2 with page size 10 (items 11-20)
+    expect(getBodyCellText()).toHaveLength(10);
+    expect(getBodyCellText()[0]).toBe('item-11');
+    expect(getBodyCellText()[9]).toBe('item-20');
+    expect(history.location.search).toBe('?p=2&perPage=10');
+
+    // Change rows per page to 20
+    const select = screen.getByRole('combobox');
+    fireEvent.mouseDown(select);
+
+    const option20 = await screen.findByRole('option', { name: '20' });
+    fireEvent.click(option20);
+
+    // Should settle on page 1 (items 1-20) with p removed and perPage=20
+    await waitFor(() => {
+      expect(history.location.search).toBe('?perPage=20');
+    });
+
+    expect(getBodyCellText()).toHaveLength(20);
+    expect(getBodyCellText()[0]).toBe('item-1');
+    expect(getBodyCellText()[19]).toBe('item-20');
   });
 });
