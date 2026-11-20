@@ -473,7 +473,7 @@ func (c *Connection) closeTransport() bool {
 // establishClusterConnectionContext creates and dials a connection without registering it.
 func (m *Multiplexer) establishClusterConnectionContext(
 	ctx context.Context,
-	clusterID, userID, path, query string,
+	clusterID, userID, path, query, dialQuery string,
 	clientConn *WSConnLock,
 	token *string,
 ) (*Connection, error) {
@@ -498,7 +498,7 @@ func (m *Multiplexer) establishClusterConnectionContext(
 		connection.usesServiceAccountToken = true
 	}
 
-	wsURL := createWebSocketURL(config.Host, path, query)
+	wsURL := createWebSocketURL(config.Host, path, dialQuery)
 
 	tlsConfig, err := rest.TLSConfigFor(config)
 	if err != nil {
@@ -907,8 +907,9 @@ func (m *Multiplexer) reconnectContext(
 		conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", heartbeatErr))
 	}
 
+	dialQuery := query
 	if watch {
-		query = resumeWatchQuery(query, resourceVersion)
+		dialQuery = resumeWatchQuery(query, resourceVersion)
 	}
 
 	conn.mu.RLock()
@@ -916,7 +917,7 @@ func (m *Multiplexer) reconnectContext(
 	conn.mu.RUnlock()
 
 	newConn, err := m.establishClusterConnectionContext(
-		ctx, conn.ClusterID, conn.UserID, conn.Path, query, key.client, token,
+		ctx, conn.ClusterID, conn.UserID, conn.Path, query, dialQuery, key.client, token,
 	)
 	if err != nil {
 		m.mutex.RLock()
@@ -932,9 +933,7 @@ func (m *Multiplexer) reconnectContext(
 		return nil, err
 	}
 
-	// Keep the query the client subscribed with, so its messages still route to it.
 	if watch {
-		newConn.Query = conn.Query
 		newConn.resourceVersion = resourceVersion
 	}
 
@@ -969,6 +968,11 @@ func (m *Multiplexer) reserveReconnect(
 		m.forgetCompletedConnectionLocked(key)
 
 		conn.reconnecting = true
+		if isWatchQuery(conn.Query) {
+			// Once superseded, the existing reader cannot resume even if its socket is alive.
+			conn.Status.State = StateError
+		}
+
 		ctx, conn.dialCancel = context.WithCancel(ctx)
 	}
 
@@ -1422,7 +1426,7 @@ func (m *Multiplexer) getOrCreateConnectionContext(
 	defer previous.releaseReconnect()
 
 	conn, err := m.establishClusterConnectionContext(
-		ctx, msg.ClusterID, msg.UserID, msg.Path, msg.Query, clientConn, token)
+		ctx, msg.ClusterID, msg.UserID, msg.Path, msg.Query, msg.Query, clientConn, token)
 	if err != nil {
 		m.mutex.Lock()
 		if m.connections[connKey] == previous {

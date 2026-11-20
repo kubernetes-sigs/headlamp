@@ -214,12 +214,13 @@ func TestMonitorConnectionSurvivesFailedExplicitWatchReopen(t *testing.T) {
 	messages := pumpMultiplexerFrames(t, client.conn)
 	retiring, retiringServer := createTestWebSocketConnection()
 	t.Cleanup(retiringServer.Close)
-	require.NoError(t, retiring.Close())
+	t.Cleanup(func() { _ = retiring.Close() })
 
 	conn := m.createConnection("shared", "user", "/watch", "watch=1&resourceVersion=10", client, nil)
 	conn.WSConn, conn.Status.State = retiring.conn, StateConnected
 	key := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, client, conn.Query)
 	m.connections[key] = conn
+	conn.resourceVersion = "11"
 	result := make(chan error, 1)
 
 	go func() { _, err := m.reconnect(conn, conn.Query, nil); result <- err }()
@@ -241,6 +242,11 @@ func TestMonitorConnectionSurvivesFailedExplicitWatchReopen(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("failed explicit reopen did not return")
 	}
+
+	failed := awaitMultiplexerFrame(t, messages, func(frame Message) bool {
+		return frame.Type == "STATUS" && strings.Contains(frame.Data, "error")
+	})
+	require.Equal(t, conn.Query, failed.Query, "failed resume status must use the opening query")
 
 	sendMultiplexerTickOrDone(t, ticks, done)
 	awaitMultiplexerSignal(t, done, "sole monitor did not retry after the failed explicit reopen")

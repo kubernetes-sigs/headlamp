@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"os/exec"
@@ -35,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,6 +59,7 @@ type liveMultiplexer struct {
 	client    kubernetes.Interface
 	namespace string
 	address   string
+	token     string
 	route     multiplexFrame
 }
 
@@ -100,7 +103,7 @@ func startLiveMultiplexer(t *testing.T) *liveMultiplexer {
 	t.Logf("real backend %s; Kubernetes context %q; isolated namespace %q", binary, contextName, namespace.Name)
 
 	return &liveMultiplexer{
-		client: client, namespace: namespace.Name, address: address,
+		client: client, namespace: namespace.Name, address: address, token: config.BearerToken,
 		route: multiplexFrame{
 			Type: "REQUEST", ClusterID: contextName, UserID: "same-routing-id",
 			Path: "/api/v1/namespaces/" + namespace.Name + "/configmaps",
@@ -116,13 +119,7 @@ func startLiveMultiplexer(t *testing.T) *liveMultiplexer {
 func startLiveBackend(t *testing.T, binary string, raw *clientcmdapi.Config) string {
 	t.Helper()
 
-	// Keep credentials and process output inside the checkout, never in the system temp directory.
-	directory, err := os.MkdirTemp(".", ".multiplexer-e2e-")
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, os.RemoveAll(directory)) })
-
-	directory, err = filepath.Abs(directory)
-	require.NoError(t, err)
+	directory := t.TempDir()
 
 	kubeconfig := filepath.Join(directory, "kubeconfig")
 	require.NoError(t, clientcmd.WriteToFile(*raw, kubeconfig))
@@ -213,7 +210,18 @@ func (live *liveMultiplexer) connect(t *testing.T) *liveSocket {
 		Subprotocols:     []string{"headlamp.multiplexer.v2.k8s.io", "headlamp.multiplexer.k8s.io"},
 	}
 
-	conn, response, err := dialer.DialContext(t.Context(), live.address, http.Header{})
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, live.address, nil)
+	recorder := httptest.NewRecorder()
+	require.NoError(t, auth.SetTokenCookie(recorder, request, live.route.ClusterID, live.token, "", 0))
+
+	authResponse := recorder.Result()
+	for _, cookie := range authResponse.Cookies() {
+		request.AddCookie(cookie)
+	}
+
+	require.NoError(t, authResponse.Body.Close())
+
+	conn, response, err := dialer.DialContext(t.Context(), live.address, request.Header)
 	if response != nil {
 		require.NoError(t, response.Body.Close())
 	}

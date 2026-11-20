@@ -142,7 +142,7 @@ HEADLAMP_E2E_BINARY="$PWD/headlamp-server" \
 Replace `minikube` with the explicit context of your test cluster. The selected
 identity needs permission to create/delete namespaces and create, get, list,
 update, and watch ConfigMaps. The tests copy only that context into a private
-checkout-local directory, use an OS-assigned ephemeral backend port, and delete
+temporary directory outside the checkout, use an OS-assigned ephemeral backend port, and delete
 their own generated namespaces and process/configuration files. They do not
 change the source kubeconfig or create/delete clusters.
 

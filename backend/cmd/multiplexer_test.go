@@ -892,7 +892,7 @@ func TestEstablishClusterConnection(t *testing.T) {
 
 	// Test successful connection establishment
 	conn, err := m.establishClusterConnectionContext(
-		t.Context(), "test-cluster", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+		t.Context(), "test-cluster", "test-user", "/api/v1/pods", "watch=true", "watch=true", clientConn, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, conn)
 	assert.Equal(t, "test-cluster", conn.ClusterID)
@@ -902,7 +902,7 @@ func TestEstablishClusterConnection(t *testing.T) {
 
 	// Test with invalid cluster
 	conn, err = m.establishClusterConnectionContext(
-		t.Context(), "non-existent", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+		t.Context(), "non-existent", "test-user", "/api/v1/pods", "watch=true", "watch=true", clientConn, nil)
 	assert.Error(t, err)
 	assert.Nil(t, conn)
 }
@@ -949,7 +949,7 @@ func TestEstablishClusterConnectionUsesServiceAccountToken(t *testing.T) {
 		"test-cluster",
 		"test-user",
 		"/api/v1/pods",
-		"watch=true",
+		"watch=true", "watch=true",
 		clientConn,
 		&requestToken,
 	)
@@ -1020,7 +1020,7 @@ func TestEstablishClusterConnectionUsesAPIProxy(t *testing.T) {
 		"test-cluster",
 		"test-user",
 		"/api/v1/pods",
-		"watch=true",
+		"watch=true", "watch=true",
 		clientConn,
 		&oidcBearer,
 	)
