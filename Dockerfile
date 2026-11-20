@@ -70,11 +70,13 @@ RUN for i in $(find ./plugins-old/*/package.json); do plugin_name=$(echo $i|cut 
 # Static (officially shipped) plugins
 FROM --platform=${BUILDPLATFORM} frontend-build AS static-plugins
 RUN apt-get update && apt-get install -y jq
-COPY ./container/build-manifest.json ./container/fetch-plugins.sh /tools/
+COPY ./container/build-manifest.json /tools/
+COPY ./container/fetch-plugins.sh /headlamp/container/
+COPY ./plugins/pluginctl/src/archive-integrity.js /headlamp/plugins/pluginctl/src/
 
 WORKDIR /tools
 RUN mkdir -p /plugins
-RUN ./fetch-plugins.sh /plugins/
+RUN /headlamp/container/fetch-plugins.sh /plugins/
 
 FROM image-base AS final
 

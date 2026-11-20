@@ -14,6 +14,8 @@ on:
     - Dockerfile.plugins
     - 'e2e-tests/**'
     - 'charts/**'
+    - 'container/**'
+    - 'plugins/pluginctl/src/archive-integrity.js'
   push:
     branches:
       - main

@@ -6,6 +6,7 @@
   "main": "index.js",
   "private": false,
   "scripts": {
+    "test:integrity": "node --test test-archive-integrity.js",
     "test": "node test-pluginctl.js",
     "test:unit": "jest",
     "test:cli": "node --test test/cli.integration.js",

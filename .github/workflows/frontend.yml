@@ -181,6 +181,7 @@ jobs:
         working-directory: plugins/pluginctl
         run: |
           npm ci
+          npm run test:integrity
           cd src && node ./plugin-management.e2e.js
           cd ..
           npx jest --runInBand src/multi-plugin-management.test.js src/plugin-management.test.js
