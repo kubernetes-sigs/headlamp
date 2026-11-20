@@ -16,6 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import Editor from '@monaco-editor/react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
@@ -297,6 +298,12 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
           }
     );
   } else {
+    if (error) {
+      sections.push({
+        id: DefaultDetailsViewSection.ERROR,
+        section: <Alert severity="warning">{error.toString()}</Alert>,
+      });
+    }
     const mainInfoHeader =
       typeof headerSection === 'function' ? headerSection(item) : headerSection;
     sections.push({

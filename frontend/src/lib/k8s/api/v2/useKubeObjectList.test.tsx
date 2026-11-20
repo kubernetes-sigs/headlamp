@@ -18,6 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import Pod from '../../pod';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import {
@@ -1022,6 +1023,86 @@ describe('useKubeObjectList', () => {
     );
   });
 
+  it('keeps the legacy list cursor moving when watch updates arrive', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+    const { unmount } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: Pod,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    const connection = () => mockUseWebSockets.mock.calls.at(-1)![0].connections[0];
+    await waitFor(() => expect(connection()?.url).toContain('resourceVersion=1'));
+    act(() => connection().onMessage({ type: 'MODIFIED', object: makePod('pod-1', '2') }));
+    await waitFor(() => expect(connection().url).toContain('resourceVersion=2'));
+    unmount();
+    await client.cancelQueries();
+    client.clear();
+    vi.unstubAllEnvs();
+  });
+
+  it('keeps an active list opening cursor stable across updates and renews it after relisting', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockSubscribe.mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: Pod,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    await waitFor(() => expect(result.current.items?.length).toBe(1));
+    await waitFor(() => expect(mockSubscribe).toHaveBeenCalledOnce());
+    expect(mockSubscribe.mock.calls[0][2]).toContain('resourceVersion=1');
+    for (const version of ['2', '3', '4']) {
+      act(() =>
+        mockSubscribe.mock.calls[0][3]({
+          type: 'MODIFIED',
+          object: makePod('pod-1', version),
+        })
+      );
+      await waitFor(() =>
+        expect(result.current.items?.[0].jsonData.metadata.resourceVersion).toBe(version)
+      );
+      expect(mockSubscribe).toHaveBeenCalledOnce();
+    }
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({ items: [makePod('pod-1', '10')], resourceVersion: '10' })
+        ),
+    } as Response);
+    act(() => mockSubscribe.mock.calls[0][3]({ type: 'ERROR', object: { code: 410 } }));
+    await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(2));
+    expect(mockSubscribe.mock.calls[1][2]).toContain('resourceVersion=10');
+    act(() => mockSubscribe.mock.calls[1][3]({ type: 'MODIFIED', object: makePod('pod-1', '11') }));
+    await act(async () => unmount());
+    const remount = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: Pod, requests: [{ cluster: 'default' }] }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    await waitFor(() =>
+      expect(mockSubscribe.mock.calls.at(-1)?.[2]).toContain('resourceVersion=11')
+    );
+    remount.unmount();
+    await client.cancelQueries();
+    client.clear();
+    vi.unstubAllEnvs();
+  });
+
   it('should split an opt-in limit across namespace requests', async () => {
     mockClusterFetch
       .mockResolvedValueOnce({
@@ -1571,7 +1652,8 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
       expect.any(Function),
-      expect.any(Function)
+      expect.any(Function),
+      { retryWatch: true }
     );
   });
 
@@ -1602,7 +1684,8 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
       expect.any(Function),
-      expect.any(Function)
+      expect.any(Function),
+      { retryWatch: true }
     );
     expect(mockSubscribe).toHaveBeenNthCalledWith(
       2,
@@ -1610,7 +1693,8 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.stringContaining('/api/v1/namespaces/namespace-b/pods'),
       'watch=1&resourceVersion=2',
       expect.any(Function),
-      expect.any(Function)
+      expect.any(Function),
+      { retryWatch: true }
     );
   });
 
@@ -1636,7 +1720,8 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.stringContaining('/api/v1/pods'),
       'watch=1&resourceVersion=1',
       expect.any(Function),
-      expect.any(Function)
+      expect.any(Function),
+      { retryWatch: true }
     );
   });
 

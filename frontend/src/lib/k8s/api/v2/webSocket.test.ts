@@ -141,6 +141,32 @@ describe('useWebSockets', () => {
     });
   });
 
+  it('reconnects a legacy watch at its latest cursor and keeps the listener', async () => {
+    const watchUrl = 'api/v1/pods?watch=1&resourceVersion=20';
+    const nextUrl = 'api/v1/pods?watch=1&resourceVersion=21';
+    const opening = new WS(`${BASE_WS_URL}${watchUrl}`);
+    const onMessage = vi.fn();
+    const reconnectUrl = vi.fn(() => nextUrl);
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url: watchUrl, onMessage, reconnectUrl }],
+      })
+    );
+
+    await opening.connected;
+    opening.send(JSON.stringify({ type: 'MODIFIED', version: '21' }));
+    expect(onMessage).toHaveBeenCalledWith({ type: 'MODIFIED', version: '21' });
+    expect(reconnectUrl).not.toHaveBeenCalled();
+
+    opening.close();
+    const resumed = new WS(`${BASE_WS_URL}${nextUrl}`);
+    await resumed.connected;
+    expect(reconnectUrl).toHaveBeenCalledOnce();
+    resumed.send(JSON.stringify({ type: 'DELETED', version: '22' }));
+    expect(onMessage).toHaveBeenLastCalledWith({ type: 'DELETED', version: '22' });
+  });
+
   it('delivers messages to remaining listeners when one listener throws', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=2';
     const server = new WS(`${BASE_WS_URL}${url}`);

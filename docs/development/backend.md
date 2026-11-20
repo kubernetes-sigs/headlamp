@@ -94,6 +94,143 @@ backend-token subprotocol instead. In-cluster mode does not use this desktop
 token boundary and continues to rely on its configured authentication and
 authorization mechanisms.
 
+## Multiplexed WebSocket ownership
+
+Each `/wsMultiplexer` client socket owns its upstream subscriptions. Routing
+`userId` values are not authenticated identities: a second socket using identical
+cluster/path/user fields must establish its own upstream connection with its own
+credentials. Its `CLOSE` messages and disconnect cannot stop another client's
+subscription.
+
+Watches (`watch=true` or `watch=1`) also include the exact original subscription
+query in that ownership key. Different selectors or resource versions on the same
+path are independent, and `CLOSE` targets only its own query. `STATUS`, data,
+retry errors, and ACKs preserve the original query and userId even when an
+upstream resume handshake uses a newer cursor. Explicit `reopen` replaces only
+that exact watch subscription, never another query's connection.
+
+An upstream connection retains the credential used for its handshake. Changing
+credentials requires a new subscription/client connection; replacing a stored
+token cannot reauthenticate an existing socket. Explicit unsafe service-account
+mode still uses its configured service-account credential, with separate
+subscriptions per client.
+
+Finite stream completion closes the upstream socket and leaves the subscription
+available to its client. Watches retain the main branch's exponential
+backoff and resume from the last resource version successfully forwarded to the
+client; expired watches ask the client to list again instead of resuming.
+Routine upstream watch timeouts (close code 1000) and going-away closes (1001)
+resume in the same way. An `ErrCloseSent` ping waits for the reader's close
+classification; it does not stop the sole monitor. A pending explicit reopen
+also leaves that monitor alive so a failed watch replacement can retry.
+Non-watch streams, including exec and logs, never redial automatically after a
+failed ping or reader exit. Only a new explicit `REQUEST` can reopen them.
+`CLOSE` and client disconnect cancel a pending replacement.
+Requests received during a replacement get a retry error. The multiplexer also
+reports upstream write failures to the requesting client.
+
+Opted-in list and single-object watch subscriptions recognize the
+`subscription_reconnecting` error code. Open watch transports in the error state
+return the same coded error during backoff even when no dial is currently reserved.
+Once the pending replacement finishes, they explicitly send `REQUEST` with
+`reopen: true` and their own query and original routing identity. This watch-only
+operation checks the existing handshake credential before replacing the socket.
+Both explicit replacements and heartbeat recovery resume from the last forwarded
+resource version and seed the replacement's cursor, even before its first event.
+Status and data keep the exact original query for routing. Multiplexed browser
+watches share the opening cursor per cached query and pin it until a relist/refetch;
+cache updates do not change their subscription identity. Legacy watches retain
+their mutable cursors because that transport does not reconnect on its own.
+After a single-object watch expires, a name-filtered collection LIST supplies a
+fresh snapshot and collection cursor: a named GET can keep returning an expired
+object version. This recovery requires LIST permission, and failures are surfaced
+through the query error. If a snapshot fails, the last successfully loaded object
+remains visible with a warning in the details view; its expired watch stays
+disabled until a snapshot succeeds. All observers adopt the fresh cursor,
+including when the fetching observer unmounts. Deleted objects report 404 while
+the watch remains active to observe recreation.
+New browser multiplexer sessions reconcile watches that have already applied
+events before resubscribing, rather than replaying their pinned opening queries
+into newer cached objects. This uses the same snapshot/error path on both v2
+and legacy servers, without changing routing identities or the wire protocol.
+The error's `retryReady` acknowledgement handles errors delivered after the
+connected status or normal completion without retrying against a stale
+pre-reconnect status. This retries only an outstanding rejected watch request.
+Unsubscribed watches cancel the pending retry; generic and exec subscriptions do
+not opt in.
+
+Each client retains at most 64 unreserved completed subscriptions for explicit
+reopening. Older completed entries are removed without affecting other clients
+or reserved replacements. Retained entries still reject changed credentials;
+an evicted route needs a fresh authenticated handshake. Retention indexes completed
+entries per client and examines at most 65 entries when evicting, without scanning
+active subscriptions or other clients. Successful replacements skip retention
+entirely. Cleanup uses no additional timers or workers.
+
+Client reads remain responsive while initial or replacement handshakes are
+pending. `CLOSE` and disconnect invalidate the subscription and cancel the dial,
+including a blocked HTTP upgrade; a canceled request cannot install a socket or
+send its payload. Requests are processed by one bounded worker per client.
+REQUEST queue exhaustion closes the client socket with a retry-later reason rather than
+creating unbounded dial goroutines. Requests arriving during a pending dial are
+not saved for automatic replay. CLOSE cancellation and transport cleanup are
+immediate; their status notifications have a separate bounded queue, so they cannot
+exhaust REQUEST capacity. Notifications are best effort and may be dropped when
+that queue is full or the same route has already reopened.
+
+Clients offer `headlamp.multiplexer.v2.k8s.io` before the original
+`headlamp.multiplexer.k8s.io` protocol, alongside the existing private desktop
+backend-token protocol when needed. The backend prefers v2 when offered and
+continues to accept the original protocol or no selected protocol.
+V2 advertises explicit ACK support. Independently of the selected protocol, the
+backend honors every REQUEST carrying an optional `requestId` with a matching
+`ACK` after the worker settles it, including a request canceled by `CLOSE`.
+Parsed REQUESTs with missing routing fields receive ERROR followed by ACK without
+executing upstream work.
+This preserves older ACK-waiting clients that offer only the original protocol
+or no protocol during rolling upgrades. ACK is flow-control credit, not an
+upstream success result; requests without a `requestId` do not receive ACKs.
+Only negotiated v2 enables browser request pacing and `requestId` fields. Legacy
+connections send requests unpaced without request IDs or waiting for ACKs; STATUS,
+ERROR, DATA, and COMPLETE are never processing credits. COMPLETE is a watch-batch
+boundary, not subscription termination.
+For v2, one per-socket 60-second missing-ACK deadline reports an explicit error
+and closes the socket with private code 4000, triggering bounded watch-only
+recovery and notifying finite-stream listeners. This does not create a timer
+per subscription. The browser sends at most one unacknowledged
+list-watch request per socket and keeps at most one queued request per active watch,
+so distinct-subscription bursts do not exhaust the backend's 32-slot queue.
+Concurrent socket opens share one promise rather than per-subscriber polling timers.
+If a legacy burst nevertheless closes the socket with code 1013, the browser
+reconnects and restores only opted-in active list watches with the same queries
+and fresh handshake credentials. Automatic overload recovery is capped at three
+attempts without ACK progress; failures are surfaced to subscription listeners.
+Generic/exec subscriptions are not automatically replayed by overload recovery.
+
+Replacement reservations exclude upstream payload writes before the error status
+is published. Status delivery never holds subscription lifecycle or global map
+locks, so a stalled client cannot block other clients' lookups or cleanup.
+Cleanup closes transports before sending statuses, and retiring transports are
+detached before the replacement publishes its connected status.
+
+A request queued during a heartbeat reservation gets an explicit retry even if
+another client worker operation delays its processing until after installation.
+A superseded watch reader retires its transport without closing the subscription,
+so a failed replacement can retry with backoff from the last forwarded cursor.
+Finite-stream completion, explicit close, disconnect, and watch expiry still
+terminate their lifecycles as described above.
+
+Protocol-level end-to-end tests use real client WebSockets, the production
+multiplexer handler, and a local TLS upstream that rejects forged credentials:
+
+```bash
+cd backend
+go test -race ./cmd -run 'Test(Multiplexer|Reconnect|MonitorConnection)' -count=20
+```
+
+These tests do not require a live Kubernetes cluster or enable multiplexing in
+the frontend. Ordinary logs/terminal streams use their direct cluster endpoints.
+
 ## Service proxy content isolation
 
 Service proxy responses set `Content-Security-Policy: sandbox` and

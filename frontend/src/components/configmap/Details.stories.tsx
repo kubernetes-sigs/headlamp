@@ -15,7 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 import {
@@ -106,6 +106,34 @@ WithData.parameters = {
       story: [
         http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () =>
           HttpResponse.json(BASE_DATA_CONFIG_MAP)
+        ),
+      ],
+    },
+  },
+};
+
+export const Loading = Template.bind({});
+Loading.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, async () => {
+          await delay('infinite');
+          return HttpResponse.json(BASE_DATA_CONFIG_MAP);
+        }),
+      ],
+    },
+  },
+};
+
+export const Error = Template.bind({});
+Error.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () =>
+          HttpResponse.json({ message: 'User cannot get configmaps' }, { status: 403 })
         ),
       ],
     },

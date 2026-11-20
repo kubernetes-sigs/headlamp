@@ -54,6 +54,9 @@ export type WebSocketConnectionRequest<T> = {
    */
   url: string;
 
+  /** Compute an updated URL when an established watch disconnects. */
+  reconnectUrl?: () => string;
+
   /**
    * Callback function that handles incoming messages from the WebSocket.
    * @param data The message payload, typed as T (e.g., K8s Pod, Service, etc.)
@@ -82,6 +85,7 @@ export async function openWebSocket<T>(
     type = 'binary',
     cluster = getCluster() ?? '',
     onMessage,
+    listenerKey = cluster + url,
   }: {
     /**
      * Any additional protocols to include in WebSocket connection
@@ -99,9 +103,9 @@ export async function openWebSocket<T>(
      * Message callback
      */
     onMessage: (data: T) => void;
+    listenerKey?: string;
   }
 ) {
-  const connectionKey = cluster + url;
   const path = [url];
   const protocols = ['base64.binary.k8s.io', ...(moreProtocols ?? [])];
   const backendTokenProtocol = getHeadlampWebSocketProtocol();
@@ -128,7 +132,7 @@ export async function openWebSocket<T>(
   socket.binaryType = 'arraybuffer';
   socket.addEventListener('message', (body: MessageEvent) => {
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
-    const callbacks = listeners.get(connectionKey) ?? [onMessage];
+    const callbacks = listeners.get(listenerKey) ?? [onMessage];
     callbacks.forEach(callback => {
       try {
         callback(data);
@@ -173,18 +177,18 @@ export function useWebSockets<T>({
     if (!enabled) return;
 
     /** Open a connection to websocket */
-    function connect({ cluster, url, onMessage }: WebSocketConnectionRequest<T>) {
+    function connect({ cluster, url, onMessage, reconnectUrl }: WebSocketConnectionRequest<T>) {
       const connectionKey = cluster + url;
 
       // Always register the current listener, even when reusing an existing socket.
       listeners.set(connectionKey, [...(listeners.get(connectionKey) ?? []), onMessage]);
 
-      if (!sockets.has(connectionKey)) {
+      function dial(dialUrl: string) {
         // Mark socket as pending, so we don't open more than one
         const pendingSocket = Symbol('pendingWebSocket');
         sockets.set(connectionKey, pendingSocket);
 
-        openWebSocket(url, { protocols, type, cluster, onMessage })
+        openWebSocket(dialUrl, { protocols, type, cluster, onMessage, listenerKey: connectionKey })
           .then(socket => {
             // A newer connection replaced this pending one while it was opening.
             if (sockets.get(connectionKey) !== pendingSocket) {
@@ -200,6 +204,27 @@ export function useWebSockets<T>({
             }
 
             sockets.set(connectionKey, socket);
+            if (reconnectUrl) {
+              let opened = false;
+              socket.addEventListener('open', () => {
+                opened = true;
+              });
+              socket.addEventListener('close', () => {
+                if (sockets.get(connectionKey) !== socket) return;
+                if (!opened) {
+                  sockets.delete(connectionKey);
+                  return;
+                }
+                setTimeout(() => {
+                  if (
+                    sockets.get(connectionKey) === socket &&
+                    listeners.get(connectionKey)?.length
+                  ) {
+                    dial(reconnectUrl());
+                  }
+                }, 1000);
+              });
+            }
           })
           .catch(err => {
             if (sockets.get(connectionKey) === pendingSocket) {
@@ -209,9 +234,9 @@ export function useWebSockets<T>({
           });
       }
 
-      return () => {
-        const connectionKey = cluster + url;
+      if (!sockets.has(connectionKey)) dial(url);
 
+      return () => {
         // Clean up the listener
         const newListeners = listeners.get(connectionKey)?.filter(it => it !== onMessage) ?? [];
         listeners.set(connectionKey, newListeners);

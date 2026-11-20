@@ -19,9 +19,9 @@ import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
-import type { ApiError } from './ApiError';
+import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
-import type { KubeListUpdateEvent } from './KubeList';
+import type { KubeList, KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './multiplexer';
@@ -102,6 +102,14 @@ export const kubeObjectQueryKey = ({
   queryParams?: QueryParameters;
 }) => ['object', cluster, endpoint, namespace ?? '', name, queryParams ?? {}];
 
+interface ObjectWatchState {
+  resourceVersion: string | null;
+  latestLegacyResourceVersion?: string;
+  generation: number;
+  expired: boolean;
+  missing: boolean;
+}
+
 /**
  * Returns a single KubeObject.
  */
@@ -153,20 +161,83 @@ export function useKubeObject<K extends KubeObject>({
 
   const client = useQueryClient();
   const [seededInitialData, setSeededInitialData] = useState<K | null>(null);
+  // All observers must join the same ordered watch, even when only one runs the fetch.
+  const watchQueryKey = useMemo(() => ['object-watch', ...queryKey], [queryKey]);
+  const { data: watchState } = useQuery<ObjectWatchState>({
+    queryKey: watchQueryKey,
+    enabled: false,
+    // A later mount must resume from cached data, not replay an abandoned watch.
+    gcTime: 0,
+    initialData: { resourceVersion: null, generation: 0, expired: false, missing: false },
+  });
+  const setWatchSnapshot = useCallback(
+    (resourceVersion: string | undefined, missing = false) => {
+      client.setQueryData<ObjectWatchState>(watchQueryKey, previous => ({
+        resourceVersion: resourceVersion ?? '',
+        generation:
+          (previous?.generation ?? 0) +
+          (previous?.resourceVersion === (resourceVersion ?? '') && !previous.expired ? 0 : 1),
+        expired: false,
+        missing,
+      }));
+    },
+    [client, watchQueryKey]
+  );
   const query = useQuery<Instance | null, ApiError>({
     enabled: !!endpoint,
     placeholderData: null,
     staleTime: 5000,
     retry: kubeRequestRetry,
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
+      if (client.getQueryData<ObjectWatchState>(watchQueryKey)?.expired) {
+        // An unchanged object's own version can remain expired after a GET.
+        // A name-filtered collection snapshot supplies a fresh watch cursor.
+        const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
+          ...cleanedUpQueryParams,
+          fieldSelector: `metadata.name=${name}`,
+          resourceVersion: '',
+          resourceVersionMatch: '',
+          continue: '',
+        });
+        const list: KubeList<KubeObjectInterface> = await clusterFetch(url, {
+          cluster,
+          signal,
+        }).then(it => it.json());
+        signal.throwIfAborted();
+        const obj = list.items[0];
+        setWatchSnapshot(list.metadata.resourceVersion, !obj);
+        return obj
+          ? (new kubeObjectClass(
+              {
+                ...obj,
+                kind: obj.kind ?? list.kind?.replace(/List$/, ''),
+                apiVersion: obj.apiVersion ?? list.apiVersion,
+              },
+              cluster
+            ) as Instance)
+          : null;
+      }
       const url = makeUrl(
         [KubeObjectEndpoint.toUrl(endpoint!, namespace), name],
         cleanedUpQueryParams
       );
       const obj: KubeObjectInterface = await clusterFetch(url, {
         cluster,
+        signal,
       }).then(it => it.json());
+      signal.throwIfAborted();
+      const currentWatch = client.getQueryData<ObjectWatchState>(watchQueryKey);
+      const cached = client.getQueryData<Instance | null>(queryKey);
+      if (
+        !currentWatch ||
+        currentWatch.resourceVersion === null ||
+        currentWatch.missing ||
+        !cached ||
+        cached.jsonData.metadata.resourceVersion !== obj.metadata?.resourceVersion
+      ) {
+        setWatchSnapshot(obj.metadata?.resourceVersion);
+      }
       return new kubeObjectClass(obj, cluster) as Instance;
     },
   });
@@ -178,42 +249,135 @@ export function useKubeObject<K extends KubeObject>({
 
     client.setQueryData(queryKey, initialData);
     setSeededInitialData(initialData);
-  }, [client, endpoint, initialData, queryKey]);
+    setWatchSnapshot(initialData.jsonData.metadata.resourceVersion);
+  }, [client, endpoint, initialData, queryKey, setWatchSnapshot]);
 
-  const queryData: Instance | null = query.error ? null : query.data ?? null;
+  // A failed watch snapshot must not discard a successfully loaded object.
+  const queryData: Instance | null = query.error && !watchState.expired ? null : query.data ?? null;
   const data = initialData && seededInitialData !== initialData ? initialData : queryData;
+  useLayoutEffect(() => {
+    if (data && watchState.resourceVersion === null) {
+      setWatchSnapshot(data.jsonData.metadata.resourceVersion);
+    } else if (
+      query.isSuccess &&
+      !query.isPlaceholderData &&
+      query.data === null &&
+      watchState.resourceVersion === null &&
+      !client.getQueryData<ObjectWatchState>(watchQueryKey)?.expired
+    ) {
+      client.setQueryData<ObjectWatchState>(watchQueryKey, previous => ({
+        resourceVersion: null,
+        generation: previous?.generation ?? 0,
+        expired: true,
+        missing: true,
+      }));
+      void client.invalidateQueries({ queryKey, exact: true });
+    }
+  }, [
+    client,
+    data,
+    query.data,
+    query.isSuccess,
+    query.isPlaceholderData,
+    queryKey,
+    watchQueryKey,
+    watchState.resourceVersion,
+    setWatchSnapshot,
+  ]);
+  const watchReady = watchState.resourceVersion !== null && !watchState.expired && !query.error;
+  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  const watchResourceVersion = watchState.resourceVersion ?? '';
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
-      if (update.type !== 'ADDED' && update.object) {
+      const currentWatch = client.getQueryData<ObjectWatchState>(watchQueryKey);
+      if (
+        currentWatch?.expired ||
+        currentWatch?.generation !== watchState.generation ||
+        client.getQueryState(queryKey)?.status === 'error'
+      ) {
+        return;
+      }
+      if (update.type === 'ERROR') {
+        if (update.object && 'code' in update.object && update.object.code === 410) {
+          client.setQueryData<ObjectWatchState>(watchQueryKey, {
+            ...currentWatch,
+            expired: true,
+          });
+          void client.invalidateQueries({ queryKey, exact: true });
+        }
+      } else if (update.type === 'DELETED') {
+        client.setQueryData(queryKey, null);
+        client.setQueryData<ObjectWatchState>(watchQueryKey, {
+          ...currentWatch,
+          missing: true,
+          latestLegacyResourceVersion: multiplexerEnabled
+            ? undefined
+            : update.object.metadata.resourceVersion ?? currentWatch.latestLegacyResourceVersion,
+        });
+      } else if (update.object) {
         // Rebuild with the cluster this hook was asked for, the same as the
         // initial fetch above. Without it the object falls back to getCluster(),
         // which reads the URL — wrong whenever the caller passed an explicit
         // cluster (details panels on the resource map) or the URL holds several
         // (`/c/a+b` resolves to just the first).
         client.setQueryData(queryKey, new kubeObjectClass(update.object, cluster));
+        if (currentWatch.missing || !multiplexerEnabled) {
+          client.setQueryData<ObjectWatchState>(watchQueryKey, {
+            ...currentWatch,
+            missing: false,
+            latestLegacyResourceVersion: multiplexerEnabled
+              ? undefined
+              : update.object.metadata.resourceVersion ?? currentWatch.latestLegacyResourceVersion,
+          });
+        }
       }
     },
-    [client, queryKey, kubeObjectClass, cluster]
+    [
+      client,
+      queryKey,
+      watchQueryKey,
+      watchState.generation,
+      kubeObjectClass,
+      cluster,
+      multiplexerEnabled,
+    ]
   );
 
   const connectionsRequests = useMemo(() => {
     if (!endpoint) return [];
 
+    const makeWatchUrl = (resourceVersion: string) =>
+      makeUrl([KubeObjectEndpoint.toUrl(endpoint, namespace)], {
+        ...cleanedUpQueryParams,
+        watch: 1,
+        resourceVersion,
+        fieldSelector: `metadata.name=${name}`,
+      });
+
     return [
       {
-        url: makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
-          ...cleanedUpQueryParams,
-          watch: 1,
-          fieldSelector: `metadata.name=${name}`,
-        }),
+        url: makeWatchUrl(watchResourceVersion),
+        reconnectUrl: () =>
+          makeWatchUrl(
+            client.getQueryData<ObjectWatchState>(watchQueryKey)?.latestLegacyResourceVersion ??
+              watchResourceVersion
+          ),
         cluster,
         onMessage: handleMessage,
       },
     ];
-  }, [endpoint, namespace, name, cleanedUpQueryParams, cluster, handleMessage]);
-
-  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  }, [
+    endpoint,
+    namespace,
+    name,
+    cleanedUpQueryParams,
+    cluster,
+    handleMessage,
+    watchResourceVersion,
+    client,
+    watchQueryKey,
+  ]);
 
   useWebSocket<KubeListUpdateEvent<K>>({
     url: useCallback(
@@ -221,32 +385,41 @@ export function useKubeObject<K extends KubeObject>({
         makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
           ...cleanedUpQueryParams,
           watch: 1,
+          resourceVersion: watchResourceVersion,
           fieldSelector: `metadata.name=${name}`,
         }),
-      [endpoint, namespace, cleanedUpQueryParams, name]
+      [endpoint, namespace, cleanedUpQueryParams, name, watchResourceVersion]
     ),
-    enabled: multiplexerEnabled && !!endpoint && !!data,
+    enabled: multiplexerEnabled && !!endpoint && watchReady,
     cluster,
     onMessage: handleMessage,
+    retryWatch: true,
   });
 
   useWebSockets({
-    enabled: !multiplexerEnabled && !!endpoint && !!data,
+    enabled: !multiplexerEnabled && !!endpoint && watchReady,
     connections: connectionsRequests,
   });
+
+  const missingError = useMemo(
+    () =>
+      watchState.missing ? new ApiError('Not found', { status: 404, cluster, namespace }) : null,
+    [watchState.missing, cluster, namespace]
+  );
+  const error = endpointError ?? query.error ?? missingError;
 
   // @ts-ignore
   return {
     data,
-    error: endpointError ?? query.error,
-    isError: query.isError,
+    error,
+    isError: !!error,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
-    isSuccess: query.isSuccess,
-    status: query.status,
+    isSuccess: query.isSuccess && !error,
+    status: error ? 'error' : query.status,
     *[Symbol.iterator](): ArrayIterator<ApiError | K | null> {
       yield data;
-      yield endpointError ?? query.error;
+      yield error;
     },
   };
 }
