@@ -122,7 +122,6 @@ func checkRepoExists(t *testing.T, helmHandler *helm.Handler, repoName string) b
 	return false
 }
 
-//nolint:unparam // repoName and repoURL parameters always receive constants across existing tests.
 func testAddRepo(t *testing.T, helmHandler *helm.Handler, repoName, repoURL string) {
 	t.Helper()
 
@@ -453,9 +452,13 @@ func testUpdateRepo(t *testing.T, helmHandler *helm.Handler) {
 
 	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 
+	// Updating the URL downloads the new index, so it must serve a real one.
+	ts := newChartIndexServer(t, "headlamp")
+	defer ts.Close()
+
 	updateRepo := helm.AddUpdateRepoRequest{
 		Name: "headlamp_test_repo",
-		URL:  "https://kubernetes-sigs-update-url.github.io/headlamp/",
+		URL:  ts.URL,
 	}
 
 	updateRepoRequest, err := http.NewRequestWithContext(context.Background(),
@@ -481,7 +484,7 @@ func testUpdateRepo(t *testing.T, helmHandler *helm.Handler) {
 
 	for _, repo := range listRepoResponse.Repositories {
 		if repo.Name == "headlamp_test_repo" {
-			assert.Equal(t, "https://kubernetes-sigs-update-url.github.io/headlamp/", repo.URL)
+			assert.Equal(t, ts.URL, repo.URL)
 		}
 	}
 }
@@ -851,4 +854,133 @@ func TestAddUpdateRepoRequest_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newChartIndexServer starts a test chart repository whose index.yaml lists
+// a single chart with the given name.
+func newChartIndexServer(t *testing.T, chartName string) *httptest.Server {
+	t.Helper()
+
+	index := "apiVersion: v1\n" +
+		"entries:\n" +
+		"  " + chartName + ":\n" +
+		"  - name: " + chartName + "\n" +
+		"    version: 1.0.0\n" +
+		"    urls:\n" +
+		"    - " + chartName + "-1.0.0.tgz\n" +
+		"generated: \"2025-01-01T00:00:00Z\"\n"
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/index.yaml" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(index))
+	}))
+}
+
+// newHelmHandlerWithCache creates a Handler with its own temporary repository
+// config and repository cache.
+func newHelmHandlerWithCache(t *testing.T) *helm.Handler {
+	t.Helper()
+
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = filepath.Join(t.TempDir(), "repositories.yaml")
+	customSettings.RepositoryCache = filepath.Join(t.TempDir(), "cache")
+
+	c := cache.New[interface{}]()
+	require.NotNil(t, c)
+
+	helmHandler, err := helm.NewHandlerWithSettings(c, customSettings)
+	require.NoError(t, err)
+
+	return helmHandler
+}
+
+func updateRepoURL(t *testing.T, helmHandler *helm.Handler, repoName, repoURL string) int {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), "PUT",
+		"/clusters/minikube/helm/repositories",
+		mustJSONBody(t, helm.AddUpdateRepoRequest{Name: repoName, URL: repoURL}))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.UpdateRepository(rr, req)
+
+	return rr.Code
+}
+
+func listChartsBody(t *testing.T, helmHandler *helm.Handler) string {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(),
+		"GET", "/clusters/minikube/helm/repositories/charts", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.ListCharts(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	return rr.Body.String()
+}
+
+// TestAddRepositoryUsesRepositoryCache verifies that the index is downloaded
+// into the configured repository cache, which is where charts are listed from.
+func TestAddRepositoryUsesRepositoryCache(t *testing.T) {
+	helmHandler := newHelmHandlerWithCache(t)
+
+	ts := newChartIndexServer(t, "chart-a")
+	defer ts.Close()
+
+	testAddRepo(t, helmHandler, "cache_repo", ts.URL)
+
+	_, err := os.Stat(filepath.Join(helmHandler.RepositoryCache, "cache_repo-index.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, listChartsBody(t, helmHandler), "cache_repo/chart-a")
+}
+
+// TestUpdateRepositoryRefreshesIndex is a regression test for updating a
+// repository URL keeping the cached index, and so the charts, of the old URL.
+func TestUpdateRepositoryRefreshesIndex(t *testing.T) {
+	helmHandler := newHelmHandlerWithCache(t)
+
+	tsA := newChartIndexServer(t, "chart-a")
+	defer tsA.Close()
+
+	tsB := newChartIndexServer(t, "chart-b")
+	defer tsB.Close()
+
+	testAddRepo(t, helmHandler, "refresh_repo", tsA.URL)
+	require.Contains(t, listChartsBody(t, helmHandler), "refresh_repo/chart-a")
+
+	require.Equal(t, http.StatusOK, updateRepoURL(t, helmHandler, "refresh_repo", tsB.URL))
+
+	body := listChartsBody(t, helmHandler)
+	assert.Contains(t, body, "refresh_repo/chart-b")
+	assert.NotContains(t, body, "refresh_repo/chart-a")
+}
+
+// TestUpdateRepositoryInvalidURLKeepsConfig verifies that updating to a URL
+// that is not a chart repository fails and leaves the configuration as it was.
+func TestUpdateRepositoryInvalidURLKeepsConfig(t *testing.T) {
+	helmHandler := newHelmHandlerWithCache(t)
+
+	ts := newChartIndexServer(t, "chart-a")
+	defer ts.Close()
+
+	testAddRepo(t, helmHandler, "invalid_update_repo", ts.URL)
+
+	before, err := os.ReadFile(helmHandler.RepositoryConfig)
+	require.NoError(t, err)
+
+	code := updateRepoURL(t, helmHandler, "invalid_update_repo", ts.URL+"/not-a-repo")
+	assert.Equal(t, http.StatusBadRequest, code)
+
+	after, err := os.ReadFile(helmHandler.RepositoryConfig)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after))
+	assert.Contains(t, listChartsBody(t, helmHandler), "invalid_update_repo/chart-a")
 }
