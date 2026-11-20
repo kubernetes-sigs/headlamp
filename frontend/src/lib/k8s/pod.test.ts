@@ -200,6 +200,34 @@ describe('Pod class', () => {
     });
   });
 
+  // The API omits reason and signal when they are empty or 0 (omitempty).
+  it('returns Init:ExitCode when an init container terminated without reason and signal', () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    data.spec.initContainers = [{ name: 'init' }];
+    data.status.phase = 'Pending';
+    data.status.initContainerStatuses = [
+      { name: 'init', ready: false, restartCount: 0, state: { terminated: { exitCode: 1 } } },
+    ];
+    const pod = new Pod(data);
+    expect(pod.getDetailedStatus().reason).toBe('Init:ExitCode:1');
+  });
+
+  it('returns Init:Signal when an init container was killed by a signal without reason', () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    data.spec.initContainers = [{ name: 'init' }];
+    data.status.phase = 'Pending';
+    data.status.initContainerStatuses = [
+      {
+        name: 'init',
+        ready: false,
+        restartCount: 0,
+        state: { terminated: { exitCode: 137, signal: 9 } },
+      },
+    ];
+    const pod = new Pod(data);
+    expect(pod.getDetailedStatus().reason).toBe('Init:Signal:9');
+  });
+
   describe('getHealth', () => {
     const makePod = (status: any, metadata: any = {}) =>
       new Pod({
