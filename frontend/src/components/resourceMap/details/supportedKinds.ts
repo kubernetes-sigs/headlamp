@@ -53,6 +53,8 @@ export const supportedKinds = [
   'VolumeAttributesClass',
   'PersistentVolume',
   'VerticalPodAutoscaler',
+  'MutatingAdmissionPolicy',
+  'MutatingAdmissionPolicyBinding',
   'MutatingWebhookConfiguration',
   'ValidatingWebhookConfiguration',
   'IngressClass',

@@ -307,6 +307,8 @@ const notNamespacedClasses = [
   'DeviceClass',
   'GatewayClass',
   'IngressClass',
+  'MutatingAdmissionPolicy',
+  'MutatingAdmissionPolicyBinding',
   'Namespace',
   'Node',
   'PersistentVolume',
