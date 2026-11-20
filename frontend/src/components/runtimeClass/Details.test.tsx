@@ -33,6 +33,7 @@ vi.mock('../common/Resource', () => ({
     mockDetailsGrid(props);
     return null;
   },
+  MetadataDictGrid: () => null,
 }));
 
 const runtimeClass = { jsonData: RUNTIME_CLASS_DUMMY_DATA[0] } as any;
@@ -64,9 +65,50 @@ describe('RuntimeClassDetails', () => {
 
     const props = mockDetailsGrid.mock.calls[0][0];
     const extraInfo = props.extraInfo(runtimeClass);
-    expect(extraInfo).toHaveLength(1);
     expect(extraInfo[0].name).toContain('Handler');
     expect(extraInfo[0].value).toBe('handler');
+  });
+
+  it('shows the pod overhead, node selector and tolerations', () => {
+    render(
+      <TestContext routerMap={{ name: 'runtime-class' }}>
+        <RuntimeClassDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const byName = Object.fromEntries(
+      props.extraInfo(runtimeClass).map((field: any) => [field.name, field])
+    );
+    expect(byName['Pod Overhead'].hide).toBe(false);
+    expect(byName['Pod Overhead'].value.props.dict).toEqual({ cpu: '100m', memory: '128Mi' });
+    expect(byName['Node Selector'].hide).toBe(false);
+    expect(byName['Node Selector'].value.props.dict).toEqual({ key: 'value' });
+
+    const sections = props.extraSections(runtimeClass);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].section.props.tolerations).toEqual(
+      RUNTIME_CLASS_DUMMY_DATA[0].scheduling.tolerations
+    );
+  });
+
+  it('hides the overhead and scheduling fields when they are not set', () => {
+    render(
+      <TestContext routerMap={{ name: 'runtime-class' }}>
+        <RuntimeClassDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const handlerOnly = {
+      jsonData: { ...RUNTIME_CLASS_DUMMY_DATA[0], overhead: undefined, scheduling: undefined },
+    };
+    const byName = Object.fromEntries(
+      props.extraInfo(handlerOnly).map((field: any) => [field.name, field])
+    );
+    expect(byName['Pod Overhead'].hide).toBe(true);
+    expect(byName['Node Selector'].hide).toBe(true);
+    expect(props.extraSections(handlerOnly)).toBeFalsy();
   });
 
   it('returns nothing from extraInfo when there is no item', () => {
