@@ -111,6 +111,8 @@ const (
 	DynamicCluster
 	InCluster
 	ClusterInventory
+	// TokenProtectedDynamicCluster is a dynamic context accepted through the local backend-token boundary.
+	TokenProtectedDynamicCluster
 )
 
 // Context contains all information related to a kubernetes context.
@@ -519,7 +521,16 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 		return nil, errors.New("clientConfig is nil")
 	}
 
-	return clientConfig.ClientConfig()
+	restConf, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if c.Source == DynamicCluster && restConf.ExecProvider != nil {
+		return nil, fmt.Errorf("exec credential plugins are not permitted in dynamic clusters")
+	}
+
+	return restConf, nil
 }
 
 // makeTransportFor creates an HTTP transport configuration with special handling for
@@ -694,7 +705,7 @@ func (c *Context) SourceStr() string {
 	switch c.Source {
 	case KubeConfig:
 		return "kubeconfig"
-	case DynamicCluster:
+	case DynamicCluster, TokenProtectedDynamicCluster:
 		return "dynamic_cluster"
 	case InCluster:
 		return "incluster"
@@ -948,7 +959,7 @@ func GetContextsFromKubeconfig(kubeconfig map[string]interface{}) ([]interface{}
 // rawContext can be a single context or a list of contexts.
 // kubeconfig is the kubeconfig data.
 // source is the source of the kubeconfig, i.e where the kubeconfig came from.
-// It can be KubeConfig, DynamicCluster, or InCluster.
+// It can be KubeConfig, DynamicCluster, TokenProtectedDynamicCluster, or InCluster.
 // skipProxySetup is a flag to skip proxy setup.
 // Relative certificate and key paths are left unresolved because no filesystem
 // origin is available through this entry point.
@@ -1366,7 +1377,7 @@ func createKubeConfig(
 // contextName is the name of the context.
 // clientConfig is the client config.
 // source is the source of the kubeconfig, i.e where the kubeconfig came from.
-// It can be KubeConfig, DynamicCluster, or InCluster.
+// It can be KubeConfig, DynamicCluster, TokenProtectedDynamicCluster, or InCluster.
 // skipProxySetup is a flag to skip proxy setup.
 func convertToContext(contextName string, clientConfig *api.Config, source int, skipProxySetup bool) (Context, error) {
 	context, exists := clientConfig.Contexts[contextName]
@@ -1386,6 +1397,13 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 	}
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
+
+	if source == DynamicCluster && authInfo != nil && authInfo.Exec != nil {
+		return Context{}, ContextError{
+			ContextName: contextName,
+			Reason:      "exec credential plugins are not permitted in dynamic clusters",
+		}
+	}
 
 	newContext := Context{
 		Name:                  MakeDNSFriendly(contextName),
@@ -1411,7 +1429,7 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 }
 
 // LoadContextsFromAPIConfig loads contexts from the given api.Config.
-func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Context, []error) {
+func LoadContextsFromAPIConfig(config *api.Config, source int, skipProxySetup bool) ([]Context, []error) {
 	contexts := []Context{}
 	errors := []error{}
 
@@ -1425,6 +1443,15 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 		// Note: nil authInfo is valid as authInfo can be provided by token.
 		authInfo := config.AuthInfos[context.AuthInfo]
 
+		if source == DynamicCluster && authInfo != nil && authInfo.Exec != nil {
+			errors = append(errors, ContextError{
+				ContextName: contextName,
+				Reason:      "exec credential plugins are not permitted in dynamic clusters",
+			})
+
+			continue
+		}
+
 		context := Context{
 			Name:                  MakeDNSFriendly(contextName),
 			KubeConfigPath:        context.LocationOfOrigin,
@@ -1432,6 +1459,7 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 			KubeContext:           context,
 			Cluster:               cluster,
 			AuthInfo:              authInfo,
+			Source:                source,
 		}
 
 		if !skipProxySetup {
