@@ -106,7 +106,7 @@ func reAddMissingFiles(
 
 	logger.Log(logger.LevelInfo, nil, nil, "watcher: re-added missing files")
 
-	err := LoadAndStoreKubeConfigs(kubeConfigStore, existingKubeConfigPaths(paths), source, ignoreFunc)
+	err := LoadAndStoreKubeConfigs(kubeConfigStore, ExistingKubeConfigPaths(paths), source, ignoreFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "watcher: error loading kubeconfig files")
 	}
@@ -150,7 +150,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
 func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
-	existingPaths := existingKubeConfigPaths(paths)
+	existingPaths := ExistingKubeConfigPaths(paths)
 
 	// First read all kubeconfig files to get new contexts
 	var newContexts []Context
@@ -209,10 +209,10 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	return nil
 }
 
-// existingKubeConfigPaths drops the watched paths that do not exist on disk.
+// ExistingKubeConfigPaths drops the paths that do not exist on disk.
 // A watched kubeconfig file can be deleted or not created yet, and the watcher
 // treats that as a file with no contexts rather than as a load error.
-func existingKubeConfigPaths(paths string) string {
+func ExistingKubeConfigPaths(paths string) string {
 	var existing []string
 
 	for _, path := range splitKubeConfigPath(paths) {
