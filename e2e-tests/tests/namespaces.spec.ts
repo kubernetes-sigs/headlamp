@@ -62,12 +62,13 @@ test('lists allowed namespaces without cluster-wide namespace access', async ({ 
 
   const headlampPage = new HeadlampPage(page);
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
-
+  // When every selected cluster has allowed namespaces, the namespace selector offers them
+  // without asking the API, and the Namespaces list page is not available without list access.
+  await page.locator('#namespaces-filter').click();
   for (const namespace of allowedNamespaces) {
-    await expect
-      .poll(() => namespaceRequests.some(request => request.endsWith(`/namespaces/${namespace}`)))
-      .toBe(true);
+    await expect(page.getByRole('option', { name: namespace, exact: true })).toBeVisible();
   }
+
   expect(namespaceRequests.some(request => /\/namespaces(?:\?|$)/.test(request))).toBe(false);
   expect(namespaceWebSockets).toEqual([]);
 });

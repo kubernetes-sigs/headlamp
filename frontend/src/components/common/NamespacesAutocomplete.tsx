@@ -28,7 +28,8 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
-import { useCluster, useClustersConf } from '../../lib/k8s';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
 import Namespace from '../../lib/k8s/namespace';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
@@ -198,15 +199,27 @@ export function NamespacesAutocomplete() {
   const location = useLocation();
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
-  const cluster = useCluster();
-  const [namespaceNames, setNamespaceNames] = React.useState<string[]>([]);
+  const selectedClusters = useSelectedClusters();
+  const clustersKey = selectedClusters.join('+');
+  // Changes when the namespaces matched by allowed-namespace selectors change, even if
+  // the selected clusters stay the same.
+  const allowedNamespacesResolutionKey = React.useContext(AllowedNamespacesResolutionContext);
 
-  React.useEffect(() => {
-    const allowedNamespaces = getCombinedAllowedNamespaces(cluster || '');
-    if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
-    }
-  }, [cluster]);
+  // Computed during render, not in an effect, so the allowed namespaces are already known
+  // on the first render and the default namespace fallback cannot fire before them.
+  const { namespaceNames, allowedNamespaces, unrestrictedClusters } = useMemo(() => {
+    const perCluster = selectedClusters.map(c => getCombinedAllowedNamespaces(c));
+    const allowed = uniq(perCluster.flat()).sort((a, b) => a.localeCompare(b));
+    // Only use the allowed namespaces alone when every selected cluster has them
+    // set; otherwise some cluster's namespaces must come from the API.
+    const restrictedEverywhere = perCluster.length > 0 && perCluster.every(l => l.length > 0);
+    return {
+      namespaceNames: restrictedEverywhere ? allowed : [],
+      allowedNamespaces: allowed,
+      unrestrictedClusters: selectedClusters.filter((_, i) => perCluster[i].length === 0),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clustersKey, allowedNamespacesResolutionKey]);
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
@@ -220,7 +233,12 @@ export function NamespacesAutocomplete() {
       filter={filter}
     />
   ) : (
-    <NamespacesFromClusterAutocomplete onChange={onChange} filter={filter} />
+    <NamespacesFromClusterAutocomplete
+      onChange={onChange}
+      filter={filter}
+      allowedNamespaces={allowedNamespaces}
+      unrestrictedClusters={unrestrictedClusters}
+    />
   );
 }
 
@@ -262,19 +280,48 @@ const useDefaultNamespaceFallback = (
   }, [namespacesList, isNamespaceError, currentCluster]);
 };
 
-function NamespacesFromClusterAutocomplete(
-  props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'>
-) {
-  const [namespacesList, error] = Namespace.useList();
-  const namespaceNames = useMemo(
-    () =>
-      uniq(namespacesList?.map(namespace => namespace.metadata.name) ?? [])
-        .slice()
-        .sort((a, b) => a.localeCompare(b)),
-    [namespacesList]
+function NamespacesFromClusterAutocomplete({
+  allowedNamespaces,
+  unrestrictedClusters,
+  ...props
+}: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'> & {
+  allowedNamespaces: string[];
+  unrestrictedClusters: string[];
+}) {
+  const listResult = Namespace.useList();
+  const [namespacesList, error] = listResult;
+  const allClustersConfigs = useClustersConf();
+  const listFailed = Boolean(error) && !namespacesList?.length;
+  // Clusters whose request failed, even when other clusters returned namespaces.
+  const failedClusters = useMemo(
+    () => new Set((listResult.errors ?? []).map(e => e.cluster).filter(Boolean)),
+    [listResult.errors]
   );
+  const namespaceNames = useMemo(() => {
+    // When the namespace list of an unrestricted cluster is forbidden, that cluster would
+    // otherwise offer nothing, so keep its kubeconfig namespace selectable.
+    const kubeconfigNamespaces = unrestrictedClusters
+      .filter(c => listFailed || failedClusters.has(c))
+      .map(c => allClustersConfigs?.[c]?.meta_data?.namespace ?? '');
+    return uniq([
+      ...(namespacesList?.map(namespace => namespace.metadata.name) ?? []),
+      ...allowedNamespaces,
+      ...kubeconfigNamespaces.filter(Boolean),
+    ])
+      .slice()
+      .sort((a, b) => a.localeCompare(b));
+  }, [
+    namespacesList,
+    allowedNamespaces,
+    listFailed,
+    failedClusters,
+    unrestrictedClusters,
+    allClustersConfigs,
+  ]);
 
-  useDefaultNamespaceFallback(namespacesList, Boolean(error));
+  // Do not select the kubeconfig namespace when allowed namespaces are configured,
+  // otherwise a failed API request would replace them with the first cluster's default.
+  useDefaultNamespaceFallback(namespacesList, Boolean(error) && allowedNamespaces.length === 0);
 
   return <PureNamespacesAutocomplete namespaceNames={namespaceNames} {...props} />;
 }
