@@ -24,7 +24,13 @@ import Link from '../common/Link';
 import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
-import { GatewayParentRefSection } from './utils';
+import {
+  GatewayParentRefSection,
+  ROUTE_FILTER_CONFIGURATION_WIDTH,
+  ROUTE_FILTER_TYPE_WIDTH,
+  type RouteFilter,
+  RouteFilterConfiguration,
+} from './utils';
 
 function HTTPRouteRuleTable(props: { rule: HTTPRouteRule; namespace?: string }) {
   const { rule, namespace } = props;
@@ -107,10 +113,7 @@ export function RuleMatches(props: RuleMatchesProps) {
 }
 
 export interface RuleFiltersProps {
-  filters?: {
-    type: string;
-    [key: string]: any;
-  }[];
+  filters?: RouteFilter[];
 }
 
 export function RuleFilters(props: RuleFiltersProps) {
@@ -125,7 +128,13 @@ export function RuleFilters(props: RuleFiltersProps) {
       columns={[
         {
           label: t('translation|Filter Type'),
-          getter: (data: any) => data.type,
+          getter: (data: RouteFilter) => data.type,
+          gridTemplate: ROUTE_FILTER_TYPE_WIDTH,
+        },
+        {
+          label: t('translation|Configuration'),
+          getter: (data: RouteFilter) => <RouteFilterConfiguration filter={data} />,
+          gridTemplate: ROUTE_FILTER_CONFIGURATION_WIDTH,
         },
       ]}
       data={filters}
