@@ -69,7 +69,24 @@ export interface ListResponse<K extends KubeObject> {
   namespace?: string;
   /** Whether this synthesized list must not start a cluster-wide watch */
   skipWatch?: boolean;
+  /**
+   * Unique generation token of the LIST snapshot this response was built from.
+   *
+   * Incremented for every successfully committed LIST response, independent
+   * of Kubernetes `resourceVersion`. This ensures that any refetched LIST
+   * snapshot triggers a watch restart, even if the API server returns an
+   * unchanged `resourceVersion` after intervening watch events were applied.
+   */
+  listGeneration?: number;
+  /** Immutable resourceVersion from the original LIST response snapshot */
+  listResourceVersion?: string;
 }
+
+/**
+ * Monotonically increasing counter incremented for every successfully committed
+ * LIST response to provide a unique generation token for watch identity.
+ */
+let listGenerationCounter = 0;
 
 /**
  * Builds a restricted Namespace query without broadening RBAC requirements.
@@ -170,6 +187,8 @@ function allowedNamespaceListQuery<K extends KubeObject>(
         } as KubeList<K>,
         cluster,
         skipWatch: true,
+        listGeneration: ++listGenerationCounter,
+        listResourceVersion: selectorList?.metadata?.resourceVersion ?? '0',
       };
     },
   };
@@ -250,6 +269,8 @@ export function kubeObjectListQuery<K extends KubeObject>(
           list: list as KubeList<K>,
           cluster,
           namespace,
+          listGeneration: ++listGenerationCounter,
+          listResourceVersion: list.metadata.resourceVersion,
         };
 
         return response;
@@ -263,6 +284,46 @@ export function kubeObjectListQuery<K extends KubeObject>(
       }
     },
   };
+}
+
+/** A cluster/namespace pair being watched, plus the versions it was derived from. */
+export interface WatchedList {
+  cluster: string;
+  namespace?: string;
+  /** Freshest resourceVersion known for the list, used to resume the watch. */
+  resourceVersion: string;
+  /** LIST generation the entry came from, see ListResponse.listGeneration. */
+  listGeneration?: number;
+}
+
+/**
+ * Whether two sets of watched lists are equivalent, i.e. the open watch
+ * connections can be kept instead of being torn down and re-established.
+ *
+ * `resourceVersion` is deliberately not compared: KubeList.applyUpdate bumps it
+ * for every applied watch event, so comparing it rebuilt every connection on
+ * each event — one WebSocket teardown and resubscribe per event.
+ *
+ * `listGeneration` is compared instead, which changes whenever a new LIST
+ * response is committed. A fresh snapshot replaces the cached list wholesale
+ * and can drop an event the open watch already consumed; that event is never
+ * replayed on the existing connection, so the watch has to restart from the
+ * new snapshot to resync.
+ *
+ * @param current - Lists currently being watched.
+ * @param next - Lists derived from the latest query data.
+ * @returns true when the current connections can be kept as they are.
+ */
+export function isSameWatchedLists(current: WatchedList[], next: WatchedList[]): boolean {
+  return (
+    next.length === current.length &&
+    next.every(
+      (nextList, index) =>
+        current[index].cluster === nextList.cluster &&
+        current[index].namespace === nextList.namespace &&
+        current[index].listGeneration === nextList.listGeneration
+    )
+  );
 }
 
 /**
@@ -285,7 +346,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   /** Kube resource API endpoint information */
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  lists: WatchedList[];
 }) {
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 
@@ -329,7 +390,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 }: {
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   endpoint?: KubeObjectEndpoint | null;
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  lists: WatchedList[];
   queryParams?: QueryParameters;
   watchQueryParams?: QueryParameters;
   enabled?: boolean;
@@ -375,6 +436,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         }),
         cluster: list.cluster,
         namespace: list.namespace,
+        listGeneration: list.listGeneration,
       };
     });
   }, [enabled, endpoint, lists, stableWatchQueryParams]);
@@ -382,16 +444,9 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
   // Create stable update handler to process WebSocket messages
   // Re-create only when dependencies change
   const handleUpdate = useCallback(
-    (update: any, cluster: string, namespace: string | undefined) => {
+    (update: any, cluster: string, namespace: string | undefined, listGeneration?: number) => {
       if (!update || typeof update !== 'object' || !endpoint) {
         return;
-      }
-
-      const key = `${cluster}:${namespace || ''}`;
-
-      // Update resource version from incoming message
-      if (update.object?.metadata?.resourceVersion) {
-        latestResourceVersions.current[key] = update.object.metadata.resourceVersion;
       }
 
       // Create query key for React Query cache
@@ -403,6 +458,15 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         stableQueryParams ?? {}
       ).queryKey;
 
+      const currentData = client.getQueryData<ListResponse<any>>(queryKey);
+      if (
+        listGeneration !== undefined &&
+        currentData?.listGeneration !== undefined &&
+        listGeneration < currentData.listGeneration
+      ) {
+        return;
+      }
+
       // The watch's resource version expired, so it cannot report what changed since, such
       // as deletions. List again to replace the cached list; the watch then resumes from it.
       if (update.type === 'ERROR' && update.object?.code === 410) {
@@ -410,9 +474,39 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         return;
       }
 
+      const key = `${cluster}:${namespace || ''}`;
+
+      // Update resource version from incoming message
+      if (update.type !== 'ERROR' && update.object?.metadata?.resourceVersion) {
+        const rv = update.object.metadata.resourceVersion;
+        latestResourceVersions.current[key] = rv;
+
+        const endpointUrl = KubeObjectEndpoint.toUrl(endpoint, namespace);
+        const currentUrl = new URL(
+          makeUrl([endpointUrl], {
+            ...stableWatchQueryParams,
+            watch: 1,
+          }),
+          BASE_WS_URL
+        );
+        WebSocketManager.updateSubscriptionResourceVersion(
+          cluster,
+          currentUrl.pathname,
+          currentUrl.search.slice(1),
+          rv
+        );
+      }
       // Update React Query cache with new data
       client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
         if (!oldResponse) {
+          return oldResponse;
+        }
+
+        if (
+          listGeneration !== undefined &&
+          oldResponse.listGeneration !== undefined &&
+          listGeneration < oldResponse.listGeneration
+        ) {
           return oldResponse;
         }
 
@@ -426,7 +520,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         return { ...oldResponse, list: newList };
       });
     },
-    [client, kubeObjectClass, endpoint, stableQueryParams]
+    [client, kubeObjectClass, endpoint, stableQueryParams, stableWatchQueryParams]
   );
 
   // Set up WebSocket subscriptions
@@ -435,22 +529,43 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       return;
     }
 
+    let isCancelled = false;
     const cleanups: (() => void)[] = [];
 
     // Create subscriptions for each connection
-    connections.forEach(({ url, cluster, namespace }) => {
+    connections.forEach(({ url, cluster, namespace, listGeneration }) => {
       const parsedUrl = new URL(url, BASE_WS_URL);
+      const pathname = parsedUrl.pathname;
+      const search = parsedUrl.search.slice(1);
+      const key =
+        WebSocketManager.createKey?.(cluster, pathname, search) ??
+        `${cluster}:${pathname}:${search}`;
+      const onMessage = (update: any) => handleUpdate(update, cluster, namespace, listGeneration);
+      const onError = (error: Error) =>
+        console.error(`WebSocket subscription error for cluster ${cluster}:`, error);
+
+      let unsubscribed = false;
+      const cancel = () => {
+        if (unsubscribed) return;
+        unsubscribed = true;
+        WebSocketManager.unsubscribe?.(key, cluster, pathname, search, onMessage, onError);
+      };
+      cleanups.push(cancel);
 
       // Subscribe to WebSocket updates
-      WebSocketManager.subscribe(
-        cluster,
-        parsedUrl.pathname,
-        parsedUrl.search.slice(1),
-        update => handleUpdate(update, cluster, namespace),
-        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
-      ).then(
-        cleanup => cleanups.push(cleanup),
+      WebSocketManager.subscribe(cluster, pathname, search, onMessage, onError).then(
+        cleanup => {
+          if (isCancelled) {
+            cancel();
+          } else {
+            const idx = cleanups.indexOf(cancel);
+            if (idx !== -1) {
+              cleanups[idx] = cleanup;
+            }
+          }
+        },
         error => {
+          cancel();
           // Track retry count in the URL's searchParams
           const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
           if (retryCount < 3) {
@@ -464,6 +579,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
+      isCancelled = true;
       cleanups.forEach(cleanup => cleanup());
     };
   }, [connections, enabled, endpoint, handleUpdate]);
@@ -494,7 +610,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   /** Kube resource API endpoint information */
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  lists: WatchedList[];
   enabled?: boolean;
 }) {
   const client = useQueryClient();
@@ -514,7 +630,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   const connections = useMemo(() => {
     if (!enabled || !endpoint) return [];
 
-    return lists.map(({ cluster, namespace, resourceVersion }) => {
+    return lists.map(({ cluster, namespace, resourceVersion, listGeneration }) => {
       const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
         ...stableWatchQueryParams,
         watch: 1,
@@ -534,6 +650,14 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           ).queryKey;
           client.setQueryData(key, (oldResponse: ListResponse<any> | undefined | null) => {
             if (!oldResponse) return oldResponse;
+
+            if (
+              listGeneration !== undefined &&
+              oldResponse.listGeneration !== undefined &&
+              listGeneration < oldResponse.listGeneration
+            ) {
+              return oldResponse;
+            }
 
             const newList = KubeList.applyUpdate(
               oldResponse.list,
@@ -839,41 +963,38 @@ export function useKubeObjectList<K extends KubeObject>({
   // for resources outside our fetched page, causing the list to grow unboundedly.
   const shouldWatch = watch && !refetchInterval && !query.isLoading && !query.hasMore;
 
-  const [listsToWatch, setListsToWatch] = useState<
-    { cluster: string; namespace?: string; resourceVersion: string }[]
-  >([]);
+  const [listsToWatch, setListsToWatch] = useState<WatchedList[]>([]);
 
   useEffect(() => {
     setListsToWatch(currentListsToWatch => {
+      if (!shouldWatch) {
+        return currentListsToWatch.length === 0 ? currentListsToWatch : [];
+      }
+
       const keptListsToWatch = currentListsToWatch.filter(watching =>
         isWatchedListStillRequested(watching, requests)
       );
 
-      if (!shouldWatch) {
-        return keptListsToWatch.length === currentListsToWatch.length
-          ? currentListsToWatch
-          : keptListsToWatch;
-      }
-
       const nextListsToWatch = query.data
         .filter(data => data && !data.skipWatch)
-        .map(data => ({
-          cluster: data!.cluster,
-          namespace: data!.namespace,
-          resourceVersion: data!.list.metadata.resourceVersion,
-        }));
-
-      if (
-        nextListsToWatch.length === currentListsToWatch.length &&
-        nextListsToWatch.every((nextList, index) => {
-          const currentList = currentListsToWatch[index];
-          return (
-            currentList.cluster === nextList.cluster &&
-            currentList.namespace === nextList.namespace &&
-            currentList.resourceVersion === nextList.resourceVersion
+        .map(data => {
+          const existing = keptListsToWatch.find(
+            watching => watching.cluster === data!.cluster && watching.namespace === data!.namespace
           );
-        })
-      ) {
+          const isNewListGeneration =
+            existing !== undefined && existing.listGeneration !== data!.listGeneration;
+
+          return {
+            cluster: data!.cluster,
+            namespace: data!.namespace,
+            resourceVersion: isNewListGeneration
+              ? data!.listResourceVersion ?? data!.list.metadata.resourceVersion
+              : data!.list.metadata.resourceVersion,
+            listGeneration: data!.listGeneration,
+          };
+        });
+
+      if (isSameWatchedLists(currentListsToWatch, nextListsToWatch)) {
         return currentListsToWatch;
       }
 
@@ -1000,6 +1121,7 @@ export function useKubeObjectList<K extends KubeObject>({
             if (!old) return old;
             return {
               ...old,
+              listResourceVersion: raw.metadata.resourceVersion,
               list: {
                 ...old.list,
                 metadata: {
