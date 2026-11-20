@@ -44,12 +44,15 @@ export function parseTablesRowsPerPage(value: string): number | null {
  * If not set or invalid, returns the default value.
  */
 export function getTablesRowsPerPage(defaultRowsPerPage: number = minTablesRowsPerPage) {
-  const perPageStr = localStorage.getItem(tablesRowsPerPageKey);
-  if (!perPageStr) {
+  try {
+    const perPageStr = localStorage.getItem(tablesRowsPerPageKey);
+    return perPageStr
+      ? parseTablesRowsPerPage(perPageStr) ?? defaultRowsPerPage
+      : defaultRowsPerPage;
+  } catch (error) {
+    console.warn(`Failed to read ${tablesRowsPerPageKey} from localStorage:`, error);
     return defaultRowsPerPage;
   }
-
-  return parseTablesRowsPerPage(perPageStr) ?? defaultRowsPerPage;
 }
 
 /**
@@ -59,5 +62,9 @@ export function getTablesRowsPerPage(defaultRowsPerPage: number = minTablesRowsP
  * @returns {void}
  */
 export function setTablesRowsPerPage(perPage: number) {
-  localStorage.setItem(tablesRowsPerPageKey, perPage.toString());
+  try {
+    localStorage.setItem(tablesRowsPerPageKey, perPage.toString());
+  } catch (error) {
+    console.error(`Failed to set ${tablesRowsPerPageKey} in localStorage:`, error);
+  }
 }
