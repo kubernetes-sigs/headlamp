@@ -38,6 +38,7 @@ vi.mock('../components/resourceMap/sources/definitions/relationIds', () => ({
 import {
   registerAppTheme,
   registerClusterEmptyState,
+  registerClusterProviderDeleteHandler,
   registerResourceRelationProvider,
 } from './registry';
 
@@ -223,6 +224,38 @@ describe('registerResourceRelationProvider', () => {
     registerClusterEmptyState(emptyState);
 
     expect(activeStore.getState().clusterProvider.clusterEmptyState).toBe(emptyState);
+  });
+
+  it('registers a cluster delete handler', () => {
+    const handler = { owns: () => true, dialog: 'deleteMinikube' };
+
+    registerClusterProviderDeleteHandler(handler);
+
+    expect(activeStore.getState().clusterProvider.deleteHandlers).toEqual([handler]);
+  });
+
+  it.each(['', 'deleteDynamic'])('ignores a cluster delete handler with dialog %j', dialog => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    registerClusterProviderDeleteHandler({ owns: () => true, dialog });
+
+    expect(activeStore.getState().clusterProvider.deleteHandlers).toEqual([]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring cluster delete handler')
+    );
+    errorSpy.mockRestore();
+  });
+
+  it.each([undefined, 'minikube'])('ignores a cluster delete handler with owns %j', owns => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    registerClusterProviderDeleteHandler({ owns, dialog: 'deleteMinikube' } as any);
+
+    expect(activeStore.getState().clusterProvider.deleteHandlers).toEqual([]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring cluster delete handler')
+    );
+    errorSpy.mockRestore();
   });
 });
 

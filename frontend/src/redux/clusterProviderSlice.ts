@@ -63,11 +63,42 @@ export interface ClusterProviderInfo {
   url: string;
 }
 
+/**
+ * A plugin's claim on the Delete action of the clusters it manages.
+ *
+ * For a cluster that `owns` returns true for, the Delete item in the Home page's
+ * cluster action menu opens the plugin's dialog named `dialog` (registered with
+ * `registerClusterProviderDialog`) instead of removing the cluster from the
+ * kubeconfig.
+ */
+export interface ClusterDeleteHandler {
+  /** Whether the plugin handles Delete for this cluster entry. */
+  owns: (cluster: any) => boolean;
+  /**
+   * The `openConfirmDialog` value that opens the plugin's delete dialog. It must not be empty or
+   * `deleteDynamic` (`BUILT_IN_DELETE_DIALOG`), the name of Headlamp's own confirmation.
+   */
+  dialog: string;
+}
+
+/** The `openConfirmDialog` value of Headlamp's own Delete confirmation in the cluster action menu. */
+export const BUILT_IN_DELETE_DIALOG = 'deleteDynamic';
+
+/**
+ * Whether a delete handler may use `dialog`: an empty name opens nothing, and the built-in name
+ * would also open Headlamp's confirmation, which only removes the cluster from the kubeconfig.
+ */
+export function isPluginDeleteDialog(dialog: unknown): dialog is string {
+  return typeof dialog === 'string' && dialog !== '' && dialog !== BUILT_IN_DELETE_DIALOG;
+}
+
 export interface ClusterProviderSliceState {
   /** Dialog components that can be rendered by the application, on the Home. */
   dialogs: DialogComponent[];
   /** Menu items that can be rendered by the application, on the Home page in the cluster action menu. */
   menuItems: MenuItemComponent[];
+  /** Plugins that handle Delete in the cluster action menu, in registration order. */
+  deleteHandlers: ClusterDeleteHandler[];
   /** Cluster providers for the Add Cluster page. */
   clusterProviders: ClusterProviderInfo[];
   /** Cluster statuses for the Home page. */
@@ -79,6 +110,7 @@ export interface ClusterProviderSliceState {
 export const initialState: ClusterProviderSliceState = {
   menuItems: [],
   dialogs: [],
+  deleteHandlers: [],
   clusterProviders: [],
   clusterStatuses: [],
   clusterEmptyState: null,
@@ -93,6 +125,9 @@ const clusterProviderSlice = createSlice({
     },
     addMenuItem(state, action: PayloadAction<MenuItemComponent>) {
       state.menuItems.push(action.payload);
+    },
+    addDeleteHandler(state, action: PayloadAction<ClusterDeleteHandler>) {
+      state.deleteHandlers.push(action.payload);
     },
     addAddClusterProvider(state, action: PayloadAction<ClusterProviderInfo>) {
       state.clusterProviders.push(action.payload);
@@ -109,6 +144,7 @@ const clusterProviderSlice = createSlice({
 export const {
   addDialog,
   addMenuItem,
+  addDeleteHandler,
   addAddClusterProvider,
   addClusterStatus,
   setClusterEmptyState,

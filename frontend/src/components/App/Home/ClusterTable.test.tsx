@@ -28,6 +28,9 @@ import ClusterTable from './ClusterTable';
 
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 let ClusterEmptyState: ComponentType<{ defaultContent: ReactNode }> | null = null;
+let ClusterMenuItems: ComponentType<any>[] = [];
+let ClusterDialogs: ComponentType<any>[] = [];
+let ClusterDeleteHandlers: { owns: (cluster: any) => boolean; dialog: string }[] = [];
 const { dispatchMock } = vi.hoisted(() => ({ dispatchMock: vi.fn() }));
 
 function renderWithTheme(ui: ReactNode) {
@@ -67,8 +70,9 @@ vi.mock('../../../redux/hooks', () => ({
     selector({
       clusterProvider: {
         clusterStatuses: [],
-        dialogs: [],
-        menuItems: [],
+        dialogs: ClusterDialogs,
+        menuItems: ClusterMenuItems,
+        deleteHandlers: ClusterDeleteHandlers,
         clusterEmptyState: ClusterEmptyState,
       },
       config: {
@@ -433,6 +437,59 @@ describe('ClusterTable', () => {
 describe('ClusterContextMenu', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    ClusterMenuItems = [];
+    ClusterDialogs = [];
+    ClusterDeleteHandlers = [];
+  });
+
+  function PluginDeleteDialog({ openConfirmDialog }: { openConfirmDialog: string | null }) {
+    return openConfirmDialog === 'deletePlugin' ? <div role="dialog">Plugin delete</div> : null;
+  }
+
+  function renderKubeconfigClusterMenu() {
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            cluster={{ name: 'dev', auth_type: '', meta_data: { source: 'kubeconfig' } } as Cluster}
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByText('Delete'));
+  }
+
+  it('opens only the plugin dialog for a cluster a delete handler owns', () => {
+    // Plugin menu items hide Headlamp's Delete; an owning handler still offers it.
+    ClusterMenuItems = [() => <div role="menuitem">Start proxy</div>];
+    ClusterDialogs = [PluginDeleteDialog];
+    ClusterDeleteHandlers = [{ owns: cluster => cluster.name === 'dev', dialog: 'deletePlugin' }];
+
+    renderKubeconfigClusterMenu();
+
+    expect(screen.getByText('Plugin delete')).toBeInTheDocument();
+    expect(screen.queryByText('Delete Cluster')).not.toBeInTheDocument();
+  });
+
+  it("keeps Headlamp's Delete when no delete handler owns the cluster", () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    ClusterDialogs = [PluginDeleteDialog];
+    ClusterDeleteHandlers = [
+      {
+        owns: () => {
+          throw new Error('owns failed');
+        },
+        dialog: 'deletePlugin',
+      },
+      { owns: () => false, dialog: 'deletePlugin' },
+    ];
+
+    renderKubeconfigClusterMenu();
+
+    expect(screen.getByText('Delete Cluster')).toBeInTheDocument();
+    expect(screen.queryByText('Plugin delete')).not.toBeInTheDocument();
+    errorSpy.mockRestore();
   });
 
   it('updates the config before notifying the page after deleting a cluster', async () => {

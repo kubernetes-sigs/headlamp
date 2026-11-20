@@ -69,12 +69,16 @@ import {
 import {
   addAddClusterProvider,
   addClusterStatus,
+  addDeleteHandler,
   addDialog,
   addMenuItem,
+  BUILT_IN_DELETE_DIALOG,
+  ClusterDeleteHandler,
   ClusterEmptyStateComponent,
   ClusterProviderInfo,
   ClusterStatusComponent,
   DialogComponent,
+  isPluginDeleteDialog,
   MenuItemComponent,
   setClusterEmptyState,
 } from '../redux/clusterProviderSlice';
@@ -183,6 +187,7 @@ export type {
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
+export type { ClusterDeleteHandler } from '../redux/clusterProviderSlice';
 export const DefaultHeadlampEvents = HeadlampEventType;
 export const DetailsViewDefaultHeaderActions = DefaultHeaderAction;
 export type { AppBarActionProcessorType };
@@ -1040,6 +1045,53 @@ export function registerClusterEmptyState(component: ClusterEmptyStateComponent)
  */
 export function registerClusterProviderDialog(item: DialogComponent) {
   store.dispatch(addDialog(item));
+}
+
+/**
+ * Route Delete in the Home page's cluster action menu to a plugin's dialog.
+ *
+ * Headlamp's Delete removes a cluster from the kubeconfig. A plugin that manages
+ * a cluster's lifecycle can claim that cluster's Delete instead: the menu then
+ * opens the plugin's dialog (registered with `registerClusterProviderDialog`)
+ * for every cluster `owns` returns true for. The first registered handler that
+ * owns a cluster is used; a handler that throws owns nothing. `owns` must be a
+ * function, and `dialog` must be a non-empty name other than Headlamp's own
+ * `deleteDynamic`, which opens the kubeconfig-only confirmation; any other
+ * handler is ignored.
+ *
+ * @param handler - Which clusters the plugin owns, and the dialog that deletes them.
+ * @returns Nothing.
+ *
+ * @example
+ *
+ * ```tsx
+ * import {
+ *   registerClusterProviderDeleteHandler,
+ *   registerClusterProviderDialog,
+ * } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerClusterProviderDeleteHandler({
+ *   owns: cluster =>
+ *     cluster.meta_data?.extensions?.context_info?.provider === 'minikube.sigs.k8s.io',
+ *   dialog: 'deleteMinikube',
+ * });
+ * registerClusterProviderDialog(({ cluster, openConfirmDialog, setOpenConfirmDialog }) => (
+ *   <DeleteMinikube
+ *     cluster={cluster}
+ *     open={openConfirmDialog === 'deleteMinikube'}
+ *     onClose={() => setOpenConfirmDialog('')}
+ *   />
+ * ));
+ * ```
+ */
+export function registerClusterProviderDeleteHandler(handler: ClusterDeleteHandler) {
+  if (typeof handler?.owns !== 'function' || !isPluginDeleteDialog(handler.dialog)) {
+    console.error(
+      `Ignoring cluster delete handler: it needs an "owns" function and a "dialog" name that is not empty or ${BUILT_IN_DELETE_DIALOG}`
+    );
+    return;
+  }
+  store.dispatch(addDeleteHandler(handler));
 }
 
 /**
