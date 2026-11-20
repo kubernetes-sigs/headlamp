@@ -17,11 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -51,8 +54,14 @@ const (
 	// HeartbeatInterval is the interval at which the multiplexer pings cluster connections.
 	// It is also the first delay before retrying a failed reconnect.
 	HeartbeatInterval = 30 * time.Second
+	// minReconnectBackoff is the minimum backoff interval after a failed reconnect.
+	minReconnectBackoff = 30 * time.Second
+	// maxReconnectBackoff is the maximum backoff interval after repeated failed reconnects.
+	maxReconnectBackoff = 2 * time.Minute
 	// MaxReconnectBackoff caps the delay between failed reconnect attempts.
-	MaxReconnectBackoff = 10 * time.Minute
+	MaxReconnectBackoff = maxReconnectBackoff
+	// backoffJitterFactor is the maximum random jitter fraction (+/- factor) applied to backoff.
+	backoffJitterFactor = 0.2
 	// HandshakeTimeout is the timeout for the handshake with the client.
 	HandshakeTimeout = 45 * time.Second
 	// CleanupRoutineInterval is the interval at which the multiplexer cleans up unused connections.
@@ -62,6 +71,50 @@ const (
 	// MultiplexerProtocol is the public subprotocol selected for client connections.
 	MultiplexerProtocol = "headlamp.multiplexer.k8s.io"
 )
+
+func defaultBackoffJitter() float64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err == nil {
+		val := binary.LittleEndian.Uint64(b[:])
+
+		return (float64(val)/float64(math.MaxUint64))*2 - 1
+	}
+
+	return 0
+}
+
+// calculateBackoff computes exponential backoff with jitter for reconnect attempts.
+func calculateBackoff(
+	attempt int,
+	minDelay, maxDelay time.Duration,
+	jitterFactor float64,
+	jitterFunc func() float64,
+) time.Duration {
+	multiplier := 1
+	if attempt > 0 {
+		multiplier = 1 << min(attempt, 6)
+	}
+
+	delay := minDelay * time.Duration(multiplier)
+	if delay > maxDelay || delay < 0 {
+		delay = maxDelay
+	}
+
+	if jitterFactor > 0 && jitterFunc != nil {
+		jitterFraction := jitterFactor * jitterFunc()
+		delay = time.Duration(float64(delay) * (1 + jitterFraction))
+	}
+
+	if delay > maxDelay {
+		return maxDelay
+	}
+
+	if delay < 0 {
+		return 0
+	}
+
+	return delay
+}
 
 var (
 	// errWatchExpired reports that the cluster no longer has the watch's resource version,
@@ -169,6 +222,12 @@ type Multiplexer struct {
 	saTokenMu sync.RWMutex
 	// heartbeatInterval is HeartbeatInterval; tests shorten it.
 	heartbeatInterval time.Duration
+	// Test overrides (zero value means use production constants)
+	minReconnectBackoff  time.Duration
+	maxReconnectBackoff  time.Duration
+	backoffJitterFactor  *float64
+	backoffJitterFunc    func() float64
+	backoffScheduledFunc func(attempt int, delay time.Duration)
 }
 
 // saTokenCacheEntry caches a service account token alongside the source file's mtime.
@@ -297,13 +356,57 @@ func (c *Connection) IsClosed() bool {
 	return c.closed
 }
 
+// activeClient returns the client connection if the connection is open, or nil otherwise.
+func (c *Connection) activeClient() *WSConnLock {
+	if c == nil {
+		return nil
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed {
+		return nil
+	}
+
+	return c.Client
+}
+
+// reconnectSnapshot returns the active client and token under lock if the connection is open,
+// or nil values if the connection is closed or has no client.
+func (c *Connection) reconnectSnapshot() (*WSConnLock, *string) {
+	if c == nil {
+		return nil, nil
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.closed || c.Client == nil {
+		return nil, nil
+	}
+
+	return c.Client, c.Token
+}
+
 // updateStatus updates the status of a connection and notifies the client.
 func (c *Connection) updateStatus(state ConnectionState, err error) {
+	c.updateStatusInternal(state, err, false)
+}
+
+// updateStatusIfNotClosed atomically updates the connection state and notifies the client,
+// unless the connection is closed or already in StateClosed.
+// It returns true if the status was updated, or false if the connection is closed.
+func (c *Connection) updateStatusIfNotClosed(state ConnectionState, err error) bool {
+	return c.updateStatusInternal(state, err, true)
+}
+
+func (c *Connection) updateStatusInternal(state ConnectionState, err error, disallowIfStateClosed bool) bool {
 	c.mu.Lock()
-	if c.closed {
+	if c.closed || (disallowIfStateClosed && c.Status.State == StateClosed) {
 		c.mu.Unlock()
 
-		return
+		return false
 	}
 
 	c.Status.State = state
@@ -321,7 +424,7 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 			c.safeClose()
 		}
 
-		return
+		return true
 	}
 
 	writeErr := c.writeStatusLocked()
@@ -339,6 +442,8 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 	if state == StateClosed {
 		c.safeClose()
 	}
+
+	return true
 }
 
 func (c *Connection) writeStatusLocked() error {
@@ -457,6 +562,19 @@ func (m *Multiplexer) dialClusterConnection(
 	connection.updateStatus(StateConnected, nil)
 
 	return connection, nil
+}
+
+// createClusterConnection creates and dials a new WebSocket connection to a Kubernetes cluster without registering it.
+// It is an alias for dialClusterConnection.
+func (m *Multiplexer) createClusterConnection(
+	clusterID,
+	userID,
+	path,
+	query string,
+	clientConn *WSConnLock,
+	token *string,
+) (*Connection, error) {
+	return m.dialClusterConnection(clusterID, userID, path, query, clientConn, token)
 }
 
 // establishClusterConnection creates, registers, and monitors a new WebSocket connection to a Kubernetes cluster.
@@ -614,15 +732,71 @@ func (m *Multiplexer) dialWebSocket(
 	return conn, nil
 }
 
+// getHeartbeatInterval returns the configured heartbeat interval.
+func (m *Multiplexer) getHeartbeatInterval() time.Duration {
+	if m.heartbeatInterval > 0 {
+		return m.heartbeatInterval
+	}
+
+	return HeartbeatInterval
+}
+
+// getMinReconnectBackoff returns the minimum reconnect backoff delay.
+func (m *Multiplexer) getMinReconnectBackoff() time.Duration {
+	if m.minReconnectBackoff > 0 {
+		return m.minReconnectBackoff
+	}
+
+	if m.heartbeatInterval > 0 {
+		return m.heartbeatInterval
+	}
+
+	return minReconnectBackoff
+}
+
+// getMaxReconnectBackoff returns the maximum reconnect backoff delay.
+func (m *Multiplexer) getMaxReconnectBackoff() time.Duration {
+	if m.maxReconnectBackoff > 0 {
+		return m.maxReconnectBackoff
+	}
+
+	return maxReconnectBackoff
+}
+
+// getBackoffJitterFactor returns the configured jitter factor.
+func (m *Multiplexer) getBackoffJitterFactor() float64 {
+	if m.backoffJitterFactor != nil {
+		return *m.backoffJitterFactor
+	}
+
+	return backoffJitterFactor
+}
+
+// nextReconnectDelay calculates the backoff delay for the given attempt.
+func (m *Multiplexer) nextReconnectDelay(attempt int) time.Duration {
+	jitterFunc := m.backoffJitterFunc
+	if jitterFunc == nil {
+		jitterFunc = defaultBackoffJitter
+	}
+
+	return calculateBackoff(
+		attempt,
+		m.getMinReconnectBackoff(),
+		m.getMaxReconnectBackoff(),
+		m.getBackoffJitterFactor(),
+		jitterFunc,
+	)
+}
+
 // calculateBackoffInterval returns the delay before the next reconnect attempt: the base
 // interval, doubled for each consecutive failure and capped at maxInterval.
 func calculateBackoffInterval(consecutiveFailures int, baseInterval, maxInterval time.Duration) time.Duration {
-	return min(baseInterval<<min(consecutiveFailures, 20), maxInterval)
+	return calculateBackoff(consecutiveFailures, baseInterval, maxInterval, 0, nil)
 }
 
 // monitorConnection monitors the health of a connection and attempts to reconnect if necessary.
 func (m *Multiplexer) monitorConnection(conn *Connection) {
-	ticker := time.NewTicker(m.heartbeatInterval)
+	ticker := time.NewTicker(m.getHeartbeatInterval())
 	defer ticker.Stop()
 
 	consecutiveFailures := 0
@@ -684,6 +858,8 @@ func (m *Multiplexer) handleHeartbeatTick(
 		if err != nil {
 			conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 		} else {
+			*consecutiveFailures = 0
+
 			return nil, false
 		}
 	}
@@ -701,44 +877,50 @@ func (m *Multiplexer) handleHeartbeatTick(
 	}
 
 	if err != nil {
-		*consecutiveFailures++
-		delay := calculateBackoffInterval(*consecutiveFailures, m.heartbeatInterval, MaxReconnectBackoff)
-		ticker.Reset(delay)
-
-		logger.Log(logger.LevelError, map[string]string{
-			logFieldClusterID: conn.ClusterID,
-			"failures":        fmt.Sprintf("%d", *consecutiveFailures),
-			"nextRetryIn":     delay.String(),
-		}, err, "reconnecting to cluster")
+		m.handleReconnectFailure(conn, err, consecutiveFailures, ticker)
 
 		return nil, false
 	}
 
-	newConn.mu.RLock()
-	clientConn := newConn.Client
-	newConn.mu.RUnlock()
-
-	if clientConn != nil {
+	if clientConn := newConn.activeClient(); clientConn != nil {
 		go m.handleClusterMessages(newConn, clientConn)
 	}
 
 	return newConn, false
 }
 
+func (m *Multiplexer) handleReconnectFailure(
+	conn *Connection,
+	err error,
+	consecutiveFailures *int,
+	ticker *time.Ticker,
+) {
+	attempt := *consecutiveFailures
+	*consecutiveFailures++
+	delay := m.nextReconnectDelay(attempt)
+	ticker.Reset(delay)
+
+	if m.backoffScheduledFunc != nil {
+		m.backoffScheduledFunc(attempt, delay)
+	}
+
+	logger.Log(logger.LevelError, map[string]string{
+		logFieldClusterID: conn.ClusterID,
+		"failures":        fmt.Sprintf("%d", *consecutiveFailures),
+		"nextRetryIn":     delay.String(),
+	}, err, "reconnecting to cluster")
+}
+
 // reconnect attempts to reestablish a connection.
 func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
-	if conn.IsClosed() {
+	clientConn, token := conn.reconnectSnapshot()
+	if clientConn == nil {
 		return nil, fmt.Errorf("cannot reconnect closed connection")
 	}
 
 	if conn.WSConn != nil {
 		_ = conn.WSConn.Close()
 	}
-
-	conn.mu.RLock()
-	client := conn.Client
-	token := conn.Token
-	conn.mu.RUnlock()
 
 	// Take over the stream before reading the cursor: a message the old reader has already
 	// read but not forwarded is dropped here and replayed by the new watch.
@@ -757,7 +939,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		conn.UserID,
 		conn.Path,
 		resumeWatchQuery(conn.Query, resourceVersion),
-		client,
+		clientConn,
 		token,
 	)
 	if err != nil {
@@ -770,6 +952,12 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		}
 
 		return nil, err
+	}
+
+	if currentClient := conn.activeClient(); currentClient == nil || currentClient != clientConn {
+		newConn.safeClose()
+
+		return nil, fmt.Errorf("connection was closed during reconnect")
 	}
 
 	// Keep the query the client subscribed with, so its messages still route to it.
@@ -910,28 +1098,22 @@ func (m *Multiplexer) closeClientConnections(clientConn *WSConnLock) {
 
 	m.mutex.Lock()
 	for key, conn := range m.connections {
-		conn.mu.RLock()
-		isClient := conn.Client == clientConn
-		conn.mu.RUnlock()
-
-		if isClient {
-			connsToClose = append(connsToClose, conn)
-
-			delete(m.connections, key)
-		}
-	}
-	m.mutex.Unlock()
-
-	for _, conn := range connsToClose {
 		conn.mu.Lock()
 		if conn.Client == clientConn {
 			conn.Client = nil
 			conn.Status.State = StateClosed
 			conn.Status.LastMsg = time.Now()
 			conn.Status.Error = ""
+
+			delete(m.connections, key)
+
+			connsToClose = append(connsToClose, conn)
 		}
 		conn.mu.Unlock()
+	}
+	m.mutex.Unlock()
 
+	for _, conn := range connsToClose {
 		conn.safeClose()
 	}
 }
@@ -1100,6 +1282,12 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 
 // handleClusterMessages handles messages from a cluster connection.
 func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConnLock) {
+	defer func() {
+		if conn.WSConn != nil {
+			_ = conn.WSConn.Close()
+		}
+	}()
+
 	var lastResourceVersion string
 
 	for {
@@ -1124,7 +1312,7 @@ func (m *Multiplexer) handleClusterMessages(conn *Connection, clientConn *WSConn
 				}
 
 				// Let monitorConnection handle reconnect/backoff on all read errors, including close frames.
-				conn.updateStatus(StateError, err)
+				conn.updateStatusIfNotClosed(StateError, err)
 
 				return
 			}
