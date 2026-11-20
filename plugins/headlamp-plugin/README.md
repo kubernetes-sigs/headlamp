@@ -280,6 +280,69 @@ npm publish kinvolk-headlamp-plugin-0.6.0-alpha.0.tgz --tag alpha
 
 If you don't specify a tag, npm publish uses the "latest" tag.
 
+### Preparing trusted SDK publication
+
+The manually dispatched **Publish plugin SDK** workflow is intended for
+maintainer-approved publication with npm trusted publishing. It does not run
+on pushes, pull requests, or GitHub releases. Do not dispatch it until the
+repository and npm package owners have completed the setup below.
+
+1. Configure the GitHub environment `npm-plugin-sdk` with required reviewers
+   and a deployment-branch restriction allowing only `main`. Ensure review is
+   required before deployment; creating an environment alone does not add
+   approval protection. These are repository-admin settings, not protections
+   created by the workflow itself.
+2. In the npm package's **Trusted Publisher** settings, authorize the
+   `kubernetes-sigs/headlamp` repository, workflow
+   `publish-headlamp-plugin.yml`, and environment `npm-plugin-sdk` for direct
+   publication. This requires npm package-owner access.
+3. Use a GitHub-hosted runner and npm 11.5.1+/Node 22.14+ as required by
+   [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
+   The workflow installs a compatible npm version and does not use a stored
+   npm token. Do not add a token fallback.
+4. Commit the intended SDK version and lockfile updates through normal review.
+   Dispatch the workflow from `main` with that exact version and an explicit
+   npm tag: `alpha` for prereleases, `latest` for stable releases.
+   The workflow checks canonical npm metadata before building the SDK and
+   refuses an already-published version or backward movement of that tag.
+5. Review the source commit, version, npm tag, packed file list and integrity
+   in the build summary before approving the protected publish job. The build
+   job has no OIDC publishing permission; the publish
+   job installs no project dependencies or lifecycle scripts before publishing
+   the verified artifact.
+
+The workflow builds and tests the SDK, packs it once, tests the packed tarball
+with the existing compatibility matrix, and passes those exact bytes to the
+protected publish job. The publish job verifies SHA-512 integrity before
+`npm publish --provenance --ignore-scripts`. npm trusted publishing establishes
+the package-to-workflow authorization; adding workflow YAML does not configure
+that relationship on npm.
+
+The integrity check binds the publish job to the build output; it does not
+prove that a compromised build or dependency produced benign bytes. The SDK
+build also bundles examples from another repository using the existing build
+scripts. Review the build inputs and output rather than treating provenance as
+a guarantee of package safety.
+
+After publication, the separate `verify` job checks canonical npm metadata for
+matching integrity, distribution tag and provenance, then runs
+`npm audit signatures --json --include-attestations` in an isolated installation
+with lifecycle scripts disabled. It additionally checks the verified SDK's
+SLSA source repository, workflow, branch and commit against the dispatch.
+A failure does not unpublish the package. Inspect the error and rerun only the
+failed verification job after registry propagation, rather than rerunning the
+publisher or republishing the same version. Dependency signature failures also
+fail verification and must be investigated, not silently ignored.
+Use GitHub Actions' **Re-run failed jobs** for verification failures; a fresh
+dispatch is a new publication attempt, not a verification retry.
+
+Use the next authorized prerelease to validate the real npm authorization and
+consumer-verification path before relying on this workflow for a stable
+release. A GitHub-only sandbox signature test cannot establish npm package
+ownership or npm provenance for `@kinvolk/headlamp-plugin`. Mirrored registries
+may omit signature or attestation metadata; canonical verification requires
+access to `https://registry.npmjs.org`.
+
 ## Relationship with @headlamp-k8s/pluginctl
 
 `headlamp-plugin` is built on top of `pluginctl` and provides a superset of its functionality. While `pluginctl` focuses solely on plugin management operations, `headlamp-plugin` adds comprehensive development tooling:
