@@ -393,6 +393,28 @@ export const DEFAULT_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
   },
 };
 
+export const WELL_KNOWN_CA_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
+  ...DEFAULT_BACKEND_TLS_POLICY,
+  spec: {
+    ...DEFAULT_BACKEND_TLS_POLICY.spec,
+    validation: {
+      hostname: 'example.com',
+      wellKnownCACertificates: 'System',
+    },
+  },
+};
+
+export const CA_REFS_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
+  ...DEFAULT_BACKEND_TLS_POLICY,
+  spec: {
+    ...DEFAULT_BACKEND_TLS_POLICY.spec,
+    validation: {
+      hostname: 'example.com',
+      caCertificateRefs: [{ group: '', kind: 'ConfigMap', name: 'ca-cert' }],
+    },
+  },
+};
+
 export const DEFAULT_BACKEND_TRAFFIC_POLICY: KubeBackendTrafficPolicy = {
   apiVersion: 'gateway.networking.x-k8s.io/v1alpha1',
   kind: 'XBackendTrafficPolicy',

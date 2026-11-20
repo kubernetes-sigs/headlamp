@@ -874,6 +874,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "Slutpunkter",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "Omförsöksbudget",
   "Not specified": "Inte angivet",
   "Min Retry Rate": "Minsta antal nya försök",

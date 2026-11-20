@@ -867,6 +867,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "端點",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "重試限制",
   "Not specified": "未指定",
   "Min Retry Rate": "最小重試率",

@@ -874,6 +874,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "Végpontok",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "Költségkeret újrapróbálása",
   "Not specified": "Nincs megadva",
   "Min Retry Rate": "Minimális újrapróbálkozási arány",

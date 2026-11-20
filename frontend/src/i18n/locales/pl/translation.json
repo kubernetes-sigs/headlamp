@@ -888,6 +888,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "Punkty końcowe",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "Ponów próbę — budżet",
   "Not specified": "Nie określono",
   "Min Retry Rate": "Minimalna częstotliwość ponawiania prób",

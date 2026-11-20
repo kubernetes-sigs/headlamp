@@ -902,6 +902,7 @@
   "Add endpoint": "",
   "New Endpoint": "",
   "Endpoints": "نقاط النهاية",
+  "Well-Known CA Certificates": "",
   "Retry Budget": "ميزانية إعادة المحاولة",
   "Not specified": "غير محدد",
   "Min Retry Rate": "الحد الأدنى لمعدل إعادة المحاولة",

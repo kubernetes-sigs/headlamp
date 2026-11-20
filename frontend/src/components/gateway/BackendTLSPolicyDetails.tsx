@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import BackendTLSPolicy from '../../lib/k8s/backendTLSPolicy';
@@ -59,12 +60,29 @@ export default function BackendTLSPolicyDetails(props: { name?: string; namespac
               <SectionBox title={t('TLS Validation')}>
                 {item.validation ? (
                   <>
-                    <LabelListItem labels={[`${t('Hostname')}: ${item.validation.hostname}`]} />
-                    <LabelListItem
-                      labels={item.validation.caCertificateRefs.map(ref =>
-                        ref.name ? `${ref.kind} (${ref.name})` : `${ref.kind}`
-                      )}
-                    />
+                    <Box display="block">
+                      <LabelListItem labels={[`${t('Hostname')}: ${item.validation.hostname}`]} />
+                    </Box>
+                    {item.validation.wellKnownCACertificates && (
+                      <Box display="block">
+                        <LabelListItem
+                          labels={[
+                            `${t('translation|Well-Known CA Certificates')}: ${
+                              item.validation.wellKnownCACertificates
+                            }`,
+                          ]}
+                        />
+                      </Box>
+                    )}
+                    {!!item.validation.caCertificateRefs?.length && (
+                      <Box display="block">
+                        <LabelListItem
+                          labels={item.validation.caCertificateRefs.map(ref =>
+                            ref.name ? `${ref.kind} (${ref.name})` : `${ref.kind}`
+                          )}
+                        />
+                      </Box>
+                    )}
                   </>
                 ) : (
                   <EmptyContent>{t('No validation settings')}</EmptyContent>
