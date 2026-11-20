@@ -114,8 +114,8 @@ func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[int
 		return
 	}
 
-	if token == "" && kContext.RequiresUserAuthentication() {
-		logger.Log(logger.LevelWarn, nil, nil, "OIDC portforward requires user credentials")
+	if token == "" && (!allowContextCredentials || kContext.RequiresUserAuthentication()) {
+		logger.Log(logger.LevelWarn, nil, nil, "portforward context requires request credentials")
 		http.Error(w, "authentication required", http.StatusUnauthorized)
 
 		return
@@ -129,13 +129,6 @@ func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[int
 
 			return
 		}
-	}
-
-	if token == "" && !allowContextCredentials {
-		logger.Log(logger.LevelWarn, nil, nil, "cached stateless portforward context requires request credentials")
-		http.Error(w, "authentication required", http.StatusUnauthorized)
-
-		return
 	}
 
 	if !allowFileCA && kContext.Cluster.CertificateAuthority != "" && len(kContext.Cluster.CertificateAuthorityData) == 0 {
