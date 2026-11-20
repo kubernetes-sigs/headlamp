@@ -2547,6 +2547,12 @@ func TestRestrictedEndpointsRequireToken(t *testing.T) {
 			body:   nil,
 		},
 		{
+			name:   "GET /clusters/{name}/serviceproxy/{namespace}/{name} with port",
+			method: http.MethodGet,
+			path:   "/clusters/" + minikubeName + "/serviceproxy/default/test?request=/metrics&port=metrics",
+			body:   nil,
+		},
+		{
 			name:   "POST /clusters/{name}/set-token",
 			method: http.MethodPost,
 			path:   "/clusters/" + minikubeName + "/set-token",
@@ -4777,7 +4783,11 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 	}
 
 	// Backend service the proxy should call
+	var backendHits, metricsHits atomic.Int32
+
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backendHits.Add(1)
+
 		if r.URL.Path == "/healthz" {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte("OK"))
@@ -4789,12 +4799,42 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 	}))
 	t.Cleanup(backend.Close)
 
+	// Second backend on its own port, reachable only when ?port selects it.
+	// It fails the request if the selector leaks into the upstream query.
+	metricsBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metricsHits.Add(1)
+
+		if r.URL.Query().Has("port") {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("port selector leaked upstream"))
+
+			return
+		}
+
+		if r.URL.Path == "/metrics" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("METRICS"))
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(metricsBackend.Close)
+
 	// Extract host:port to feed into the Service external name + port
 	bu, err := url.Parse(backend.URL)
 	require.NoError(t, err)
 	host, portStr, err := net.SplitHostPort(strings.TrimPrefix(bu.Host, "["))
 	require.NoError(t, err)
 	portNum, err := strconv.Atoi(strings.TrimSuffix(portStr, "]"))
+	require.NoError(t, err)
+
+	mu, err := url.Parse(metricsBackend.URL)
+	require.NoError(t, err)
+	_, metricsPortStr, err := net.SplitHostPort(strings.TrimPrefix(mu.Host, "["))
+	require.NoError(t, err)
+	metricsPortNum, err := strconv.Atoi(strings.TrimSuffix(metricsPortStr, "]"))
 	require.NoError(t, err)
 
 	// Fake k8s API that returns a Service pointing to backend
@@ -4812,6 +4852,11 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 							Name: "http",
 							//nolint:gosec // Safe integer conversion from valid network port number
 							Port: int32(portNum),
+						},
+						{
+							Name: "metrics",
+							//nolint:gosec // Safe integer conversion from valid network port number
+							Port: int32(metricsPortNum),
 						},
 					},
 				},
@@ -4857,10 +4902,14 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 		assert.Empty(t, rr.Header().Get("Cache-Control"))
 	}
 
-	// Case 2: ?request present but missing Authorization => 401, headers set
+	// Case 2: ?request and ?port present but missing Authorization => 401,
+	// headers set, and the selector cannot bypass the credential check or
+	// cause any upstream to be contacted first.
 	{
+		backendBefore, metricsBefore := backendHits.Load(), metricsHits.Load()
+
 		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
-			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz", nil)
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz&port=metrics", nil)
 		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
 
 		rr := httptest.NewRecorder()
@@ -4869,6 +4918,8 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 		assert.Equal(t, "no-cache, private, max-age=0", rr.Header().Get("Cache-Control"))
 		assert.Equal(t, "no-cache", rr.Header().Get("Pragma"))
 		assert.Equal(t, "0", rr.Header().Get("X-Accel-Expires"))
+		assert.Equal(t, backendBefore, backendHits.Load(), "no upstream must be contacted without credentials")
+		assert.Equal(t, metricsBefore, metricsHits.Load(), "selected upstream must not be contacted before auth")
 	}
 
 	// Case 3 (Happy path): ?request present and Authorization provided => proxy reaches backend => 200 OK
@@ -4889,6 +4940,70 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 		// Happy path: backend returns OK
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Equal(t, "OK", rr.Body.String())
+	}
+
+	// Case 4: ?port=<name> selects a Service port that is not http/https
+	{
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/metrics&port=metrics", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Bearer test-token")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "METRICS", rr.Body.String())
+		assert.Equal(t, "no-cache, private, max-age=0", rr.Header().Get("Cache-Control"))
+		assert.Equal(t, "sandbox", rr.Header().Get("Content-Security-Policy"))
+	}
+
+	// Case 5: ?port=<number> selects the same port
+	{
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+
+				"?request=/metrics&port="+strconv.Itoa(metricsPortNum), nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Bearer test-token")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "METRICS", rr.Body.String())
+	}
+
+	// Case 6: unknown ?port => 404 with the usual headers, and no upstream is
+	// contacted even though the default port would have served this path.
+	{
+		backendBefore, metricsBefore := backendHits.Load(), metricsHits.Load()
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz&port=missing", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Bearer test-token")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Equal(t, "no-cache, private, max-age=0", rr.Header().Get("Cache-Control"))
+		assert.Equal(t, backendBefore, backendHits.Load(), "default upstream must not be contacted")
+		assert.Equal(t, metricsBefore, metricsHits.Load(), "metrics upstream must not be contacted")
+	}
+
+	// Case 7: ?port alone does not satisfy the required ?request => router 404
+	{
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?port=metrics", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Bearer test-token")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+		assert.Empty(t, rr.Header().Get("Cache-Control"))
 	}
 }
 
