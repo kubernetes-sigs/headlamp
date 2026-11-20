@@ -22,6 +22,9 @@ var ReAddMissingFiles = reAddMissingFiles
 // ParseAPIProxyConfig is exported for testing.
 var ParseAPIProxyConfig = parseAPIProxyConfig
 
+// NewFileWatcher is exported for testing.
+var NewFileWatcher = newFileWatcher
+
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
 	Base      roundTripperInterface

@@ -24,6 +24,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -180,29 +181,65 @@ func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.Gr
 	return filtered
 }
 
-// Corrected CheckForChanges.
-var (
-	watcherRegistry sync.Map
-	contextCancel   sync.Map
-)
+// watcher is the cache invalidation watcher running for a context key.
+type watcher struct {
+	// context is the context the watcher's client was created from.
+	context *kubeconfig.Context
+	cancel  context.CancelFunc
+}
+
+// watcherRegistry maps each context key to its running *watcher.
+var watcherRegistry sync.Map
 
 // CheckForChanges lets 1 go routine to run for a contextKey which prevents
 // running go routines for every requests which can become performance issue if
 // there are many resource and events are going on.
+//
+// A context replaced in the store with another cluster or user configuration,
+// as a kubeconfig reload can do, gets a new watcher: the running one watches
+// with the old configuration, so it may watch another cluster or stop working
+// with the old credentials. The responses cached for the context are dropped
+// with it, as it can no longer invalidate them.
 func CheckForChanges(
 	k8scache cache.Cache[string],
 	contextKey string,
-	kContext kubeconfig.Context,
+	kContext *kubeconfig.Context,
 ) {
-	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
-		return
+	ctx, cancel := context.WithCancel(context.Background())
+	w := &watcher{context: kContext, cancel: cancel}
+
+	for {
+		value, loaded := watcherRegistry.LoadOrStore(contextKey, w)
+		if !loaded {
+			break
+		}
+
+		running, ok := value.(*watcher)
+		if ok && sameClusterConfig(running.context, kContext) {
+			cancel()
+
+			return
+		}
+
+		if watcherRegistry.CompareAndDelete(contextKey, value) {
+			if ok {
+				running.cancel()
+			}
+
+			PurgeCacheForContext(k8scache, contextKey)
+		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	go runWatcher(ctx, k8scache, contextKey, w)
+}
 
-	contextCancel.Store(contextKey, cancel)
-
-	go runWatcher(ctx, k8scache, contextKey, kContext)
+// sameClusterConfig reports whether the contexts connect to the same cluster
+// as the same user, so a watcher created from one also serves the other. A
+// reload replaces contexts whose configuration is unchanged, for example when
+// a credential file they read changes, which client-go picks up by itself.
+func sameClusterConfig(a, b *kubeconfig.Context) bool {
+	return a == b || (a != nil && b != nil &&
+		reflect.DeepEqual(a.Cluster, b.Cluster) && reflect.DeepEqual(a.AuthInfo, b.AuthInfo))
 }
 
 // SyncWatchers stops watchers for contexts that are no longer active and purges
@@ -218,18 +255,16 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 
 	cleaned := make(map[string]struct{})
 
-	contextCancel.Range(func(key, value interface{}) bool {
+	watcherRegistry.Range(func(key, value interface{}) bool {
 		contextKey, ok := key.(string)
 		if !ok {
 			return true
 		}
 
 		if !activeMap[contextKey] {
-			if cancel, ok := value.(context.CancelFunc); ok {
+			if running, ok := value.(*watcher); ok && watcherRegistry.CompareAndDelete(contextKey, value) {
 				logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
-				cancel()
-				watcherRegistry.Delete(contextKey)
-				contextCancel.Delete(contextKey)
+				running.cancel()
 				cleanupRemovedContext(k8scache, contextKey)
 				cleaned[contextKey] = struct{}{}
 			}
@@ -258,12 +293,12 @@ func runWatcher(
 	ctx context.Context,
 	k8scache cache.Cache[string],
 	contextKey string,
-	kContext kubeconfig.Context,
+	w *watcher,
 ) {
-	defer func() {
-		watcherRegistry.Delete(contextKey)
-		contextCancel.Delete(contextKey)
-	}()
+	// Only remove this watcher, not one that replaced it.
+	defer watcherRegistry.CompareAndDelete(contextKey, w)
+
+	kContext := w.context
 
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
 

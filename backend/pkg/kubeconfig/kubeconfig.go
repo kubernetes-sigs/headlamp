@@ -522,6 +522,21 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 	return clientConfig.ClientConfig()
 }
 
+// useOwnTransport gives the proxy of a KubeConfig context a transport of its
+// own when its client certificate and key are files. The watcher sets that
+// proxy up again whenever it reloads the context, but client-go shares one
+// transport, with its open connections, between configs that name the same
+// certificate files, so the reloaded proxy would keep presenting the old
+// certificate. client-go does not share the transport of a config with a
+// Proxy function, and ProxyFromEnvironment is the one it uses by default.
+// The transport still loads the files itself, so a rotation the watcher does
+// not reload, for example when it failed to start, is picked up as before.
+func useOwnTransport(conf *rest.Config) {
+	if conf.CertFile != "" && conf.KeyFile != "" && conf.Proxy == nil {
+		conf.Proxy = http.ProxyFromEnvironment
+	}
+}
+
 // makeTransportFor creates an HTTP transport configuration with special handling for
 // Windows systems to prevent terminal window flashing during exec-based authentication.
 func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
@@ -676,6 +691,19 @@ func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request
 
 // ClientSetWithToken returns a kubernetes clientset for the context.
 func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error) {
+	return c.clientSetWithToken(token, false)
+}
+
+// ClientSetWithOwnTransport is ClientSetWithToken for a clientset kept per
+// context, such as the response cache's authorization clientsets, which are
+// created again for a reloaded context. Like the proxy, see useOwnTransport,
+// the clientset of a KubeConfig context gets a transport of its own, so after
+// a rotation the new one does not present the old client certificate.
+func (c *Context) ClientSetWithOwnTransport(token string) (*kubernetes.Clientset, error) {
+	return c.clientSetWithToken(token, c.Source == KubeConfig)
+}
+
+func (c *Context) clientSetWithToken(token string, ownTransport bool) (*kubernetes.Clientset, error) {
 	restConf, err := c.RESTConfig()
 	if err != nil {
 		return nil, err
@@ -684,6 +712,10 @@ func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error
 	if token != "" {
 		restConf.BearerToken = token
 		restConf.BearerTokenFile = ""
+	}
+
+	if ownTransport {
+		useOwnTransport(restConf)
 	}
 
 	return kubernetes.NewForConfig(restConf)
@@ -737,6 +769,10 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 	restConf, err := c.RESTConfig()
 	if err != nil {
 		return err
+	}
+
+	if c.Source == KubeConfig {
+		useOwnTransport(restConf)
 	}
 
 	roundTripper, err := makeTransportFor(restConf)
