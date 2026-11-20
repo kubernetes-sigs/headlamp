@@ -109,6 +109,47 @@ func TestCacheGetAll(t *testing.T) {
 	assert.Equal(t, 1, len(values))
 }
 
+func TestCacheGetByPrefix(t *testing.T) {
+	ch := cache.NewWithPrefixIndex[string]()
+
+	require.NoError(t, ch.Set(context.Background(), "group+pods+default+context", "first"))
+	require.NoError(t, ch.Set(context.Background(), "group+pods+default+context+label=a", "query"))
+	require.NoError(t, ch.Set(context.Background(), "group+services+default+context", "other"))
+
+	values, err := ch.GetByPrefix(context.Background(), "group+pods+default+")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"group+pods+default+context":         "first",
+		"group+pods+default+context+label=a": "query",
+	}, values)
+
+	values, err = ch.GetByPrefix(context.Background(), "group+pods")
+	require.NoError(t, err)
+	assert.Len(t, values, 2)
+
+	values, err = ch.GetByPrefix(context.Background(), "")
+	require.NoError(t, err)
+	assert.Len(t, values, 3)
+
+	require.NoError(t, ch.Set(context.Background(), "group+pods+default+context", "updated"))
+	require.NoError(t, ch.Delete(context.Background(), "group+pods+default+context+label=a"))
+
+	values, err = ch.GetByPrefix(context.Background(), "group+pods+default+")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"group+pods+default+context": "updated"}, values)
+}
+
+func TestCacheGetByPrefixWithoutIndex(t *testing.T) {
+	ch := cache.New[string]()
+
+	require.NoError(t, ch.Set(context.Background(), "group+pods+default+context", "first"))
+	require.NoError(t, ch.Set(context.Background(), "group+pods+default+context+label=a", "query"))
+
+	values, err := ch.GetByPrefix(context.Background(), "group+pods+default+")
+	require.NoError(t, err)
+	assert.Len(t, values, 2)
+}
+
 func TestCacheClose(t *testing.T) {
 	ch := cache.New[interface{}]()
 	err := ch.Close()

@@ -449,6 +449,10 @@ func (cacheStub) GetAll(ctx context.Context, _ cache.Matcher) (map[string]interf
 	return map[string]interface{}{}, nil
 }
 
+func (cacheStub) GetByPrefix(ctx context.Context, _ string) (map[string]interface{}, error) {
+	return map[string]interface{}{}, nil
+}
+
 func (cacheStub) UpdateTTL(ctx context.Context, k string, ttl time.Duration) error {
 	return nil
 }
