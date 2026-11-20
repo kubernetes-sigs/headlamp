@@ -19,7 +19,11 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
-import { connectStreamWithParams } from './streamingApi';
+import { connectStreamWithParams, stream } from './streamingApi';
+
+vi.mock('../../../cluster', () => ({
+  getCluster: vi.fn(() => ''),
+}));
 
 vi.mock('../../../../stateless/findKubeconfigByClusterName', () => ({
   findKubeconfigByClusterName: vi.fn(),
@@ -145,5 +149,125 @@ describe('connectStreamWithParams protocols', () => {
     listeners.message(new MessageEvent('message', { data: 'binary-data' }));
 
     expect(onMessage).toHaveBeenCalledWith('binary-data');
+  });
+
+  describe('stream reconnect cancellation', () => {
+    // Builds a fake WebSocket that drops the connection as soon as it is
+    // constructed, so stream()'s retry logic kicks in.
+    function stubDroppingWebSocket() {
+      const sockets: { close: ReturnType<typeof vi.fn>; triggerClose: () => void }[] = [];
+      const WebSocketMock = vi.fn(function () {
+        const listeners: Record<string, (() => void)[]> = {};
+        const socketInstance = {
+          binaryType: '',
+          close: vi.fn(),
+          addEventListener: (type: string, listener: (arg?: unknown) => void) => {
+            (listeners[type] = listeners[type] ?? []).push(listener);
+          },
+          removeEventListener: (type: string, listener: (arg?: unknown) => void) => {
+            listeners[type] = (listeners[type] ?? []).filter(it => it !== listener);
+          },
+          triggerClose: () => {
+            (listeners.close ?? []).forEach(listener => listener());
+          },
+        };
+        sockets.push(socketInstance);
+        setTimeout(() => socketInstance.triggerClose(), 0);
+        return socketInstance;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      return { sockets, WebSocketMock };
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('does not open a new socket after cancel() during the retry window', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { WebSocketMock } = stubDroppingWebSocket();
+
+      const connection = stream('/api/v1/pods', vi.fn(), {});
+
+      // Let the initial connection fail.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(1);
+
+      // Cancel while the 3s reconnect is pending...
+      connection.cancel();
+      expect(vi.getTimerCount()).toBe(0);
+
+      // ...and confirm no ghost connection is opened afterwards.
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('reconnects when the stream is not cancelled', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { WebSocketMock } = stubDroppingWebSocket();
+
+      stream('/api/v1/pods', vi.fn(), {});
+
+      // Let the initial connection fail.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+
+      // The retry fires after ~3s when nothing cancels the stream.
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(WebSocketMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('closes the socket if cancel() is called while connect() is resolving', async () => {
+      const socket = {
+        binaryType: '',
+        close: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      };
+      vi.stubGlobal(
+        'WebSocket',
+        vi.fn(function () {
+          return socket;
+        })
+      );
+
+      const connection = stream('/api/v1/pods', vi.fn(), {});
+      // Cancel immediately before connectStream() resolves.
+      connection.cancel();
+
+      await vi.waitFor(() => {
+        expect(socket.close).toHaveBeenCalledTimes(1);
+      });
+      expect(connection.getSocket()).toBeNull();
+    });
+
+    it('does not construct a WebSocket if cancelled while kubeconfig lookup is pending', async () => {
+      let resolveLookup!: (value: unknown) => void;
+      const pendingLookup = new Promise(resolve => {
+        resolveLookup = resolve;
+      });
+      (findKubeconfigByClusterName as Mock).mockReturnValueOnce(pendingLookup);
+
+      const WebSocketMock = vi.fn();
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const connection = stream('/api/v1/pods', vi.fn(), { cluster: 'named-cluster' });
+
+      // Cancel while the named cluster kubeconfig lookup is still pending.
+      connection.cancel();
+
+      // Resolve the lookup and flush microtasks.
+      resolveLookup(null);
+      await pendingLookup;
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(WebSocketMock).not.toHaveBeenCalled();
+      expect(connection.getSocket()).toBeNull();
+    });
   });
 });
