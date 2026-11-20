@@ -32,6 +32,7 @@ import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { useAllowedNamespacesFromSelector } from '../../../lib/k8s/allowedNamespaces';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
+import { getClusterSettingsURL } from '../../../lib/router/clusterSettings';
 import { setConfig } from '../../../redux/configSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import ConfirmButton from '../../common/ConfirmButton';
@@ -129,7 +130,7 @@ export default function SettingsCluster() {
     if (clusterFromUrl && clusters.includes(clusterFromUrl)) {
       setCluster(clusterFromUrl);
     } else if (clusters.length > 0 && !clusterFromUrl) {
-      history.replace(`/settings/cluster?c=${clusters[0]}`);
+      history.replace(getClusterSettingsURL(clusters[0]));
     } else {
       setCluster('');
     }
