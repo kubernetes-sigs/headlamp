@@ -92,10 +92,7 @@ func pingUntilStopped(t *testing.T, m *Multiplexer, conn *Connection, stop <-cha
 func TestPingAndDataWritesDoNotRace(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 
-	clientConn, clientServer := createTestWebSocketConnection()
-	defer clientServer.Close()
-
-	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", nil)
 
 	wsConn, wsServer := createTestWebSocketConnection()
 	defer wsServer.Close()
