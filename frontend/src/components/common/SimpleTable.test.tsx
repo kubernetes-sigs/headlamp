@@ -206,8 +206,32 @@ describe('SimpleTable', () => {
     );
 
     fireEvent.click(await screen.findByRole('button', { name: 'translation|Refresh' }));
-    await waitFor(() => expect(getBodyCellText()).toEqual(['old first']));
+    await waitFor(() => expect(getBodyCellText()).toEqual(['new first']));
     expect(screen.queryByRole('button', { name: 'translation|Refresh' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the sort order when refreshing from a later page', async () => {
+    const initialProps: SimpleTableProps = {
+      columns: [{ label: 'Value', datum: 'value', sort: true }],
+      data: [{ value: 'old b' }, { value: 'old a' }],
+      defaultSortingColumn: 1,
+      page: 1,
+      rowsPerPage: [1],
+      showPagination: true,
+    };
+    const { rerender } = renderTable(initialProps);
+    await waitFor(() => expect(getBodyCellText()).toEqual(['old b']));
+
+    rerender(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <SimpleTable {...initialProps} data={[{ value: 'new b' }, { value: 'new a' }]} />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'translation|Refresh' }));
+    await waitFor(() => expect(getBodyCellText()).toEqual(['new a']));
   });
 
   it('reflects prefixed page state in the URL', () => {
