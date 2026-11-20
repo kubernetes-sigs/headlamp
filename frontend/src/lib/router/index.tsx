@@ -714,10 +714,10 @@ const defaultRoutes: { [routeName: string]: Route } = {
     component: () => <RoleBindingDetails />,
   },
   clusterRoleBindings: {
-    path: '/rolebindings',
+    path: '/clusterrolebindings',
     exact: true,
     sidebar: 'roleBindings',
-    component: () => <RoleBindingDetails />,
+    component: () => <RoleBindingList />,
   },
   secrets: {
     path: '/secrets',
