@@ -15,10 +15,11 @@
  */
 
 import Typography from '@mui/material/Typography';
+import _ from 'lodash';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import VolumeAttributesClass from '../../lib/k8s/volumeAttributesClass';
-import { DetailsGrid } from '../common/Resource';
+import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
 
 export default function VolumeAttributesClassDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
@@ -36,6 +37,11 @@ export default function VolumeAttributesClassDetails(props: { name?: string; clu
           {
             name: t('Driver Name'),
             value: item.driverName ?? item.getValue('driverName') ?? '-',
+          },
+          {
+            name: t('Parameters'),
+            value: <MetadataDictGrid dict={item.parameters} />,
+            hide: _.isEmpty(item.parameters),
           },
         ]
       }
