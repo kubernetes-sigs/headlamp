@@ -38,8 +38,17 @@ CA is not valid PEM, or is combined with the insecure TLS setting, produces no
 connection.
 
 The management identity needs `get`, `list`, and `watch` on Cluster API `clusters`
-and core `secrets` in the selected namespaces. Restrict access to the management
-resources to trusted operators: changes to them change the discovered endpoint.
+and core `secrets` in the selected namespaces. Restrict write access to these
+resources to trusted operators. Someone who can modify a discovered kubeconfig
+Secret can redirect workload requests to an endpoint they control. Headlamp sends
+the signed-in user's OIDC bearer token to that endpoint. The recipient can reuse
+a still-valid token against other clusters that trust the same issuer and client
+ID, subject to the user's permissions in those clusters.
+
+Select namespaces whose discovery resource writers you trust with those tokens,
+for example `--cluster-api-namespaces=workload-team-a`. Avoid
+`--cluster-api-namespaces=*` if namespaces have differently trusted writers,
+because this option includes discovery resource writers in every namespace.
 
 One Cluster creates one connection named `cluster-api-<root-and-cluster-key>--<hash>`,
 with ID `cluster-api/<root>/<namespace>/<cluster-name>`. The name and ID are stable
