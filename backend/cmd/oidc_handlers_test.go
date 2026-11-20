@@ -250,6 +250,11 @@ func withBaseURL(u string) oidcTestOption {
 	return func(c *HeadlampConfig) { c.BaseURL = u }
 }
 
+// withSessionTTL sets the session TTL in seconds, as the --session-ttl flag does.
+func withSessionTTL(seconds int) oidcTestOption {
+	return func(c *HeadlampConfig) { c.SessionTTL = seconds }
+}
+
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
 // kubeconfig context whose IdP issuer points at the supplied mock server.
 // Returns the handler and the cluster name registered.
@@ -761,6 +766,71 @@ func TestOIDCCallback_CachesRefreshToken(t *testing.T) {
 	assert.Equal(t, "refresh-xyz", got)
 }
 
+// ttlRecordingCache records the TTL given to each SetWithTTL call.
+type ttlRecordingCache struct {
+	cache.Cache[interface{}]
+	ttls map[string]time.Duration
+}
+
+func (c *ttlRecordingCache) SetWithTTL(ctx context.Context, key string, v interface{}, ttl time.Duration) error {
+	c.ttls[key] = ttl
+
+	return c.Cache.SetWithTTL(ctx, key, v, ttl)
+}
+
+// TestOIDCCallback_RefreshTokenHasFiniteTTL covers the refresh token written at
+// login. It used to be cached without an expiry, so a session that was dropped
+// before its first refresh left the credential cached indefinitely.
+func TestOIDCCallback_RefreshTokenHasFiniteTTL(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	rec := &ttlRecordingCache{Cache: cache.New[interface{}](), ttls: map[string]time.Duration{}}
+	handler, cluster := newOIDCTestHandler(t, srv, withCache(rec))
+
+	idToken := srv.signToken(t, nil)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-xyz","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+
+	ttl, ok := rec.ttls["oidc-token-"+idToken]
+	require.True(t, ok, "the refresh token must be written with an expiry")
+	assert.Positive(t, ttl, "the refresh token entry needs a finite TTL")
+}
+
+// TestOIDCCallback_RefreshTokenUsesConfiguredSessionTTL checks that the
+// configured session TTL, which is in seconds, becomes the refresh token's
+// cache lifetime. Without the conversion to a duration the entry would expire
+// after a few nanoseconds.
+func TestOIDCCallback_RefreshTokenUsesConfiguredSessionTTL(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	rec := &ttlRecordingCache{Cache: cache.New[interface{}](), ttls: map[string]time.Duration{}}
+	handler, cluster := newOIDCTestHandler(t, srv, withCache(rec), withSessionTTL(3600))
+
+	idToken := srv.signToken(t, nil)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-xyz","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+
+	ttl, ok := rec.ttls["oidc-token-"+idToken]
+	require.True(t, ok, "the refresh token must be written with an expiry")
+	assert.Equal(t, time.Hour, ttl)
+}
+
 // TestOIDCCallback_TokenMissingFromResponse characterizes a token endpoint
 // that succeeds but omits id_token entirely.
 func TestOIDCCallback_TokenMissingFromResponse(t *testing.T) {
@@ -1020,7 +1090,7 @@ type oidcFailingSetCache struct {
 	key string
 }
 
-func (c *oidcFailingSetCache) Set(_ context.Context, key string, _ interface{}) error {
+func (c *oidcFailingSetCache) SetWithTTL(_ context.Context, key string, _ interface{}, _ time.Duration) error {
 	c.key = key
 
 	return c.err
