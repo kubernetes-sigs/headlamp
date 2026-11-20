@@ -42,7 +42,7 @@ function TolerationsSection(props: TolerationsSection) {
     return null;
   }
 
-  const tolerations = resource.spec.template.spec?.tolerations || [];
+  const tolerations = resource.spec?.template?.spec?.tolerations || [];
 
   function getEffectString(effect: string, seconds?: number) {
     if (effect === 'NoExecute' && seconds === undefined) {
@@ -118,15 +118,15 @@ export default function DaemonSetDetails(props: {
         item && [
           {
             name: t('Update Strategy'),
-            value: item?.spec.updateStrategy.type,
+            value: item?.spec?.updateStrategy?.type,
           },
           {
             name: t('Selector'),
-            value: <MetadataDictGrid dict={item.spec.selector.matchLabels || {}} />,
+            value: <MetadataDictGrid dict={item?.spec?.selector?.matchLabels || {}} />,
           },
           {
             name: t('Node Selector'),
-            value: <MetadataDictGrid dict={item.spec.template.spec.nodeSelector || {}} />,
+            value: <MetadataDictGrid dict={item?.spec?.template?.spec?.nodeSelector || {}} />,
           },
         ]
       }
