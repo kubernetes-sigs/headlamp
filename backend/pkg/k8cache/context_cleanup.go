@@ -69,24 +69,12 @@ func PurgeCacheForContext(k8scache cache.Cache[string], contextKey string) {
 
 // collectCachedContextKeys returns Headlamp context keys that still have k8cache,
 // clientset cache, or in-flight clientset creation entries.
-func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} {
+func collectCachedContextKeys(k8scache cache.Cache[string], authCache *ClientsetCache) map[string]struct{} {
 	keys := make(map[string]struct{})
 
-	mu.Lock()
-
-	for cacheKey := range clientsetCache {
-		if prefix := clientsetCachePrefixFromCacheKey(cacheKey); prefix != "" {
-			keys[prefix] = struct{}{}
-		}
+	if authCache != nil {
+		authCache.CollectContextKeys(keys)
 	}
-
-	for cacheKey := range inFlight {
-		if prefix := clientsetCachePrefixFromCacheKey(cacheKey); prefix != "" {
-			keys[prefix] = struct{}{}
-		}
-	}
-
-	mu.Unlock()
 
 	if k8scache == nil {
 		return keys
@@ -118,7 +106,10 @@ func clientsetCachePrefixFromContextKey(contextKey string) string {
 
 // cleanupRemovedContext drops cached API responses and auth clientsets for a
 // context that is no longer active.
-func cleanupRemovedContext(k8scache cache.Cache[string], contextKey string) {
+func cleanupRemovedContext(k8scache cache.Cache[string], authCache *ClientsetCache, contextKey string) {
 	PurgeCacheForContext(k8scache, contextKey)
-	EvictClientsetsForCluster(clientsetCachePrefixFromContextKey(contextKey))
+
+	if authCache != nil {
+		authCache.EvictClientsetsForCluster(clientsetCachePrefixFromContextKey(contextKey))
+	}
 }
