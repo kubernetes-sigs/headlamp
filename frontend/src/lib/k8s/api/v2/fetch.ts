@@ -94,7 +94,7 @@ export async function clusterFetch(url: string | URL, init: RequestInit & { clus
     init.headers.set('X-HEADLAMP-USER-ID', userID);
   }
 
-  const urlParts = init.cluster ? ['clusters', init.cluster, url] : [url];
+  const urlParts = init.cluster ? ['clusters', encodeURIComponent(init.cluster), url] : [url];
 
   try {
     const response = await backendFetch(makeUrl(urlParts), init);
