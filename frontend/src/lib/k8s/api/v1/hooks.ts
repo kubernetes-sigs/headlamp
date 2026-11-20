@@ -74,9 +74,48 @@ export function useSelectedClusters(): string[] {
 /**
  * Hook to manage multiple cancellable API calls tied to the active cluster.
  *
- * @param apiCalls - functions returning cancellable promises for API calls.
+ * Supports the original variadic calls (used by in-tree callers and plugins):
+ *
+ *   useConnectApi(call1, call2) - each argument is a function returning a
+ *   CancellablePromise.
+ *
+ * And the dependency-aware form:
+ *
+ *   useConnectApi([call1, call2], [dependency]) - a list of calls plus
+ *   dependencies that should trigger cleanup and re-run.
+ *
+ * The form is detected from the first argument alone: a function argument is
+ * always an API call, never a dependency list, so legacy variadic callers keep
+ * working unchanged.
+ *
+ * @param apiCallsOrFirstCall - a single API call or a list of API calls
+ *                             (functions returning cancellable promises).
+ * @param apiCallsOrDeps - with the variadic form, further API calls; with the
+ *                         list form, the optional dependency list.
  */
-export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
+export function useConnectApi(...apiCalls: (() => CancellablePromise)[]): void;
+export function useConnectApi(
+  apiCalls: (() => CancellablePromise)[],
+  deps?: React.DependencyList
+): void;
+export function useConnectApi(
+  apiCallsOrFirstCall: (() => CancellablePromise) | (() => CancellablePromise)[],
+  ...apiCallsOrDeps: unknown[]
+): void {
+  let apiCalls: (() => CancellablePromise)[] = [];
+  let deps: React.DependencyList = [];
+
+  if (typeof apiCallsOrFirstCall === 'function') {
+    // Original variadic form: useConnectApi(call1, call2, ...). Every argument
+    // is an API call — in particular, a legacy function argument must never be
+    // interpreted as a dependency list.
+    apiCalls = [apiCallsOrFirstCall, ...(apiCallsOrDeps as (() => CancellablePromise)[])];
+  } else {
+    // Dependency-aware form: useConnectApi(apiCalls, deps?).
+    apiCalls = apiCallsOrFirstCall ?? [];
+    deps = (apiCallsOrDeps[0] as React.DependencyList | undefined) ?? [];
+  }
+
   // Use the location to make sure the API calls are changed, as they may depend on the cluster
   // (defined in the URL ATM).
   const cluster = useCluster();
@@ -91,9 +130,7 @@ export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
         }
       };
     },
-    // If we add the apiCalls to the dependency list, then it actually
-    // results in undesired reloads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cluster]
+    [cluster, ...deps]
   );
 }
