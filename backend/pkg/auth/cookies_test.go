@@ -339,6 +339,39 @@ func TestClusterURLSegmentEncoding(t *testing.T) {
 	}
 }
 
+// The cluster segment is percent-encoded like browsers encode a URL path, and
+// characters browsers send unencoded are kept as is.
+func TestGetCookiePathPercentEncodesCluster(t *testing.T) {
+	for _, tt := range []struct{ baseURL, cluster, wantPath string }{
+		{"", "my cluster", "/clusters/my%20cluster"},
+		{"/headlamp", "café", "/headlamp/clusters/caf%C3%A9"},
+		{"", "prod:eu(1)!", "/clusters/prod:eu(1)!"},
+	} {
+		if got := auth.GetCookiePath(tt.baseURL, tt.cluster); got != tt.wantPath {
+			t.Errorf("GetCookiePath(%q, %q) = %q, want %q", tt.baseURL, tt.cluster, got, tt.wantPath)
+		}
+	}
+}
+
+// Browsers match a cookie's Path against the percent-encoded request path, so
+// the Set-Cookie Path must be encoded the same way for the cookie to come back.
+func TestSetTokenCookiePathIsPercentEncoded(t *testing.T) {
+	for cluster, wantPath := range map[string]string{
+		"my cluster": "/clusters/my%20cluster",
+		"café":       "/clusters/caf%C3%A9",
+	} {
+		req := httptest.NewRequestWithContext(context.Background(), "GET", localhost, nil)
+		req.Host = localhost
+		w := httptest.NewRecorder()
+
+		require.NoError(t, auth.SetTokenCookie(w, req, cluster, "test-token", "", 100))
+
+		for _, header := range w.Result().Header.Values("Set-Cookie") {
+			require.Contains(t, header, "; Path="+wantPath+";", "cluster %q", cluster)
+		}
+	}
+}
+
 func TestSetAndGetAuthCookie(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", localhost, nil)
 	req.Host = localhost
