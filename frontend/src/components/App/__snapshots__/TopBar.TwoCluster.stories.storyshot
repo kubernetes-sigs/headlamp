@@ -63,6 +63,7 @@
           aria-haspopup="true"
           aria-label="Account of current user"
           class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-sizeMedium css-1jcv3fz-MuiButtonBase-root-MuiIconButton-root"
+          data-mui-internal-clone-element="true"
           tabindex="0"
           type="button"
         >

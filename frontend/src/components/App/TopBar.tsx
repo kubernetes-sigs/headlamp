@@ -25,6 +25,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import Toolbar from '@mui/material/Toolbar';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useQueries } from '@tanstack/react-query';
@@ -531,16 +532,18 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.USER,
         action: showUserMenu ? (
-          <IconButton
-            aria-label={t('Account of current user')}
-            aria-controls={userMenuId}
-            aria-haspopup="true"
-            onClick={handleProfileMenuOpen}
-            color="inherit"
-            size="medium"
-          >
-            <Icon icon="mdi:account" />
-          </IconButton>
+          <Tooltip title={t('Profile')}>
+            <IconButton
+              aria-label={t('Account of current user')}
+              aria-controls={userMenuId}
+              aria-haspopup="true"
+              onClick={handleProfileMenuOpen}
+              color="inherit"
+              size="medium"
+            >
+              <Icon icon="mdi:account" />
+            </IconButton>
+          </Tooltip>
         ) : null,
       },
     ];
