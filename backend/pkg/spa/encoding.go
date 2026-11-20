@@ -237,6 +237,11 @@ func tryBrotliSidecar(w http.ResponseWriter, r *http.Request, absDir string) boo
 		return false
 	}
 
+	// Skip a stale sidecar so a rebuilt original is not hidden by older compressed bytes.
+	if origInfo.ModTime().After(info.ModTime()) {
+		return false
+	}
+
 	ctype := detectContentType(rel, func() (io.ReadCloser, error) {
 		return root.Open(rel)
 	})
