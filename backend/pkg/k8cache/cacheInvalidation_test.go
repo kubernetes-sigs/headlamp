@@ -883,3 +883,32 @@ func TestSyncWatchers(t *testing.T) {
 	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
 	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
 }
+
+func TestHandleNonGETCacheInvalidation_TableAcceptReprimesJSON(t *testing.T) {
+	cache := NewMockCache()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/clusters/test/api/v1/secrets", nil)
+	accept := "application/json;as=Table;g=meta.k8s.io;v=v1"
+	r.Header.Set("Accept", accept)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodGet {
+			assert.Equal(t, "application/json", req.Header.Get("Accept"))
+
+			if req.Header.Get("Accept") == accept {
+				_, _ = w.Write([]byte(`{"kind":"Table","rows":[]}`))
+				return
+			}
+
+			_, _ = w.Write([]byte(`{"kind":"SecretList","items":[]}`))
+		}
+	})
+	err := k8cache.HandleNonGETCacheInvalidation(cache, httptest.NewRecorder(), r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+	key, err := k8cache.GenerateKey(r.URL, "ctx")
+	assert.NoError(t, err)
+	value, err := cache.Get(context.Background(), key)
+	assert.NoError(t, err)
+	assert.Contains(t, value, "SecretList")
+	assert.NotContains(t, value, "Table")
+	assert.Equal(t, accept, r.Header.Get("Accept"), "original request headers remain unchanged")
+}

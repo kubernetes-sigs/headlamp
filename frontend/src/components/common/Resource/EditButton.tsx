@@ -281,7 +281,8 @@ export default function EditButton(props: EditButtonProps) {
               },
               err
             );
-            if (status === 401 || status === 403) {
+            const isPartialSecret = item.kind === 'Secret' && 'dataCount' in item.jsonData;
+            if (!isPartialSecret && (status === 401 || status === 403)) {
               enqueueSnackbar(message, { variant: 'warning' });
               editorItem = item;
             } else {

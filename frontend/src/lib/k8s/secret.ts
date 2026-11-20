@@ -19,6 +19,8 @@ import { KubeObject } from './KubeObject';
 
 export interface KubeSecret extends KubeObjectInterface {
   data: Record<string, string>;
+  /** Number of data keys in a compact Table list row, without the Secret values. */
+  dataCount?: number;
   type: string;
 }
 

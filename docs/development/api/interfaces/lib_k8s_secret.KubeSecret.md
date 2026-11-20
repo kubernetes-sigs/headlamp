@@ -36,6 +36,18 @@ ___
 
 ___
 
+### dataCount
+
+• `Optional` **dataCount**: `number`
+
+Number of data keys in a compact Table list row, without the Secret values.
+
+#### Defined in
+
+`frontend/src/lib/k8s/secret.ts:23`
+
+___
+
 ### kind
 
 • **kind**: `string`
