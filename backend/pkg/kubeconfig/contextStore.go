@@ -77,8 +77,9 @@ func (c *contextStore) notifyListeners() {
 	}
 }
 
-// AddContext adds a context to the store.
-func (c *contextStore) AddContext(headlampContext *Context) error {
+// storeName returns the name a context is stored under: its custom name when
+// it has one.
+func storeName(headlampContext *Context) (string, error) {
 	name := headlampContext.Name
 
 	if headlampContext.KubeContext != nil && headlampContext.KubeContext.Extensions["headlamp_info"] != nil {
@@ -86,7 +87,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		// Convert the runtime.Unknown object to a byte slice
 		unknownBytes, err := json.Marshal(info)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		// Now, decode the byte slice into your desired struct
@@ -94,7 +95,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 
 		err = json.Unmarshal(unknownBytes, &customObj)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		// If the custom name is set, use it as the context name
@@ -103,10 +104,20 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		}
 	}
 
+	return name, nil
+}
+
+// AddContext adds a context to the store.
+func (c *contextStore) AddContext(headlampContext *Context) error {
+	name, err := storeName(headlampContext)
+	if err != nil {
+		return err
+	}
+
 	// Keep the stored context identifier consistent with the cache key.
 	headlampContext.Name = name
 
-	err := c.cache.Set(context.Background(), name, headlampContext)
+	err = c.cache.Set(context.Background(), name, headlampContext)
 	if err == nil {
 		c.notifyListeners()
 	}
