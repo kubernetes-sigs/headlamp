@@ -19,7 +19,7 @@ import { render, screen } from '@testing-library/react';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import GRPCRouteDetails from './GRPCRouteDetails';
-import HTTPRouteDetails from './HTTPRouteDetails';
+import HTTPRouteDetails, { RuleMatches } from './HTTPRouteDetails';
 
 const { mockDetailsGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
@@ -103,5 +103,27 @@ describe.each(routeDetails)('%s details', (_, RouteDetails) => {
       'data-active-cluster',
       'fetched-cluster'
     );
+  });
+});
+
+describe('HTTPRouteDetails RuleMatches', () => {
+  it('renders matches safely when path is omitted', () => {
+    expect(() => {
+      render(
+        <TestContext>
+          <ThemeProvider theme={theme}>
+            <RuleMatches
+              matches={[
+                {
+                  path: undefined as any,
+                  headers: [{ type: 'Exact', name: 'version', value: 'v2' }],
+                  method: 'GET',
+                },
+              ]}
+            />
+          </ThemeProvider>
+        </TestContext>
+      );
+    }).not.toThrow();
   });
 });

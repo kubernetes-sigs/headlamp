@@ -92,7 +92,7 @@ export function RuleMatches(props: RuleMatchesProps) {
         },
         {
           label: t('translation|Path'),
-          getter: (data: any) => data.path.value,
+          getter: (data: any) => data.path?.value,
         },
         {
           label: t('translation|Headers'),
