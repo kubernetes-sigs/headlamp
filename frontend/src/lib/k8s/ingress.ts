@@ -105,7 +105,8 @@ class Ingress extends KubeObject<KubeIngress> {
           http: {
             paths: [
               {
-                path: '',
+                path: '/',
+                pathType: 'Prefix',
                 backend: {
                   service: {
                     name: '',
