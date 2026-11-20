@@ -2,6 +2,19 @@
 
 ## Quickstart
 
+Desktop development requires Node.js 22.12 or newer and npm 11 or newer.
+Electron's binary is installed automatically before desktop builds, development
+launches, packaging, and tests. Run `npm run electron:install` to install it
+explicitly after installing dependencies.
+
+For proxied downloads, set `ELECTRON_GET_USE_PROXY=1` and configure `HTTP_PROXY`,
+`HTTPS_PROXY`, and `NO_PROXY` (or their lowercase equivalents). The installer also
+accepts legacy `GLOBAL_AGENT_HTTP_PROXY`, `GLOBAL_AGENT_HTTPS_PROXY`, and
+`GLOBAL_AGENT_NO_PROXY` settings as fallbacks. Explicit standard settings,
+including empty values, take precedence.
+When no standard HTTPS proxy is set, a standard HTTP proxy is left available for
+the downloader's HTTPS fallback instead of injecting a legacy HTTPS setting.
+
 ### Running the app on Ubuntu WSL
 
 Headlamp on WSL requires some packages installed (maybe it requires more) to run the app.
