@@ -235,6 +235,8 @@
   "Scheduling (alpha)": "Programación (alfa)",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "Cuotas de Recurso",
   "Reference Kind": "«Kind» de la referencia",
   "Reference Name": "Nombre de la referencia",

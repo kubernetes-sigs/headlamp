@@ -235,6 +235,8 @@
   "Scheduling (alpha)": "Планирование (альфа)",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "ResourceQuota",
   "Reference Kind": "Вид ссылки",
   "Reference Name": "Справочное имя",

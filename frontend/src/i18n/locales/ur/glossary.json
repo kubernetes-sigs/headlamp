@@ -235,6 +235,8 @@
   "Scheduling (alpha)": "شیڈولنگ (الفا)",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "ریسورس کوٹاز",
   "Reference Kind": "ریفرنس قسم",
   "Reference Name": "ریفرنس نام",
