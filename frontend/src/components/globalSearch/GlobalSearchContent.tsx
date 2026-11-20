@@ -82,6 +82,7 @@ interface SearchResult {
   icon?: JSX.Element;
   subLabel?: string;
   namespace?: string;
+  cluster?: string;
   kind?: string;
   k8sLabels?: string[];
   onClick: () => void;
@@ -156,6 +157,7 @@ function makeKubeObjectResults(
         ),
         kind: item.kind,
         namespace: item.metadata.namespace,
+        cluster: item.cluster,
         subLabel: item.metadata.namespace ? `${item.kind} • ${item.metadata.namespace}` : item.kind,
         onClick: () => onClick(item),
       })) ?? []
@@ -633,7 +635,9 @@ function SearchRow({
   index: number;
 }) {
   const autocomplete = data;
+  const showCluster = useSelectedClusters().length > 1;
   const option = autocomplete.groupedOptions[index] as SearchResult;
+  const hasClusterLabel = showCluster && Boolean(option.cluster);
 
   return (
     <Box
@@ -654,7 +658,13 @@ function SearchRow({
       style={style}
       component="li"
     >
-      <Box width="32px" display="flex" alignItems="center" justifyContent="center">
+      <Box
+        width="32px"
+        flexShrink={hasClusterLabel ? 0 : undefined}
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+      >
         {option?.icon ?? null}
       </Box>
       <Box
@@ -665,9 +675,16 @@ function SearchRow({
         mr="auto"
         overflow="hidden"
       >
-        <Typography variant="caption" sx={{ opacity: 0.8 }}>
+        <Typography
+          variant="caption"
+          noWrap={hasClusterLabel}
+          title={hasClusterLabel ? `${option.subLabel ?? ''} • ${option.cluster}` : undefined}
+          sx={hasClusterLabel ? { opacity: 0.8, display: 'block', minWidth: 0 } : { opacity: 0.8 }}
+        >
           <HighlightText text={option.subLabel} match={option.subLabelMatch} />
+          {hasClusterLabel && ` • ${option.cluster}`}
         </Typography>
+
         <Box sx={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
           <HighlightText text={option.label} match={option.labelMatch} />
         </Box>
