@@ -25,4 +25,4 @@ The code for the plugin settings is in [src/settings.tsx](src/settings.tsx).
 
 See the API documentation for:
 
-- [registerAppLogo](https://headlamp.dev/docs/latest/development/api/classes/plugin_registry.registry/#registerapplogo)
+- [registerAppLogo](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerAppLogo)

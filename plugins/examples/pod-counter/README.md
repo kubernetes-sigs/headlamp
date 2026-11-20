@@ -18,4 +18,4 @@ The main code for the plugin is in [src/index.tsx](src/index.tsx).
 
 See the API documentation for:
 
-- [registerAppBarAction](https://headlamp.dev/docs/latest/development/api/modules/plugin_registry/#registerappbaraction)
+- [registerAppBarAction](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerAppBarAction)

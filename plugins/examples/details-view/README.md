@@ -18,5 +18,5 @@ The main code for the example plugin is in [src/index.tsx](src/index.tsx).
 
 See the API documentation for:
 
-- [registerDetailsViewSection](https://headlamp.dev/docs/latest/development/api/classes/plugin_registry.registry/#registerdetailsviewsection)
-- [registerDetailsViewHeaderAction](https://headlamp.dev/docs/latest/development/api/classes/plugin_registry.registry/#registerdetailsviewheaderaction)
+- [registerDetailsViewSection](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerDetailsViewSection)
+- [registerDetailsViewHeaderAction](https://headlamp.dev/docs/latest/development/api/plugin/registry/functions/registerDetailsViewHeaderAction)
