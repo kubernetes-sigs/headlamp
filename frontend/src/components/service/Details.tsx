@@ -276,7 +276,7 @@ export default function ServiceDetails(props: {
                         getter: endpoint => endpoint?.spec?.addressType ?? '',
                       },
                     ]}
-                    reflectInURL="endpoints"
+                    reflectInURL="endpointslices"
                   />
                 )}
               </SectionBox>
