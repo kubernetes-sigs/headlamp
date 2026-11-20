@@ -1208,6 +1208,7 @@
   "Service: {{namespace}}/{{name}}": "Szolgáltatás: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Elérési út: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Kész",
   "Up to date//context:replicas": "Naprakész",
   "Available//context:replicas": "Elérhető",

@@ -1208,6 +1208,7 @@
   "Service: {{namespace}}/{{name}}": "சர்விஸ்: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "பாத்: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "தயாரானவை",
   "Up to date//context:replicas": "அப்டேட்டானவை",
   "Available//context:replicas": "கிடைப்பவை",

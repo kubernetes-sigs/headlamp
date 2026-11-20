@@ -1232,6 +1232,7 @@
   "Service: {{namespace}}/{{name}}": "Usługa: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Ścieżka: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Gotowe",
   "Up to date//context:replicas": "Aktualny",
   "Available//context:replicas": "Dostępna",

@@ -1256,6 +1256,7 @@
   "Service: {{namespace}}/{{name}}": "الخدمة: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "المسار: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "جاهز",
   "Up to date//context:replicas": "محدّث",
   "Available//context:replicas": "متاح",

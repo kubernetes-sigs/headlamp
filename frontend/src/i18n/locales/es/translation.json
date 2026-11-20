@@ -1220,6 +1220,7 @@
   "Service: {{namespace}}/{{name}}": "Servicio: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Ruta: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Listas",
   "Up to date//context:replicas": "Actualizadas",
   "Available//context:replicas": "Disponibles",

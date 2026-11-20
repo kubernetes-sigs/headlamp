@@ -1196,6 +1196,7 @@
   "Service: {{namespace}}/{{name}}": "服务：{{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "路径：{{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "准备好",
   "Up to date//context:replicas": "最新",
   "Available//context:replicas": "可用",

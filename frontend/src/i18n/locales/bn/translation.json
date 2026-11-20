@@ -1208,6 +1208,7 @@
   "Service: {{namespace}}/{{name}}": "পরিষেবা: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "পথ: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "প্রস্তুত:replicas",
   "Up to date//context:replicas": "Up to date:replicas",
   "Available//context:replicas": "Available:replicas",

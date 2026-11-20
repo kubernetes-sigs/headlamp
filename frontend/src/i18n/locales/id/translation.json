@@ -1196,6 +1196,7 @@
   "Service: {{namespace}}/{{name}}": "Layanan: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Jalur: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Siap",
   "Up to date//context:replicas": "Terbaru",
   "Available//context:replicas": "Tersedia",
