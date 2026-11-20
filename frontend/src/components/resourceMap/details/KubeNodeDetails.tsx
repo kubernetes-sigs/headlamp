@@ -16,6 +16,7 @@
 
 import { Box } from '@mui/system';
 import { lazy, memo, ReactElement, Suspense, useEffect } from 'react';
+import CertificateSigningRequestDetails from '../../certificatesigningrequest/Details';
 // We use React.lazy below to load the workload classes so we don't create circular dependencies.
 import CompositePodGroupDetails from '../../compositePodGroup/Details';
 import ConfigDetails from '../../configmap/Details';
@@ -159,6 +160,7 @@ const kindComponentMap: Record<
   MutatingAdmissionPolicyBinding: MutatingAdmissionPolicyBindingDetails,
   MutatingWebhookConfiguration: MutatingWebhookConfigList,
   ValidatingWebhookConfiguration: ValidatingWebhookConfigurationDetails,
+  CertificateSigningRequest: CertificateSigningRequestDetails,
   IngressClass: IngressClassDetails,
   CustomResourceDefinition: CustomResourceDefinitionDetails,
   crd: CustomResourceDefinitionDetails,

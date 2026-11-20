@@ -41,6 +41,7 @@ export const supportedKinds = [
   'ResourceClaimTemplate',
   'ResourceSlice',
   'ResourceQuota',
+  'CertificateSigningRequest',
   'ClusterRole',
   'Role',
   'RoleBinding',
