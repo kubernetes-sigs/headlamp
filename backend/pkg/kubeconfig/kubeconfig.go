@@ -632,6 +632,16 @@ func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 	return transport.New(cfg)
 }
 
+// InvalidOIDCCAError reports a kubeconfig OIDC CA that is set but is not a PEM certificate.
+type InvalidOIDCCAError struct {
+	// Setting is the auth provider setting that held the value.
+	Setting string
+}
+
+func (e *InvalidOIDCCAError) Error() string {
+	return e.Setting + " does not contain a PEM encoded certificate"
+}
+
 // OidcConfig returns the oidc config for the context.
 func (c *Context) OidcConfig() (*OidcConfig, error) {
 	if c.OidcConf != nil {
@@ -642,7 +652,10 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		return nil, errors.New("authProvider is nil")
 	}
 
-	var caCert *string
+	var (
+		caCert    *string
+		caSetting string
+	)
 
 	// if custom CA is configured in the kubeconfig auth provider use it.
 	// The arg idp-certificate-authority is the path to the CA certificate file.
@@ -656,6 +669,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 
 		caCertFileContentString := string(caFileContents)
 		caCert = &caCertFileContentString
+		caSetting = "idp-certificate-authority"
 	}
 
 	caFileData, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority-data"]
@@ -668,6 +682,18 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 
 		caCertString := string(decodedData)
 		caCert = &caCertString
+		caSetting = "idp-certificate-authority-data"
+	}
+
+	// A blank or whitespace-only value means no custom CA. Anything else must be a PEM
+	// certificate bundle, otherwise every login would only log "failed to append ca cert to
+	// pool" and silently fall back to the system roots.
+	if caCert != nil && strings.TrimSpace(*caCert) == "" {
+		caCert = nil
+	}
+
+	if caCert != nil && !x509.NewCertPool().AppendCertsFromPEM([]byte(*caCert)) {
+		return nil, &InvalidOIDCCAError{Setting: caSetting}
 	}
 
 	apiProxy, err := parseAPIProxyConfig(c.AuthInfo.AuthProvider.Config)
@@ -1104,7 +1130,25 @@ func processContext(
 		}
 	}
 
-	return context, errors.Join(errs...)
+	return context, errors.Join(append(errs, invalidOIDCCAContextError(context))...)
+}
+
+// invalidOIDCCAContextError returns a ContextError when the context's OIDC CA is set but is not
+// a PEM certificate. Such a context would only fail at login, so it is rejected when loaded like
+// other invalid contexts. Other OIDC config errors still show up when the config is used. It
+// returns nil otherwise, which errors.Join drops.
+func invalidOIDCCAContextError(context Context) error {
+	if context.AuthInfo == nil || context.AuthInfo.AuthProvider == nil {
+		return nil
+	}
+
+	var invalidCA *InvalidOIDCCAError
+
+	if _, err := context.OidcConfig(); errors.As(err, &invalidCA) {
+		return ContextError{ContextName: context.Name, Reason: err.Error()}
+	}
+
+	return nil
 }
 
 // resolveKubeconfigPaths makes relative certificate and key paths absolute using

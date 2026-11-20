@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"crypto/x509"
 	"errors"
 	"flag"
@@ -278,6 +279,11 @@ func validateCAFile(path, flagName string) error {
 	caFileContents, err := os.ReadFile(path) //nolint:gosec // path comes from a CLI flag set by the operator
 	if err != nil {
 		return fmt.Errorf("error reading %s: %w", flagName, err)
+	}
+
+	// A blank file means no custom CA, like an unset flag.
+	if len(bytes.TrimSpace(caFileContents)) == 0 {
+		return nil
 	}
 
 	caCertPool := x509.NewCertPool()
