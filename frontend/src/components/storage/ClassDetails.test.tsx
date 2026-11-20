@@ -100,5 +100,45 @@ describe('StorageClassDetails', () => {
     expect(byName['Allow Volume Expansion'].hide).toBe(true);
     expect(byName['Parameters'].hide).toBe(true);
     expect(byName['Mount Options'].hide).toBeTruthy();
+    expect(byName['Allowed Topologies'].hide).toBe(true);
+  });
+
+  it('renders each allowed topology term and expression', () => {
+    const withTopologies = {
+      ...storageClass,
+      allowedTopologies: [
+        {
+          matchLabelExpressions: [
+            { key: 'topology.kubernetes.io/zone', values: ['us-east-1a', 'us-east-1b'] },
+            { key: 'kubernetes.io/arch', values: ['amd64'] },
+          ],
+        },
+        {
+          matchLabelExpressions: [{ key: 'topology.kubernetes.io/zone', values: ['us-west-2a'] }],
+        },
+      ],
+    };
+
+    render(
+      <TestContext routerMap={{ name: 'standard' }}>
+        <StorageClassDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const byName = Object.fromEntries(props.extraInfo(withTopologies).map((f: any) => [f.name, f]));
+    const field = byName['Allowed Topologies'];
+    expect(field.hide).toBe(false);
+
+    const { container } = render(<TestContext>{field.value}</TestContext>);
+    const terms = container.firstElementChild!.children;
+    expect(terms).toHaveLength(2);
+    expect(Array.from(terms[0].children).map(e => e.textContent)).toEqual([
+      'topology.kubernetes.io/zone in (us-east-1a, us-east-1b)',
+      'kubernetes.io/arch in (amd64)',
+    ]);
+    expect(Array.from(terms[1].children).map(e => e.textContent)).toEqual([
+      'topology.kubernetes.io/zone in (us-west-2a)',
+    ]);
   });
 });

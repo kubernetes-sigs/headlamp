@@ -53,6 +53,21 @@ export const BASE_SC_EXPLICIT_NON_EXPANDABLE: KubeStorageClass = {
   allowVolumeExpansion: false,
 };
 
+export const BASE_SC_WITH_ALLOWED_TOPOLOGIES: KubeStorageClass = {
+  ...BASE_SC_EXPLICIT_EXPANDABLE,
+  allowedTopologies: [
+    {
+      matchLabelExpressions: [
+        { key: 'topology.kubernetes.io/zone', values: ['us-east-1a', 'us-east-1b'] },
+        { key: 'kubernetes.io/arch', values: ['amd64'] },
+      ],
+    },
+    {
+      matchLabelExpressions: [{ key: 'topology.kubernetes.io/zone', values: ['us-west-2a'] }],
+    },
+  ],
+};
+
 export const BASE_PVC: KubePersistentVolumeClaim = {
   apiVersion: 'v1',
   kind: 'PersistentVolumeClaim',

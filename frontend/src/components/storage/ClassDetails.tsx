@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -64,6 +66,23 @@ export default function StorageClassDetails(props: { name?: string; cluster?: st
             name: t('Mount Options'),
             value: item.mountOptions?.join(', '),
             hide: !item.mountOptions?.length,
+          },
+          {
+            name: t('translation|Allowed Topologies'),
+            value: (
+              <Box>
+                {item.allowedTopologies?.map((term, index) => (
+                  <Box key={index} mt={index > 0 ? 1 : 0}>
+                    {term.matchLabelExpressions?.map(expression => (
+                      <Typography key={expression.key} variant="body2">
+                        {`${expression.key} in (${expression.values.join(', ')})`}
+                      </Typography>
+                    ))}
+                  </Box>
+                ))}
+              </Box>
+            ),
+            hide: !item.allowedTopologies?.length,
           },
         ]
       }
