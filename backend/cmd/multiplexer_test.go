@@ -515,6 +515,277 @@ func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
 	assert.True(t, conn.closed)
 }
 
+func TestCloseClientConnectionsDoesNotBlockOtherClients(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	stalledClient, stalledServer := createTestWebSocketConnection()
+	defer stalledServer.Close()
+
+	closingClient, closingServer := createTestWebSocketConnection()
+	defer closingServer.Close()
+
+	stalledConn := createTestConnection("test-cluster", "user-a", "/api/v1/pods", "", stalledClient)
+	closingConn := createTestConnection("test-cluster", "user-b", "/api/v1/pods", "", closingClient)
+	m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-a")] = stalledConn
+	m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-b")] = closingConn
+
+	// A write to a client that stopped reading holds its connection's lock.
+	stalledConn.mu.Lock()
+
+	done := make(chan struct{})
+
+	go func() {
+		m.closeClientConnections(closingClient)
+		close(done)
+	}()
+
+	time.Sleep(100 * time.Millisecond) // let closeClientConnections reach the held lock
+
+	locked := m.mutex.TryLock()
+	if locked {
+		m.mutex.Unlock()
+	}
+
+	assert.True(t, locked, "closeClientConnections holds the multiplexer lock")
+
+	stalledConn.mu.Unlock()
+	<-done
+
+	assert.Len(t, m.connections, 1)
+	assert.Same(t, stalledConn, m.connections[m.createConnectionKey("test-cluster", "/api/v1/pods", "user-a")])
+	assert.True(t, closingConn.IsClosed())
+}
+
+func TestCloseClientConnectionsClosesReplacementConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	m.connections[connKey] = conn
+
+	// After the first pass copies the map, a reconnect registers a replacement for the same
+	// client.
+	replacement := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	registered := false
+
+	m.afterClientSnapshot = func() {
+		if registered {
+			return
+		}
+
+		registered = true
+
+		m.mutex.Lock()
+		m.connections[connKey] = replacement
+		m.mutex.Unlock()
+	}
+
+	m.closeClientConnections(clientConn)
+
+	assert.Empty(t, m.connections)
+	assert.True(t, conn.IsClosed())
+	assert.True(t, replacement.IsClosed())
+}
+
+func TestReconnectingClientDoesNotReuseClosingClientConnection(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	oldClient, oldClientServer := createTestWebSocketConnection()
+	defer oldClientServer.Close()
+
+	newClient, newClientServer := createTestWebSocketConnection()
+	defer newClientServer.Close()
+
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+
+	oldConn, err := m.getOrCreateConnection(msg, oldClient, nil)
+	require.NoError(t, err)
+
+	// The client reconnects and requests the same watch while closeClientConnections is
+	// still going through its copy of the registry, for example waiting on another
+	// connection's lock, so the old client's connection is still registered.
+	var (
+		newConn *Connection
+		newErr  error
+	)
+
+	m.afterClientSnapshot = func() {
+		if newConn == nil {
+			newConn, newErr = m.getOrCreateConnection(msg, newClient, nil)
+		}
+	}
+
+	_ = oldClient.Close()
+	m.closeClientConnections(oldClient)
+
+	require.NoError(t, newErr)
+	assert.NotSame(t, oldConn, newConn, "reused the connection of the client that disconnected")
+	assert.True(t, oldConn.IsClosed())
+	assert.False(t, newConn.IsClosed())
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	assert.Same(t, newConn, m.connections[connKey])
+}
+
+func TestReconnectingClientClosesConnectionOfClosedClient(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	oldClient, oldClientServer := createTestWebSocketConnection()
+	defer oldClientServer.Close()
+
+	newClient, newClientServer := createTestWebSocketConnection()
+	defer newClientServer.Close()
+
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+
+	oldConn, err := m.getOrCreateConnection(msg, oldClient, nil)
+	require.NoError(t, err)
+
+	// The old client is closing, but closeClientConnections has not copied the registry
+	// yet, for example while Close waits for a write to the client to time out.
+	oldClient.closed.Store(true)
+
+	newConn, err := m.getOrCreateConnection(msg, newClient, nil)
+	require.NoError(t, err)
+	assert.NotSame(t, oldConn, newConn)
+
+	// The new connection has replaced the old one in the registry, so this no longer
+	// finds the old one.
+	m.closeClientConnections(oldClient)
+
+	assert.True(t, oldConn.IsClosed(), "the closed client's connection was left open")
+	assert.False(t, newConn.IsClosed())
+}
+
+// TestReconnectingClientRemovesConnectionOfClosedClientWhenDialFails verifies that the
+// connection of a closed client is removed from the registry even when the dial for its
+// replacement fails, as closeClientConnections can no longer find it.
+func TestReconnectingClientRemovesConnectionOfClosedClientWhenDialFails(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	oldClient, oldClientServer := createTestWebSocketConnection()
+	defer oldClientServer.Close()
+
+	newClient, newClientServer := createTestWebSocketConnection()
+	defer newClientServer.Close()
+
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+
+	oldConn, err := m.getOrCreateConnection(msg, oldClient, nil)
+	require.NoError(t, err)
+
+	oldClient.closed.Store(true)
+
+	// The replacement dial fails, as the cluster is gone.
+	require.NoError(t, store.RemoveContext("test-cluster"))
+
+	_, err = m.getOrCreateConnection(msg, newClient, nil)
+	require.Error(t, err)
+
+	m.closeClientConnections(oldClient)
+
+	assert.True(t, oldConn.IsClosed())
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	assert.NotContains(t, m.connections, m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID),
+		"the closed client's connection was left in the registry")
+}
+
+// TestReconnectingClientClosesReplacementOfClosedClientConnection verifies that when a
+// heartbeat reconnect replaces a closed client's connection while a reconnecting client
+// is skipping it, the replacement, which belongs to the same closed client, is closed and
+// removed too, rather than overwritten in the registry and left open.
+func TestReconnectingClientClosesReplacementOfClosedClientConnection(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: mockServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	oldClient, oldClientServer := createTestWebSocketConnection()
+	defer oldClientServer.Close()
+
+	newClient, newClientServer := createTestWebSocketConnection()
+	defer newClientServer.Close()
+
+	msg := Message{ClusterID: "test-cluster", Path: "/api/v1/pods", Query: "watch=true", UserID: "test-user"}
+	key := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+
+	oldConn := createTestConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, oldClient)
+	replacement := createTestConnection(msg.ClusterID, msg.UserID, msg.Path, msg.Query, oldClient)
+
+	m.mutex.Lock()
+	m.connections[key] = oldConn
+	m.mutex.Unlock()
+
+	oldClient.closed.Store(true)
+
+	// A heartbeat reconnect replaces oldConn right after the lookup finds it.
+	var replaced bool
+
+	m.afterConnectionLookup = func() {
+		if replaced {
+			return
+		}
+
+		replaced = true
+
+		m.mutex.Lock()
+		m.connections[key] = replacement
+		m.mutex.Unlock()
+	}
+
+	newConn, err := m.getOrCreateConnection(msg, newClient, nil)
+	require.NoError(t, err)
+
+	assert.True(t, replacement.IsClosed(), "the replacement for the closed client was left open")
+
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	assert.Same(t, newConn, m.connections[key])
+}
+
 func createTestConnection(
 	clusterID,
 	userID,
@@ -655,6 +926,68 @@ func TestWSConnLock(t *testing.T) {
 	err := wsConn.ReadJSON(&msg)
 	assert.NoError(t, err)
 	assert.Contains(t, msg, "message-")
+}
+
+func TestWSConnLockWriteTimesOutWhenClientStopsReading(t *testing.T) {
+	originalTimeout := clientWriteTimeout
+	clientWriteTimeout = 100 * time.Millisecond
+
+	t.Cleanup(func() { clientWriteTimeout = originalTimeout })
+
+	// The client never reads, so writes block once the socket buffers are full.
+	release := make(chan struct{})
+	defer close(release)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = ws.Close() }()
+
+		<-release
+	}))
+	defer server.Close()
+
+	conn, resp, err := newTestDialer().Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+	require.NoError(t, err)
+
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	wsConn := NewWSConnLock(conn)
+	payload := strings.Repeat("x", 1<<20)
+	writeErr := make(chan error, 1)
+
+	go func() {
+		for {
+			if err := wsConn.WriteJSON(payload); err != nil {
+				writeErr <- err
+				return
+			}
+		}
+	}()
+
+	select {
+	case err := <-writeErr:
+		var netErr net.Error
+		require.ErrorAs(t, err, &netErr)
+		assert.True(t, netErr.Timeout())
+	case <-time.After(5 * time.Second):
+		t.Fatal("write to a client that stopped reading did not time out")
+	}
+
+	// The connection can't be written to again, so it is closed to make the client reconnect.
+	_, _, err = wsConn.ReadMessage()
+	assert.ErrorIs(t, err, net.ErrClosed)
+	// Marked closed too, so a reconnecting client doesn't reuse watches on the dead socket.
+	assert.True(t, wsConn.closed.Load())
 }
 
 func createMockKubeAPIServer() *httptest.Server {
