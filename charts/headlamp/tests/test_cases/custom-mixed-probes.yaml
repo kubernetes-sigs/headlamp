@@ -1,0 +1,10 @@
+# Customizing one probe must not change the other probe's default behavior.
+probes:
+  scheme: HTTPS
+  livenessProbe:
+    custom:
+      httpGet:
+        path: /healthz
+        port: http
+        scheme: HTTP
+      periodSeconds: 7
