@@ -323,6 +323,7 @@
   "Uncapped Target": "غیر محدود ہدف",
   "Vertical Pod Autoscalers": "عمودی Pod آٹو اسکیلرز",
   "Checking if Vertical Pod Autoscaler is enabled…": "چیک کیا جا رہا ہے کہ VPA فعال ہے یا نہیں…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "VPA فعال نہیں ہے۔ <1>مزید جانیں</1>",
   "Webhooks": "ویب ہُکس",
   "Client Config: Ca Bundle": "کلائنٹ کنفیگ: CA بنڈل",

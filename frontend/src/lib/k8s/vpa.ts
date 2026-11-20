@@ -110,10 +110,14 @@ class VPA extends KubeObject<KubeVPA> {
     return baseObject;
   }
 
-  static async isEnabled(): Promise<boolean> {
+  /**
+   * Whether the VPA API is served.
+   * @param cluster - The cluster to check. Defaults to the current cluster.
+   */
+  static async isEnabled(cluster?: string): Promise<boolean> {
     let res;
     try {
-      res = await request('/apis/autoscaling.k8s.io/v1');
+      res = await request('/apis/autoscaling.k8s.io/v1', cluster ? { cluster } : {});
     } catch (e) {
       return false;
     }

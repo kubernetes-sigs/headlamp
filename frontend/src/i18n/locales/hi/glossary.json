@@ -323,6 +323,7 @@
   "Uncapped Target": "अनकैप्ड टार्गेट",
   "Vertical Pod Autoscalers": "वर्टिकल Pod ऑटोस्केलर्स",
   "Checking if Vertical Pod Autoscaler is enabled…": "जांच रहा है कि वर्टिकल Pod ऑटोस्केलर सक्षम है या नहीं…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "वर्टिकल Pod ऑटोस्केलर सक्षम नहीं है। <1>अधिक जानें</1>",
   "Webhooks": "वेबहुक्स",
   "Client Config: Ca Bundle": "क्लाइंट कॉन्फिग: Ca बंडल",

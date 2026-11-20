@@ -15,12 +15,17 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { useSelectedClusters } from './api/v1/hooks';
-import { isResourceServed, useClustersServing, useIsResourceServed } from './resourceAvailability';
+import {
+  isResourceServed,
+  useClustersServing,
+  useClustersServingStatus,
+  useIsResourceServed,
+} from './resourceAvailability';
 
 const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
 
@@ -159,6 +164,93 @@ describe('useClustersServing', () => {
     );
 
     await waitFor(() => expect(result.current).toEqual([['cluster'], []]));
+  });
+
+  it('lists a serving cluster without waiting for a slower one to answer', async () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['stalled', 'dra']);
+    deviceClasses.isEnabled.mockReset().mockImplementation(cluster =>
+      // The first cluster never answers, as when its API server hangs until the timeout.
+      cluster === 'stalled' ? new Promise(() => {}) : Promise.resolve(true)
+    );
+
+    const { result } = renderHook(() => useClustersServing(deviceClasses), { wrapper });
+
+    await waitFor(() => expect(result.current).toEqual(['dra']));
+  });
+
+  it('probes again when the view is opened, instead of reusing an earlier answer', async () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['cluster']);
+    // The answer stays fresh for a long time, as with the app's shared query client.
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 3 * 60_000 } },
+    });
+    const sharedWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    deviceClasses.isEnabled.mockReset().mockResolvedValue(false);
+
+    const first = renderHook(() => useClustersServing(deviceClasses), { wrapper: sharedWrapper });
+    await waitFor(() => expect(first.result.current).toEqual([]));
+    first.unmount();
+
+    // The API is installed between the two visits.
+    deviceClasses.isEnabled.mockResolvedValue(true);
+    const second = renderHook(() => useClustersServing(deviceClasses), { wrapper: sharedWrapper });
+
+    await waitFor(() => expect(second.result.current).toEqual(['cluster']));
+    expect(deviceClasses.isEnabled).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('useClustersServingStatus', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('reports that it is still checking while a slower cluster has not answered', async () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['stalled', 'dra']);
+    let answerStalled: (served: boolean) => void = () => {};
+    deviceClasses.isEnabled.mockReset().mockImplementation(cluster =>
+      cluster === 'stalled'
+        ? new Promise<boolean>(resolve => {
+            answerStalled = resolve;
+          })
+        : Promise.resolve(true)
+    );
+
+    const { result } = renderHook(() => useClustersServingStatus(deviceClasses), { wrapper });
+
+    await waitFor(() => expect(result.current.clusters).toEqual(['dra']));
+    expect(result.current.isChecking).toBe(true);
+
+    act(() => answerStalled(true));
+
+    await waitFor(() => expect(result.current.isChecking).toBe(false));
+    expect(result.current.clusters).toEqual(['stalled', 'dra']);
+  });
+
+  it('does not trust an earlier negative answer while it is checked again', async () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['cluster']);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 3 * 60_000 } },
+    });
+    const sharedWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    deviceClasses.isEnabled.mockReset().mockResolvedValue(false);
+
+    const first = renderHook(() => useClustersServingStatus(deviceClasses), {
+      wrapper: sharedWrapper,
+    });
+    await waitFor(() => expect(first.result.current.clusters).toEqual([]));
+    first.unmount();
+
+    // The recheck on the next visit has not answered yet.
+    deviceClasses.isEnabled.mockReturnValue(new Promise(() => {}));
+    const second = renderHook(() => useClustersServingStatus(deviceClasses), {
+      wrapper: sharedWrapper,
+    });
+
+    await waitFor(() => expect(second.result.current.isChecking).toBe(true));
+    expect(second.result.current.clusters).toBeUndefined();
   });
 });
 

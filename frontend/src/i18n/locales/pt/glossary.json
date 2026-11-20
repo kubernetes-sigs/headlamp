@@ -323,6 +323,7 @@
   "Uncapped Target": "",
   "Vertical Pod Autoscalers": "",
   "Checking if Vertical Pod Autoscaler is enabled…": "",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "",
   "Webhooks": "",
   "Client Config: Ca Bundle": "",

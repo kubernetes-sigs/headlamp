@@ -323,6 +323,7 @@
   "Uncapped Target": "Nieprzypisany obiekt docelowy",
   "Vertical Pod Autoscalers": "Pionowe autoskalery podów",
   "Checking if Vertical Pod Autoscaler is enabled…": "Trwa sprawdzanie, czy jest włączona funkcja pionowego autoskalera podów...",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Pionowy autoskaler podów nie jest włączony. <1>Dowiedz się więcej</1>",
   "Webhooks": "Elementy webhook",
   "Client Config: Ca Bundle": "Konfiguracja klienta: pakiet urzędu certyfikacji",

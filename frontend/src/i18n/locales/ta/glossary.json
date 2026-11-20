@@ -323,6 +323,7 @@
   "Uncapped Target": "அன்கேப்பட் டார்கெட்",
   "Vertical Pod Autoscalers": "வெர்டிக்கல் பாட் ஆட்டோஸ்கேலர்கள்",
   "Checking if Vertical Pod Autoscaler is enabled…": "வெர்டிக்கல் பாட் ஆட்டோஸ்கேலர் இயக்கப்பட்டிருக்கிறதா என்று சரிபார்க்கிறது...",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "வெர்டிக்கல் பாட் ஆட்டோஸ்கேலர் இயக்கப்படவில்லை. <1>மேலும் அறிக</1>",
   "Webhooks": "வெப்ஹுக்கள்",
   "Client Config: Ca Bundle": "கிளையன்ட் கான்ஃபிக்: சிஏ பண்டில்",

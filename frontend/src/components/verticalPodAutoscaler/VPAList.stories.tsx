@@ -125,8 +125,9 @@ export default {
   component: VpaList,
   decorators: [
     Story => {
+      // The list probes the selected clusters for VPA, so the story needs one selected.
       return (
-        <TestContext>
+        <TestContext routerMap={{ cluster: 'main' }} urlPrefix="/c">
           <Story />
         </TestContext>
       );
@@ -143,15 +144,28 @@ List.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1`, () =>
+        http.get(`${API_BASE}/clusters/main/api/v1/namespaces`, () =>
+          HttpResponse.json({ kind: 'NamespaceList', metadata: {}, items: [] })
+        ),
+        http.post(
+          `${API_BASE}/clusters/main/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
+          () => HttpResponse.json({ status: { allowed: true } })
+        ),
+        http.post(
+          `${API_BASE}/clusters/main/apis/authorization.k8s.io/v1beta1/selfsubjectaccessreviews`,
+          () => HttpResponse.json({ status: { allowed: true } })
+        ),
+        http.get(`${API_BASE}/clusters/main/apis/autoscaling.k8s.io/v1`, () =>
           HttpResponse.json({ resources: [{ name: 'verticalpodautoscalers' }] })
         ),
-        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1/verticalpodautoscalers`, () =>
-          HttpResponse.json({
-            kind: 'VPAList',
-            metadata: {},
-            items,
-          })
+        http.get(
+          `${API_BASE}/clusters/main/apis/autoscaling.k8s.io/v1/verticalpodautoscalers`,
+          () =>
+            HttpResponse.json({
+              kind: 'VPAList',
+              metadata: {},
+              items,
+            })
         ),
       ],
     },

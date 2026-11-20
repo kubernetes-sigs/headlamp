@@ -323,6 +323,7 @@
   "Uncapped Target": "Korlátlan cél",
   "Vertical Pod Autoscalers": "Podok automatikus vertikális skálázói",
   "Checking if Vertical Pod Autoscaler is enabled…": "A podok automatikus vertikális skálázói engedélyezésének ellenőrzése…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "A podok automatikus horizontális skálázója nincs engedélyezve. <1>További információ</1>",
   "Webhooks": "Webhookok",
   "Client Config: Ca Bundle": "Ügyfél-konfiguráció: Ca-csomag",
