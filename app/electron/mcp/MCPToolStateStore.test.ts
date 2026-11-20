@@ -504,4 +504,185 @@ describe('validateToolArgs', () => {
     expect(res.valid).toBe(true);
     expect(res.error).toBeUndefined();
   });
+
+  it('accepts null for a required parameter whose schema allows null', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { selector: null });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('accepts only null for a null-only type union', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: { selector: { type: ['null'] } },
+    };
+
+    expect(validateToolArgs(schema, { selector: null })).toEqual({ valid: true });
+    for (const selector of ['unexpected', 0, false, [], {}]) {
+      const res = validateToolArgs(schema, { selector });
+      expect(res.valid).toBe(false);
+      expect(res.error).toContain("Parameter 'selector' should be a null");
+    }
+  });
+
+  it('accepts a valid string for a required nullable parameter', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { selector: 'my-selector' });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it('rejects an omitted required nullable parameter as missing', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, {});
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Required parameter 'selector' is missing");
+  });
+
+  it('rejects an invalid type for a required nullable parameter', () => {
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { selector: 42 });
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain('should be a string/null');
+  });
+
+  it('rejects null for a required non-nullable string parameter', () => {
+    const schema = {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string' },
+      },
+    };
+    const res = validateToolArgs(schema, { name: null });
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Parameter 'name' should be a string, got null");
+  });
+
+  it('accepts null for an optional nullable parameter', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        filter: { type: ['string', 'null'] },
+      },
+    };
+    const res = validateToolArgs(schema, { filter: null });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
+
+  it.each([
+    ['an unconstrained schema', {}, true],
+    ['a true schema', true, true],
+    ['a false schema', false, false],
+    ['an enum containing null', { enum: ['all', null] }, true],
+    ['an enum excluding null', { enum: ['all'] }, false],
+    ['a null constant', { const: null }, true],
+    ['a non-null constant', { const: 'all' }, false],
+    ['the nullable extension', { type: 'string', nullable: true }, true],
+    ['nullable with an excluding enum', { type: 'string', nullable: true, enum: ['all'] }, false],
+    [
+      'allOf with a non-null branch',
+      { allOf: [{ type: ['string', 'null'] }, { type: 'string' }] },
+      false,
+    ],
+    ['allOf with an unconstrained branch', { allOf: [{}, { type: ['string', 'null'] }] }, true],
+    [
+      'oneOf with two matching branches',
+      { oneOf: [{ type: ['string', 'null'] }, { type: 'null' }] },
+      false,
+    ],
+    ['oneOf with an unconstrained matching branch', { oneOf: [{}, { type: 'string' }] }, true],
+    ['oneOf with two unconstrained branches', { oneOf: [{}, {}] }, false],
+    ['oneOf with no matching branch', { oneOf: [{ type: 'string' }, { type: 'number' }] }, false],
+    ['anyOf with a matching branch', { anyOf: [{ type: 'string' }, { type: 'null' }] }, true],
+    ['anyOf with no matching branch', { anyOf: [{ type: 'string' }, { type: 'number' }] }, false],
+    ['a sibling type excluding null', { type: 'string', anyOf: [{ type: 'null' }] }, false],
+    [
+      'a nullable type with an excluding allOf',
+      { type: ['string', 'null'], allOf: [{ type: 'string' }] },
+      false,
+    ],
+    [
+      'a nullable type with an excluding not',
+      { type: ['string', 'null'], not: { const: null } },
+      false,
+    ],
+    ['an unsupported type', { type: 'unsupported' }, true],
+    ['a conditional schema', { if: {}, then: { type: 'null' }, else: { type: 'string' } }, true],
+    ['an unresolved reference', { $ref: '#/$defs/selector' }, true],
+    [
+      'oneOf with an unresolved reference',
+      { oneOf: [{ $ref: '#/$defs/selector' }, { type: 'null' }] },
+      true,
+    ],
+    [
+      'allOf with a known prohibition and a reference',
+      { allOf: [{ type: 'string' }, { $ref: '#/$defs/selector' }] },
+      false,
+    ],
+  ])('checks null against %s for required and optional parameters', (_name, propSchema, valid) => {
+    for (const required of [[], ['selector']]) {
+      const res = validateToolArgs(
+        { type: 'object', required, properties: { selector: propSchema } },
+        { selector: null }
+      );
+      expect(res.valid).toBe(valid);
+      if (!valid) expect(res.error).toContain('got null');
+    }
+  });
+
+  it.each([
+    [3, true],
+    [0, true],
+    [3.5, false],
+  ])('validates %s against an integer/null union', (count, valid) => {
+    const res = validateToolArgs(
+      { type: 'object', required: ['count'], properties: { count: { type: ['integer', 'null'] } } },
+      { count }
+    );
+    expect(res.valid).toBe(valid);
+    if (!valid) expect(res.error).toContain('should be a integer/null, got number');
+  });
+
+  it('preserves valid false, zero, and empty-string inputs', () => {
+    const schema = {
+      type: 'object',
+      required: ['enabled', 'count', 'label'],
+      properties: {
+        enabled: { type: 'boolean' },
+        count: { type: 'number' },
+        label: { type: 'string' },
+      },
+    };
+    const res = validateToolArgs(schema, { enabled: false, count: 0, label: '' });
+    expect(res.valid).toBe(true);
+    expect(res.error).toBeUndefined();
+  });
 });
