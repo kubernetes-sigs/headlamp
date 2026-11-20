@@ -4967,6 +4967,92 @@ func TestClusterRequestHandler_NonBearerAuthSchemeHandling(t *testing.T) {
 	})
 }
 
+// The service proxy must also forward the token that the refresh middleware put
+// in Authorization, rather than the expired one still in the request cookie.
+func TestServiceProxyForwardsRefreshedOIDCToken(t *testing.T) { //nolint:funlen // real provider/API integration.
+	expiredToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"exp":1}`)) + ".signature"
+
+	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("hello from service"))
+	}))
+	t.Cleanup(service.Close)
+
+	serviceURL, err := url.Parse(service.URL)
+	require.NoError(t, err)
+
+	servicePort, err := strconv.Atoi(serviceURL.Port())
+	require.NoError(t, err)
+
+	var issuer, receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+
+		if receivedAuth != "Bearer renewed-id-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"Unauthorized","code":401}`))
+
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "ns"},
+			Spec: corev1.ServiceSpec{
+				ExternalName: serviceURL.Hostname(),
+				Ports:        []corev1.ServicePort{{Name: "http", Port: int32(servicePort)}}, //nolint:gosec // test port
+			},
+		})
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"issuer": issuer, "token_endpoint": issuer + "/token",
+				"authorization_endpoint": issuer + "/authorize", "jwks_uri": issuer + "/keys",
+			})
+
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "renewed-access-token", "id_token": "renewed-id-token",
+			"token_type": "Bearer", "refresh_token": "new-refresh", "expires_in": 3600,
+		})
+	}))
+	t.Cleanup(provider.Close)
+	issuer = provider.URL
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name: "main", Source: kubeconfig.InCluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+		OidcConf: &kubeconfig.OidcConfig{IdpIssuerURL: issuer, ClientID: "test-client"},
+	})
+	cfg.SessionTTL = 3600
+	require.NoError(t, cfg.Cache.Set(context.Background(), "oidc-token-"+expiredToken, "refresh-user-token"))
+
+	router := mux.NewRouter()
+	handleClusterServiceProxy(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/main/serviceproxy/ns/web?request=/", nil)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-main.0", Value: expiredToken,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	cfg.OIDCTokenRefreshMiddleware(router).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "hello from service", rr.Body.String())
+	assert.Equal(t, "Bearer renewed-id-token", receivedAuth)
+}
+
 func TestAllowedHosts(t *testing.T) {
 	hosts := allowedHosts("localhost", 4466)
 
