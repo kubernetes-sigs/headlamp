@@ -426,7 +426,7 @@ describe('KubeConfigLoader', () => {
     renderLoader();
 
     expect(
-      screen.getByLabelText('Drag & drop or choose kubeconfig file here', { selector: 'input' })
+      screen.getByLabelText('Drag & drop or choose kubeconfig files here', { selector: 'input' })
     ).toHaveAttribute('type', 'file');
   });
 });

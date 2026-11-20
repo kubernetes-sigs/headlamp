@@ -281,7 +281,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
               <FormControl>
                 <input
                   {...getInputProps()}
-                  aria-label={t('translation|Drag & drop or choose kubeconfig file here')}
+                  aria-label={t('translation|Drag & drop or choose kubeconfig files here')}
                 />
                 <Tooltip
                   title={t('translation|Drag & drop or choose kubeconfig files here')}
