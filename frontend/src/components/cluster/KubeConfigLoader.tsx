@@ -529,25 +529,48 @@ function KubeConfigLoader() {
     };
     const failures: string[] = [];
     const duplicates: string[] = [];
-    const seenClusterNames = new Set<string>();
-    const seenUserNames = new Set<string>();
+    const renamed: string[] = [];
+    const mergedClusters = new Map<string, Cluster>();
+    const mergedUsers = new Map<string, User>();
     const seenContextNames = new Set<string>();
 
+    // Adds a file's clusters or users to the merged config. An entry whose name is
+    // already taken by a different entry from an earlier file is renamed when one of
+    // this file's contexts uses it, so the context keeps its own server and credentials
+    // (k3s and kubeadm configs often all use names like "default"). Returns the renames.
     function mergeEntries<T extends { name: string }>(
       entries: T[],
       mergedEntries: T[],
-      seenNames: Set<string>,
+      mergedByName: Map<string, T>,
+      referencedNames: Set<string>,
       fileName: string,
       entryType: string
-    ) {
+    ): Map<string, string> {
+      const renames = new Map<string, string>();
+      const fileNames = new Set(entries.map(entry => entry.name));
       for (const entry of entries) {
-        if (seenNames.has(entry.name)) {
-          duplicates.push(`${fileName}: ${entryType} "${entry.name}"`);
-        } else {
-          seenNames.add(entry.name);
+        const existing = mergedByName.get(entry.name);
+        if (!existing) {
+          mergedByName.set(entry.name, entry);
           mergedEntries.push(entry);
+          continue;
         }
+        const isSameEntry = JSON.stringify(existing) === JSON.stringify(entry);
+        if (isSameEntry || !referencedNames.has(entry.name)) {
+          duplicates.push(`${fileName}: ${entryType} "${entry.name}"`);
+          continue;
+        }
+        let newName = entry.name;
+        for (let suffix = 1; mergedByName.has(newName) || fileNames.has(newName); suffix++) {
+          newName = `${entry.name}-${suffix}`;
+        }
+        const renamedEntry = { ...entry, name: newName };
+        mergedByName.set(newName, renamedEntry);
+        mergedEntries.push(renamedEntry);
+        renames.set(entry.name, newName);
+        renamed.push(`${fileName}: ${entryType} "${entry.name}" → "${newName}"`);
       }
+      return renames;
     }
 
     for (const file of acceptedFiles) {
@@ -564,27 +587,48 @@ function KubeConfigLoader() {
         if (doc.contexts.some(({ context }) => context.user && !userNames.has(context.user))) {
           throw new Error(t('translation|Kubeconfig contexts reference missing users'));
         }
-        mergeEntries(
+        const duplicateContexts: string[] = [];
+        const newContexts = doc.contexts.filter(context => {
+          if (seenContextNames.has(context.name)) {
+            duplicateContexts.push(`${file.name}: ${t('translation|Context')} "${context.name}"`);
+            return false;
+          }
+          seenContextNames.add(context.name);
+          return true;
+        });
+        const clusterRenames = mergeEntries(
           doc.clusters,
           mergedConfig.clusters,
-          seenClusterNames,
+          mergedClusters,
+          new Set(newContexts.map(({ context }) => context.cluster)),
           file.name,
           t('translation|Cluster')
         );
-        mergeEntries(
+        const userRenames = mergeEntries(
           doc.users ?? [],
           mergedConfig.users,
-          seenUserNames,
+          mergedUsers,
+          new Set(newContexts.flatMap(({ context }) => (context.user ? [context.user] : []))),
           file.name,
           t('translation|User')
         );
-        mergeEntries(
-          doc.contexts,
-          mergedConfig.contexts,
-          seenContextNames,
-          file.name,
-          t('translation|Context')
-        );
+        duplicates.push(...duplicateContexts);
+        for (const context of newContexts) {
+          const cluster = clusterRenames.get(context.context.cluster);
+          const user = context.context.user && userRenames.get(context.context.user);
+          mergedConfig.contexts.push(
+            cluster || user
+              ? {
+                  ...context,
+                  context: {
+                    ...context.context,
+                    ...(cluster ? { cluster } : {}),
+                    ...(user ? { user } : {}),
+                  },
+                }
+              : context
+          );
+        }
       } catch (err) {
         console.error('Error loading kubeconfig file:', file.name, err);
         failures.push(
@@ -612,6 +656,14 @@ function KubeConfigLoader() {
       importWarnings.push({
         message: t('translation|Duplicate kubeconfig entries were skipped (first occurrence wins)'),
         details: duplicates,
+      });
+    }
+    if (renamed.length > 0) {
+      importWarnings.push({
+        message: t(
+          'translation|Entries with the same name but different settings were renamed, so each context keeps its own cluster and user'
+        ),
+        details: renamed,
       });
     }
     setWarnings(importWarnings);
