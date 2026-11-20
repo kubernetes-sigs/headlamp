@@ -148,6 +148,130 @@ describe('KubeConfigLoader', () => {
     expect(submittedConfig()).toMatchObject(config('first'));
   });
 
+  it("keeps each file's cluster and user when files reuse their names", async () => {
+    // Like k3s or kubeadm configs: every file names its cluster and user "default".
+    function k3sConfig(context: string, server: string, token: string) {
+      return {
+        clusters: [{ name: 'default', cluster: { server } }],
+        users: [{ name: 'default', user: { token } }],
+        contexts: [{ name: context, context: { cluster: 'default', user: 'default' } }],
+      };
+    }
+    const { input } = renderLoader();
+    await importFiles(input, [
+      file('a.yaml', k3sConfig('cluster-a', 'https://a.example.com', 'token-a')),
+      file('b.yaml', k3sConfig('cluster-b', 'https://b.example.com', 'token-b')),
+    ]);
+    expect(
+      within(screen.getByRole('alert'))
+        .getAllByRole('listitem')
+        .map(item => item.textContent)
+    ).toEqual(['b.yaml: Cluster "default" → "default-1"', 'b.yaml: User "default" → "default-1"']);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'cluster-a' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Clusters successfully set up!');
+    expect(submittedConfig()).toEqual({
+      clusters: [{ name: 'default-1', cluster: { server: 'https://b.example.com' } }],
+      users: [{ name: 'default-1', user: { token: 'token-b' } }],
+      contexts: [{ name: 'cluster-b', context: { cluster: 'default-1', user: 'default-1' } }],
+      currentContext: '',
+    });
+  });
+
+  it('shares identical clusters and users between files', async () => {
+    const shared = config('shared');
+    const { input } = renderLoader();
+    await importFiles(input, [
+      file('first.yaml', shared),
+      file('second.yaml', {
+        ...shared,
+        contexts: [{ name: 'other', context: { cluster: 'shared', user: 'shared' } }],
+      }),
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Clusters successfully set up!');
+    expect(submittedConfig()).toEqual({
+      ...shared,
+      contexts: [
+        ...shared.contexts,
+        { name: 'other', context: { cluster: 'shared', user: 'shared' } },
+      ],
+      currentContext: '',
+    });
+  });
+
+  it('shares clusters and users whose settings only differ in key order', async () => {
+    const { input } = renderLoader();
+    await importFiles(input, [
+      file('first.yaml', {
+        clusters: [
+          {
+            name: 'shared',
+            cluster: { server: 'https://shared.example.com', 'certificate-authority-data': 'ca' },
+          },
+        ],
+        users: [{ name: 'shared', user: { token: 'shared-token', username: 'admin' } }],
+        contexts: [{ name: 'first', context: { cluster: 'shared', user: 'shared' } }],
+      }),
+      file('second.yaml', {
+        clusters: [
+          {
+            cluster: { 'certificate-authority-data': 'ca', server: 'https://shared.example.com' },
+            name: 'shared',
+          },
+        ],
+        users: [{ user: { username: 'admin', token: 'shared-token' }, name: 'shared' }],
+        contexts: [{ name: 'second', context: { user: 'shared', cluster: 'shared' } }],
+      }),
+    ]);
+    expect(
+      within(screen.getByRole('alert'))
+        .getAllByRole('listitem')
+        .map(item => item.textContent)
+    ).toEqual(['second.yaml: Cluster "shared"', 'second.yaml: User "shared"']);
+    expect(screen.getByRole('alert')).not.toHaveTextContent('renamed');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Clusters successfully set up!');
+    expect(submittedConfig()).toMatchObject({
+      clusters: [{ name: 'shared' }],
+      users: [{ name: 'shared' }],
+      contexts: [
+        { name: 'first', context: { cluster: 'shared', user: 'shared' } },
+        { name: 'second', context: { cluster: 'shared', user: 'shared' } },
+      ],
+    });
+  });
+
+  it('keeps the first cluster and user when one file repeats a name', async () => {
+    const { input } = renderLoader();
+    await importFiles(input, [
+      file('one.yaml', {
+        clusters: [
+          { name: 'default', cluster: { server: 'https://first.example.com' } },
+          { name: 'default', cluster: { server: 'https://second.example.com' } },
+        ],
+        users: [
+          { name: 'default', user: { token: 'first-token' } },
+          { name: 'default', user: { token: 'second-token' } },
+        ],
+        contexts: [{ name: 'ctx', context: { cluster: 'default', user: 'default' } }],
+      }),
+    ]);
+    expect(
+      within(screen.getByRole('alert'))
+        .getAllByRole('listitem')
+        .map(item => item.textContent)
+    ).toEqual(['one.yaml: Cluster "default"', 'one.yaml: User "default"']);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Clusters successfully set up!');
+    expect(submittedConfig()).toEqual({
+      clusters: [{ name: 'default', cluster: { server: 'https://first.example.com' } }],
+      users: [{ name: 'default', user: { token: 'first-token' } }],
+      contexts: [{ name: 'ctx', context: { cluster: 'default', user: 'default' } }],
+      currentContext: '',
+    });
+  });
+
   it('loads valid files despite parse failures and clears warnings when proceeding', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { input } = renderLoader();
