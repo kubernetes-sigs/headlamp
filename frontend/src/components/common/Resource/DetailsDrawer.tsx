@@ -24,6 +24,10 @@ import { setSelectedResource } from '../../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
 import { ActionButton } from '..';
+import { DRAWER_WIDTH_BOUNDS_CSS, DrawerResizeHandle, useDrawerResize } from './DrawerResizeHandle';
+
+/** Width the drawer has when the user has not resized it yet, as a fraction of the body width. */
+const DEFAULT_DRAWER_WIDTH_RATIO = 0.6;
 
 export default function DetailsDrawer() {
   const { t } = useTranslation();
@@ -34,6 +38,11 @@ export default function DetailsDrawer() {
   const isDetailDrawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
   const drawerRef = useRef<HTMLDivElement>(null);
+  const resize = useDrawerResize({
+    edge: 'left',
+    defaultWidthRatio: DEFAULT_DRAWER_WIDTH_RATIO,
+    drawerRef,
+  });
 
   const closeDrawer = useCallback(() => {
     dispatch(setSelectedResource(undefined));
@@ -68,10 +77,15 @@ export default function DetailsDrawer() {
       sx={{
         position: 'absolute',
         backgroundColor: 'background.paper',
-        width: '60vw',
+        width: resize.width ?? `${DEFAULT_DRAWER_WIDTH_RATIO * 100}vw`,
+        // Keep restored widths within bounds when the viewport changes after they were saved.
+        ...DRAWER_WIDTH_BOUNDS_CSS,
         right: 0,
         height: '100%',
-        overflowY: 'auto',
+        // The content scrolls in its own container so the resize handle stays in view.
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
         boxShadow: '-5px 0 20px rgba(0,0,0,0.08)',
         borderRadius: '10px 0 0 10px',
         zIndex: 1,
@@ -85,26 +99,29 @@ export default function DetailsDrawer() {
       aria-modal="true"
       data-details-drawer="true"
     >
-      <Box
-        sx={{
-          display: 'flex',
-          padding: '1rem',
-          justifyContent: 'right',
-        }}
-      >
-        <ActionButton onClick={() => closeDrawer()} icon="mdi:close" description={t('Close')} />
-      </Box>
-      <Box id="resource-details-content">
-        {selectedResource && (
-          <KubeObjectDetails
-            resource={{
-              kind: selectedResource.kind,
-              metadata: selectedResource.metadata,
-              cluster: selectedResource.cluster,
-            }}
-            customResourceDefinition={selectedResource.customResourceDefinition}
-          />
-        )}
+      <DrawerResizeHandle edge="left" resize={resize} />
+      <Box data-testid="details-drawer-scroll" sx={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            padding: '1rem',
+            justifyContent: 'right',
+          }}
+        >
+          <ActionButton onClick={() => closeDrawer()} icon="mdi:close" description={t('Close')} />
+        </Box>
+        <Box id="resource-details-content">
+          {selectedResource && (
+            <KubeObjectDetails
+              resource={{
+                kind: selectedResource.kind,
+                metadata: selectedResource.metadata,
+                cluster: selectedResource.cluster,
+              }}
+              customResourceDefinition={selectedResource.customResourceDefinition}
+            />
+          )}
+        </Box>
       </Box>
     </Box>
   );
