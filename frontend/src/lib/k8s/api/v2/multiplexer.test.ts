@@ -313,6 +313,42 @@ describe('WebSocket Multiplexer', () => {
       }
     });
 
+    it('requests a snapshot when a watch event arrived during the unsubscribe debounce', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=1&resourceVersion=1';
+      const stop = await WebSocketManager.subscribe(clusterName, path, query, onMessage, onError, {
+        retryWatch: true,
+      });
+      const request = await receiveAckedWatch(mockServer);
+      mockServer.send(
+        JSON.stringify({
+          ...request,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'connected' }),
+        })
+      );
+      stop();
+      mockServer.send(
+        JSON.stringify({
+          ...request,
+          type: 'DATA',
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { resourceVersion: '2' } },
+          }),
+        })
+      );
+      const remounted = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, remounted, onError, {
+        retryWatch: true,
+      });
+      expect(onMessage).not.toHaveBeenCalled();
+      expect(remounted).toHaveBeenCalledExactlyOnceWith({
+        type: 'ERROR',
+        object: expect.objectContaining({ code: 410 }),
+      });
+    });
+
     it('queues a new same-key generation after CLOSE until the canceled request ACK arrives', async () => {
       const path = '/api/v1/pods';
       const query = 'watch=1';
@@ -442,7 +478,9 @@ describe('WebSocket Multiplexer', () => {
         );
         await vi.advanceTimersByTimeAsync(20);
         await subscription;
-        const original = WebSocketManager.socketMultiplexer;
+        const original = WebSocketManager.socketMultiplexer!;
+        // Recovery must start even if the browser never reports the close.
+        original.onclose = null;
         await vi.advanceTimersByTimeAsync(60_000);
         await vi.advanceTimersByTimeAsync(20);
         expect(onError).toHaveBeenCalledWith(

@@ -62,6 +62,7 @@ export const WebSocketManager = {
       generation: number;
       resourceVersion?: string;
       needsSnapshot?: boolean;
+      missedUpdate?: boolean;
     }
   >(),
 
@@ -191,23 +192,8 @@ export const WebSocketManager = {
         subscription.resourceVersion &&
         subscription.resourceVersion !== new URLSearchParams(query).get('resourceVersion')
       ) {
-        subscription.needsSnapshot = true;
-        // A new backend session has no resume cursor. Reconcile before it can
-        // replay the pinned opening query into an already updated cache.
-        this.handleWebSocketMessage(
-          new MessageEvent('message', {
-            data: JSON.stringify({
-              clusterId,
-              path,
-              query,
-              type: 'DATA',
-              data: JSON.stringify({
-                type: 'ERROR',
-                object: { kind: 'Status', apiVersion: 'v1', metadata: {}, code: 410 },
-              }),
-            }),
-          })
-        );
+        // The new backend session cannot resume its previous cursor.
+        this.requestWatchSnapshot(key, subscription);
         return;
       }
       const requestMsg: WebSocketMessage = {
@@ -219,6 +205,30 @@ export const WebSocketManager = {
       };
       this.sendSubscriptionRequest(key, socket, requestMsg);
     });
+  },
+
+  requestWatchSnapshot(
+    key: string,
+    subscription: { clusterId: string; path: string; query: string; needsSnapshot?: boolean }
+  ): void {
+    subscription.needsSnapshot = true;
+    this.connectedRoutes.delete(key);
+    const { clusterId, path, query } = subscription;
+    this.handleWebSocketMessage(
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          clusterId,
+          path,
+          query,
+          type: 'DATA',
+          data: JSON.stringify({
+            type: 'ERROR',
+            object: { kind: 'Status', apiVersion: 'v1', metadata: {}, code: 410 },
+          }),
+        }),
+      }),
+      true
+    );
   },
 
   /**
@@ -246,6 +256,7 @@ export const WebSocketManager = {
       query,
       userId: getUserIdFromLocalStorage() || '',
       generation: ++this.subscriptionSequence,
+      missedUpdate: false,
     };
     const pendingUnsubscribe = this.pendingUnsubscribes.get(key);
     if (pendingUnsubscribe) {
@@ -270,6 +281,12 @@ export const WebSocketManager = {
       const errListeners = this.errorListeners.get(key) || new Set();
       errListeners.add(onError);
       this.errorListeners.set(key, errListeners);
+    }
+
+    if (subscription.missedUpdate && this.retryableWatches.has(key)) {
+      subscription.missedUpdate = false;
+      this.requestWatchSnapshot(key, subscription);
+      return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
     }
 
     // Establish connection and send REQUEST
@@ -382,7 +399,7 @@ export const WebSocketManager = {
    * Handles WebSocket connection close event
    * Sets up state for potential reconnection
    */
-  handleWebSocketClose(event?: CloseEvent): void {
+  handleWebSocketClose(event?: CloseEvent, ackTimedOut = false): void {
     this.connectionGeneration++;
     this.socketMultiplexer = null;
     this.connecting = false;
@@ -397,9 +414,9 @@ export const WebSocketManager = {
 
     // Only log reconnecting if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
-    if (event?.code === 1013 || event?.code === WATCH_ACK_TIMEOUT_CLOSE_CODE) {
+    if (ackTimedOut || event?.code === 1013 || event?.code === WATCH_ACK_TIMEOUT_CLOSE_CODE) {
       const error = new Error(
-        event.code === WATCH_ACK_TIMEOUT_CLOSE_CODE
+        ackTimedOut || event?.code === WATCH_ACK_TIMEOUT_CLOSE_CODE
           ? 'Multiplexer acknowledgement timed out; watch recovery is required'
           : 'Multiplexer overloaded; watch recovery is required'
       );
@@ -429,7 +446,7 @@ export const WebSocketManager = {
    * Processes different message types and notifies appropriate listeners
    * @param event - WebSocket message event
    */
-  handleWebSocketMessage(event: MessageEvent): void {
+  handleWebSocketMessage(event: MessageEvent, snapshotRequested = false): void {
     try {
       const data = JSON.parse(event.data);
       if (data.type === 'ACK') {
@@ -553,6 +570,11 @@ export const WebSocketManager = {
       // Notify listeners if update is valid
       if (update && typeof update === 'object') {
         const listeners = this.listeners.get(key);
+        const subscription = this.activeSubscriptions.get(key);
+        if (subscription?.needsSnapshot && !snapshotRequested) return;
+        if (!listeners && subscription && this.pendingUnsubscribes.has(key)) {
+          subscription.missedUpdate = true;
+        }
         if (listeners) {
           let delivered = false;
           for (const listener of listeners) {
@@ -565,7 +587,6 @@ export const WebSocketManager = {
           }
           const resourceVersion =
             update.object?.metadata?.resourceVersion ?? update.metadata?.resourceVersion;
-          const subscription = this.activeSubscriptions.get(key);
           if (
             delivered &&
             subscription &&
@@ -673,6 +694,7 @@ export const WebSocketManager = {
         );
         console.error(error.message);
         this.notifyCloseErrors(this.retryableWatches, error);
+        this.handleWebSocketClose(undefined, true);
         socket.close(WATCH_ACK_TIMEOUT_CLOSE_CODE, 'processing confirmation timed out');
       }, WATCH_REQUEST_TIMEOUT);
       socket.send(JSON.stringify(pacedRequest));

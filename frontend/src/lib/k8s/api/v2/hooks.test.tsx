@@ -432,11 +432,37 @@ describe('useKubeObject watch wiring', () => {
         })
       );
       expect(result.current.data?.jsonData.metadata.resourceVersion).toBe('1');
+      await act(async () => {
+        await client.refetchQueries({ queryKey: ['object'] });
+      });
+      expect(watch().url).toContain('resourceVersion=20');
+      if (enabled === 'false') {
+        act(() =>
+          watch().onMessage({
+            type: 'MODIFIED',
+            object: { ...pod, metadata: { ...pod.metadata, resourceVersion: '21' } },
+          })
+        );
+        await waitFor(() =>
+          expect(result.current.data?.jsonData.metadata.resourceVersion).toBe('21')
+        );
+        expect(watch().url).toContain('resourceVersion=20');
+        expect(watch().reconnectUrl()).toContain('resourceVersion=21');
+      }
       act(() => watch().onMessage({ type: 'DELETED', object: pod }));
       await waitFor(() => expect(result.current.error?.status).toBe(404));
       expect(watch().enabled).toBe(true);
       act(() => watch().onMessage({ type: 'ADDED', object: pod }));
       await waitFor(() => expect(result.current.error).toBeNull());
+      mockClusterFetch.mockRejectedValue(new ApiError('Forbidden', { status: 403 }));
+      const previousWatch = watch();
+      await act(async () => {
+        await client.refetchQueries({ queryKey: ['object'] });
+      });
+      await waitFor(() => expect(watch().enabled).toBe(false));
+      act(() => previousWatch.onMessage({ type: 'MODIFIED', object: pod }));
+      expect(result.current.error?.status).toBe(403);
+      expect(result.current.data).toBeNull();
       unmount();
       await client.cancelQueries();
       client.clear();

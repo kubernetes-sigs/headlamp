@@ -438,6 +438,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       return;
     }
 
+    let disposed = false;
     const cleanups: (() => void)[] = [];
 
     // Create subscriptions for each connection
@@ -453,7 +454,10 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error),
         { retryWatch: true }
       ).then(
-        cleanup => cleanups.push(cleanup),
+        cleanup => {
+          if (disposed) cleanup();
+          else cleanups.push(cleanup);
+        },
         error => {
           // Track retry count in the URL's searchParams
           const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
@@ -468,9 +472,39 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
+      disposed = true;
       cleanups.forEach(cleanup => cleanup());
+      // Other observers still need the shared opening cursor. Once the last
+      // observer detaches, a cached remount can begin at the last applied event.
+      queueMicrotask(() => {
+        const cache = client.getQueryCache();
+        for (const { cluster, namespace } of connections) {
+          const { queryKey } = kubeObjectListQuery(
+            kubeObjectClass,
+            endpoint,
+            namespace,
+            cluster,
+            stableQueryParams ?? {}
+          );
+          const cached = cache.find({ queryKey });
+          if (!cached || cached.getObserversCount() > 0) continue;
+          client.setQueryData<ListResponse<K>>(
+            queryKey,
+            previous => {
+              if (
+                !previous ||
+                previous.watchResourceVersion === previous.list.metadata.resourceVersion
+              ) {
+                return previous;
+              }
+              return { ...previous, watchResourceVersion: previous.list.metadata.resourceVersion };
+            },
+            { updatedAt: cached.state.dataUpdatedAt }
+          );
+        }
+      });
     };
-  }, [connections, enabled, endpoint, handleUpdate]);
+  }, [client, connections, enabled, endpoint, handleUpdate, kubeObjectClass, stableQueryParams]);
 }
 
 /**

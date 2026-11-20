@@ -1088,7 +1088,16 @@ describe('useKubeObjectList', () => {
     act(() => mockSubscribe.mock.calls[0][3]({ type: 'ERROR', object: { code: 410 } }));
     await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(2));
     expect(mockSubscribe.mock.calls[1][2]).toContain('resourceVersion=10');
-    unmount();
+    act(() => mockSubscribe.mock.calls[1][3]({ type: 'MODIFIED', object: makePod('pod-1', '11') }));
+    await act(async () => unmount());
+    const remount = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: Pod, requests: [{ cluster: 'default' }] }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    await waitFor(() =>
+      expect(mockSubscribe.mock.calls.at(-1)?.[2]).toContain('resourceVersion=11')
+    );
+    remount.unmount();
     await client.cancelQueries();
     client.clear();
     vi.unstubAllEnvs();

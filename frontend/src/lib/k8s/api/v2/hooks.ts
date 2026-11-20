@@ -104,6 +104,7 @@ export const kubeObjectQueryKey = ({
 
 interface ObjectWatchState {
   resourceVersion: string | null;
+  latestLegacyResourceVersion?: string;
   generation: number;
   expired: boolean;
   missing: boolean;
@@ -226,7 +227,17 @@ export function useKubeObject<K extends KubeObject>({
         signal,
       }).then(it => it.json());
       signal.throwIfAborted();
-      setWatchSnapshot(obj.metadata?.resourceVersion);
+      const currentWatch = client.getQueryData<ObjectWatchState>(watchQueryKey);
+      const cached = client.getQueryData<Instance | null>(queryKey);
+      if (
+        !currentWatch ||
+        currentWatch.resourceVersion === null ||
+        currentWatch.missing ||
+        !cached ||
+        cached.jsonData.metadata.resourceVersion !== obj.metadata?.resourceVersion
+      ) {
+        setWatchSnapshot(obj.metadata?.resourceVersion);
+      }
       return new kubeObjectClass(obj, cluster) as Instance;
     },
   });
@@ -273,14 +284,18 @@ export function useKubeObject<K extends KubeObject>({
     watchState.resourceVersion,
     setWatchSnapshot,
   ]);
-  const watchReady = watchState.resourceVersion !== null && !watchState.expired;
+  const watchReady = watchState.resourceVersion !== null && !watchState.expired && !query.error;
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
   const watchResourceVersion = watchState.resourceVersion ?? '';
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
       const currentWatch = client.getQueryData<ObjectWatchState>(watchQueryKey);
-      if (currentWatch?.expired || currentWatch?.generation !== watchState.generation) {
+      if (
+        currentWatch?.expired ||
+        currentWatch?.generation !== watchState.generation ||
+        client.getQueryState(queryKey)?.status === 'error'
+      ) {
         return;
       }
       if (update.type === 'ERROR') {
@@ -296,9 +311,9 @@ export function useKubeObject<K extends KubeObject>({
         client.setQueryData<ObjectWatchState>(watchQueryKey, {
           ...currentWatch,
           missing: true,
-          resourceVersion: multiplexerEnabled
-            ? currentWatch.resourceVersion
-            : update.object.metadata.resourceVersion ?? currentWatch.resourceVersion,
+          latestLegacyResourceVersion: multiplexerEnabled
+            ? undefined
+            : update.object.metadata.resourceVersion ?? currentWatch.latestLegacyResourceVersion,
         });
       } else if (update.object) {
         // Rebuild with the cluster this hook was asked for, the same as the
@@ -311,9 +326,9 @@ export function useKubeObject<K extends KubeObject>({
           client.setQueryData<ObjectWatchState>(watchQueryKey, {
             ...currentWatch,
             missing: false,
-            resourceVersion: multiplexerEnabled
-              ? currentWatch.resourceVersion
-              : update.object.metadata.resourceVersion ?? currentWatch.resourceVersion,
+            latestLegacyResourceVersion: multiplexerEnabled
+              ? undefined
+              : update.object.metadata.resourceVersion ?? currentWatch.latestLegacyResourceVersion,
           });
         }
       }
@@ -332,14 +347,22 @@ export function useKubeObject<K extends KubeObject>({
   const connectionsRequests = useMemo(() => {
     if (!endpoint) return [];
 
+    const makeWatchUrl = (resourceVersion: string) =>
+      makeUrl([KubeObjectEndpoint.toUrl(endpoint, namespace)], {
+        ...cleanedUpQueryParams,
+        watch: 1,
+        resourceVersion,
+        fieldSelector: `metadata.name=${name}`,
+      });
+
     return [
       {
-        url: makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
-          ...cleanedUpQueryParams,
-          watch: 1,
-          resourceVersion: watchResourceVersion,
-          fieldSelector: `metadata.name=${name}`,
-        }),
+        url: makeWatchUrl(watchResourceVersion),
+        reconnectUrl: () =>
+          makeWatchUrl(
+            client.getQueryData<ObjectWatchState>(watchQueryKey)?.latestLegacyResourceVersion ??
+              watchResourceVersion
+          ),
         cluster,
         onMessage: handleMessage,
       },
@@ -352,6 +375,8 @@ export function useKubeObject<K extends KubeObject>({
     cluster,
     handleMessage,
     watchResourceVersion,
+    client,
+    watchQueryKey,
   ]);
 
   useWebSocket<KubeListUpdateEvent<K>>({
