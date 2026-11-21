@@ -452,6 +452,35 @@ describe('PortForward stop handler', () => {
     }
   });
 
+  it('clears a pending start when the retained pod loses its connection', async () => {
+    const previous = appStore.getState().config.clusters;
+    const original = selectPortForwardConnection('original');
+    const forward = {
+      ...runningPortForward,
+      cluster: original.cluster,
+      connectionRevision: 'original',
+    };
+    const pendingStart = Promise.withResolvers<typeof forward>();
+    mockListPortForward.mockResolvedValue([]);
+    mockStartPortForward.mockReturnValueOnce(pendingStart.promise);
+    const { unmount } = render(renderResource(original));
+    try {
+      fireEvent.click(await screen.findByLabelText(/start port forward/i));
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+      expect(await screen.findByRole('progressbar')).toBeInTheDocument();
+
+      await act(async () => {
+        selectPortForwardConnection('replacement');
+      });
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      await act(async () => pendingStart.resolve(forward));
+      expect(screen.queryByRole('link', { name: 'http://127.0.0.1:8080' })).not.toBeInTheDocument();
+    } finally {
+      unmount();
+      appStore.dispatch(setConfig({ clusters: previous }));
+    }
+  });
+
   it('uses a named port from the supplied pod even when it cannot list pods', async () => {
     const pod = makePod();
     pod.spec.containers = [

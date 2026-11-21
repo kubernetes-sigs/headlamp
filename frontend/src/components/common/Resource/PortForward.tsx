@@ -224,7 +224,11 @@ function PortForwardContent(props: PortForwardProps) {
     !(isPod && (!resource || (resource as Pod).status.phase === 'Failed'));
 
   React.useEffect(() => {
-    if (!cluster || !shouldRender || !currentResource) {
+    if (!currentResource) {
+      setLoading(false);
+      return;
+    }
+    if (!cluster || !shouldRender) {
       return;
     }
     let cancelled = false;
