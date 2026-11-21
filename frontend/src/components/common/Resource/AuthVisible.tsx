@@ -84,7 +84,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
   const revisions = useDiscoveredConnectionRevisions();
   const revision = cluster ? revisions.get(cluster) : undefined;
   const origin = item && getResourceDiscoveryConnection(item);
-  const currentConnection = !origin || origin.cluster !== cluster || origin.revision === revision;
+  const currentConnection = !origin || (origin.cluster === cluster && origin.revision === revision);
 
   const { data: authorization, error } = useQuery<any, Error>({
     enabled: !!item && isAuthVerbValid && currentConnection,

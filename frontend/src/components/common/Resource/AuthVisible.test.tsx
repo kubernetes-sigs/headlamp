@@ -247,7 +247,7 @@ describe('AuthVisible', () => {
       getAuthorization: vi
         .fn()
         .mockResolvedValueOnce({ status: { allowed: true } })
-        .mockResolvedValueOnce({ status: { allowed: false } }),
+        .mockResolvedValueOnce({ status: { allowed: false, reason: 'Denied on replacement' } }),
     };
     const retained = {
       _class: () => subject,
@@ -258,9 +258,15 @@ describe('AuthVisible', () => {
     select('original');
     recordDiscoveryConnection(retained, cluster, getDiscoveredConnectionRevision(cluster));
     const onAuthResult = vi.fn();
+    const onCreateResult = vi.fn();
     const result = render(
       <QueryClientProvider client={queryClient}>
-        <AuthVisible item={subject as any} authVerb="create" cluster={cluster}>
+        <AuthVisible
+          item={subject as any}
+          authVerb="create"
+          cluster={cluster}
+          onAuthResult={onCreateResult}
+        >
           <div>Create pod</div>
         </AuthVisible>
         <AuthVisible item={retained as any} authVerb="delete" onAuthResult={onAuthResult}>
@@ -274,7 +280,13 @@ describe('AuthVisible', () => {
       act(() => {
         select('replacement');
       });
-      await waitFor(() => expect(subject.getAuthorization).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(onCreateResult).toHaveBeenLastCalledWith({
+          allowed: false,
+          reason: 'Denied on replacement',
+        })
+      );
+      expect(subject.getAuthorization).toHaveBeenCalledTimes(2);
       expect(screen.queryByText('Create pod')).not.toBeInTheDocument();
       expect(screen.queryByText('Delete retained pod')).not.toBeInTheDocument();
       expect(retained.getAuthorization).toHaveBeenCalledOnce();
@@ -306,6 +318,28 @@ describe('AuthVisible', () => {
       { subresource: undefined, namespace: undefined },
       'dra'
     );
+  });
+
+  it('requires the cluster that supplied a discovered resource', async () => {
+    const item = {
+      _class: () => ({ apiName: 'pods', apiVersion: 'v1' }),
+      cluster: 'original',
+      getName: () => 'retained-pod',
+      getAuthorization: vi.fn().mockResolvedValue({ status: { allowed: true } }),
+    };
+    recordDiscoveryConnection(item, 'original', 'original:1');
+
+    await act(async () => {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <AuthVisible item={item as any} authVerb="delete" cluster="other">
+            <div>Delete retained pod</div>
+          </AuthVisible>
+        </QueryClientProvider>
+      );
+    });
+    expect(item.getAuthorization).not.toHaveBeenCalled();
+    expect(screen.queryByText('Delete retained pod')).not.toBeInTheDocument();
   });
 
   it('warns and returns null if authVerb is invalid', () => {
