@@ -120,12 +120,15 @@ type GeneratedKubeconfig struct {
 	Name string
 	// ClusterID is the stable public ID of the connection.
 	ClusterID string
-	// Config holds exactly one context and its cluster. Credentials in it are ignored.
+	// Config holds exactly one context and its cluster. Kubernetes user credentials are ignored.
 	Config *api.Config
 	// Metadata is credential-free JSON, returned to clients under each of its keys.
 	Metadata map[string]json.RawMessage
 	// Presentation optionally sets the display name and adds public fields.
 	Presentation *kubeconfig.ConnectionPresentation
+	// ProxyConfigVersion is the credential-free version of the object supplying an authenticated proxy,
+	// when it differs from the owner. Otherwise the owner's resourceVersion is used.
+	ProxyConfigVersion string
 }
 
 // Registry contains the sources linked into this Headlamp binary.
@@ -157,7 +160,7 @@ func (r *Registry) Register(source Source) error {
 // Sources returns a copy of the registered sources in registration order.
 func (r *Registry) Sources() []Source { return append([]Source(nil), r.sources...) }
 
-// ConfigForCluster builds a credential-free kubeconfig for a source connection.
+// ConfigForCluster builds a kubeconfig without Kubernetes user credentials.
 func ConfigForCluster(name string, cluster *api.Cluster, namespace string) *api.Config {
 	return &api.Config{
 		Clusters:       map[string]*api.Cluster{name: cluster},
@@ -197,9 +200,9 @@ func ConnectionCluster(cluster *api.Cluster) (*api.Cluster, error) {
 	}, nil
 }
 
-// discoveredConnectionRevision fingerprints the public routing settings of a
-// connection. Replicas observing the same resource produce the same revision.
-func discoveredConnectionRevision(connection *kubeconfig.Context) string {
+// discoveredConnectionRevision fingerprints routing settings without credentials.
+// Replicas observing the same resource produce the same revision.
+func discoveredConnectionRevision(connection *kubeconfig.Context, proxyConfigVersion string) string {
 	fingerprint := sha256.New()
 	cluster := connection.Cluster
 	writeHashString(fingerprint, connection.Discovery.ResourceUID)
@@ -213,6 +216,11 @@ func discoveredConnectionRevision(connection *kubeconfig.Context) string {
 	if err == nil {
 		writeHashString(fingerprint, proxy.Scheme)
 		writeHashString(fingerprint, proxy.Host)
+
+		// The API server's version changes when proxy credentials change.
+		if proxy.User != nil {
+			writeHashString(fingerprint, proxyConfigVersion)
+		}
 	}
 
 	for remaining := cluster.CertificateAuthorityData; len(remaining) > 0; {

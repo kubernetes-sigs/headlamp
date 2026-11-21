@@ -185,15 +185,21 @@ func (r *Runner) reconcileOwner(state *rootState, watch rootWatch, owner types.N
 		}
 
 		context.Discovery.ResourceUID = string(accessor.GetUID())
-		r.storeConnection(context, key)
+
+		proxyConfigVersion := entry.ProxyConfigVersion
+		if proxyConfigVersion == "" {
+			proxyConfigVersion = accessor.GetResourceVersion()
+		}
+
+		r.storeConnection(context, key, proxyConfigVersion)
 		names = append(names, context.Name)
 	}
 
 	r.removeContexts(r.recordSyncedOwner(state, key, names))
 }
 
-func (r *Runner) storeConnection(context *kubeconfig.Context, ownerKey string) {
-	context.Discovery.ConnectionRevision = discoveredConnectionRevision(context)
+func (r *Runner) storeConnection(context *kubeconfig.Context, ownerKey, proxyConfigVersion string) {
+	context.Discovery.ConnectionRevision = discoveredConnectionRevision(context, proxyConfigVersion)
 
 	if err := r.store.AddContext(context); err != nil {
 		logger.Log(logger.LevelWarn, map[string]string{"owner": ownerKey}, err, "discovery: failed to store connection")

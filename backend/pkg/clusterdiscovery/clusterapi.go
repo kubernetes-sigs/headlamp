@@ -148,8 +148,8 @@ func (*clusterAPISource) OwnersForChange(resource schema.GroupVersionResource, o
 }
 
 // Build returns the connection of a Cluster from its kubeconfig Secret, or none while
-// either of them is missing. Only the endpoint, TLS settings and namespace of the
-// selected kubeconfig context are used.
+// either of them is missing. It uses the selected context's endpoint, TLS and proxy
+// settings, and namespace.
 func (*clusterAPISource) Build(
 	root string,
 	owner types.NamespacedName,
@@ -186,12 +186,13 @@ func (*clusterAPISource) Build(
 
 	return []GeneratedKubeconfig{
 		{
-			Key:          "default",
-			Name:         name,
-			ClusterID:    "cluster-api/" + key,
-			Config:       ConfigForCluster(name, connection.cluster.DeepCopy(), connection.defaultNamespace),
-			Metadata:     map[string]json.RawMessage{"clusterAPI": metadata},
-			Presentation: &kubeconfig.ConnectionPresentation{Fields: map[string]string{"secret": secretName}},
+			Key:                "default",
+			Name:               name,
+			ClusterID:          "cluster-api/" + key,
+			Config:             ConfigForCluster(name, connection.cluster.DeepCopy(), connection.defaultNamespace),
+			Metadata:           map[string]json.RawMessage{"clusterAPI": metadata},
+			Presentation:       &kubeconfig.ConnectionPresentation{Fields: map[string]string{"secret": secretName}},
+			ProxyConfigVersion: string(connection.UID) + ":" + connection.ResourceVersion,
 		},
 	}, nil
 }

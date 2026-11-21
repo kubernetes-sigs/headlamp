@@ -35,6 +35,13 @@ loader, the context store, the proxy, the response cache, and the home page
 views. A discovered connection is therefore an ordinary OIDC kubeconfig context
 and follows the same path as one loaded from a kubeconfig file.
 
+For an authenticated proxy, the connection revision includes the version of the
+object that supplies the proxy URL. A Cluster API connection uses its kubeconfig
+Secret's version, and a Cluster Inventory connection uses its ClusterProfile's
+resourceVersion. The revision excludes proxy credentials. An update to the
+source object can invalidate existing views even when the proxy address stays
+the same.
+
 ```mermaid
 flowchart TD
     subgraph mgmt["Management cluster (read for discovery only)"]
@@ -56,10 +63,10 @@ flowchart TD
     subgraph engine["Shared engine: clusterdiscovery.Runner, one per enabled source"]
         R1["Roots: in-cluster hub and<br/>non-discovered store contexts"]
         R2["Informers per namespace,<br/>owner reconcile, pruning"]
-        R3["generatedOIDCConfig<br/>keep HTTPS endpoint and TLS fields,<br/>drop every credential, inject user OIDC"]
+        R3["generatedOIDCConfig<br/>keep endpoint, TLS and proxy settings,<br/>drop Kubernetes user credentials, inject OIDC"]
         R4["kubeconfig.LoadContextsFromAPIConfig"]
         R1 --> R2
-        R2 -->|"GeneratedKubeconfig<br/>without credentials"| R3
+        R2 -->|"GeneratedKubeconfig"| R3
         R3 --> R4
     end
 

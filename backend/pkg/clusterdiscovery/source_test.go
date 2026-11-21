@@ -54,19 +54,24 @@ func TestDiscoveredConnectionRevisionAgreesAcrossReplicas(t *testing.T) {
 	}
 
 	firstConnection := connection.Copy()
-	first.storeConnection(firstConnection, "owner")
+	first.storeConnection(firstConnection, "owner", "version-1")
 	require.NotEmpty(t, firstConnection.Discovery.ConnectionRevision)
 
 	secondConnection := connection.Copy()
 	proxy.User = url.UserPassword("fixture", "second")
 	secondConnection.Cluster.ProxyURL = proxy.String()
-	second.storeConnection(secondConnection, "owner")
+	second.storeConnection(secondConnection, "owner", "version-1")
 	require.Equal(t, firstConnection.Discovery.ConnectionRevision, secondConnection.Discovery.ConnectionRevision)
 
 	replacement := connection.Copy()
+	replacement.Cluster.ProxyURL = proxy.String()
+	second.storeConnection(replacement, "owner", "version-2")
+	require.NotEqual(t, firstConnection.Discovery.ConnectionRevision, replacement.Discovery.ConnectionRevision)
+
+	replacement = connection.Copy()
 	proxy.Host = "replacement.example.com"
 	replacement.Cluster.ProxyURL = proxy.String()
-	second.storeConnection(replacement, "owner")
+	second.storeConnection(replacement, "owner", "version-1")
 	require.NotEqual(t, firstConnection.Discovery.ConnectionRevision, replacement.Discovery.ConnectionRevision)
 }
 

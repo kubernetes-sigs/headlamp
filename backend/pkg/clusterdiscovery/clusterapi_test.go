@@ -20,6 +20,7 @@ package clusterdiscovery
 import (
 	"encoding/base64"
 	"encoding/json"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -244,6 +245,49 @@ func TestClusterAPIUsesSharedOIDCLifecycle(t *testing.T) { //nolint:funlen // ex
 		5*time.Second,
 		10*time.Millisecond,
 	)
+}
+
+func TestClusterAPIProxyCredentialRotationChangesConnectionRevision(t *testing.T) {
+	cluster, rawSecret := capiFixture(t)
+	secret := &corev1.Secret{}
+	require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(rawSecret.Object, secret))
+	secret.UID = "kubeconfig-uid"
+	config, err := clientcmd.Load(secret.Data["value"])
+	require.NoError(t, err)
+	proxy, err := url.Parse(config.Clusters["admin"].ProxyURL)
+	require.NoError(t, err)
+
+	proxySecret := func(version, password string) *unstructured.Unstructured {
+		secret.ResourceVersion = version
+		proxy.User = url.UserPassword("fixture-user", password)
+		config.Clusters["admin"].ProxyURL = proxy.String()
+		data, err := clientcmd.Write(*config)
+		require.NoError(t, err)
+
+		secret.Data["value"] = data
+
+		obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(secret)
+		require.NoError(t, err)
+
+		return &unstructured.Unstructured{Object: obj}
+	}
+
+	runner, client := capiRunner(t, cluster, proxySecret("1", "initial-password"))
+	ctx := testRunnerContext(t, runner)
+	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+	initial := requireDiscovered(t, runner)
+
+	_, err = client.Resource(secretResource).Namespace(secret.Namespace).Update(
+		ctx, proxySecret("2", "rotated-password"), metav1.UpdateOptions{},
+	)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		contexts, _ := runner.store.GetContexts()
+
+		return len(contexts) == 1 && contexts[0].ClusterID == initial.ClusterID &&
+			contexts[0].Cluster.ProxyURL == proxy.String() &&
+			contexts[0].Discovery.ConnectionRevision != initial.Discovery.ConnectionRevision
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func TestClusterAPISecretCache(t *testing.T) { //nolint:funlen // checks initial sync and invalidation.
