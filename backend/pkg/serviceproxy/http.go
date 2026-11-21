@@ -10,6 +10,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
+const proxyContentSecurityPolicy = "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'"
+
 // HTTPGetStream sends an HTTP GET request to the specified URI and forwards the
 // upstream status code, Content-Type, and response body into w. The body is
 // never fully buffered, so an upstream that returns an arbitrarily large
@@ -80,5 +82,7 @@ func writeResponseHeader(w http.ResponseWriter, statusCode int, contentType stri
 		w.Header().Set("Content-Type", contentType)
 	}
 
+	w.Header().Set("Content-Security-Policy", proxyContentSecurityPolicy)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(statusCode)
 }

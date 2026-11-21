@@ -116,6 +116,38 @@ func TestHTTPGetStreamContextCancellation(t *testing.T) {
 	}
 }
 
+func TestHTTPGetStreamSandboxesUpstreamDocument(t *testing.T) {
+	const body = `<script>document.body.textContent = "executed"</script>`
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Fatalf("write test: %v", err)
+		}
+	}))
+	defer ts.Close()
+
+	w := httptest.NewRecorder()
+
+	if err := serviceproxy.HTTPGetStream(context.Background(), ts.URL, w); err != nil {
+		t.Fatalf("HTTPGetStream() error = %v", err)
+	}
+
+	if w.Body.String() != body {
+		t.Errorf("HTTPGetStream() response = %s, want %s", w.Body.String(), body)
+	}
+
+	if got := w.Header().Get("Content-Security-Policy"); got !=
+		"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'" {
+		t.Errorf("Content-Security-Policy = %q, want sandbox policy", got)
+	}
+
+	if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", got)
+	}
+}
+
 func TestHTTPGetStreamTimeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(15 * time.Second)
