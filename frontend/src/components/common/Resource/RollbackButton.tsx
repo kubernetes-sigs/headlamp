@@ -18,6 +18,11 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router';
+import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
+import {
+  assertCurrentDiscoveryConnection,
+  getResourceDiscoveryConnection,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -74,37 +79,45 @@ export function RollbackButton(props: RollbackButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, buttonStyle, afterConfirm } = props;
 
-  const [openDialog, setOpenDialog] = useState(false);
+  const [target, setTarget] = useState<{
+    resource: RollbackableResource;
+    cluster: string;
+    revision?: string;
+  } | null>(null);
   const location = useLocation();
   const { t } = useTranslation(['translation']);
   const dispatchRollbackEvent = useEventCallback(HeadlampEventType.ROLLBACK_RESOURCE);
 
   const resource = item && isRollbackableResource(item) ? item : null;
 
-  const getRevisionHistory = useCallback((): Promise<RevisionInfo[]> => {
-    return resource ? resource.getRevisionHistory() : Promise.resolve([]);
-  }, [resource]);
+  const getRevisionHistory = useCallback(async (): Promise<RevisionInfo[]> => {
+    if (!target) return [];
+    assertCurrentDiscoveryConnection(target.cluster, target.revision);
+    return target.resource.getRevisionHistory();
+  }, [target]);
 
   if (!resource) {
     return null;
   }
 
-  const rollbackResource = resource;
-  const resourceKind = rollbackResource.kind;
-
-  async function performRollback(toRevision?: number) {
-    const result = await rollbackResource.rollback({ toRevision });
-    if (!result.success) {
-      throw new Error(result.message);
-    }
-    return result;
-  }
+  const displayedResource = target?.resource ?? resource;
 
   function handleConfirm(toRevision?: number) {
+    if (!target) return;
+    const { resource: rollbackResource, cluster, revision } = target;
     const itemName = rollbackResource.metadata.name;
 
+    async function performRollback() {
+      assertCurrentDiscoveryConnection(cluster, revision);
+      const result = await rollbackResource.rollback({ toRevision });
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+      return result;
+    }
+
     dispatch(
-      clusterAction(() => performRollback(toRevision), {
+      clusterAction(performRollback, {
         startMessage: t('Rolling back {{ itemName }} to previous version…', { itemName }),
         cancelledMessage: t('Cancelled rollback of {{ itemName }}.', { itemName }),
         successMessage: t('Rolled back {{ itemName }} to previous version.', { itemName }),
@@ -115,7 +128,7 @@ export function RollbackButton(props: RollbackButtonProps) {
       })
     );
 
-    setOpenDialog(false);
+    setTarget(null);
 
     // Dispatch event for plugins/tracking
     dispatchRollbackEvent({
@@ -140,17 +153,23 @@ export function RollbackButton(props: RollbackButtonProps) {
         description={t('translation|Rollback')}
         buttonStyle={buttonStyle}
         onClick={() => {
-          setOpenDialog(true);
+          const cluster = resource.cluster;
+          const origin = getResourceDiscoveryConnection(resource);
+          setTarget({
+            resource,
+            cluster,
+            revision: origin ? origin.revision : getDiscoveredConnectionRevision(cluster),
+          });
         }}
         icon="mdi:undo-variant"
       />
       <RollbackDialog
-        open={openDialog}
-        resourceKind={resourceKind}
-        resourceName={resource.metadata.name}
-        resource={resource}
+        open={!!target}
+        resourceKind={displayedResource.kind}
+        resourceName={displayedResource.metadata.name}
+        resource={displayedResource}
         getRevisionHistory={getRevisionHistory}
-        onClose={() => setOpenDialog(false)}
+        onClose={() => setTarget(null)}
         onConfirm={handleConfirm}
       />
     </AuthVisible>
