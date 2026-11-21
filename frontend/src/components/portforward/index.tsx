@@ -27,9 +27,10 @@ import { useTranslation } from 'react-i18next';
 import { isDockerDesktop } from '../../helpers/isDockerDesktop';
 import {
   listPortForward,
-  startPortForward,
+  startPortForwardForConnection,
   stopOrDeletePortForward,
 } from '../../lib/k8s/api/v1/portForward';
+import { getDiscoveredConnectionRevision } from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import { getCluster } from '../../lib/util';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
@@ -192,7 +193,13 @@ export default function PortForwardingList() {
       if (isDockerDesktop()) {
         address = '0.0.0.0';
       }
-      setSelectedForStart({ ...portforward, cluster, namespace, address });
+      setSelectedForStart({
+        ...portforward,
+        cluster,
+        namespace,
+        address,
+        revision: getDiscoveredConnectionRevision(cluster),
+      });
       setStartDialogOpen(true);
       return;
     }
@@ -410,16 +417,18 @@ export default function PortForwardingList() {
           setSelectedForStart(null);
           setPortForwardInActionSafely({ ...selectedForStart, loading: true });
 
-          startPortForward(
-            cluster,
-            namespace,
-            pod,
-            targetPort,
-            service,
-            serviceNamespace,
-            chosenPort,
-            address,
-            id
+          startPortForwardForConnection(
+            { cluster, revision: selectedForStart.revision },
+            {
+              id,
+              namespace,
+              pod,
+              targetPort: targetPort.toString(),
+              service,
+              serviceNamespace,
+              port: chosenPort,
+              address,
+            }
           )
             .then(() => {
               setPortForwardInActionSafely(null);

@@ -52,7 +52,7 @@ const {
 
 vi.mock('../../lib/k8s/api/v1/portForward', () => ({
   listPortForward: (...args: any[]) => mockListPortForward(...args),
-  startPortForward: (...args: any[]) => mockStartPortForward(...args),
+  startPortForwardForConnection: (...args: any[]) => mockStartPortForward(...args),
   stopOrDeletePortForward: (...args: any[]) => mockStopOrDeletePortForward(...args),
 }));
 
@@ -452,15 +452,17 @@ describe('PortForwardingList', () => {
 
     await waitFor(() =>
       expect(mockStartPortForward).toHaveBeenCalledWith(
-        'test-cluster',
-        'default',
-        'my-pod',
-        '80',
-        '',
-        '',
-        '9090',
-        'localhost',
-        'pf-1'
+        { cluster: 'test-cluster', revision: undefined },
+        {
+          id: 'pf-1',
+          namespace: 'default',
+          pod: 'my-pod',
+          targetPort: '80',
+          service: '',
+          serviceNamespace: '',
+          port: '9090',
+          address: 'localhost',
+        }
       )
     );
     expect(mockListPortForward).toHaveBeenCalledTimes(2);

@@ -16,6 +16,7 @@
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import { recordDiscoveryConnection } from '../../../lib/k8s/api/v2/discoveryConnection';
 import { KubePod } from '../../../lib/k8s/pod';
 import { TestContext } from '../../../test';
 import PortForward, { PORT_FORWARD_STOP_STATUS, PORT_FORWARDS_STORAGE_KEY } from './PortForward';
@@ -48,7 +49,7 @@ vi.mock('../../../helpers/isDockerDesktop', () => ({ isDockerDesktop: mockIsDock
 vi.mock('../../../lib/cluster', () => ({ getCluster: () => 'test-cluster' }));
 vi.mock('../../../lib/k8s/api/v1/portForward', () => ({
   listPortForward: mockListPortForward,
-  startPortForward: mockStartPortForward,
+  startPortForwardForConnection: mockStartPortForward,
   stopOrDeletePortForward: mockStopOrDeletePortForward,
 }));
 vi.mock('../../../lib/k8s/pod', () => ({
@@ -253,19 +254,48 @@ describe('PortForward stop handler', () => {
 
     await screen.findByRole('link', { name: 'http://127.0.0.1:8080' });
     expect(mockStartPortForward).toHaveBeenCalledWith(
-      'test-cluster',
-      'default',
-      'my-pod',
-      80,
-      '',
-      'default',
-      '8080',
-      'localhost',
-      undefined
+      { cluster: 'test-cluster', revision: undefined },
+      {
+        id: '',
+        namespace: 'default',
+        pod: 'my-pod',
+        targetPort: '80',
+        service: '',
+        serviceNamespace: 'default',
+        port: '8080',
+        address: 'localhost',
+      }
     );
     expect(JSON.parse(localStorage.getItem(PORT_FORWARDS_STORAGE_KEY)!)).toEqual([
       runningPortForward,
     ]);
+  });
+
+  it('submits the resource and revision shown when opening the dialog', async () => {
+    const original = makePod();
+    const replacement = {
+      ...original,
+      metadata: { ...original.metadata, name: 'replacement-pod' },
+    };
+    recordDiscoveryConnection(original, 'test-cluster', 'original:1');
+    recordDiscoveryConnection(replacement, 'test-cluster', 'replacement:2');
+    mockListPortForward.mockResolvedValue([]);
+    mockStartPortForward.mockResolvedValue(runningPortForward);
+    const renderResource = (pod: KubePod, containerPort: number) => (
+      <TestContext>
+        <PortForward containerPort={containerPort} resource={pod} />
+      </TestContext>
+    );
+    const { rerender } = render(renderResource(original, 80));
+    fireEvent.click(await screen.findByLabelText(/start port forward/i));
+    rerender(renderResource(replacement, 81));
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+
+    expect(mockStartPortForward).toHaveBeenCalledWith(
+      { cluster: 'test-cluster', revision: 'original:1' },
+      expect.objectContaining({ pod: 'my-pod', targetPort: '80' })
+    );
+    await screen.findByRole('link', { name: 'http://127.0.0.1:8080' });
   });
 
   it('cancels the start dialog without contacting the backend', async () => {
@@ -320,15 +350,17 @@ describe('PortForward stop handler', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('port is occupied');
     expect(mockStartPortForward).toHaveBeenCalledWith(
-      'test-cluster',
-      'default',
-      'my-pod',
-      80,
-      '',
-      'default',
-      '8080',
-      'localhost',
-      'pf-1'
+      { cluster: 'test-cluster', revision: undefined },
+      {
+        id: 'pf-1',
+        namespace: 'default',
+        pod: 'my-pod',
+        targetPort: '80',
+        service: '',
+        serviceNamespace: 'default',
+        port: '8080',
+        address: 'localhost',
+      }
     );
     expect(JSON.parse(localStorage.getItem(PORT_FORWARDS_STORAGE_KEY)!)).toEqual([]);
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
@@ -400,15 +432,17 @@ describe('PortForward stop handler', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
     await waitFor(() =>
       expect(mockStartPortForward).toHaveBeenCalledWith(
-        'service-cluster',
-        'default',
-        'my-pod',
-        8081,
-        'web-service',
-        'default',
-        undefined,
-        'localhost',
-        undefined
+        { cluster: 'service-cluster', revision: undefined },
+        {
+          id: '',
+          namespace: 'default',
+          pod: 'my-pod',
+          targetPort: '8081',
+          service: 'web-service',
+          serviceNamespace: 'default',
+          port: undefined,
+          address: 'localhost',
+        }
       )
     );
     expect(mockUsePodList).toHaveBeenCalledWith({
@@ -439,15 +473,17 @@ describe('PortForward stop handler', () => {
       fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
       await waitFor(() =>
         expect(mockStartPortForward).toHaveBeenCalledWith(
-          'test-cluster',
-          'default',
-          'my-pod',
-          80,
-          '',
-          'default',
-          '31000',
-          '0.0.0.0',
-          undefined
+          { cluster: 'test-cluster', revision: undefined },
+          {
+            id: '',
+            namespace: 'default',
+            pod: 'my-pod',
+            targetPort: '80',
+            service: '',
+            serviceNamespace: 'default',
+            port: '31000',
+            address: '0.0.0.0',
+          }
         )
       );
       expect(random).toHaveBeenCalledTimes(2);

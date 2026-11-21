@@ -243,10 +243,30 @@ func getFreePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-// StartPortForward handles the port forward request.
-//
-//nolint:funlen // Handler validates request, allocates port, and starts port-forwarding routine
+// StartPortForward handles a port forward request using the named store context.
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
+	unsafeUseServiceAccountToken bool,
+	contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
+	startPortForwardRequest(func() (*kubeconfig.Context, error) {
+		return kubeConfigStore.GetContext(contextKey)
+	}, cache, unsafeUseServiceAccountToken, contextKey, w, r)
+}
+
+// StartPortForwardForContext uses the connection already resolved for the request.
+func StartPortForwardForContext(connection *kubeconfig.Context, cache cache.Cache[interface{}],
+	unsafeUseServiceAccountToken bool,
+	contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
+	startPortForwardRequest(func() (*kubeconfig.Context, error) {
+		return connection, nil
+	}, cache, unsafeUseServiceAccountToken, contextKey, w, r)
+}
+
+//nolint:funlen // Handler validates request, allocates port, and starts port-forwarding routine
+func startPortForwardRequest(getContext func() (*kubeconfig.Context, error), cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
 	contextKey string,
 	w http.ResponseWriter, r *http.Request,
@@ -310,7 +330,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	kContext, err := kubeConfigStore.GetContext(contextKey)
+	kContext, err := getContext()
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey},
 			err, "getting kubeconfig context")

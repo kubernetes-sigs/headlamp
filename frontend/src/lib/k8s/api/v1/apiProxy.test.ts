@@ -31,6 +31,7 @@ import * as discoveredRevisions from '../v2/discoveredConnectionRevisions';
 import { DISCOVERY_CONNECTION_CHANGED, recordDiscoveryConnection } from '../v2/discoveryConnection';
 import { prepareApply } from './apply';
 import * as clusterApi from './clusterApi';
+import { startPortForwardForConnection } from './portForward';
 
 const baseApiUrl = getAppUrl();
 const wsUrl = baseApiUrl.replace('http', 'ws');
@@ -1279,6 +1280,48 @@ describe('apiProxy', () => {
           mockId
         );
         expect(response).toEqual(mockStartResponse);
+      });
+
+      it('includes the selected routing revision when starting a port forward', async () => {
+        const revision = vi
+          .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+          .mockReturnValue('original:1');
+        try {
+          await expect(
+            apiProxy.startPortForward(
+              clusterName,
+              namespace,
+              podName,
+              containerPort,
+              service,
+              serviceNamespace
+            )
+          ).resolves.toEqual(mockStartResponse);
+          const [url, options] = vi.mocked(global.fetch).mock.calls[0];
+          expect(new URL(String(url)).searchParams.get('__headlamp_connection_revision')).toBe(
+            'original'
+          );
+          expect(options?.method).toBe('POST');
+        } finally {
+          revision.mockRestore();
+        }
+      });
+
+      it('rejects the previous connection before sending a port forward request', async () => {
+        const revision = vi
+          .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+          .mockReturnValue('replacement:2');
+        try {
+          await expect(
+            startPortForwardForConnection(
+              { cluster: clusterName, revision: 'original:1' },
+              { id: mockId, namespace, pod: podName, targetPort: '80', service, serviceNamespace }
+            )
+          ).rejects.toMatchObject({ status: 409 });
+          expect(global.fetch).not.toHaveBeenCalled();
+        } finally {
+          revision.mockRestore();
+        }
       });
 
       it('Normalizes leading-zero port numbers before sending', async () => {

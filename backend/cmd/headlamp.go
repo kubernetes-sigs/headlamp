@@ -1025,22 +1025,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.StartPortForward(
-				config.KubeConfigStore,
-				config.Cache,
-				config.shouldUseUnsafeServiceAccountToken(),
-				contextKey,
-				w,
-				r,
-			)
-		})),
+		config.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(config.handleStartPortForward))),
 	).Methods("POST")
 
 	r.Handle(
@@ -2607,6 +2592,24 @@ func validateDiscoveryConnectionRevision(w http.ResponseWriter, r *http.Request,
 	r.URL.RawQuery = params.Encode()
 
 	return true
+}
+
+func (c *HeadlampConfig) handleStartPortForward(w http.ResponseWriter, r *http.Request) {
+	if resolved, ok := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext); ok {
+		portforward.StartPortForwardForContext(
+			resolved.context, c.Cache, c.shouldUseUnsafeServiceAccountToken(), resolved.key, w, r,
+		)
+
+		return
+	}
+
+	contextKey, err := c.getContextKeyForRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	portforward.StartPortForward(c.KubeConfigStore, c.Cache, c.shouldUseUnsafeServiceAccountToken(), contextKey, w, r)
 }
 
 func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request) {

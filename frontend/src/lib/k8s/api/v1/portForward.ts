@@ -17,7 +17,13 @@
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
+import {
+  createDiscoveryConnectionChangedError,
+  withDiscoveryConnectionRevision,
+} from '../v2/discoveryConnection';
 import { clusterFetch } from '../v2/fetch';
+import { makeUrl } from '../v2/makeUrl';
 import { JSON_HEADERS } from './constants';
 
 export interface PortForward {
@@ -70,31 +76,43 @@ export async function startPortForward(
   address: string = '',
   id: string = ''
 ): Promise<PortForward> {
+  return startPortForwardForConnection(
+    { cluster, revision: getDiscoveredConnectionRevision(cluster) },
+    {
+      id,
+      namespace,
+      pod: podname,
+      service,
+      serviceNamespace,
+      targetPort: containerPort.toString(),
+      port,
+      address,
+    }
+  );
+}
+
+export async function startPortForwardForConnection(
+  { cluster, revision }: { cluster: string; revision?: string },
+  request: PortForwardRequest
+): Promise<PortForward> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
+  if (getDiscoveredConnectionRevision(cluster) !== revision) {
+    throw createDiscoveryConnectionChangedError();
+  }
   const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
 
   // This means cluster is dynamically configured.
   if (kubeconfig !== null) {
     headers.set('X-HEADLAMP-USER-ID', getUserIdFromLocalStorage());
   }
-  const trimmedPort = port?.trim();
-  const normalizedPort =
-    trimmedPort && /^[0-9]+$/.test(trimmedPort) ? String(Number(trimmedPort)) : port;
-
-  const request: PortForwardRequest = {
-    namespace,
-    pod: podname,
-    service,
-    targetPort: containerPort.toString(),
-    serviceNamespace,
-    id: id,
-    address,
-    port: normalizedPort,
-  };
-  return clusterFetch('/portforward', {
+  const trimmedPort = request.port?.trim();
+  const port =
+    trimmedPort && /^[0-9]+$/.test(trimmedPort) ? String(Number(trimmedPort)) : request.port;
+  const url = makeUrl('/portforward', withDiscoveryConnectionRevision({}, revision));
+  return clusterFetch(url, {
     method: 'POST',
     headers: headers,
-    body: JSON.stringify(request),
+    body: JSON.stringify({ ...request, port }),
     cluster,
   }).then(async (response: Response) => {
     const contentType = response.headers.get('content-type');

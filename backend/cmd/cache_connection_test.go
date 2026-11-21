@@ -511,3 +511,63 @@ func TestCacheConnectionIdentityFailureBypassesCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
+
+func TestDiscoveredPortForwardRejectsChangedConnection(t *testing.T) {
+	var requests atomic.Int32
+
+	upstream, _ := newCacheConnectionServer(t, "pod", "another-user", func(*http.Request) { requests.Add(1) })
+	connection := cacheConnectionContext(t, upstream, kubeconfig.ClusterInventory)
+	connection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "replacement"}
+	cfg := newDrainAuthConfig(t, connection)
+	cfg.KubeConfigDir = t.TempDir()
+	cfg.KubeConfigPath = filepath.Join(cfg.KubeConfigDir, "missing")
+	router := createHeadlampHandler(t.Context(), cfg)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/clusters/cache-switch/portforward?"+discoveryConnectionRevisionParam+"=original",
+		strings.NewReader(`{"namespace":"default","pod":"pod","targetPort":"80","port":"8080"}`))
+	req.Header.Set("Authorization", "Bearer user")
+	req.Header.Set("Content-Type", "application/json")
+
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	require.Equal(t, http.StatusConflict, res.Code)
+	require.Contains(t, res.Body.String(), "Discovered cluster connection changed")
+	require.Zero(t, requests.Load())
+}
+
+func TestPortForwardUsesResolvedConnectionThroughStoreReplacement(t *testing.T) {
+	var originalRequests, replacementRequests atomic.Int32
+
+	original, _ := newCacheConnectionServer(t, "pod", "another-user", func(*http.Request) { originalRequests.Add(1) })
+	replacement, _ := newCacheConnectionServer(t, "pod", "another-user",
+		func(*http.Request) { replacementRequests.Add(1) })
+	originalConnection := cacheConnectionContext(t, original, kubeconfig.ClusterInventory)
+	originalConnection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "original"}
+	replacementConnection := cacheConnectionContext(t, replacement, kubeconfig.ClusterInventory)
+	replacementConnection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "replacement"}
+	cfg := newDrainAuthConfig(t, originalConnection)
+
+	start := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, cfg.KubeConfigStore.AddContext(replacementConnection))
+		cfg.handleStartPortForward(w, r)
+	})
+	router := mux.NewRouter()
+	router.Handle("/clusters/{clusterName}/portforward",
+		cfg.authenticatedHandler(requireMatchingDiscoveryConnection(start)),
+	).Methods(http.MethodPost)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/clusters/cache-switch/portforward?"+discoveryConnectionRevisionParam+"=original",
+		strings.NewReader(`{"namespace":"default","pod":"pod","targetPort":"80","port":"8080"}`))
+	req.Header.Set("Authorization", "Bearer user")
+	req.Header.Set("Content-Type", "application/json")
+
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	require.Equal(t, http.StatusInternalServerError, res.Code)
+	require.Contains(t, res.Body.String(), "permission check failed")
+	require.Equal(t, int32(1), originalRequests.Load())
+	require.Zero(t, replacementRequests.Load())
+}

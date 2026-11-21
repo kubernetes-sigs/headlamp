@@ -31,9 +31,16 @@ import { getCluster } from '../../../lib/cluster';
 import {
   listPortForward,
   PortForward as PortForwardState,
-  startPortForward,
+  PortForwardRequest,
+  startPortForwardForConnection,
   stopOrDeletePortForward,
 } from '../../../lib/k8s/api/v1/portForward';
+import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
+import {
+  createDiscoveryConnectionChangedError,
+  getResourceDiscoveryConnection,
+  isDiscoveryConnectionChanged,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import { KubeContainer } from '../../../lib/k8s/cluster';
 import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
@@ -167,7 +174,9 @@ function PortForwardContent(props: PortForwardProps) {
   const [error, setError] = React.useState<string | null>(null);
   const [portForward, setPortForward] = React.useState<PortForwardState | null>(null);
   const [loading, setLoading] = React.useState(false);
-  const [startDialogOpen, setStartDialogOpen] = React.useState(false);
+  const [startRequest, setStartRequest] = React.useState<
+    (PortForwardRequest & { cluster: string; revision?: string }) | null
+  >(null);
 
   const { t } = useTranslation(['translation', 'resource']);
 
@@ -193,10 +202,6 @@ function PortForwardContent(props: PortForwardProps) {
         ? 0
         : getPortNumberFromPortName(pods[0].spec.containers, containerPort)
       : containerPort;
-
-  const displayPodName = React.useMemo(() => {
-    return isPod ? name : pods && pods.length > 0 ? pods[0].metadata.name : '';
-  }, [isPod, name, pods]);
 
   const shouldRender =
     isElectron() &&
@@ -270,24 +275,16 @@ function PortForwardContent(props: PortForwardProps) {
   }
 
   function startPortForwardWithSelection(chosenPort?: string) {
-    if (!namespace || !cluster || !pods) {
-      return;
-    }
-
+    if (!startRequest) return;
+    const { cluster, revision, ...request } = startRequest;
     setError(null);
-
-    const resourceName = name || '';
-    const podNamespace = isPod ? namespace : pods[0].metadata.namespace!;
-    const serviceNamespace = namespace;
-    const serviceName = !isPod ? resourceName : '';
-    const podName = isPod ? resourceName : pods![0].metadata.name;
-    let port = chosenPort || portForward?.port;
+    let port = chosenPort || request.port;
 
     let address = 'localhost';
     if (isDockerDesktop()) {
       address = '0.0.0.0';
 
-      if (!chosenPort && !portForward?.port) {
+      if (!chosenPort && !request.port) {
         const activePorts: string[] = [];
         const parsedPortForwards = getPortForwardsFromStorage();
         parsedPortForwards.forEach((pf: PortForwardState) => {
@@ -318,17 +315,7 @@ function PortForwardContent(props: PortForwardProps) {
     }
 
     setLoading(true);
-    startPortForward(
-      cluster,
-      podNamespace,
-      podName,
-      numericContainerPort,
-      serviceName,
-      serviceNamespace,
-      port,
-      address,
-      portForward?.id
-    )
+    startPortForwardForConnection({ cluster, revision }, { ...request, port, address })
       .then((data: PortForwardState) => {
         setLoading(false);
         setPortForward(data);
@@ -341,12 +328,13 @@ function PortForwardContent(props: PortForwardProps) {
         const message = getErrorMessage(error);
         setError(message || 'An unexpected error occurred.');
         setLoading(false);
+        if (isDiscoveryConnectionChanged(error)) return;
         setPortForward(null);
 
-        if (portForward?.id) {
+        if (request.id) {
           const parsedPortForwards = getPortForwardsFromStorage();
           const index = parsedPortForwards.findIndex(
-            (pf: PortForwardState) => pf.id === portForward.id
+            (pf: PortForwardState) => pf.id === request.id
           );
           if (index !== -1) {
             parsedPortForwards.splice(index, 1);
@@ -357,11 +345,34 @@ function PortForwardContent(props: PortForwardProps) {
   }
 
   function openStartDialog() {
-    setStartDialogOpen(true);
+    if (!resource || !namespace || !cluster || !pods) return;
+    const pod = isPod ? resource : pods[0];
+    if (!pod) return;
+    const origin = getResourceDiscoveryConnection(resource);
+    const podOrigin = getResourceDiscoveryConnection(pod);
+    if (
+      (origin && origin.cluster !== cluster) ||
+      (podOrigin && podOrigin.cluster !== cluster) ||
+      (origin && podOrigin && origin.revision !== podOrigin.revision)
+    ) {
+      setError(createDiscoveryConnectionChangedError().message);
+      return;
+    }
+    setStartRequest({
+      cluster,
+      revision: origin?.revision ?? podOrigin?.revision ?? getDiscoveredConnectionRevision(cluster),
+      namespace: isPod ? namespace : pod.metadata.namespace!,
+      pod: pod.metadata.name,
+      service: isPod ? '' : name,
+      serviceNamespace: namespace,
+      targetPort: numericContainerPort.toString(),
+      port: portForward?.port,
+      id: portForward?.id ?? '',
+    });
   }
 
   function closeStartDialog() {
-    setStartDialogOpen(false);
+    setStartRequest(null);
   }
 
   function portForwardStopHandler() {
@@ -530,11 +541,11 @@ function PortForwardContent(props: PortForwardProps) {
         </>
       )}
       <PortForwardStartDialog
-        open={startDialogOpen}
-        defaultPort={portForward?.port}
-        podName={displayPodName}
-        namespace={namespace}
-        containerPort={numericContainerPort}
+        open={!!startRequest}
+        defaultPort={startRequest?.port}
+        podName={startRequest?.pod ?? ''}
+        namespace={startRequest?.serviceNamespace ?? ''}
+        containerPort={startRequest?.targetPort ?? ''}
         isDockerDesktop={isDockerDesktop()}
         onCancel={closeStartDialog}
         onConfirm={portInput => {
