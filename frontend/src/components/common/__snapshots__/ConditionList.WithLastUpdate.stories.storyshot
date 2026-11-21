@@ -86,7 +86,7 @@
             >
               <p
                 aria-label="Pod is ready"
-                class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                 data-mui-internal-clone-element="true"
               >
                 PodReady
@@ -125,7 +125,7 @@
             >
               <p
                 aria-label="No nodes available"
-                class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                 data-mui-internal-clone-element="true"
               >
                 Unschedulable
