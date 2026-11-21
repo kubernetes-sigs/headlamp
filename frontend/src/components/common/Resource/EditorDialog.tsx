@@ -60,6 +60,24 @@ import { UploadDialog } from './UploadDialog';
 
 type KubeObjectIsh = Partial<KubeObjectInterface>;
 
+function resolveApplySource(source?: object) {
+  let resource = source;
+  let origin = source && getResourceDiscoveryConnection(source);
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      const itemOrigin = getResourceDiscoveryConnection(item);
+      if (!itemOrigin) continue;
+      if (!origin) {
+        origin = itemOrigin;
+        resource = item;
+      } else if (itemOrigin.cluster !== origin.cluster || itemOrigin.revision !== origin.revision) {
+        return { resource, origin, mixedOrigins: true };
+      }
+    }
+  }
+  return { resource, origin, mixedOrigins: false };
+}
+
 export interface EditorDialogProps extends DialogProps {
   /** The object(s) to edit, or null to make the dialog be in "loading mode". Pass it an empty object if no contents are to be shown when the dialog is first open. */
   item: KubeObjectIsh | object | object[] | string | null;
@@ -143,7 +161,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   // same version to the save-baseline owner (see `onBaselineAccepted`). Only Undo
   // consumes this — plain edits never rebase the save baseline while they're unsaved.
   const pendingBaselineRef = React.useRef<{
-    item: KubeObjectInterface;
+    item?: KubeObjectInterface;
     source: object;
   } | null>(null);
   const [error, setError] = React.useState('');
@@ -236,15 +254,16 @@ export default function EditorDialog(props: EditorDialogProps) {
 
     // Check for external modification conflict BEFORE any setCode call so that
     // user edits are never silently overwritten when a version conflict is detected.
-    if (isKubeObjectIsh(item) && item.metadata) {
-      const newVersion = item.metadata!.resourceVersion || '';
-      const resourceVersionsDiffer = (previousVersionRef.current || '') !== newVersion;
-      const currentSource = applySourceRef.current;
-      const currentConnection = currentSource && getResourceDiscoveryConnection(currentSource);
-      const incomingConnection = getResourceDiscoveryConnection(item);
+    const metadata = isKubeObjectIsh(item) ? item.metadata : undefined;
+    if (source && (metadata || Array.isArray(item))) {
+      const newVersion = metadata?.resourceVersion || '';
+      const resourceVersionsDiffer = !!metadata && previousVersionRef.current !== newVersion;
+      const current = resolveApplySource(applySourceRef.current);
+      const incoming = resolveApplySource(source);
       const connectionChanged =
-        currentConnection?.cluster !== incomingConnection?.cluster ||
-        currentConnection?.revision !== incomingConnection?.revision;
+        current.origin?.cluster !== incoming.origin?.cluster ||
+        current.origin?.revision !== incoming.origin?.revision ||
+        current.mixedOrigins !== incoming.mixedOrigins;
       const hasPendingBaseline = !!pendingBaselineRef.current;
       // We use the codeRef in this effect instead of the code, because we need to access
       // the current state of the code but we don't want to trigger a re-render here.
@@ -262,7 +281,10 @@ export default function EditorDialog(props: EditorDialogProps) {
         // Update the baseline so "Undo Changes" restores to the latest server
         // version rather than the stale version the editor was opened with.
         originalCodeRef.current = { code: itemCode, format };
-        pendingBaselineRef.current = { item: clonedItem as KubeObjectInterface, source: item };
+        pendingBaselineRef.current = {
+          item: metadata ? (clonedItem as KubeObjectInterface) : undefined,
+          source,
+        };
         if (newVersion !== '') {
           previousVersionRef.current = newVersion;
         }
@@ -520,8 +542,9 @@ export default function EditorDialog(props: EditorDialogProps) {
     // originalCodeRef was last rebased onto — let the save-baseline owner rebase too,
     // so a subsequent edit + save diffs against this version rather than the stale one.
     if (pendingBaselineRef.current) {
-      applySourceRef.current = pendingBaselineRef.current.source;
-      onBaselineAccepted?.(pendingBaselineRef.current.item);
+      const { source, item } = pendingBaselineRef.current;
+      applySourceRef.current = source;
+      if (item) onBaselineAccepted?.(item);
       pendingBaselineRef.current = null;
     }
   }
@@ -589,23 +612,10 @@ export default function EditorDialog(props: EditorDialogProps) {
     const newItemDefs = obj!;
     const source =
       treatItemChangesAsEdits && item && typeof item === 'object' ? item : applySourceRef.current;
-    let applySource = source;
-    let origin = source && getResourceDiscoveryConnection(source);
-    if (Array.isArray(source)) {
-      for (const sourceItem of source) {
-        const itemOrigin = getResourceDiscoveryConnection(sourceItem);
-        if (!itemOrigin) continue;
-        if (!origin) {
-          origin = itemOrigin;
-          applySource = sourceItem;
-        } else if (
-          itemOrigin.cluster !== origin.cluster ||
-          itemOrigin.revision !== origin.revision
-        ) {
-          setError(t('Resources belong to different cluster connections.'));
-          return;
-        }
-      }
+    const { resource: applySource, origin, mixedOrigins } = resolveApplySource(source);
+    if (mixedOrigins) {
+      setError(t('Resources belong to different cluster connections.'));
+      return;
     }
     const clusterName =
       cluster || origin?.cluster || (source as KubeObjectIsh)?.cluster || getCluster() || '';

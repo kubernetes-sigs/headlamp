@@ -934,6 +934,39 @@ describe('EditorDialog', () => {
     }
   );
 
+  it.each([/dry run/i, /save & apply/i])(
+    'keeps an edited array on its original connection until Undo before %s',
+    action => {
+      const original = { apiVersion: 'v1', kind: 'Node', metadata: { name: 'retained' } };
+      const replacement = { ...original };
+      recordDiscoveryConnection(original, 'discovered', 'original:1');
+      recordDiscoveryConnection(replacement, 'discovered', 'replacement:2');
+      const content = (items: object[]) => (
+        <TestContext>
+          <EditorDialog open keepMounted noDialog item={items} onClose={vi.fn()} />
+        </TestContext>
+      );
+      const { rerender } = render(content([original]));
+      const edit = () => {
+        fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+          target: { value: 'valid yaml' },
+        });
+        act(() => vi.advanceTimersByTime(500));
+      };
+      edit();
+      rerender(content([replacement]));
+      expect(screen.getByRole('textbox', { name: /code/i })).toHaveValue('valid yaml');
+      fireEvent.click(screen.getByRole('button', { name: action }));
+      expect(vi.mocked(prepareApply).mock.lastCall?.[1]).toBe(original);
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+      edit();
+      fireEvent.click(screen.getByRole('button', { name: action }));
+      expect(vi.mocked(prepareApply).mock.lastCall?.[1]).toBe(replacement);
+    }
+  );
+
   it('uses fallback resource labels and an empty cluster for dry runs', async () => {
     mockLoadAll.mockReturnValueOnce([
       { apiVersion: 'v1', kind: 'Node', metadata: {} },
