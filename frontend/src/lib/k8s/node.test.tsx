@@ -99,7 +99,10 @@ it('restarts explicit node metric and stats polling and drops results from the o
     expect(clusterRequest).toHaveBeenCalledTimes(2);
     expect(clusterFetch).toHaveBeenCalledTimes(2);
     expect(vi.mocked(clusterRequest).mock.lastCall?.[0]).toContain('_revision=original');
-    expect(vi.mocked(clusterFetch).mock.lastCall?.[0]).toContain('_revision=original');
+    expect(clusterFetch).toHaveBeenLastCalledWith(expect.stringContaining('/nodes/sample/'), {
+      cluster,
+      expectedDiscoveryConnection: { revision: expect.stringMatching(/^original:/) },
+    });
 
     await act(async () => {
       select('replacement');
@@ -110,10 +113,10 @@ it('restarts explicit node metric and stats polling and drops results from the o
       expect.stringContaining('_revision=replacement'),
       { cluster }
     );
-    expect(clusterFetch).toHaveBeenLastCalledWith(
-      expect.stringContaining('_revision=replacement'),
-      { cluster }
-    );
+    expect(clusterFetch).toHaveBeenLastCalledWith(expect.stringContaining('/nodes/sample/'), {
+      cluster,
+      expectedDiscoveryConnection: { revision: expect.stringMatching(/^replacement:/) },
+    });
     await act(async () => {
       oldMetrics.resolve({ items: originalMetrics });
       oldSummary.reject(new ApiError('Old polling error', { status: 503 }));
@@ -155,9 +158,16 @@ it('starts summary polling when a name appears and drops responses for the previ
   try {
     expect(fetch).not.toHaveBeenCalled();
     rerender({ nodeName: 'node-a' });
-    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining('/nodes/node-a/'), { cluster });
+    const expectedConnection = { cluster, expectedDiscoveryConnection: { revision: undefined } };
+    expect(fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining('/nodes/node-a/'),
+      expectedConnection
+    );
     rerender({ nodeName: 'node-b' });
-    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining('/nodes/node-b/'), { cluster });
+    expect(fetch).toHaveBeenLastCalledWith(
+      expect.stringContaining('/nodes/node-b/'),
+      expectedConnection
+    );
     await act(async () => {
       newSummary.resolve(Response.json(summary));
     });

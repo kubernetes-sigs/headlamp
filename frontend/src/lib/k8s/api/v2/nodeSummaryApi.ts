@@ -18,9 +18,8 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import type { ApiError } from './ApiError';
 import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
-import { withDiscoveryConnectionRevision } from './discoveryConnection';
+import { assertCurrentDiscoveryConnection } from './discoveryConnection';
 import { clusterFetch } from './fetch';
-import { makeUrl } from './makeUrl';
 
 export interface KubeNodeSummaryStats {
   node?: {
@@ -55,16 +54,15 @@ export async function nodeSummaryStats(
   const handle = setInterval(getNodeSummaryStats, 10000);
   const clusterName = cluster || getCluster() || '';
   const revision = clusterName ? getDiscoveredConnectionRevision(clusterName) : undefined;
-  const url = makeUrl(
-    `/api/v1/nodes/${encodeURIComponent(nodeName)}/proxy/stats/summary`,
-    withDiscoveryConnectionRevision({}, revision)
-  );
+  const url = `/api/v1/nodes/${encodeURIComponent(nodeName)}/proxy/stats/summary`;
 
   async function getNodeSummaryStats() {
     try {
-      const summary: KubeNodeSummaryStats = await clusterFetch(url, { cluster: clusterName }).then(
-        response => response.json()
-      );
+      const summary: KubeNodeSummaryStats = await clusterFetch(url, {
+        cluster: clusterName,
+        expectedDiscoveryConnection: { revision },
+      }).then(response => response.json());
+      assertCurrentDiscoveryConnection(clusterName, revision);
       onStats(summary);
     } catch (err) {
       if (isDebugVerbose('k8s/apiProxy@nodeSummaryStats')) {
