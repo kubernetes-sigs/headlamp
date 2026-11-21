@@ -180,6 +180,53 @@ func TestGeneratePluginPaths(t *testing.T) {
 		require.Empty(t, pathList)
 	})
 
+	t.Run("PluginPathMissingPackageJSON", func(t *testing.T) {
+		var logEntries []logEntry
+
+		originalLogFunc := logger.SetLogFunc(
+			func(level uint, fields map[string]string, _ interface{}, msg string) {
+				logEntries = append(logEntries, logEntry{level: level, msg: msg, fields: fields})
+			},
+		)
+		defer logger.SetLogFunc(originalLogFunc)
+
+		subDirName := uuid.NewString()
+		subDir := filepath.Join(testDirName, subDirName)
+		err = os.Mkdir(subDir, 0o750)
+		require.NoError(t, err)
+
+		// create main.js only, without package.json
+		pluginPath := filepath.Join(subDir, "main.js")
+		pf, err := os.Create(pluginPath) //nolint:gosec // Test helper creating mock plugin main.js file.
+		require.NoError(t, err)
+		require.NoError(t, pf.Close())
+
+		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
+		require.NoError(t, err)
+		require.Len(t, pathList, 1)
+		require.Equal(t, "plugins/"+subDirName, pathList[0].Path)
+		require.Equal(t, "development", pathList[0].Type)
+
+		expectedPackageJSONPath := filepath.Join(subDir, "package.json")
+		expectedMsg := "package.json not found. Please run 'headlamp-plugin extract' again with headlamp-plugin >= 0.6.0"
+
+		foundWarning := false
+
+		for _, e := range logEntries {
+			if e.level == logger.LevelWarn && e.msg == expectedMsg && e.fields["packageJSONPath"] == expectedPackageJSONPath {
+				foundWarning = true
+
+				break
+			}
+		}
+
+		require.True(t, foundWarning, "expected warning log when package.json is missing")
+
+		// clean up
+		err = os.RemoveAll(subDir)
+		require.NoError(t, err)
+	})
+
 	t.Run("StaticPluginPaths", func(t *testing.T) {
 		// create a new directory in dirName
 		subDirName := uuid.NewString()
@@ -268,6 +315,7 @@ func createPlugin(t *testing.T, baseDir string, pluginName string) string {
 
 // logEntry captures a structured log event for test assertions.
 type logEntry struct {
+	level  uint
 	msg    string
 	fields map[string]string
 }
@@ -282,8 +330,8 @@ func TestListPlugins(t *testing.T) { //nolint:funlen // Long test function check
 	var logEntries []logEntry
 
 	originalLogFunc := logger.SetLogFunc(
-		func(_ uint, fields map[string]string, _ interface{}, msg string) {
-			logEntries = append(logEntries, logEntry{msg: msg, fields: fields})
+		func(level uint, fields map[string]string, _ interface{}, msg string) {
+			logEntries = append(logEntries, logEntry{level: level, msg: msg, fields: fields})
 		},
 	)
 	defer logger.SetLogFunc(originalLogFunc)
