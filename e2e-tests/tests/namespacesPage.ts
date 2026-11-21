@@ -97,7 +97,7 @@ export class NamespacesPage {
     try {
       await namespaceLink.waitFor({ state: 'visible', timeout: 10000 });
     } catch (error) {
-      await this.page.reload({ waitUntil: 'networkidle' });
+      await this.page.reload();
     }
     await expect(namespaceLink).toBeVisible();
 
