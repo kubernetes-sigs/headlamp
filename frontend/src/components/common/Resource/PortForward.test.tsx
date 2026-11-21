@@ -333,6 +333,64 @@ describe('PortForward stop handler', () => {
     }
   });
 
+  it.each(['stop', 'delete'] as const)(
+    'keeps the replacement start pending after a late %s',
+    async action => {
+      const previous = appStore.getState().config.clusters;
+      const original = {
+        ...runningPortForward,
+        cluster: 'discovered-forward',
+        connectionRevision: 'original',
+        status: action === 'stop' ? runningPortForward.status : PORT_FORWARD_STOP_STATUS,
+      };
+      const replacement = {
+        ...original,
+        id: 'replacement-id',
+        port: '8081',
+        connectionRevision: 'replacement',
+        status: runningPortForward.status,
+      };
+      const oldAction = Promise.withResolvers<string>();
+      const newStart = Promise.withResolvers<typeof replacement>();
+      mockListPortForward.mockResolvedValueOnce([original]).mockResolvedValue([]);
+      mockStopOrDeletePortForward.mockReturnValueOnce(oldAction.promise);
+      mockStartPortForward.mockReturnValueOnce(newStart.promise);
+      const { rerender, unmount } = render(renderResource(selectPortForwardConnection('original')));
+      try {
+        fireEvent.click(await screen.findByLabelText(new RegExp(`${action} port forward`, 'i')));
+        expect(mockStopOrDeletePortForward).toHaveBeenCalledWith(
+          original.cluster,
+          original.id,
+          action === 'stop'
+        );
+
+        await act(async () => rerender(renderResource(selectPortForwardConnection('replacement'))));
+        fireEvent.click(await screen.findByLabelText(/start port forward/i));
+        fireEvent.click(await screen.findByRole('button', { name: 'translation|Start' }));
+        expect(await screen.findByRole('progressbar')).toBeInTheDocument();
+        if (action === 'delete') {
+          localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify([original, replacement]));
+        }
+
+        await act(async () => oldAction.resolve('ok'));
+        expect(screen.getByRole('progressbar')).toBeInTheDocument();
+        if (action === 'delete') {
+          expect(JSON.parse(localStorage.getItem(PORT_FORWARDS_STORAGE_KEY)!)).toEqual([
+            replacement,
+          ]);
+        }
+
+        await act(async () => newStart.resolve(replacement));
+        expect(
+          await screen.findByRole('link', { name: 'http://127.0.0.1:8081' })
+        ).toBeInTheDocument();
+      } finally {
+        unmount();
+        appStore.dispatch(setConfig({ clusters: previous }));
+      }
+    }
+  );
+
   it('does not display original sessions for a same-named replacement pod', async () => {
     const previous = appStore.getState().config.clusters;
     const oldForward = {

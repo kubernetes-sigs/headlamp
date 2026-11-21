@@ -450,8 +450,7 @@ export default function PortForwardingList() {
               if (isCurrent()) fetchPortForwardList(true, id, cluster);
             })
             .catch(error => {
-              if (portForwardInActionRef.current !== starting) return;
-              setPortForwardInActionSafely(null);
+              if (portForwardInActionRef.current === starting) setPortForwardInActionSafely(null);
               console.error('Error starting port forward:', error);
               if (!isMountedRef.current || (matchedAtConfirmation && !isCurrent())) return;
               const errorMessage =

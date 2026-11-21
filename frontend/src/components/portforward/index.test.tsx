@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import PortForwardingList from './index';
@@ -497,6 +497,39 @@ describe('PortForwardingList', () => {
     );
     expect(logError).toHaveBeenCalledWith('Error starting port forward:', error);
     logError.mockRestore();
+  });
+
+  it('reports a late start failure while a different forward is stopping', async () => {
+    const start = Promise.withResolvers<never>();
+    const stop = Promise.withResolvers<undefined>();
+    const stopped = makePortForward({ status: PORT_FORWARD_STOP_STATUS });
+    const running = makePortForward({ id: 'pf-2', pod: 'another-pod' });
+    mockListPortForward.mockResolvedValue([stopped, running]);
+    mockStartPortForward.mockReturnValue(start.promise);
+    mockStopOrDeletePortForward.mockReturnValue(stop.promise);
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      renderList();
+      const actions = async (id: string) =>
+        within(await screen.findByTestId(`pf-row-${id}`)).findByRole('button', { name: 'Actions' });
+      fireEvent.click(await actions(stopped.id));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Start' }));
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+      fireEvent.click(await actions(running.id));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Stop' }));
+      await waitFor(() => expect(mockStopOrDeletePortForward).toHaveBeenCalledOnce());
+
+      const error = new Error('address already in use');
+      await act(async () => start.reject(error));
+      expect(logError).toHaveBeenCalledWith('Error starting port forward:', error);
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        'translation|Error starting port forward: address already in use',
+        expect.objectContaining({ variant: 'error' })
+      );
+      await act(async () => stop.resolve(undefined));
+    } finally {
+      logError.mockRestore();
+    }
   });
 
   it('stops a forward, refreshes the list and reports backend errors', async () => {

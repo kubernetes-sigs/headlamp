@@ -376,9 +376,10 @@ function PortForwardContent(props: PortForwardProps) {
       setError(createDiscoveryConnectionChangedError().message);
       return;
     }
+    const connection = origin ?? podOrigin;
     setStartRequest({
       cluster,
-      revision: origin?.revision ?? podOrigin?.revision ?? getDiscoveredConnectionRevision(cluster),
+      revision: connection ? connection.revision : getDiscoveredConnectionRevision(cluster),
       namespace: isPod ? namespace : selectedPod.metadata.namespace!,
       pod: selectedPod.metadata.name,
       service: isPod ? '' : name,
@@ -410,7 +411,7 @@ function PortForwardContent(props: PortForwardProps) {
         setPortForward(null);
       })
       .finally(() => {
-        setLoading(false);
+        if (getDiscoveredConnectionRevision(cluster) === revision) setLoading(false);
       });
   }
 
@@ -423,19 +424,22 @@ function PortForwardContent(props: PortForwardProps) {
     stopOrDeletePortForward(cluster, id, false)
       .then(() => {
         const parsedPortForwards = getPortForwardsFromStorage();
-        const index = parsedPortForwards.findIndex((pf: PortForwardState) => pf.id === id);
+        const index = parsedPortForwards.findIndex(
+          pf => pf.id === id && pf.cluster === cluster && isPortForwardOnConnection(pf, revision)
+        );
         if (index !== -1) {
           parsedPortForwards.splice(index, 1);
           localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
         }
-        setPortForward(null);
+        if (getDiscoveredConnectionRevision(cluster) === revision) setPortForward(null);
       })
       .catch(error => {
+        if (getDiscoveredConnectionRevision(cluster) !== revision) return;
         const message = getErrorMessage(error);
         setError(message || 'Failed to delete port forward');
       })
       .finally(() => {
-        setLoading(false);
+        if (getDiscoveredConnectionRevision(cluster) === revision) setLoading(false);
       });
   }
 
