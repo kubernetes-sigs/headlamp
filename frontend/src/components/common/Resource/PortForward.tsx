@@ -29,13 +29,17 @@ import { isDockerDesktop } from '../../../helpers/isDockerDesktop';
 import { isElectron } from '../../../helpers/isElectron';
 import { getCluster } from '../../../lib/cluster';
 import {
+  isPortForwardOnConnection,
   listPortForward,
   PortForward as PortForwardState,
   PortForwardRequest,
   startPortForwardForConnection,
   stopOrDeletePortForward,
 } from '../../../lib/k8s/api/v1/portForward';
-import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
+import {
+  getDiscoveredConnectionRevision,
+  useDiscoveredConnectionRevisions,
+} from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
   createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
@@ -119,13 +123,15 @@ function checkIfPodPortForwarding(portforwardParam: {
   namespace: string;
   name: string;
   cluster: string;
+  revision?: string;
   numericContainerPort: string | number;
 }) {
-  const { item, namespace, name, cluster, numericContainerPort } = portforwardParam;
+  const { item, namespace, name, cluster, revision, numericContainerPort } = portforwardParam;
   return (
     (item.namespace === namespace || item.serviceNamespace === namespace) &&
     (item.pod === name || item.service === name) &&
     item.cluster === cluster &&
+    isPortForwardOnConnection(item, revision) &&
     item.targetPort === numericContainerPort.toString()
   );
 }
@@ -172,7 +178,7 @@ function PortForwardContent(props: PortForwardProps) {
   const name = resource?.metadata?.name || '';
 
   const [error, setError] = React.useState<string | null>(null);
-  const [portForward, setPortForward] = React.useState<PortForwardState | null>(null);
+  const [lastPortForward, setPortForward] = React.useState<PortForwardState | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [startRequest, setStartRequest] = React.useState<
     (PortForwardRequest & { cluster: string; revision?: string }) | null
@@ -184,6 +190,7 @@ function PortForwardContent(props: PortForwardProps) {
     namespace,
     labelSelector: getPodsSelectorFilter(service),
     cluster: resource?.cluster,
+    ...(isPod ? { clusters: [] } : {}),
   });
 
   const cluster = React.useMemo(() => {
@@ -196,11 +203,15 @@ function PortForwardContent(props: PortForwardProps) {
     return getCluster();
   }, [resource]);
 
+  const revision = useDiscoveredConnectionRevisions().get(cluster ?? '');
+  const portForward =
+    lastPortForward && isPortForwardOnConnection(lastPortForward, revision)
+      ? lastPortForward
+      : null;
+  const selectedPod = isPod ? (resource as Pod | undefined) : pods?.[0];
   const numericContainerPort =
     typeof containerPort === 'string' && isNaN(parseInt(containerPort))
-      ? !pods || pods.length === 0
-        ? 0
-        : getPortNumberFromPortName(pods[0].spec.containers, containerPort)
+      ? getPortNumberFromPortName(selectedPod?.spec?.containers ?? [], containerPort)
       : containerPort;
 
   const shouldRender =
@@ -214,11 +225,14 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     let cancelled = false;
+    const isCurrent = () => !cancelled && getDiscoveredConnectionRevision(cluster) === revision;
     setError(null);
+    setLoading(false);
+    setPortForward(null);
 
     listPortForward(cluster)
       .then(result => {
-        if (cancelled) {
+        if (!isCurrent()) {
           return;
         }
         const portForwards = result || [];
@@ -242,6 +256,7 @@ function PortForwardContent(props: PortForwardProps) {
               namespace,
               name,
               cluster,
+              revision,
               numericContainerPort,
             })
           ) {
@@ -249,7 +264,7 @@ function PortForwardContent(props: PortForwardProps) {
           }
         }
 
-        if (!cancelled) {
+        if (isCurrent()) {
           localStorage.setItem(
             PORT_FORWARDS_STORAGE_KEY,
             JSON.stringify(serverAndStoragePortForwards)
@@ -257,7 +272,7 @@ function PortForwardContent(props: PortForwardProps) {
         }
       })
       .catch(err => {
-        if (cancelled) {
+        if (!isCurrent()) {
           return;
         }
         console.error('Failed to list port forwards', err);
@@ -268,7 +283,7 @@ function PortForwardContent(props: PortForwardProps) {
     return () => {
       cancelled = true;
     };
-  }, [cluster, namespace, name, numericContainerPort, shouldRender]);
+  }, [cluster, namespace, name, numericContainerPort, revision, shouldRender]);
 
   if (!shouldRender) {
     return null;
@@ -277,6 +292,10 @@ function PortForwardContent(props: PortForwardProps) {
   function startPortForwardWithSelection(chosenPort?: string) {
     if (!startRequest) return;
     const { cluster, revision, ...request } = startRequest;
+    if (getDiscoveredConnectionRevision(cluster) !== revision) {
+      setError(createDiscoveryConnectionChangedError().message);
+      return;
+    }
     setError(null);
     let port = chosenPort || request.port;
 
@@ -317,14 +336,15 @@ function PortForwardContent(props: PortForwardProps) {
     setLoading(true);
     startPortForwardForConnection({ cluster, revision }, { ...request, port, address })
       .then((data: PortForwardState) => {
-        setLoading(false);
-        setPortForward(data);
-
         const parsedPortForwards = getPortForwardsFromStorage();
         parsedPortForwards.push(data);
         localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
+        if (getDiscoveredConnectionRevision(cluster) !== revision) return;
+        setLoading(false);
+        setPortForward(data);
       })
       .catch(error => {
+        if (getDiscoveredConnectionRevision(cluster) !== revision) return;
         const message = getErrorMessage(error);
         setError(message || 'An unexpected error occurred.');
         setLoading(false);
@@ -345,11 +365,9 @@ function PortForwardContent(props: PortForwardProps) {
   }
 
   function openStartDialog() {
-    if (!resource || !namespace || !cluster || !pods) return;
-    const pod = isPod ? resource : pods[0];
-    if (!pod) return;
+    if (!resource || !namespace || !cluster || !selectedPod) return;
     const origin = getResourceDiscoveryConnection(resource);
-    const podOrigin = getResourceDiscoveryConnection(pod);
+    const podOrigin = getResourceDiscoveryConnection(selectedPod);
     if (
       (origin && origin.cluster !== cluster) ||
       (podOrigin && podOrigin.cluster !== cluster) ||
@@ -361,8 +379,8 @@ function PortForwardContent(props: PortForwardProps) {
     setStartRequest({
       cluster,
       revision: origin?.revision ?? podOrigin?.revision ?? getDiscoveredConnectionRevision(cluster),
-      namespace: isPod ? namespace : pod.metadata.namespace!,
-      pod: pod.metadata.name,
+      namespace: isPod ? namespace : selectedPod.metadata.namespace!,
+      pod: selectedPod.metadata.name,
       service: isPod ? '' : name,
       serviceNamespace: namespace,
       targetPort: numericContainerPort.toString(),
@@ -382,9 +400,11 @@ function PortForwardContent(props: PortForwardProps) {
     setLoading(true);
     stopOrDeletePortForward(cluster, portForward.id, true)
       .then(() => {
+        if (getDiscoveredConnectionRevision(cluster) !== revision) return;
         setPortForward({ ...portForward, status: PORT_FORWARD_STOP_STATUS });
       })
       .catch(error => {
+        if (getDiscoveredConnectionRevision(cluster) !== revision) return;
         const message = getErrorMessage(error);
         setError(message || 'Failed to stop port forward');
         setPortForward(null);

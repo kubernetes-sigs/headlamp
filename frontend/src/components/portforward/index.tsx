@@ -26,11 +26,15 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { isDockerDesktop } from '../../helpers/isDockerDesktop';
 import {
+  isPortForwardOnConnection,
   listPortForward,
   startPortForwardForConnection,
   stopOrDeletePortForward,
 } from '../../lib/k8s/api/v1/portForward';
-import { getDiscoveredConnectionRevision } from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
+import {
+  getDiscoveredConnectionRevision,
+  useDiscoveredConnectionRevisions,
+} from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import { getCluster } from '../../lib/util';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
@@ -60,6 +64,7 @@ export default function PortForwardingList() {
   const portForwardInActionRef = React.useRef(portForwardInAction);
   const { enqueueSnackbar } = useSnackbar();
   const cluster = getCluster();
+  const revision = useDiscoveredConnectionRevisions().get(cluster ?? '');
   const { t } = useTranslation(['translation', 'glossary']);
   const optionsTranslated = React.useMemo(
     () => ({
@@ -97,11 +102,14 @@ export default function PortForwardingList() {
     (showError?: boolean, activePortForwardId?: any, clusterOverride?: string) => {
       const cluster = clusterOverride || getCluster();
       if (!cluster) return;
+      const requestedRevision = getDiscoveredConnectionRevision(cluster);
+      const isCurrent = () => getDiscoveredConnectionRevision(cluster) === requestedRevision;
       const portForwardId = activePortForwardId ?? portForwardInActionRef.current?.id;
 
       // fetch port forwarding list
       return listPortForward(cluster)
         .then(portforwards => {
+          if (!isCurrent()) return;
           const massagedPortForwards = Array.isArray(portforwards) ? [...portforwards] : [];
           massagedPortForwards.forEach((portforward: any) => {
             if (portForwardId === portforward.id) {
@@ -153,6 +161,7 @@ export default function PortForwardingList() {
           setPortForwards(massagedPortForwards);
         })
         .catch(error => {
+          if (!isCurrent()) return;
           console.error('Error fetching port forwards:', error);
           if (!isMountedRef.current) {
             return;
@@ -178,7 +187,7 @@ export default function PortForwardingList() {
 
   React.useEffect(() => {
     fetchPortForwardList();
-  }, [fetchPortForwardList]);
+  }, [fetchPortForwardList, revision]);
 
   const handleAction = (option: string, portforward: any, closeMenu: () => void) => {
     closeMenu();
@@ -193,12 +202,15 @@ export default function PortForwardingList() {
       if (isDockerDesktop()) {
         address = '0.0.0.0';
       }
+      const currentRevision = getDiscoveredConnectionRevision(cluster);
       setSelectedForStart({
         ...portforward,
         cluster,
         namespace,
         address,
-        revision: getDiscoveredConnectionRevision(cluster),
+        revision: isPortForwardOnConnection(portforward, currentRevision)
+          ? currentRevision
+          : portforward.connectionRevision,
       });
       setStartDialogOpen(true);
       return;
@@ -415,7 +427,10 @@ export default function PortForwardingList() {
 
           setStartDialogOpen(false);
           setSelectedForStart(null);
-          setPortForwardInActionSafely({ ...selectedForStart, loading: true });
+          const starting = { ...selectedForStart, loading: true };
+          const isCurrent = () => getDiscoveredConnectionRevision(cluster) === starting.revision;
+          const matchedAtConfirmation = isCurrent();
+          setPortForwardInActionSafely(starting);
 
           startPortForwardForConnection(
             { cluster, revision: selectedForStart.revision },
@@ -431,16 +446,14 @@ export default function PortForwardingList() {
             }
           )
             .then(() => {
-              setPortForwardInActionSafely(null);
-              // Always refresh so localStorage stays in sync regardless of mount state.
-              fetchPortForwardList(true, id, cluster);
+              if (portForwardInActionRef.current === starting) setPortForwardInActionSafely(null);
+              if (isCurrent()) fetchPortForwardList(true, id, cluster);
             })
             .catch(error => {
+              if (portForwardInActionRef.current !== starting) return;
               setPortForwardInActionSafely(null);
               console.error('Error starting port forward:', error);
-              if (!isMountedRef.current) {
-                return;
-              }
+              if (!isMountedRef.current || (matchedAtConfirmation && !isCurrent())) return;
               const errorMessage =
                 error instanceof Error ? error.message : typeof error === 'string' ? error : '';
               const displayMessage = errorMessage

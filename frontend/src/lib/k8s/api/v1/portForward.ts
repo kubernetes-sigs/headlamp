@@ -20,6 +20,7 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
 import {
   createDiscoveryConnectionChangedError,
+  getRoutingRevision,
   withDiscoveryConnectionRevision,
 } from '../v2/discoveryConnection';
 import { clusterFetch } from '../v2/fetch';
@@ -33,10 +34,15 @@ export interface PortForward {
   serviceNamespace: string;
   namespace: string;
   cluster: string;
+  connectionRevision?: string;
   port: string;
   targetPort: string;
   status?: string;
   error?: string;
+}
+
+export function isPortForwardOnConnection(forward: PortForward, revision?: string) {
+  return (forward.connectionRevision || undefined) === (getRoutingRevision(revision) || undefined);
 }
 
 export interface PortForwardRequest {

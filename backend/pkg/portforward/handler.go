@@ -193,21 +193,30 @@ func (p *portForwardRequest) Validate() error {
 	return nil
 }
 
+func portForwardConnectionRevision(connection *kubeconfig.Context) string {
+	if connection.Discovery != nil {
+		return connection.Discovery.ConnectionRevision
+	}
+
+	return ""
+}
+
 type portForward struct {
-	mu               *sync.Mutex
-	ID               string `json:"id"`
-	closeChan        chan struct{}
-	Pod              string       `json:"pod"`
-	Service          string       `json:"service"`
-	ServiceNamespace string       `json:"serviceNamespace"`
-	Namespace        string       `json:"namespace"`
-	Cluster          string       `json:"cluster"`
-	cacheKey         string       `json:"-"`
-	Port             string       `json:"port"`
-	TargetPort       string       `json:"targetPort"`
-	Status           string       `json:"status"`
-	Error            string       `json:"error"`
-	rConf            *rest.Config `json:"-"` // needed for reconnect on pod restart
+	mu                 *sync.Mutex
+	ID                 string `json:"id"`
+	closeChan          chan struct{}
+	Pod                string       `json:"pod"`
+	Service            string       `json:"service"`
+	ServiceNamespace   string       `json:"serviceNamespace"`
+	Namespace          string       `json:"namespace"`
+	Cluster            string       `json:"cluster"`
+	ConnectionRevision string       `json:"connectionRevision,omitempty"`
+	cacheKey           string       `json:"-"`
+	Port               string       `json:"port"`
+	TargetPort         string       `json:"targetPort"`
+	Status             string       `json:"status"`
+	Error              string       `json:"error"`
+	rConf              *rest.Config `json:"-"` // needed for reconnect on pod restart
 }
 
 // setStatusAndSnapshot updates the Status and Error fields and returns a
@@ -365,7 +374,13 @@ func startPortForwardRequest(getContext func() (*kubeconfig.Context, error), cac
 
 	w.Header().Set("Content-Type", "application/json")
 
-	if err = json.NewEncoder(w).Encode(p); err != nil {
+	response := struct {
+		portForwardRequest
+		Cluster            string `json:"cluster"`
+		ConnectionRevision string `json:"connectionRevision,omitempty"`
+	}{p, requestClusterName, portForwardConnectionRevision(kContext)}
+
+	if err = json.NewEncoder(w).Encode(response); err != nil {
 		logger.Log(logger.LevelError, nil, err, "writing json payload to response write")
 		http.Error(w, "failed to write json payload to response write "+err.Error(), http.StatusInternalServerError)
 
@@ -962,20 +977,21 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	}
 
 	pfDetails := &portForward{
-		mu:               &sync.Mutex{},
-		ID:               p.ID,
-		closeChan:        stopChan,
-		Pod:              p.Pod,
-		Cluster:          requestClusterName,
-		cacheKey:         clusterName,
-		Namespace:        p.Namespace,
-		Service:          p.Service,
-		ServiceNamespace: p.ServiceNamespace,
-		TargetPort:       p.TargetPort,
-		Status:           RUNNING,
-		Port:             p.Port,
-		Error:            "",
-		rConf:            rConf,
+		mu:                 &sync.Mutex{},
+		ID:                 p.ID,
+		closeChan:          stopChan,
+		Pod:                p.Pod,
+		Cluster:            requestClusterName,
+		ConnectionRevision: portForwardConnectionRevision(kContext),
+		cacheKey:           clusterName,
+		Namespace:          p.Namespace,
+		Service:            p.Service,
+		ServiceNamespace:   p.ServiceNamespace,
+		TargetPort:         p.TargetPort,
+		Status:             RUNNING,
+		Port:               p.Port,
+		Error:              "",
+		rConf:              rConf,
 	}
 
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)

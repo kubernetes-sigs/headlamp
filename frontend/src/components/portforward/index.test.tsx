@@ -50,7 +50,8 @@ const {
   mockEnqueueSnackbar: vi.fn(),
 }));
 
-vi.mock('../../lib/k8s/api/v1/portForward', () => ({
+vi.mock('../../lib/k8s/api/v1/portForward', async importOriginal => ({
+  ...(await importOriginal<object>()),
   listPortForward: (...args: any[]) => mockListPortForward(...args),
   startPortForwardForConnection: (...args: any[]) => mockStartPortForward(...args),
   stopOrDeletePortForward: (...args: any[]) => mockStopOrDeletePortForward(...args),
