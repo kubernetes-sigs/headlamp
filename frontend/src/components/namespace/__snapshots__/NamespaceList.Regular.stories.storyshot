@@ -1,43 +1,43 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-j1fy4m"
+      class="MuiContainer-root MuiContainer-maxWidthXl css-4hqp1a-MuiContainer-root"
     >
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        class="MuiBox-root css-j1fy4m"
       >
         <div
-          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
         >
           <div
-            class="MuiBox-root css-70qvj9"
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
           >
-            <h1
-              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
-            >
-              Namespaces
-            </h1>
             <div
-              class="MuiBox-root css-ldp2l3"
+              class="MuiBox-root css-70qvj9"
             >
-              <button
-                aria-label="Create Namespace"
-                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                data-mui-internal-clone-element="true"
-                tabindex="0"
-                type="button"
+              <h1
+                class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
               >
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </button>
+                Namespaces
+              </h1>
+              <div
+                class="MuiBox-root css-ldp2l3"
+              >
+                <button
+                  aria-label="Create Namespace"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  data-mui-internal-clone-element="true"
+                  tabindex="0"
+                  type="button"
+                >
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div
-        class="MuiBox-root css-1txv3mw"
-      >
         <div
           class="MuiBox-root css-8atqhb"
         >
