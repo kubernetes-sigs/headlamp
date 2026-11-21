@@ -17,8 +17,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { jsonPatch } from './api/v1/clusterRequests';
+import * as streamingApi from './api/v1/streamingApi';
 import { recordDiscoveryConnection } from './api/v2/discoveryConnection';
-import ControllerRevision from './controllerRevision';
+import type { KubeControllerRevision } from './controllerRevision';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
 import ReplicaSet from './replicaSet';
@@ -64,52 +65,43 @@ it.each([
         controller: true,
       },
     ];
-    const replicas = vi.spyOn(ReplicaSet, 'apiList').mockImplementation(onList => async () => {
-      onList(
-        [1, 2].map(revision => {
-          const data = ReplicaSet.getBaseObject();
-          data.metadata.ownerReferences = ownerReferences;
-          data.metadata.annotations = { 'deployment.kubernetes.io/revision': String(revision) };
-          data.spec.template = template;
-          return new ReplicaSet(data);
-        })
-      );
-      return () => {};
+    const isDeployment = kind === 'deployments';
+    const revisions = [1, 2].map(revision => {
+      if (isDeployment) {
+        const data = ReplicaSet.getBaseObject();
+        data.metadata.ownerReferences = ownerReferences;
+        data.metadata.annotations = { 'deployment.kubernetes.io/revision': String(revision) };
+        data.spec.template = template;
+        return data;
+      }
+
+      return {
+        apiVersion: 'apps/v1',
+        kind: 'ControllerRevision',
+        metadata: {
+          creationTimestamp: '2026-01-01T00:00:00Z',
+          name: `revision-${revision}`,
+          uid: `revision-${revision}`,
+          ownerReferences,
+        },
+        revision,
+        data: { spec: { template } },
+      } satisfies KubeControllerRevision;
     });
-    const revisions = vi
-      .spyOn(ControllerRevision, 'apiList')
-      .mockImplementation(onList => async () => {
-        onList(
-          [1, 2].map(
-            revision =>
-              new ControllerRevision({
-                apiVersion: 'apps/v1',
-                kind: 'ControllerRevision',
-                metadata: {
-                  creationTimestamp: '2026-01-01T00:00:00Z',
-                  name: `revision-${revision}`,
-                  uid: `revision-${revision}`,
-                  ownerReferences,
-                },
-                revision,
-                data: { spec: { template } },
-              })
-          )
-        );
+    const history = vi
+      .spyOn(streamingApi, 'streamResultsForCluster')
+      .mockImplementation(async (_path, { cb }) => {
+        cb(revisions);
         return () => {};
       });
 
     await expect(workload.rollback({ toRevision: 1, dryRun: true })).resolves.toMatchObject({
       success: true,
     });
-    const history = kind === 'deployments' ? replicas : revisions;
     expect(history).toHaveBeenCalledWith(
-      expect.any(Function),
-      expect.any(Function),
-      expect.objectContaining({
-        cluster: 'discovered',
-        queryParams: expect.objectContaining({ __headlamp_connection_revision: 'origin' }),
-      })
+      `/apis/apps/v1/namespaces/default/${isDeployment ? 'replicasets' : 'controllerrevisions'}`,
+      expect.objectContaining({ cluster: 'discovered' }),
+      expect.objectContaining({ __headlamp_connection_revision: 'origin' })
     );
     const [url, , , request] = vi.mocked(jsonPatch).mock.calls[0];
     const guarded = new URL(url, 'https://headlamp.test/');

@@ -300,6 +300,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     if (opts?.queryParams?.limit) {
       queryParams['limit'] = opts.queryParams.limit;
     }
+    if (opts?.queryParams?.__headlamp_connection_revision) {
+      queryParams.__headlamp_connection_revision = opts.queryParams.__headlamp_connection_revision;
+    }
     args.push(queryParams);
 
     args.push(opts?.cluster);
