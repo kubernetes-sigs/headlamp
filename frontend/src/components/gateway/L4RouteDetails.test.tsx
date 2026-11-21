@@ -198,6 +198,22 @@ describe('L4RouteDetails', () => {
       'cluster-b'
     );
   });
+
+  it('shows the Hostnames row only for routes that set hostnames (TLSRoute)', () => {
+    const { extraInfo } = getDetailsGridProps();
+
+    const tlsRoute = {
+      jsonData: { spec: { hostnames: ['secure.example.com', '*.internal.example.com'] } },
+    };
+    const hostnamesRow = extraInfo(tlsRoute);
+    expect(hostnamesRow).toHaveLength(1);
+    expect(hostnamesRow[0].name).toBe('Hostnames');
+
+    const l4Route = { jsonData: { spec: {} } };
+    expect(extraInfo(l4Route)).toBeNull();
+
+    expect(extraInfo(null)).toBeNull();
+  });
 });
 
 describe('L4RouteList', () => {

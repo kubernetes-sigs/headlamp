@@ -254,12 +254,26 @@ describe('useGetAllSources', () => {
     expect(gateway.sources.map(source => source.label)).toContain('gateways');
     expect(findLeaf(result.current, 'gateway.networking.k8s.io/TCPRoute')).toBeUndefined();
     expect(findLeaf(result.current, 'gateway.networking.k8s.io/UDPRoute')).toBeUndefined();
+    expect(findLeaf(result.current, 'gateway.networking.k8s.io/TLSRoute')).toBeUndefined();
   });
 
   it.each([
-    ['TCPRoute', 'gateway.networking.k8s.io/TCPRoute', 'gateway.networking.k8s.io/UDPRoute'],
-    ['UDPRoute', 'gateway.networking.k8s.io/UDPRoute', 'gateway.networking.k8s.io/TCPRoute'],
-  ])('adds only the exactly discovered %s source', (kind, expectedId, absentId) => {
+    [
+      'TCPRoute',
+      'gateway.networking.k8s.io/TCPRoute',
+      ['gateway.networking.k8s.io/UDPRoute', 'gateway.networking.k8s.io/TLSRoute'],
+    ],
+    [
+      'UDPRoute',
+      'gateway.networking.k8s.io/UDPRoute',
+      ['gateway.networking.k8s.io/TCPRoute', 'gateway.networking.k8s.io/TLSRoute'],
+    ],
+    [
+      'TLSRoute',
+      'gateway.networking.k8s.io/TLSRoute',
+      ['gateway.networking.k8s.io/TCPRoute', 'gateway.networking.k8s.io/UDPRoute'],
+    ],
+  ])('adds only the exactly discovered %s source', (kind, expectedId, absentIds) => {
     vi.mocked(useQuery).mockReturnValue({
       data: [{ groupName: 'gateway.networking.k8s.io' }],
     } as ReturnType<typeof useQuery>);
@@ -270,15 +284,17 @@ describe('useGetAllSources', () => {
     const { result } = renderHook(() => useGetAllSources());
 
     expect(findLeaf(result.current, expectedId)).toBeDefined();
-    expect(findLeaf(result.current, absentId)).toBeUndefined();
+    for (const absentId of absentIds) {
+      expect(findLeaf(result.current, absentId)).toBeUndefined();
+    }
   });
 
-  it('adds both translated L4 sources when both exact kinds are discovered', () => {
+  it('adds every translated L4 source when all exact kinds are discovered', () => {
     vi.mocked(useQuery).mockReturnValue({
       data: [{ groupName: 'gateway.networking.k8s.io' }],
     } as ReturnType<typeof useQuery>);
     vi.mocked(useGatewayL4RouteAvailability).mockReturnValue({
-      data: ['TCPRoute', 'UDPRoute'],
+      data: ['TCPRoute', 'UDPRoute', 'TLSRoute'],
     } as unknown as ReturnType<typeof useGatewayL4RouteAvailability>);
 
     const { result } = renderHook(() => useGetAllSources());
@@ -288,6 +304,9 @@ describe('useGetAllSources', () => {
     );
     expect(findLeaf(result.current, 'gateway.networking.k8s.io/UDPRoute')?.label).toBe(
       'UDP Routes'
+    );
+    expect(findLeaf(result.current, 'gateway.networking.k8s.io/TLSRoute')?.label).toBe(
+      'TLS Routes'
     );
   });
 
@@ -332,9 +351,11 @@ describe('useGetAllSources', () => {
         crd('Gadget', 'example.io', 'gadgets'),
         crd('TCPRoute', 'example.io', 'tcproutes'),
         crd('UDPRoute', 'example.io', 'udproutes'),
+        crd('TLSRoute', 'example.io', 'tlsroutes'),
         crd('Gateway', 'gateway.networking.k8s.io', 'gateways'),
         crd('TCPRoute', 'gateway.networking.k8s.io', 'tcproutes'),
         crd('UDPRoute', 'gateway.networking.k8s.io', 'udproutes'),
+        crd('TLSRoute', 'gateway.networking.k8s.io', 'tlsroutes'),
         crd('VerticalPodAutoscaler', 'autoscaling.k8s.io', 'verticalpodautoscalers'),
       ],
     } as unknown as ReturnType<typeof CRD.useList>);
@@ -352,6 +373,7 @@ describe('useGetAllSources', () => {
       'crd-example.io/Gadget',
       'crd-example.io/TCPRoute',
       'crd-example.io/UDPRoute',
+      'crd-example.io/TLSRoute',
     ]);
     expect(
       findLeaf(customResources.sources, 'crd-gateway.networking.k8s.io/Gateway')
@@ -361,6 +383,9 @@ describe('useGetAllSources', () => {
     ).toBeUndefined();
     expect(
       findLeaf(customResources.sources, 'crd-gateway.networking.k8s.io/UDPRoute')
+    ).toBeUndefined();
+    expect(
+      findLeaf(customResources.sources, 'crd-gateway.networking.k8s.io/TLSRoute')
     ).toBeUndefined();
     expect(
       findLeaf(customResources.sources, 'crd-autoscaling.k8s.io/VerticalPodAutoscaler')

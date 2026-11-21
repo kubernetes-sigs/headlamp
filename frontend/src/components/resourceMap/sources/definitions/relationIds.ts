@@ -48,6 +48,8 @@ export const BUILT_IN_RELATION_IDS = [
   'tcproute-service',
   'udproute-gateway',
   'udproute-service',
+  'tlsroute-gateway',
+  'tlsroute-service',
   'backendtlspolicy-service',
   'backendtrafficpolicy-service',
   'podgroup-workload',

@@ -116,6 +116,7 @@
   "To": "К",
   "Reference Grants": "Reference Grants",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Horizontal Pod Autoscaler",
   "Ingress Classes": "IngressClass",

@@ -64,6 +64,7 @@ import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
 import TCPRoute from './tcpRoute';
+import TLSRoute from './tlsRoute';
 import UDPRoute from './udpRoute';
 import VolumeAttributesClass from './volumeAttributesClass';
 
@@ -123,6 +124,7 @@ export const ResourceClasses = {
   HTTPRoute,
   GRPCRoute,
   TCPRoute,
+  TLSRoute,
   UDPRoute,
   // Keyed by kind, so the scheduling.k8s.io Workload is registered as 'Workload'.
   Workload: SchedulingWorkload,

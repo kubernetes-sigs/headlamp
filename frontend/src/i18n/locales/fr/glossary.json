@@ -116,6 +116,7 @@
   "To": "À",
   "Reference Grants": "Autorisations de référence",
   "TCPRoutes": "Routes TCP",
+  "TLS Routes": "",
   "UDPRoutes": "Routes UDP",
   "Horizontal Pod Autoscalers": "Horizontal Pod Autoscalers",
   "Ingress Classes": "Classes d'Ingress",
