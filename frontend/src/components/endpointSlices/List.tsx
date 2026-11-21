@@ -31,7 +31,7 @@ function renderEndpoints(endpointSlice: EndpointSlice) {
     const { addresses, conditions } = endpoint;
     return (
       <Box display="inline-block">
-        <StatusLabel status={conditions?.ready ? 'success' : 'error'}>
+        <StatusLabel status={conditions?.ready !== false ? 'success' : 'error'}>
           {addresses.join(',')}
         </StatusLabel>
       </Box>
