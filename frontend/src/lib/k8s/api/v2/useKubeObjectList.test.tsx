@@ -1592,33 +1592,42 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     );
   });
 
-  it('keeps a multiplexed watch error separate from a successful LIST', async () => {
-    mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
-    const client = new QueryClient();
-    const requests = [{ cluster: 'ordinary' }];
-    const wrapper = queryClientWrapper(client);
-    const watching = renderHook(() => useKubeObjectList({ kubeObjectClass: mockClass, requests }), {
-      wrapper,
-    });
-    const listing = renderHook(
-      () => useKubeObjectList({ kubeObjectClass: mockClass, requests, watch: false }),
-      { wrapper }
-    );
+  it.each(['the next event', 'a replacement subscription'] as const)(
+    'keeps a multiplexed watch error separate from LIST and clears it on %s',
+    async recovery => {
+      mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
+      const client = new QueryClient();
+      const requests = [{ cluster: 'ordinary' }];
+      const wrapper = queryClientWrapper(client);
+      const watching = renderHook(
+        () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+        {
+          wrapper,
+        }
+      );
+      const listing = renderHook(
+        () => useKubeObjectList({ kubeObjectClass: mockClass, requests, watch: false }),
+        { wrapper }
+      );
 
-    await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
-    const onMessage = mockSubscribe.mock.calls[0][3];
-    act(() => onMessage({ type: 'ERROR', object: { code: 403, message: 'Forbidden' } }));
-    await waitFor(() => expect(watching.result.current.errors?.[0].status).toBe(403));
-    expect(listing.result.current.errors).toBeNull();
-    expect(listing.result.current.items?.[0].metadata.name).toBe('pod-1');
+      await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+      const onMessage = mockSubscribe.mock.calls[0][3];
+      act(() => onMessage({ type: 'ERROR', object: { code: 403, message: 'Forbidden' } }));
+      await waitFor(() => expect(watching.result.current.errors?.[0].status).toBe(403));
+      expect(listing.result.current.errors).toBeNull();
+      expect(listing.result.current.items?.[0].metadata.name).toBe('pod-1');
 
-    act(() => onMessage({ type: 'ADDED', object: makePod('pod-2', '2') }));
-    await waitFor(() => expect(watching.result.current.errors).toBeNull());
-    expect(listing.result.current.items?.map(item => item.metadata.name)).toEqual([
-      'pod-1',
-      'pod-2',
-    ]);
-  });
+      if (recovery === 'the next event') {
+        act(() => onMessage({ type: 'MODIFIED', object: makePod('pod-1', '2') }));
+      } else {
+        mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '2'));
+        await act(async () => client.invalidateQueries());
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(2));
+      }
+      await waitFor(() => expect(watching.result.current.errors).toBeNull());
+      expect(listing.result.current.items?.[0].metadata.resourceVersion).toBe('2');
+    }
+  );
 
   it('unsubscribes a pinned multiplexed watch when its cursor expires', async () => {
     mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
@@ -1767,14 +1776,18 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     }
   });
 
-  it('resumes from the cached cursor and relists once after a rejected upgrade', async () => {
+  it('resumes from the cached cursor and periodically relists after rejected upgrades', async () => {
     const restoreClusters = registerDiscoveredCluster();
     mockClusterFetch
       .mockResolvedValueOnce(new Response(JSON.stringify(makeListResponse())))
       .mockResolvedValueOnce(
         new Response(JSON.stringify(makeListResponse({ resourceVersion: '10' })))
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(makeListResponse({ resourceVersion: '20' })))
       );
     const requests = [{ cluster: 'discovered' }];
+    const clock = vi.spyOn(Date, 'now');
     try {
       renderHook(() => useKubeObjectList({ kubeObjectClass: mockClass, requests }), {
         wrapper: queryClientWrapper(new QueryClient()),
@@ -1790,6 +1803,8 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         'api/v1/pods?watch=1&resourceVersion=2'
       );
       expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+      const failureAt = Date.now();
+      clock.mockReturnValue(failureAt);
       act(() => connection.onOpenFailure());
       await expect(connection.getWatchUrl(true)).resolves.toBe(
         'api/v1/pods?watch=1&resourceVersion=10'
@@ -1799,7 +1814,14 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         'api/v1/pods?watch=1&resourceVersion=10'
       );
       expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+      clock.mockReturnValue(failureAt + 30_000);
+      act(() => connection.onOpenFailure());
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=20'
+      );
+      expect(mockClusterFetch).toHaveBeenCalledTimes(3);
     } finally {
+      clock.mockRestore();
       restoreClusters();
     }
   });

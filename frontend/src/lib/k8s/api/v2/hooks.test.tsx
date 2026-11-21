@@ -618,6 +618,32 @@ describe('useKubeObject watch wiring', () => {
     }
   }, 10000);
 
+  it('keeps reading the object when successive watch upgrades fail', async () => {
+    mockClusterFetch
+      .mockResolvedValueOnce(mockJsonResponse(pod('1')))
+      .mockResolvedValueOnce(mockJsonResponse(pod('2')))
+      .mockResolvedValueOnce(mockJsonResponse(pod('3')));
+    const { result, server, cleanup } = await renderDiscoveredPodWatch();
+
+    try {
+      await server.connected;
+      const connection = mockUseWebSockets.mock.lastCall?.[0].connections[0];
+      await act(async () => {
+        await connection.getWatchUrl(true);
+      });
+      await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('2'));
+
+      await act(async () => {
+        connection.onOpenFailure();
+        await connection.getWatchUrl(true);
+      });
+      await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('3'));
+      expect(mockClusterFetch.mock.calls[2][1].headers).toEqual({ 'Cache-Control': 'no-cache' });
+    } finally {
+      cleanup();
+    }
+  });
+
   it('reconciles an object deleted just before a versionless watch resumes', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     mockClusterFetch

@@ -385,6 +385,10 @@ export function useKubeObject<K extends KubeObject>({
             void refreshObject(event);
           }
         },
+        onOpenFailure() {
+          // Keep the details current while the watch retries with backoff.
+          reconcileOnReconnect = true;
+        },
         onClose() {
           const resource = cacheEntry?.state.data;
           if (!cacheEntry || !resource || !watchOnlyObjects.delete(resource)) return;

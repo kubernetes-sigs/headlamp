@@ -53,6 +53,7 @@ export function getWebsocketMultiplexerEnabled(): boolean {
 
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
+const UPGRADE_FAILURE_RELIST_INTERVAL_MS = 30_000;
 
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
@@ -389,9 +390,10 @@ function setListWatchError<K extends KubeObject>(
   queryKey: QueryKey,
   error?: ListWatchError
 ) {
-  client.setQueryData<ListResponse<K>>(queryKey, cached =>
-    cached && cached.watchError !== error ? { ...cached, watchError: error } : cached
-  );
+  const cached = client.getQueryData<ListResponse<K>>(queryKey);
+  if (cached && cached.watchError !== error) {
+    client.setQueryData(queryKey, { ...cached, watchError: error });
+  }
 }
 
 interface WatchedList {
@@ -606,6 +608,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       if (pinned && client.getQueryData<ListResponse<K>>(queryKey)?.watchError?.status === 410) {
         return;
       }
+      setListWatchError<K>(client, queryKey);
       const parsedUrl = new URL(url, BASE_WS_URL);
       let stopped = false;
       let unsubscribe: (() => void) | undefined;
@@ -729,7 +732,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         setListWatchError<K>(client, queryKey, error);
       let relisting: Promise<void> | undefined;
       let needsRelist = false;
-      let attemptedUpgradeRecovery = false;
+      let lastUpgradeRecoveryAt: number | undefined;
 
       return {
         cluster,
@@ -753,15 +756,20 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           return watchUrl(cached?.list.metadata.resourceVersion ?? resourceVersion);
         },
         onOpen() {
-          attemptedUpgradeRecovery = false;
+          lastUpgradeRecoveryAt = undefined;
           needsRelist = false;
           relisting = undefined;
           rememberWatchError();
         },
         onOpenFailure() {
-          if (!pinned && !attemptedUpgradeRecovery) {
+          const now = Date.now();
+          if (
+            !pinned &&
+            (lastUpgradeRecoveryAt === undefined ||
+              now - lastUpgradeRecoveryAt >= UPGRADE_FAILURE_RELIST_INTERVAL_MS)
+          ) {
             // An upgrade can be rejected before the browser receives a 410 frame.
-            attemptedUpgradeRecovery = true;
+            lastUpgradeRecoveryAt = now;
             needsRelist = true;
           }
           if (!client.getQueryData<ListResponse<K>>(queryKey)?.watchError) {
