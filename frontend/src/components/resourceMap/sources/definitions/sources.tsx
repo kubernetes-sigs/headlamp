@@ -15,11 +15,10 @@
  */
 
 import { Icon } from '@iconify/react';
-import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
-import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
+import { useApiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
@@ -195,10 +194,7 @@ export function useGetAllSources(): GraphSource[] {
   const [vpaEnabled, setVpaEnabled] = React.useState(false);
 
   // Show the Gateway (beta) group only when the Gateway API group is served.
-  const { data: discoveredResources } = useQuery({
-    queryFn: () => apiDiscovery([...selectedClusters]),
-    queryKey: ['api-discovery', ...selectedClusters],
-  });
+  const { data: discoveredResources } = useApiDiscovery([...selectedClusters]);
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
   const podGroupClusters = usePodGroupClustersByVersion();
   const workloadClusters = useSchedulingWorkloadClustersByVersion();

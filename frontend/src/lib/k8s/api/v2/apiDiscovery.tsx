@@ -14,7 +14,16 @@
  * limitations under the License.
  */
 
+import { useQuery } from '@tanstack/react-query';
 import type { ApiResource } from './ApiResource';
+import {
+  getDiscoveredConnectionRevision,
+  useDiscoveredConnectionRevisions,
+} from './discoveredConnectionRevisions';
+import {
+  assertCurrentDiscoveryConnection,
+  type DiscoveryConnectionRequest,
+} from './discoveryConnection';
 import { clusterFetch } from './fetch';
 
 /**
@@ -124,9 +133,9 @@ function logAggregatedUnusable(
  */
 function fetchLegacyOrLogFailure(
   path: '/api' | '/apis',
-  cluster: string
+  connection: { cluster: string; expectedDiscoveryConnection: DiscoveryConnectionRequest }
 ): Promise<Record<string, unknown> | null> {
-  return clusterFetch(path, { cluster })
+  return clusterFetch(path, connection)
     .then(res => res.json())
     .then(parsed => {
       // `res.json()` can return any JSON value (object, array, string,
@@ -143,7 +152,10 @@ function fetchLegacyOrLogFailure(
       return parsed as Record<string, unknown>;
     })
     .catch(err => {
-      console.debug(`Legacy ${path} discovery fetch or parse failed for cluster ${cluster}:`, err);
+      console.debug(
+        `Legacy ${path} discovery fetch or parse failed for cluster ${connection.cluster}:`,
+        err
+      );
       return null;
     });
 }
@@ -261,20 +273,28 @@ function processLegacyApiResourceList(
  * @returns list of API resources
  *
  */
-export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
+export async function apiDiscovery(
+  clusters: string[],
+  revisions: ReadonlyMap<string, string | undefined> = new Map(
+    clusters.map(cluster => [cluster, getDiscoveredConnectionRevision(cluster)])
+  )
+): Promise<ApiResource[]> {
   const resultMap = new Map<string, ApiResource>();
 
   for (const cluster of clusters) {
+    const revision = revisions.get(cluster);
+    const connection = { cluster, expectedDiscoveryConnection: { revision } };
+    assertCurrentDiscoveryConnection(cluster, revision);
     let useFallback = false;
 
     try {
       const apiAggregatedPromise = clusterFetch('/api', {
-        cluster,
+        ...connection,
         headers: { Accept: 'application/json;v=v2;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList' },
       }).then(res => res.json());
 
       const apisAggregatedPromise = clusterFetch('/apis', {
-        cluster,
+        ...connection,
         headers: { Accept: 'application/json;v=v2;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList' },
       }).then(res => res.json());
 
@@ -320,18 +340,19 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
       useFallback = true;
     }
 
+    assertCurrentDiscoveryConnection(cluster, revision);
     if (useFallback) {
       try {
         const [coreApiVersionsData, apiGroupsData] = await Promise.all([
-          fetchLegacyOrLogFailure('/api', cluster),
-          fetchLegacyOrLogFailure('/apis', cluster),
+          fetchLegacyOrLogFailure('/api', connection),
+          fetchLegacyOrLogFailure('/apis', connection),
         ]);
 
         if (coreApiVersionsData && Array.isArray(coreApiVersionsData.versions)) {
           const coreResourceFetchPromises = coreApiVersionsData.versions.map(async (v: any) => {
             try {
               if (typeof v === 'string' && v.length > 0) {
-                const coreResourcesResponse = await clusterFetch(`/api/${v}`, { cluster });
+                const coreResourcesResponse = await clusterFetch(`/api/${v}`, connection);
                 const coreResources = await coreResourcesResponse.json();
                 if (coreResources && Array.isArray(coreResources.resources)) {
                   processLegacyApiResourceList(coreResources.resources, undefined, v, resultMap);
@@ -369,9 +390,10 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
                 typeof version === 'string' &&
                 version.length > 0
               ) {
-                const groupResourcesResponse = await clusterFetch(`/apis/${groupName}/${version}`, {
-                  cluster,
-                });
+                const groupResourcesResponse = await clusterFetch(
+                  `/apis/${groupName}/${version}`,
+                  connection
+                );
                 const groupResources = await groupResourcesResponse.json();
                 if (groupResources && Array.isArray(groupResources.resources)) {
                   processLegacyApiResourceList(
@@ -398,5 +420,14 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
     }
   }
 
+  for (const cluster of clusters) assertCurrentDiscoveryConnection(cluster, revisions.get(cluster));
   return Array.from(resultMap.values());
+}
+
+export function useApiDiscovery(clusters: string[]) {
+  const revisions = useDiscoveredConnectionRevisions();
+  return useQuery({
+    queryKey: ['api-discovery', ...clusters.map(cluster => [cluster, revisions.get(cluster)])],
+    queryFn: () => apiDiscovery(clusters, revisions),
+  });
 }

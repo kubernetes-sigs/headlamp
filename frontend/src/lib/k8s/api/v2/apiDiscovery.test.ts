@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { createElement, type PropsWithChildren } from 'react';
 import {
   afterEach,
   beforeEach,
@@ -24,7 +27,14 @@ import {
   MockInstance,
   vi,
 } from 'vitest';
-import { apiDiscovery, MAX_SUMMARY_KEYS, type PayloadSummary } from './apiDiscovery';
+import { setConfig } from '../../../../redux/configSlice';
+import store from '../../../../redux/stores/store';
+import {
+  apiDiscovery,
+  MAX_SUMMARY_KEYS,
+  type PayloadSummary,
+  useApiDiscovery,
+} from './apiDiscovery';
 import { clusterFetch } from './fetch';
 
 // Reused across tests that need a Response whose body fails to parse as JSON.
@@ -244,6 +254,35 @@ const mockLegacyBatchV1Beta1Resources = {
 
 // --- Tests ---
 
+const discoveryTestCluster = 'live-discovery';
+
+function setDiscoveryTestConnection(revision: string) {
+  store.dispatch(
+    setConfig({
+      clusters: {
+        [discoveryTestCluster]: {
+          name: discoveryTestCluster,
+          auth_type: 'oidc',
+          server: 'https://workload.example.test',
+          meta_data: {
+            discoveryConnectionRevision: revision,
+            discoveryOrigin: {
+              cluster: 'hub',
+              resource: {
+                apiVersion: 'example.test/v1',
+                kind: 'Cluster',
+                namespace: 'default',
+                name: discoveryTestCluster,
+                uid: 'fixture',
+              },
+            },
+          },
+        },
+      },
+    })
+  );
+}
+
 describe('apiDiscovery', () => {
   beforeEach(() => {
     // Reset mocks before each test
@@ -254,6 +293,62 @@ describe('apiDiscovery', () => {
     const result = await apiDiscovery([]);
     expect(result).toEqual([]);
     expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
+  it('discards discovery from a superseded connection before starting legacy fallback', async () => {
+    const previousClusters = store.getState().config.clusters;
+    const oldResponse = Promise.withResolvers<Response>();
+    mockClusterFetch
+      .mockReturnValueOnce(oldResponse.promise)
+      .mockResolvedValue(mockJsonResponse({ items: [] }));
+
+    try {
+      setDiscoveryTestConnection('original');
+      const pending = apiDiscovery([discoveryTestCluster]);
+      setDiscoveryTestConnection('replacement');
+      oldResponse.resolve(mockJsonResponse({ versions: ['v1'] }));
+
+      await expect(pending).rejects.toMatchObject({ status: 409 });
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      mockClusterFetch.mockReset();
+      store.dispatch(setConfig({ clusters: previousClusters }));
+    }
+  });
+
+  it('loads the replacement resource types while discovery from the original is pending', async () => {
+    const previousClusters = store.getState().config.clusters;
+    const oldResponse = Promise.withResolvers<Response>();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    mockClusterFetch
+      .mockReturnValueOnce(oldResponse.promise)
+      .mockResolvedValueOnce(mockJsonResponse({ items: [] }))
+      .mockResolvedValueOnce(mockJsonResponse({ items: [] }))
+      .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis));
+    setDiscoveryTestConnection('original');
+    const { result, unmount } = renderHook(() => useApiDiscovery([discoveryTestCluster]), {
+      wrapper: ({ children }: PropsWithChildren) =>
+        createElement(QueryClientProvider, { client: queryClient }, children),
+    });
+
+    try {
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+      act(() => setDiscoveryTestConnection('replacement'));
+      await waitFor(() =>
+        expect(result.current.data?.map(resource => resource.kind)).toContain('Deployment')
+      );
+      await act(async () => oldResponse.resolve(mockJsonResponse(mockAggregatedApi)));
+      expect(
+        mockClusterFetch.mock.calls.map(
+          ([, options]) => options.expectedDiscoveryConnection?.revision?.split(':')[0]
+        )
+      ).toEqual(['original', 'original', 'replacement', 'replacement']);
+      expect(result.current.data?.map(resource => resource.kind)).not.toContain('Pod');
+    } finally {
+      unmount();
+      queryClient.clear();
+      store.dispatch(setConfig({ clusters: previousClusters }));
+    }
   });
 
   it('should use aggregated discovery when available', async () => {

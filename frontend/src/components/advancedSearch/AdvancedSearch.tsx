@@ -15,11 +15,10 @@
  */
 
 import { Box } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../lib/k8s';
-import { apiDiscovery } from '../../lib/k8s/api/v2/apiDiscovery';
+import { useApiDiscovery } from '../../lib/k8s/api/v2/apiDiscovery';
 import { apiResourceId } from '../../lib/k8s/api/v2/ApiResource';
 import { SectionHeader } from '../common';
 import Loader from '../common/Loader';
@@ -70,10 +69,7 @@ export function AdvancedSearch() {
     [setRawQueryState]
   );
 
-  const { data: resources, isLoading } = useQuery({
-    queryFn: () => apiDiscovery([...selectedClusters]),
-    queryKey: ['api-discovery', ...selectedClusters],
-  });
+  const { data: resources, isLoading } = useApiDiscovery([...selectedClusters]);
 
   // Select every resource
   if (selectedResources === undefined && selectedResourcesState === 'all' && resources) {

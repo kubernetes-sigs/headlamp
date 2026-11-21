@@ -16,6 +16,11 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useSelectedClusters } from './api/v1/hooks';
+import {
+  getDiscoveredConnectionRevision,
+  useDiscoveredConnectionRevisions,
+} from './api/v2/discoveredConnectionRevisions';
+import { assertCurrentDiscoveryConnection } from './api/v2/discoveryConnection';
 import { clusterFetch } from './api/v2/fetch';
 
 const GATEWAY_API_GROUP = 'gateway.networking.k8s.io';
@@ -26,14 +31,24 @@ export type GatewayL4RouteKind = (typeof GATEWAY_L4_KINDS)[number];
 
 const normalizeClusters = (clusters: string[]) => [...new Set(clusters)].sort();
 
-export const gatewayL4RouteAvailabilityQueryKey = (clusters: string[]) => [
+export const gatewayL4RouteAvailabilityQueryKey = (
+  clusters: string[],
+  revisions: ReadonlyMap<string, string> = new Map()
+) => [
   'gateway-l4-route-availability',
-  ...normalizeClusters(clusters),
+  ...normalizeClusters(clusters).map(cluster => [cluster, revisions.get(cluster)]),
 ];
 
-async function getVersionKinds(cluster: string, version: string): Promise<Set<GatewayL4RouteKind>> {
+async function getVersionKinds(
+  cluster: string,
+  version: string,
+  revision?: string
+): Promise<Set<GatewayL4RouteKind>> {
   try {
-    const response = await clusterFetch(`/apis/${GATEWAY_API_GROUP}/${version}`, { cluster });
+    const response = await clusterFetch(`/apis/${GATEWAY_API_GROUP}/${version}`, {
+      cluster,
+      expectedDiscoveryConnection: { revision },
+    });
     const body = await response.json();
     if (!body || !Array.isArray(body.resources)) {
       return new Set();
@@ -57,7 +72,10 @@ async function getVersionKinds(cluster: string, version: string): Promise<Set<Ga
 }
 
 export async function gatewayL4RouteAvailability(
-  selectedClusters: string[]
+  selectedClusters: string[],
+  revisions: ReadonlyMap<string, string | undefined> = new Map(
+    selectedClusters.map(cluster => [cluster, getDiscoveredConnectionRevision(cluster)])
+  )
 ): Promise<GatewayL4RouteKind[]> {
   const clusters = normalizeClusters(selectedClusters);
   if (clusters.length === 0) {
@@ -67,7 +85,9 @@ export async function gatewayL4RouteAvailability(
   const availability = await Promise.all(
     clusters.map(async cluster => {
       const versionKinds = await Promise.all(
-        GATEWAY_L4_VERSIONS.map(version => getVersionKinds(cluster, version))
+        GATEWAY_L4_VERSIONS.map(version =>
+          getVersionKinds(cluster, version, revisions.get(cluster))
+        )
       );
       return new Map(
         GATEWAY_L4_KINDS.map(kind => [
@@ -78,6 +98,7 @@ export async function gatewayL4RouteAvailability(
     })
   );
 
+  for (const cluster of clusters) assertCurrentDiscoveryConnection(cluster, revisions.get(cluster));
   return GATEWAY_L4_KINDS.filter(kind => {
     const firstVersions = availability[0].get(kind) || [];
     return (
@@ -95,8 +116,9 @@ export async function gatewayL4RouteAvailability(
 
 export function useGatewayL4RouteAvailability() {
   const clusters = normalizeClusters(useSelectedClusters());
+  const revisions = useDiscoveredConnectionRevisions();
   return useQuery({
-    queryKey: gatewayL4RouteAvailabilityQueryKey(clusters),
-    queryFn: () => gatewayL4RouteAvailability(clusters),
+    queryKey: gatewayL4RouteAvailabilityQueryKey(clusters, revisions),
+    queryFn: () => gatewayL4RouteAvailability(clusters, revisions),
   });
 }

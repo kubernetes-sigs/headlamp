@@ -17,6 +17,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
 import { useSelectedClusters } from './api/v1/hooks';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
 import { clusterFetch } from './api/v2/fetch';
 import {
   gatewayL4RouteAvailability,
@@ -29,6 +30,10 @@ vi.mock('@tanstack/react-query', () => ({
 }));
 vi.mock('./api/v1/hooks', () => ({
   useSelectedClusters: vi.fn(),
+}));
+vi.mock('./api/v2/discoveredConnectionRevisions', () => ({
+  getDiscoveredConnectionRevision: vi.fn(),
+  useDiscoveredConnectionRevisions: () => new Map(),
 }));
 vi.mock('./api/v2/fetch', () => ({
   clusterFetch: vi.fn(),
@@ -129,6 +134,23 @@ describe('gatewayL4RouteAvailability', () => {
   it('does not probe endpoints when no clusters are selected', async () => {
     await expect(gatewayL4RouteAvailability([])).resolves.toEqual([]);
     expect(clusterFetch).not.toHaveBeenCalled();
+  });
+
+  it('drops availability from the old connection after a same-name replacement', async () => {
+    const previousResponse = Promise.withResolvers<Response>();
+    vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('original:1');
+    vi.mocked(clusterFetch)
+      .mockReturnValueOnce(previousResponse.promise)
+      .mockResolvedValueOnce(response([]));
+    const availability = gatewayL4RouteAvailability(['cluster1']);
+    vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('replacement:2');
+    previousResponse.resolve(response([resource('TCPRoute')]));
+
+    await expect(availability).rejects.toMatchObject({ status: 409 });
+    expect(vi.mocked(clusterFetch).mock.calls.map(([, options]) => options)).toEqual([
+      { cluster: 'cluster1', expectedDiscoveryConnection: { revision: 'original:1' } },
+      { cluster: 'cluster1', expectedDiscoveryConnection: { revision: 'original:1' } },
+    ]);
   });
 });
 
