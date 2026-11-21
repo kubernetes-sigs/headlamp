@@ -2693,6 +2693,35 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     }
   });
 
+  it('retries a cached watch cursor when an upgrade and its recovery list are denied', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('pod-old', '1'))
+      .mockRejectedValueOnce(new ApiError('LIST denied', { status: 403 }));
+    const { unmount } = renderHook(
+      () =>
+        useKubeObjectList({ kubeObjectClass: mockClass, requests: [{ cluster: 'discovered' }] }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      act(() => connection.onOpenFailure());
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=1'
+      );
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=1'
+      );
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
   it('does not reopen from a stale version when the expiration relist fails', async () => {
     const restoreClusters = registerDiscoveredCluster();
     const unavailable = new ApiError('Unavailable', { status: 503 });
@@ -2710,7 +2739,10 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     try {
       await waitFor(() => expect(watch()).toBeDefined());
       const connection = watch();
-      act(() => connection.onMessage({ type: 'ERROR', object: { code: 410 } }));
+      act(() => {
+        connection.onMessage({ type: 'ERROR', object: { code: 410 } });
+        connection.onOpenFailure();
+      });
       await expect(connection.getWatchUrl(true)).rejects.toBe(unavailable);
       await expect(connection.getWatchUrl(true)).resolves.toBe(
         'api/v1/pods?watch=1&resourceVersion=10'
@@ -2848,34 +2880,47 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
   });
 
-  it('should relist when the watch resource version expires', () => {
-    const queryClient = new QueryClient();
-    const endpoint = { version: 'v1', resource: 'pods' };
-    const queryKey = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
-    queryClient.setQueryData(queryKey, {
-      list: { items: [], metadata: { resourceVersion: '1' } },
-      cluster: 'default',
-    });
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
-
-    renderHook(
-      () =>
-        useWatchKubeObjectLists({
-          kubeObjectClass: mockClass,
-          endpoint,
-          lists: [{ cluster: 'default', namespace: 'a', resourceVersion: '1' }],
-        }),
-      { wrapper: queryClientWrapper(queryClient) }
+  it('recovers an expired multiplexed watch from a fresh list version', async () => {
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('old-pod', '1'))
+      .mockResolvedValueOnce(podListPage('fresh-pod', '10'));
+    const requests = [{ cluster: 'ordinary' }];
+    const queryParams: QueryParameters = {
+      labelSelector: 'app=sample',
+      resourceVersion: '0',
+      resourceVersionMatch: 'NotOlderThan',
+    };
+    const { result } = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests, queryParams }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
     );
+    const listParams = (call: number) =>
+      Object.fromEntries(
+        new URLSearchParams(String(mockClusterFetch.mock.calls[call][0]).split('?')[1])
+      );
 
-    const onMessage = mockSubscribe.mock.calls[0][3];
-    onMessage({
-      type: 'ERROR',
-      object: { kind: 'Status', metadata: {}, reason: 'Expired', code: 410 },
+    const watchParams = (call: number) =>
+      Object.fromEntries(new URLSearchParams(mockSubscribe.mock.calls[call][2]));
+
+    await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+    expect(listParams(0)).toEqual(queryParams);
+    expect(watchParams(0)).toEqual({
+      watch: '1',
+      labelSelector: 'app=sample',
+      resourceVersion: '1',
     });
+    expect(result.current.items?.[0].metadata.name).toBe('old-pod');
 
-    // The watch cannot report what changed since, such as deletions, so the list is fetched again.
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey, exact: true });
+    act(() => mockSubscribe.mock.calls[0][3]({ type: 'ERROR', object: { code: 410 } }));
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+    expect(listParams(1)).toEqual({ labelSelector: 'app=sample' });
+    await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(2));
+    expect(watchParams(1)).toEqual({
+      watch: '1',
+      labelSelector: 'app=sample',
+      resourceVersion: '10',
+    });
+    expect(result.current.items?.map(item => item.metadata.name)).toEqual(['fresh-pod']);
   });
 
   it('should omit pagination query params after loading all pages', async () => {

@@ -384,12 +384,16 @@ export function kubeObjectListQuery<K extends KubeObject>(
         }
 
         const previous = cacheEntry?.state.data;
+        // Direct watches reopen in place. Multiplexed watches subscribe with the new version.
+        const keepDirectWatchStart =
+          recovering &&
+          (!getWebsocketMultiplexerEnabled() || typeof connectionRevision === 'string');
         const response: ListResponse<K> = {
           list,
           cluster,
           namespace,
           connectionRevision: connectionRevision || undefined,
-          ...(recovering && previous
+          ...(keepDirectWatchStart && previous
             ? {
                 watchStartResourceVersion:
                   previous.watchStartResourceVersion ?? previous.list.metadata.resourceVersion,
@@ -590,7 +594,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       if (update.type === 'ERROR') {
         const status = update.object?.code;
         if (status === 410 && !pinned) {
-          void client.invalidateQueries({ queryKey, exact: true });
+          void refreshWatchQuery(client, queryKey);
         } else {
           setListWatchError(
             client,
@@ -750,7 +754,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         setListWatchError<K>(client, queryKey, error);
       };
       let relisting: Promise<void> | undefined;
-      let needsRelist = false;
+      let relistReason: 'expired' | 'upgradeFailed' | undefined;
       let lastUpgradeRecoveryAt: number | undefined;
 
       return {
@@ -761,11 +765,15 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           if (pinned && readWatchError()?.status === 410) {
             return null;
           }
-          if (reconnecting && needsRelist) {
+          if (reconnecting && relistReason) {
             const refresh = relisting ?? refreshWatchQuery(client, queryKey);
             relisting = undefined;
-            await refresh;
-            needsRelist = false;
+            try {
+              await refresh;
+            } catch (error) {
+              if (relistReason === 'expired') throw error;
+            }
+            relistReason = undefined;
           }
           const cached = client.getQueryData<ListResponse<K>>(queryKey);
           if (cached?.list.metadata.continue) return null;
@@ -773,7 +781,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         },
         onOpen() {
           lastUpgradeRecoveryAt = undefined;
-          needsRelist = false;
+          relistReason = undefined;
           relisting = undefined;
           // An accepted socket can still send a failed WATCH response.
           if (!retryNamespaceSelector) rememberWatchError();
@@ -782,12 +790,13 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           const now = Date.now();
           if (
             !pinned &&
+            relistReason !== 'expired' &&
             (lastUpgradeRecoveryAt === undefined ||
               now - lastUpgradeRecoveryAt >= UPGRADE_FAILURE_RELIST_INTERVAL_MS)
           ) {
             // An upgrade can be rejected before the browser receives a 410 frame.
             lastUpgradeRecoveryAt = now;
-            needsRelist = true;
+            relistReason = 'upgradeFailed';
           }
           if (!readWatchError()) {
             rememberWatchError(
@@ -799,7 +808,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           if (update.type === 'ERROR') {
             const status = update.object?.code;
             if (status === 410 && !pinned) {
-              needsRelist = true;
+              relistReason = 'expired';
               relisting = refreshWatchQuery(client, queryKey, update);
             } else {
               rememberWatchError(
@@ -907,11 +916,13 @@ export function makeListRequests(
   });
 }
 
-function withoutPaginationParams(queryParams: QueryParameters): QueryParameters {
+function getListWatchParams(queryParams: QueryParameters): QueryParameters {
   const params = { ...queryParams };
   delete params.continue;
   delete params.limit;
-  if (params.resourceVersionMatch === 'Exact') delete params.resourceVersionMatch;
+  if (params.resourceVersionMatch === 'Exact' || params.sendInitialEvents === undefined) {
+    delete params.resourceVersionMatch;
+  }
   return params;
 }
 
@@ -1219,7 +1230,7 @@ export function useKubeObjectList<K extends KubeObject>({
     endpoint,
     kubeObjectClass,
     queryParams: perRequestQueryParams,
-    watchQueryParams: withoutPaginationParams(perRequestQueryParams),
+    watchQueryParams: getListWatchParams(perRequestQueryParams),
   });
 
   const paginationInput = useMemo(
