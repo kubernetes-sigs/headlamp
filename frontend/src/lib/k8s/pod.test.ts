@@ -16,8 +16,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
-import { post } from './api/v1/clusterRequests';
+import { patch, post } from './api/v1/clusterRequests';
 import { stream } from './api/v1/streamingApi';
+import { recordDiscoveryConnection } from './api/v2/discoveryConnection';
 import Pod, { LogOptions } from './pod';
 
 // cyclic imports fix
@@ -117,11 +118,11 @@ describe('Pod class', () => {
     expect(() => pod.getDetailedStatus()).not.toThrow();
   });
 
-  it("sends the eviction request to the pod's own cluster", () => {
+  it("sends the eviction request to the pod's own cluster", async () => {
     const data = JSON.parse(JSON.stringify(mockPodData));
     const pod = new Pod(data, 'other-cluster');
 
-    pod.evict();
+    await pod.evict();
 
     expect(post).toHaveBeenCalledWith(
       expect.any(String),
@@ -129,6 +130,69 @@ describe('Pod class', () => {
       expect.anything(),
       expect.objectContaining({ cluster: 'other-cluster' })
     );
+  });
+
+  it('keeps retained pod mutations on the originating discovered connection', async () => {
+    const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)), 'discovered');
+    recordDiscoveryConnection(pod, 'discovered', 'origin:1');
+    vi.mocked(post).mockClear();
+    vi.mocked(patch).mockClear();
+
+    await pod.evict();
+    expect(post).toHaveBeenCalledWith(
+      '/api/v1/namespaces/default/pods/test-pod/eviction?__headlamp_connection_revision=origin',
+      expect.anything(),
+      true,
+      { cluster: 'discovered' }
+    );
+    await pod.addEphemeralContainer('debug', 'busybox');
+    expect(patch).toHaveBeenCalledWith(
+      '/api/v1/namespaces/default/pods/test-pod/ephemeralcontainers?__headlamp_connection_revision=origin',
+      expect.anything(),
+      true,
+      { cluster: 'discovered' }
+    );
+
+    pod.cluster = 'replacement';
+    await expect(pod.evict()).rejects.toMatchObject({ status: 409 });
+    await expect(pod.addEphemeralContainer('debug', 'busybox')).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(patch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps retained pod streams on their originating discovered connection', () => {
+    const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)), 'discovered');
+    recordDiscoveryConnection(pod, 'discovered', 'origin:1');
+    vi.mocked(stream).mockClear();
+    const onData = vi.fn();
+
+    pod.getLogs('container-1', onData, {});
+    pod.attach('container-1', onData);
+    pod.exec('container-1', onData);
+
+    const urls = vi.mocked(stream).mock.calls.map(([url, , options]) => {
+      expect(options.cluster).toBe('discovered');
+      return new URL(url, 'https://headlamp.test');
+    });
+    expect(urls.map(url => url.pathname.split('/').pop())).toEqual(['log', 'attach', 'exec']);
+    for (const url of urls) {
+      expect(url.searchParams.get('__headlamp_connection_revision')).toBe('origin');
+      expect(url.searchParams.get('container')).toBe('container-1');
+    }
+
+    expect(() => pod.attach('container-1', onData, { cluster: 'replacement' })).toThrow(
+      'Discovered cluster connection changed'
+    );
+    expect(() => pod.exec('container-1', onData, { cluster: 'replacement' })).toThrow(
+      'Discovered cluster connection changed'
+    );
+    pod.cluster = 'replacement';
+    expect(() => pod.getLogs('container-1', onData, {})).toThrow(
+      'Discovered cluster connection changed'
+    );
+    expect(stream).toHaveBeenCalledTimes(3);
   });
 
   it('returns ExitCode when a container terminated with empty reason and no signal', () => {

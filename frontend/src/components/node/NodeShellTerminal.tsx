@@ -25,11 +25,14 @@ import {
   DEFAULT_NODE_SHELL_NAMESPACE,
   loadClusterSettings,
 } from '../../helpers/clusterSettings';
-import { getCluster } from '../../lib/cluster';
-import { apply } from '../../lib/k8s/api/v1/apply';
-import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
-import Node from '../../lib/k8s/node';
-import { KubePod } from '../../lib/k8s/pod';
+import type { StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
+import {
+  getResourceConnectionQuery,
+  getResourceDiscoveryConnection,
+  recordDiscoveryConnection,
+} from '../../lib/k8s/api/v2/discoveryConnection';
+import type Node from '../../lib/k8s/node';
+import Pod, { KubePod } from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
 import store from '../../redux/stores/store';
 
@@ -110,19 +113,14 @@ function uniqueString() {
  * Creates the node debugger pod and opens an attach stream to it.
  *
  * @param item - Node to open a shell on
- * @param cluster - Cluster the node belongs to, already resolved by the caller
  * @param onExec - Stream results callback
  * @param onError - Error handler callback, called with the pod creation failure message when the
  *                  thrown value carries one, and with undefined otherwise so the caller can supply a
  *                  translated fallback
  * @returns Object with the stream if successful, empty object on error
  */
-async function shell(
-  item: Node,
-  cluster: string,
-  onExec: StreamResultsCb,
-  onError: (message?: string) => void
-) {
+async function shell(item: Node, onExec: StreamResultsCb, onError: (message?: string) => void) {
+  const cluster = item.cluster;
   const clusterSettings = loadClusterSettings(cluster);
   const config = clusterSettings.nodeShellTerminal;
   const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
@@ -131,29 +129,19 @@ async function shell(
   const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
   const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
+  const origin = getResourceDiscoveryConnection(item);
+  const pod = new Pod(kubePod, cluster);
+  recordDiscoveryConnection(pod, cluster, origin?.revision);
+
   try {
-    await apply(kubePod, cluster);
+    const query = getResourceConnectionQuery(item, cluster, {});
+    await Pod.apiEndpoint.post(kubePod, query, cluster);
   } catch (e) {
     console.error('Error:DebugNode: creating pod', e);
     onError(e instanceof Error ? e.message : undefined);
     return {};
   }
-  const tty = true;
-  const stdin = true;
-  const stdout = true;
-  const stderr = true;
-  const url = `/api/v1/namespaces/${namespace}/pods/${podName}/attach?container=debugger&stdin=${
-    stdin ? 1 : 0
-  }&stderr=${stderr ? 1 : 0}&stdout=${stdout ? 1 : 0}&tty=${tty ? 1 : 0}`;
-  const additionalProtocols = [
-    'v4.channel.k8s.io',
-    'v3.channel.k8s.io',
-    'v2.channel.k8s.io',
-    'channel.k8s.io',
-  ];
-  return {
-    stream: stream(url, onExec, { cluster, additionalProtocols, isJson: false }),
-  };
+  return { stream: pod.attach('debugger', onExec) };
 }
 
 export function NodeShellTerminal(props: NodeShellTerminalProps) {
@@ -167,8 +155,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const { xtermRef, streamRef, send } = useTerminalStream({
     containerRef: terminalContainerRef,
     connectStream: async onDataCallback => {
-      const cluster = getCluster();
-      if (!cluster) {
+      if (!item.cluster) {
         const message = t('translation|No cluster selected');
         enqueueSnackbar(message, { variant: 'error' });
         return {
@@ -178,7 +165,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       }
 
       xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, cluster, onDataCallback, (errorMessage?: string) => {
+      const { stream } = await shell(item, onDataCallback, (errorMessage?: string) => {
         const message = errorMessage || t('translation|Failed to create node shell pod');
         enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
           variant: 'error',
