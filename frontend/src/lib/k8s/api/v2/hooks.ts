@@ -278,11 +278,15 @@ export function useKubeObject<K extends KubeObject>({
   });
 
   useLayoutEffect(() => {
-    if (!endpoint || !currentSeed) return;
+    if (!currentSeed) return;
+    if (!getResourceDiscoveryConnection(currentSeed) && currentSeed.cluster === cluster) {
+      recordDiscoveryConnection(currentSeed, cluster, connectionRevision);
+    }
+    if (!endpoint) return;
 
     client.setQueryData(queryKey, currentSeed);
     setSeededInitialData(currentSeed);
-  }, [client, endpoint, currentSeed, queryKey]);
+  }, [client, endpoint, currentSeed, queryKey, cluster, connectionRevision]);
 
   const queryData: Instance | null = query.error ? null : query.data ?? null;
   const data = currentSeed && seededInitialData !== currentSeed ? currentSeed : queryData;

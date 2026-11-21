@@ -2172,9 +2172,47 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     }
   });
 
+  it('keeps pending reads guarded until a replacement registration is observed', async () => {
+    const restoreClusters = registerDiscoveredCluster('connection-a');
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('before', '1'))
+      .mockRejectedValueOnce(new ApiError('Discovered cluster connection changed', { status: 409 }))
+      .mockResolvedValueOnce(podListPage('replacement', '1'));
+    const requests = [{ cluster: 'discovered' }];
+    const { result, unmount } = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+
+    try {
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('before'));
+      act(restoreClusters);
+      await waitFor(() => expect(result.current.errors?.[0].status).toBe(409));
+      expect(mockClusterFetch.mock.calls[1][0]).toContain('__headlamp_connection_revision=removed');
+      expect(result.current.items).toEqual([]);
+
+      act(() => {
+        registerDiscoveredCluster('connection-b');
+      });
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('replacement'));
+      expect(mockClusterFetch.mock.calls[2][0]).toContain(
+        '__headlamp_connection_revision=connection-b'
+      );
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
   it('keeps late multiplexed messages in the connection that subscribed', () => {
     const client = new QueryClient();
     const endpoint = { version: 'v1', resource: 'pods' };
+    const previous = store.getState().config.clusters;
+    store.dispatch(
+      setConfig({
+        clusters: { ...previous, discovered: { name: 'discovered', auth_type: 'oidc' } },
+      })
+    );
     const lists = [{ cluster: 'discovered', resourceVersion: '1' }];
     const snapshot = {
       list: { items: [], metadata: { resourceVersion: '1' } },
@@ -2274,6 +2312,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     } finally {
       unmount();
       restoreClusters();
+      store.dispatch(setConfig({ clusters: previous }));
     }
   });
 

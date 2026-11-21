@@ -22,6 +22,7 @@ import WS from 'vitest-websocket-mock';
 import { setConfig } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
 import { ApiError } from './ApiError';
+import { getResourceDiscoveryConnection } from './discoveryConnection';
 import { clusterFetch } from './fetch';
 import { kubeObjectQueryKey, useEndpoints, useKubeObject } from './hooks';
 import type { KubeObjectEndpoint } from './KubeObjectEndpoint';
@@ -911,6 +912,10 @@ describe('useKubeObject watch wiring', () => {
 
     try {
       expect(result.current.data?.jsonData.spec.nodeName).toBe('old-node');
+      expect(getResourceDiscoveryConnection(seed)).toEqual({
+        cluster: 'discovered',
+        revision: expect.stringMatching(/^connection-a:/),
+      });
       await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
       expect(mockClusterFetch.mock.calls[0][0]).toContain(
         '__headlamp_connection_revision=connection-a'
@@ -922,6 +927,7 @@ describe('useKubeObject watch wiring', () => {
         '__headlamp_connection_revision=connection-b'
       );
       expect(result.current.data).toBeNull();
+      expect(getResourceDiscoveryConnection(seed)?.revision).toMatch(/^connection-a:/);
 
       await act(async () => {
         resolveNewProbe(mockJsonResponse({}));

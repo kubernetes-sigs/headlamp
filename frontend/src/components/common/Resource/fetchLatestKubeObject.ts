@@ -14,9 +14,20 @@
  * limitations under the License.
  */
 
+import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import {
+  getResourceDiscoveryConnection,
+  recordDiscoveryConnection,
+  withDiscoveryConnectionRevision,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 
 export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K> {
+  const cluster = item.cluster;
+  const connection = getResourceDiscoveryConnection(item);
+  if (connection && connection.cluster !== cluster) {
+    return Promise.reject(new ApiError('Discovered cluster connection changed', { status: 409 }));
+  }
   return new Promise((resolve, reject) => {
     let cancel: (() => void) | undefined;
     let cancelScheduled = false;
@@ -38,7 +49,8 @@ export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K>
       }
 
       settled = true;
-      latestItem.cluster = item.cluster;
+      latestItem.cluster = cluster;
+      recordDiscoveryConnection(latestItem, cluster, connection?.revision);
       scheduleCancel();
       resolve(latestItem as K);
     }
@@ -56,7 +68,10 @@ export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K>
     const request = item
       ._class()
       .apiGet(resolveOnce, item.getName(), item.getNamespace(), rejectOnce, {
-        cluster: item.cluster,
+        cluster,
+        ...(connection && {
+          queryParams: withDiscoveryConnectionRevision({}, connection.revision),
+        }),
       });
 
     request()
