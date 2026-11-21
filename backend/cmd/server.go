@@ -77,6 +77,8 @@ func main() {
 		}()
 	}
 
+	k8cache.SetLimits(conf.CacheMaxEntryMB<<20, conf.CacheMaxTotalMB<<20)
+
 	headlampConfig := createHeadlampConfig(conf)
 	StartHeadlampServer(headlampConfig)
 }
@@ -92,6 +94,8 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
+		CacheMaxEntryMB:        conf.CacheMaxEntryMB,
+		CacheMaxTotalMB:        conf.CacheMaxTotalMB,
 		Port:                   conf.Port,
 		DevMode:                conf.DevMode,
 		StaticDir:              conf.StaticDir,
