@@ -6638,6 +6638,26 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestDevModeAllowsCacheControlPreflight(t *testing.T) {
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{DevMode: true, KubeConfigStore: kubeconfig.NewContextStore()},
+			Cache:       cache.New[interface{}](),
+		},
+	})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/clusters/workload/api/v1/pods", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	req.Header.Set("Access-Control-Request-Headers", "authorization,cache-control")
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Header().Get("Access-Control-Allow-Headers"), "Cache-Control")
+}
+
 func TestGetConfigIncludesBackstageOrigin(t *testing.T) {
 	cfg := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
