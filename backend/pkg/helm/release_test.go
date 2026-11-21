@@ -69,7 +69,9 @@ func GetClient(t *testing.T, clusterName string) clientcmd.ClientConfig {
 func getStatus(t *testing.T, ch cache.Cache[interface{}], action string, releaseName string) (string, *string) {
 	t.Helper()
 
-	statusVal, err := ch.Get(context.Background(), "helm_"+action+"_"+releaseName)
+	// The key is helm_<cluster>_<namespace>_<action>_<release>. These tests call the
+	// handlers directly, without a route, so the cluster is empty.
+	statusVal, err := ch.Get(context.Background(), "helm__default_"+action+"_"+releaseName)
 	require.NoError(t, err)
 
 	valueBytes, err := json.Marshal(statusVal)

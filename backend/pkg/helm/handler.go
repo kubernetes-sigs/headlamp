@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -122,14 +123,26 @@ func (r *restConfigGetter) ToRESTMapper() (meta.RESTMapper, error) {
 	return expander, nil
 }
 
+// actionScope identifies where a release lives. It is part of the status cache key
+// so releases with the same name in different clusters or namespaces do not share a status.
+type actionScope struct {
+	cluster   string
+	namespace string
+}
+
+// statusKey returns the cache key for the status of an action on a release.
+func statusKey(scope actionScope, actionName, releaseName string) string {
+	return strings.Join([]string{"helm", scope.cluster, scope.namespace, actionName, releaseName}, "_")
+}
+
 type stat struct {
 	Status string
 	Err    *string
 }
 
 // getReleaseStatus returns the status of the release.
-func (h *Handler) getReleaseStatus(actionName, releaseName string) (*stat, error) {
-	key := "helm_" + actionName + "_" + releaseName
+func (h *Handler) getReleaseStatus(scope actionScope, actionName, releaseName string) (*stat, error) {
+	key := statusKey(scope, actionName, releaseName)
 
 	value, err := h.Cache.Get(context.Background(), key)
 	if err != nil {
@@ -161,11 +174,11 @@ func (h *Handler) getReleaseStatus(actionName, releaseName string) (*stat, error
 }
 
 // setReleaseStatus sets the status of the release
-// Key of the object is action_name + "_" + release_name
+// The key includes the cluster, namespace, action name and release name (see statusKey).
 // action_name is the name of the action, e.g. install, upgrade, delete
 // status is one of the following: processing, success, failed.
-func (h *Handler) setReleaseStatus(actionName, releaseName, status string, err error) error {
-	key := "helm_" + actionName + "_" + releaseName
+func (h *Handler) setReleaseStatus(scope actionScope, actionName, releaseName, status string, err error) error {
+	key := statusKey(scope, actionName, releaseName)
 
 	stat := stat{
 		Status: status,
@@ -187,8 +200,8 @@ func (h *Handler) setReleaseStatus(actionName, releaseName, status string, err e
 	return nil
 }
 
-func (h *Handler) setReleaseStatusSilent(actionName, releaseName, status string, err error) {
-	cacheErr := h.setReleaseStatus(actionName, releaseName, status, err)
+func (h *Handler) setReleaseStatusSilent(scope actionScope, actionName, releaseName, status string, err error) {
+	cacheErr := h.setReleaseStatus(scope, actionName, releaseName, status, err)
 	if cacheErr != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: releaseName, "status": status},
 			cacheErr, "unable to set status")
