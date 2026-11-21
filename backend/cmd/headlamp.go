@@ -2271,7 +2271,54 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 		applyRequestTokenToContext(r, clusterName, context)
 	}
 
+	// if no token present in in-cluster mode, return error
+	if c.UseInCluster && context.Source == kubeconfig.InCluster && !unsafeUseServiceAccountToken {
+		bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
+
+		proxyToken := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+		if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" && proxyToken != "" {
+			bearerToken = proxyToken
+		}
+
+		if bearerToken == "" {
+			c.handleError(
+				w, ctx, span,
+				errors.New("no authentication token provided"),
+				"failed to get token",
+				http.StatusUnauthorized,
+			)
+
+			return
+		}
+
+		if err := preserveAPIProxy(context); err != nil {
+			c.handleError(w, ctx, span, err, "failed to get API proxy settings", http.StatusInternalServerError)
+			return
+		}
+
+		// Use request-only credentials in safe in-cluster mode to prevent
+		// fallback to backend client certificates, keys, or token files.
+		context.AuthInfo = &api.AuthInfo{
+			Token: bearerToken,
+		}
+	}
+
 	handler(context.ClientConfig(), w, r)
+}
+
+func preserveAPIProxy(context *kubeconfig.Context) error {
+	if context.OidcConf == nil {
+		apiProxy, err := context.APIProxy()
+		if err != nil {
+			return err
+		}
+
+		if apiProxy != nil {
+			context.OidcConf = &kubeconfig.OidcConfig{APIProxy: apiProxy}
+		}
+	}
+
+	return nil
 }
 
 func (c *HeadlampConfig) helmRouteRepositoryHandler(
@@ -2298,15 +2345,24 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 	}
 
 	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
-		c.handleError(
-			w, ctx, span,
-			errors.New("no authentication token provided"),
-			"failed to get token",
-			http.StatusUnauthorized,
-		)
+	if c.UseInCluster && err == nil && context.Source == kubeconfig.InCluster && !unsafeUseServiceAccountToken {
+		bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
 
-		return
+		proxyToken := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+		if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" && proxyToken != "" {
+			bearerToken = proxyToken
+		}
+
+		if bearerToken == "" {
+			c.handleError(
+				w, ctx, span,
+				errors.New("no authentication token provided"),
+				"failed to get token",
+				http.StatusUnauthorized,
+			)
+
+			return
+		}
 	}
 
 	logger.Log(
