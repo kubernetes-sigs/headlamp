@@ -83,11 +83,16 @@ it.each([
   }
 });
 
-it('deletes a shell pod created after the terminal has closed', async () => {
+it.each([
+  { case: 'the terminal has closed', replaced: false },
+  { case: 'the connection has been replaced', replaced: true },
+])('handles shell pod creation after $case', async ({ replaced }) => {
   const cluster = 'discovered';
   const node = new Node(NODE_DETAILED_DATA, cluster);
   recordDiscoveryConnection(node, cluster, 'original:1');
-  vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('original:1');
+  const revision = vi
+    .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+    .mockReturnValue('original:1');
   vi.mocked(useTerminalStream).mockReturnValue({
     xtermRef: { current: null },
     fitAddonRef: { current: null },
@@ -108,15 +113,25 @@ it('deletes a shell pod created after the terminal has closed', async () => {
   const [{ connectStream }] = vi.mocked(useTerminalStream).mock.lastCall!;
   const result = connectStream(vi.fn(), controller.signal);
   const [pod] = post.mock.calls[0];
-  controller.abort();
+  if (replaced) {
+    revision.mockReturnValue('replacement:2');
+  } else {
+    controller.abort();
+  }
   response.resolve({});
-  await expect(result).resolves.toEqual({});
 
-  expect(remove).toHaveBeenCalledWith(
-    pod.metadata?.namespace,
-    pod.metadata?.name,
-    { __headlamp_connection_revision: 'original' },
-    cluster
-  );
+  if (replaced) {
+    await expect(result).rejects.toMatchObject({ status: 409 });
+    expect(remove).not.toHaveBeenCalled();
+    expect(pod.spec).toMatchObject({ activeDeadlineSeconds: 3600, restartPolicy: 'Never' });
+  } else {
+    await expect(result).resolves.toEqual({});
+    expect(remove).toHaveBeenCalledWith(
+      pod.metadata?.namespace,
+      pod.metadata?.name,
+      { __headlamp_connection_revision: 'original' },
+      cluster
+    );
+  }
   expect(stream).not.toHaveBeenCalled();
 });

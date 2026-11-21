@@ -60,6 +60,8 @@ const shellPod = (
     spec: {
       nodeName,
       restartPolicy: 'Never',
+      // The kubelet can terminate a shell even if Headlamp loses its connection.
+      activeDeadlineSeconds: 60 * 60,
       terminationGracePeriodSeconds: 30,
       hostPID: true,
       hostIPC: true,
