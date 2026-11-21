@@ -305,6 +305,7 @@
   "Provisioner": "Kiépítő",
   "Reclaim Policy": "Visszaigénylési házirend",
   "Binding Mode": "Kötési mód",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Kötetbővítés engedélyezése",
   "Mount Options": "",
   "Volume Binding Mode": "Kötet kötési módja",

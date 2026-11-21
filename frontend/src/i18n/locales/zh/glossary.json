@@ -305,6 +305,7 @@
   "Provisioner": "供应商",
   "Reclaim Policy": "回收策略",
   "Binding Mode": "绑定模式",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "允许卷扩充",
   "Mount Options": "",
   "Volume Binding Mode": "卷绑定模式",

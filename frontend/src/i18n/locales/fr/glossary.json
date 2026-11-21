@@ -305,6 +305,7 @@
   "Provisioner": "Approvisionneur",
   "Reclaim Policy": "Politique de recyclage",
   "Binding Mode": "Binding Mode",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Permettre l'expansion du volume",
   "Mount Options": "Options de montage",
   "Volume Binding Mode": "Volume Binding Mode",
