@@ -132,26 +132,28 @@ func (m *Metrics) RequestCounterMiddleware(next http.Handler) http.Handler {
 		wrapper := newResponseWriter(w)
 
 		defer func() {
+			statusCode := wrapper.statusCode
+
+			// Capture panic before recording metrics so both paths
+			// record exactly once and the gauge always returns to zero.
+			pval := recover()
+			if pval != nil {
+				statusCode = http.StatusInternalServerError
+			}
+
 			attrs := []attribute.KeyValue{
 				attribute.String("http.method", r.Method),
 				attribute.String("http.target", r.URL.Path),
-				attribute.Int("http.status_code", wrapper.statusCode),
-			}
-
-			if rec := recover(); rec != nil {
-				wrapper.statusCode = http.StatusInternalServerError
-				attrs[2] = attribute.Int("http.status_code", http.StatusInternalServerError)
-
-				m.RequestCounter.Add(r.Context(), 1, metric.WithAttributes(attrs...))
-
-				m.ActiveRequestsGauge.Add(r.Context(), -1)
-
-				panic(rec)
+				attribute.Int("http.status_code", statusCode),
 			}
 
 			m.RequestCounter.Add(r.Context(), 1, metric.WithAttributes(attrs...))
 
 			m.ActiveRequestsGauge.Add(r.Context(), -1)
+
+			if pval != nil {
+				panic(pval)
+			}
 		}()
 
 		next.ServeHTTP(wrapper, r)
