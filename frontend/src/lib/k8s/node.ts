@@ -16,9 +16,14 @@
 
 import React from 'react';
 import { useErrorState } from '../util';
-import { useConnectApi } from './api/v1/hooks';
+import { useConnectionRequests } from './api/v1/hooks';
 import { metrics } from './api/v1/metricsApi';
 import type { ApiError } from './api/v2/ApiError';
+import {
+  getDiscoveredConnectionRevision,
+  withDiscoveryConnectionRevision,
+} from './api/v2/discoveredConnectionRevisions';
+import { makeUrl } from './api/v2/makeUrl';
 import { KubeNodeSummaryStats, nodeSummaryStats } from './api/v2/nodeSummaryApi';
 import type { KubeCondition, KubeMetrics } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
@@ -93,9 +98,29 @@ class Node extends KubeObject<KubeNode> {
     }
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(
-      metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError, cluster)
-    );
+    useConnectionRequests(cluster, (requestCluster, isCurrent, changed) => {
+      if (changed) {
+        setNodeMetrics(null);
+        setError(null);
+      }
+      const revision = requestCluster ? getDiscoveredConnectionRevision(requestCluster) : undefined;
+      const url = makeUrl(
+        '/apis/metrics.k8s.io/v1beta1/nodes',
+        withDiscoveryConnectionRevision({}, revision)
+      );
+      return [
+        metrics(
+          url,
+          value => {
+            if (isCurrent()) setMetrics(value);
+          },
+          err => {
+            if (isCurrent()) setError(err);
+          },
+          requestCluster
+        ),
+      ];
+    });
 
     return [nodeMetrics, error];
   }
@@ -118,7 +143,24 @@ class Node extends KubeObject<KubeNode> {
     }
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(nodeSummaryStats.bind(null, nodeName || '', setStats, setError, cluster));
+    useConnectionRequests(cluster, (requestCluster, isCurrent, changed) => {
+      if (changed) {
+        setSummaryStats(null);
+        setError(null);
+      }
+      return [
+        nodeSummaryStats(
+          nodeName || '',
+          value => {
+            if (isCurrent()) setStats(value);
+          },
+          err => {
+            if (isCurrent()) setError(err);
+          },
+          requestCluster
+        ),
+      ];
+    });
 
     return [summaryStats, error];
   }

@@ -17,7 +17,12 @@
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import type { ApiError } from './ApiError';
+import {
+  getDiscoveredConnectionRevision,
+  withDiscoveryConnectionRevision,
+} from './discoveredConnectionRevisions';
 import { clusterFetch } from './fetch';
+import { makeUrl } from './makeUrl';
 
 export interface KubeNodeSummaryStats {
   node?: {
@@ -51,13 +56,17 @@ export async function nodeSummaryStats(
 
   const handle = setInterval(getNodeSummaryStats, 10000);
   const clusterName = cluster || getCluster() || '';
+  const revision = clusterName ? getDiscoveredConnectionRevision(clusterName) : undefined;
+  const url = makeUrl(
+    `/api/v1/nodes/${encodeURIComponent(nodeName)}/proxy/stats/summary`,
+    withDiscoveryConnectionRevision({}, revision)
+  );
 
   async function getNodeSummaryStats() {
     try {
-      const summary: KubeNodeSummaryStats = await clusterFetch(
-        `/api/v1/nodes/${encodeURIComponent(nodeName)}/proxy/stats/summary`,
-        { cluster: clusterName }
-      ).then(response => response.json());
+      const summary: KubeNodeSummaryStats = await clusterFetch(url, { cluster: clusterName }).then(
+        response => response.json()
+      );
       onStats(summary);
     } catch (err) {
       if (isDebugVerbose('k8s/apiProxy@nodeSummaryStats')) {
