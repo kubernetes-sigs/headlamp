@@ -18,6 +18,7 @@ import {
   createBackendTokenFetch,
   DesktopBackendApi,
   initializeDesktopBackend,
+  initializeHeadlessBackend,
 } from './backendTokenFetch';
 import { getHeadlampAPIHeaders, setBackendToken } from './getHeadlampAPIHeaders';
 
@@ -96,6 +97,20 @@ describe('createBackendTokenFetch', () => {
     expect(fetchImplementation).toHaveBeenNthCalledWith(5, 'http://[::1]:4467/config', undefined);
   });
 
+  it('authenticates local backend requests using default port 80', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(response);
+    const backendFetch = createBackendTokenFetch(
+      fetchImplementation,
+      () => ({ 'X-HEADLAMP_BACKEND-TOKEN': 'desktop-token' }),
+      () => 80
+    );
+
+    await backendFetch('http://127.0.0.1/config');
+
+    const headers = new Headers(fetchImplementation.mock.calls[0][1]?.headers);
+    expect(headers.get('X-HEADLAMP_BACKEND-TOKEN')).toBe('desktop-token');
+  });
+
   it('leaves requests unchanged until the backend token is available', async () => {
     const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(response);
     const backendFetch = createBackendTokenFetch(
@@ -170,5 +185,198 @@ describe('initializeDesktopBackend', () => {
     expect(unsubscribers[1]).toHaveBeenCalledOnce();
     expect(unsubscribers[2]).toHaveBeenCalledOnce();
     setBackendToken(null);
+  });
+});
+
+describe('initializeHeadlessBackend', () => {
+  const validToken = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    setBackendToken(null);
+    window.headlampBackendPort = undefined;
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    setBackendToken(null);
+    window.headlampBackendPort = undefined;
+  });
+
+  it('reads #backendToken from the URL fragment, sets the token and port, and strips the token from the fragment', () => {
+    const replaceState = vi.fn();
+    const result = initializeHeadlessBackend(`#backendToken=${validToken}`, replaceState, 4466);
+
+    expect(result).toBe(true);
+    expect(window.headlampBackendPort).toBe(4466);
+    expect(getHeadlampAPIHeaders()).toEqual({
+      'X-HEADLAMP_BACKEND-TOKEN': validToken,
+    });
+    // The token fragment must be stripped from the URL to prevent it from
+    // appearing in browser history, bookmarks, or referrer headers.
+    expect(replaceState).toHaveBeenCalledOnce();
+    const [, , replacedUrl] = replaceState.mock.calls[0];
+    expect(replacedUrl).not.toContain('backendToken');
+    expect(replacedUrl).not.toContain(validToken);
+  });
+
+  it('preserves other hash parameters when stripping #backendToken', () => {
+    const replaceState = vi.fn();
+    initializeHeadlessBackend(`#foo=bar&backendToken=${validToken}&baz=qux`, replaceState, 4466);
+
+    const [, , replacedUrl] = replaceState.mock.calls[0];
+    expect(replacedUrl).toContain('foo=bar');
+    expect(replacedUrl).toContain('baz=qux');
+    expect(replacedUrl).not.toContain('backendToken');
+    expect(replacedUrl).not.toContain(validToken);
+  });
+
+  it('accepts configured development tokens as well as generated 64-hex tokens', () => {
+    const replaceState = vi.fn();
+    const result = initializeHeadlessBackend('#backendToken=headlamp', replaceState, 4466);
+
+    expect(result).toBe(true);
+    expect(window.headlampBackendPort).toBe(4466);
+    expect(getHeadlampAPIHeaders()).toEqual({
+      'X-HEADLAMP_BACKEND-TOKEN': 'headlamp',
+    });
+    expect(replaceState).toHaveBeenCalledOnce();
+  });
+
+  it('rejects empty or whitespace-only tokens in the URL fragment', () => {
+    const replaceState = vi.fn();
+    const result = initializeHeadlessBackend('#backendToken=   ', replaceState, 4466);
+
+    expect(result).toBe(false);
+    expect(window.headlampBackendPort).toBeUndefined();
+    expect(getHeadlampAPIHeaders()).toEqual({});
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when #backendToken is absent from the URL fragment', () => {
+    const replaceState = vi.fn();
+    const result = initializeHeadlessBackend('#other=param', replaceState, 4466);
+
+    expect(result).toBe(false);
+    expect(window.headlampBackendPort).toBeUndefined();
+    expect(getHeadlampAPIHeaders()).toEqual({});
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when the URL has no hash fragment', () => {
+    const replaceState = vi.fn();
+    const result = initializeHeadlessBackend('', replaceState, 4466);
+
+    expect(result).toBe(false);
+    expect(window.headlampBackendPort).toBeUndefined();
+    expect(getHeadlampAPIHeaders()).toEqual({});
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+
+  it('saves the token to sessionStorage during initial bootstrap and strips the fragment', () => {
+    const replaceState = vi.fn();
+    const mockStorage: Record<string, string> = {};
+    const storage = {
+      getItem: vi.fn((key: string) => mockStorage[key] ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        mockStorage[key] = value;
+      }),
+      removeItem: vi.fn((key: string) => {
+        delete mockStorage[key];
+      }),
+    };
+
+    const result = initializeHeadlessBackend(
+      `#backendToken=${validToken}`,
+      replaceState,
+      4466,
+      storage
+    );
+
+    expect(result).toBe(true);
+    expect(storage.setItem).toHaveBeenCalledWith('headlamp_headless_backend_token', validToken);
+    expect(window.headlampBackendPort).toBe(4466);
+    expect(getHeadlampAPIHeaders()).toEqual({
+      'X-HEADLAMP_BACKEND-TOKEN': validToken,
+    });
+  });
+
+  it('recovers the token from sessionStorage on page reload when the URL has no hash fragment', () => {
+    const replaceState = vi.fn();
+    const storage = {
+      getItem: vi.fn((key: string) =>
+        key === 'headlamp_headless_backend_token' ? validToken : null
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+
+    const result = initializeHeadlessBackend('', replaceState, 4466, storage);
+
+    expect(result).toBe(true);
+    expect(storage.getItem).toHaveBeenCalledWith('headlamp_headless_backend_token');
+    expect(window.headlampBackendPort).toBe(4466);
+    expect(getHeadlampAPIHeaders()).toEqual({
+      'X-HEADLAMP_BACKEND-TOKEN': validToken,
+    });
+    // No replaceState needed when recovering from storage without hash
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+
+  it('authenticates requests (like /config) after recovering token from sessionStorage on reload', async () => {
+    const replaceState = vi.fn();
+    const storage = {
+      getItem: vi.fn((key: string) =>
+        key === 'headlamp_headless_backend_token' ? validToken : null
+      ),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+
+    initializeHeadlessBackend('', replaceState, 4466, storage);
+
+    const mockFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response());
+    const backendFetch = createBackendTokenFetch(
+      mockFetch,
+      getHeadlampAPIHeaders,
+      () => window.headlampBackendPort
+    );
+
+    await backendFetch('http://localhost:4466/config');
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [calledUrl, calledInit] = mockFetch.mock.calls[0];
+    expect(calledUrl).toBe('http://127.0.0.1:4466/config');
+    const headers = new Headers(calledInit?.headers);
+    expect(headers.get('X-HEADLAMP_BACKEND-TOKEN')).toBe(validToken);
+  });
+
+  it('falls back gracefully when storage throws a SecurityError on access or mutation', () => {
+    const replaceState = vi.fn();
+    const throwingStorage = {
+      getItem: vi.fn(() => {
+        throw new Error('SecurityError: access denied');
+      }),
+      setItem: vi.fn(() => {
+        throw new Error('SecurityError: access denied');
+      }),
+      removeItem: vi.fn(() => {
+        throw new Error('SecurityError: access denied');
+      }),
+    };
+
+    const result = initializeHeadlessBackend(
+      `#backendToken=${validToken}`,
+      replaceState,
+      4466,
+      throwingStorage
+    );
+
+    expect(result).toBe(true);
+    expect(window.headlampBackendPort).toBe(4466);
+    expect(getHeadlampAPIHeaders()).toEqual({
+      'X-HEADLAMP_BACKEND-TOKEN': validToken,
+    });
+    expect(replaceState).toHaveBeenCalledOnce();
   });
 });

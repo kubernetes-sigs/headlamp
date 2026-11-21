@@ -71,6 +71,28 @@ export function resolveBackendToken(
   return isDevelopment && useExternalServer && configuredToken ? configuredToken : generateToken();
 }
 
+/**
+ * Configures the HEADLAMP_BACKEND_TOKEN environment variable for the spawned backend process.
+ *
+ * The backend token is always set so the backend requires desktop credentials on every
+ * route. In headless mode the external browser obtains the token from a one-time URL
+ * fragment (#backendToken=<token>) that the frontend reads and strips on first
+ * render, keeping backend authentication active in both launch modes.
+ *
+ * This function must be called on the FINAL environment dictionary that will be passed
+ * to spawn() — after getShellEnv() resolves — so that a user's shell profile cannot
+ * accidentally restore a stale token value.
+ *
+ * @param env - Final environment variable dictionary passed to the backend process.
+ * @param token - Resolved per-launch backend token.
+ */
+export function configureBackendTokenEnv(
+  env: Record<string, string | undefined>,
+  token: string
+): void {
+  env.HEADLAMP_BACKEND_TOKEN = token;
+}
+
 interface ExternalBackendWaitOptions {
   /** Number of authenticated readiness attempts. */
   attempts?: number;
