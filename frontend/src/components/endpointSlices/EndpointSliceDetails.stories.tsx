@@ -93,6 +93,23 @@ Default.parameters = {
                     apiVersion: 'v1',
                   },
                 },
+                {
+                  addresses: ['127.0.0.3'],
+                  nodeName: 'mynode',
+                  conditions: {
+                    ready: false,
+                    serving: false,
+                    terminating: true,
+                  },
+                  targetRef: {
+                    kind: 'Pod',
+                    namespace: 'MyNamespace',
+                    name: 'mypod-2',
+                    uid: 'phony-pod-2',
+                    resourceVersion: '1',
+                    apiVersion: 'v1',
+                  },
+                },
               ],
               ports: [
                 {

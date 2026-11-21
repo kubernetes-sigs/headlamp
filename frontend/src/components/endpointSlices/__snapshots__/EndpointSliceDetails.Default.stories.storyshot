@@ -330,7 +330,7 @@
                           class="MuiBox-root css-1baulvz"
                         >
                           <span
-                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                            class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                           >
                             Ready
                           </span>
@@ -339,7 +339,7 @@
                           class="MuiBox-root css-1baulvz"
                         >
                           <span
-                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                            class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                           >
                             Serving
                           </span>
@@ -381,6 +381,57 @@
                           class="MuiBox-root css-1baulvz"
                         >
                           <span
+                            class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
+                          >
+                            Ready
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
+                          >
+                            Serving
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          >
+                            Terminating
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      />
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        mynode
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      />
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        127.0.0.3
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
                             class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
                           >
                             Ready
@@ -399,7 +450,7 @@
                           class="MuiBox-root css-1baulvz"
                         >
                           <span
-                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                            class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                           >
                             Terminating
                           </span>
