@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import nock from 'nock';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { getAppUrl } from '../../helpers/getAppUrl';
+import * as statelessKubeconfig from '../../stateless/findKubeconfigByClusterName';
 import { jsonPatch } from './api/v1/clusterRequests';
 import * as streamingApi from './api/v1/streamingApi';
 import * as discoveredRevisions from './api/v2/discoveredConnectionRevisions';
@@ -37,6 +40,7 @@ vi.mock('./api/v1/clusterRequests', async importOriginal => ({
 
 afterEach(() => {
   vi.restoreAllMocks();
+  nock.cleanAll();
   vi.mocked(jsonPatch).mockClear();
 });
 
@@ -53,7 +57,9 @@ it.each([
       namespace: 'default',
       uid: 'workload',
     });
-    vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('origin:1');
+    const current = vi
+      .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+      .mockReturnValue('origin:1');
     recordDiscoveryConnection(workload, 'discovered', 'origin:1');
 
     const template = workload.spec.template;
@@ -111,10 +117,31 @@ it.each([
     expect(guarded.searchParams.get('dryRun')).toBe('All');
     expect(guarded.searchParams.get('__headlamp_connection_revision')).toBe('origin');
     expect(request?.cluster).toBe('discovered');
+    expect(request?.expectedDiscoveryConnection).toEqual({ revision: 'origin:1' });
+
+    const transport = await vi.importActual<typeof import('./api/v1/clusterRequests')>(
+      './api/v1/clusterRequests'
+    );
+    vi.mocked(jsonPatch).mockImplementationOnce(transport.jsonPatch);
+    vi.spyOn(statelessKubeconfig, 'findKubeconfigByClusterName').mockImplementationOnce(
+      async () => {
+        current.mockReturnValue('origin:2');
+        return null;
+      }
+    );
+    const replacement = nock(getAppUrl())
+      .patch(`/clusters/discovered/apis/apps/v1/namespaces/default/${kind}/example`)
+      .query({ __headlamp_connection_revision: 'origin' })
+      .reply(200, {});
+    await expect(workload.rollback(1)).resolves.toMatchObject({
+      success: false,
+      message: expect.stringContaining('Discovered cluster connection changed'),
+    });
+    expect(replacement.isDone()).toBe(false);
 
     workload.cluster = 'replacement';
     await expect(workload.rollback(1)).resolves.toMatchObject({ success: false });
-    expect(history).toHaveBeenCalledTimes(1);
-    expect(jsonPatch).toHaveBeenCalledTimes(1);
+    expect(history).toHaveBeenCalledTimes(2);
+    expect(jsonPatch).toHaveBeenCalledTimes(2);
   }
 );

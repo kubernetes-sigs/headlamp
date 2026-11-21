@@ -16,7 +16,12 @@
 
 import { jsonPatch } from './api/v1/clusterRequests';
 import { asQuery, getApiRoot } from './api/v1/formatUrl';
-import { getResourceConnectionQuery } from './api/v2/discoveryConnection';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
+import {
+  bindDiscoveryConnection,
+  discoveryRequestOptions,
+  getResourceConnectionQuery,
+} from './api/v2/discoveryConnection';
 import type { KubeContainer, LabelSelector } from './cluster';
 import ControllerRevision from './controllerRevision';
 import type { KubeMetadata } from './KubeMetadata';
@@ -156,6 +161,13 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
     const { toRevision, dryRun } = options;
 
     try {
+      const cluster = this.cluster;
+      const revision = getDiscoveredConnectionRevision(cluster);
+      const query = getResourceConnectionQuery(
+        this,
+        cluster,
+        bindDiscoveryConnection(dryRun ? { dryRun: 'All' } : {}, revision)
+      );
       const revisions = await this.getOwnedControllerRevisions();
 
       const sortedRevisions = revisions
@@ -213,12 +225,15 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
       ];
 
       const apiRoot = getApiRoot('apps', 'v1');
-      const cluster = this.cluster;
-      const query = getResourceConnectionQuery(this, cluster, dryRun ? { dryRun: 'All' } : {});
       const url =
         `${apiRoot}/namespaces/${this.getNamespace()}/statefulsets/${this.getName()}` +
         asQuery(query);
-      const result = await jsonPatch(url, patchOperations, true, { cluster });
+      const result = await jsonPatch(
+        url,
+        patchOperations,
+        true,
+        discoveryRequestOptions(cluster, query)
+      );
 
       if (!dryRun) {
         this.revisionHistoryCache = undefined;

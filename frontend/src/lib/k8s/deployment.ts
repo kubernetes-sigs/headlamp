@@ -16,7 +16,12 @@
 
 import { jsonPatch } from './api/v1/clusterRequests';
 import { asQuery, getApiRoot } from './api/v1/formatUrl';
-import { getResourceConnectionQuery } from './api/v2/discoveryConnection';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
+import {
+  bindDiscoveryConnection,
+  discoveryRequestOptions,
+  getResourceConnectionQuery,
+} from './api/v2/discoveryConnection';
 import type { KubeContainer, LabelSelector } from './cluster';
 import type { KubeMetadata } from './KubeMetadata';
 import type { KubeObjectInterface } from './KubeObject';
@@ -138,6 +143,13 @@ class Deployment extends KubeObject<KubeDeployment> {
     }
 
     try {
+      const cluster = this.cluster;
+      const revision = getDiscoveredConnectionRevision(cluster);
+      const query = getResourceConnectionQuery(
+        this,
+        cluster,
+        bindDiscoveryConnection(dryRun ? { dryRun: 'All' } : {}, revision)
+      );
       const replicaSets = await this.getOwnedReplicaSets();
 
       const sortedRS = replicaSets
@@ -196,12 +208,15 @@ class Deployment extends KubeObject<KubeDeployment> {
       ];
 
       const apiRoot = getApiRoot('apps', 'v1');
-      const cluster = this.cluster;
-      const query = getResourceConnectionQuery(this, cluster, dryRun ? { dryRun: 'All' } : {});
       const url =
         `${apiRoot}/namespaces/${this.getNamespace()}/deployments/${this.getName()}` +
         asQuery(query);
-      const result = await jsonPatch(url, patchOperations, true, { cluster });
+      const result = await jsonPatch(
+        url,
+        patchOperations,
+        true,
+        discoveryRequestOptions(cluster, query)
+      );
 
       if (!dryRun) {
         this.revisionHistoryCache = undefined;
