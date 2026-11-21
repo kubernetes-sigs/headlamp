@@ -201,6 +201,47 @@ be shared with workloads or other cluster users.
 
 - Example plugin: [How To Use Plugin Secure Storage](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/secure-storage)
 
+### Discovered Clusters
+
+Use `useRegisteredClusters` when a plugin needs to read from clusters discovered by
+Headlamp. Results update as Headlamp discovers, updates, or removes connections.
+Each target connection needs a valid user session. Sign in to the target
+connection if it has no session. With OIDC token broadcast enabled, the login
+can establish sessions on already registered connections with the same issuer
+and client ID.
+Pass the returned `id` values to the same Kubernetes resource hooks you use for
+manually configured connections.
+
+```tsx
+import { K8s, useRegisteredClusters } from '@kinvolk/headlamp-plugin/lib';
+
+function DiscoveredPodCount() {
+  const clusters = useRegisteredClusters({
+    source: 'cluster_inventory',
+    originNamespace: 'kube-system',
+  });
+  const { items, error, isFetching } = K8s.ResourceClasses.Pod.useList({
+    clusters: clusters.map(cluster => cluster.id),
+    namespace: 'inventory-demo',
+  });
+
+  if (clusters.length === 0) return <p>No discovered clusters match.</p>;
+  if (error) return <p>{error.message}</p>;
+  if (isFetching || items === null) return <p>Loading pods…</p>;
+
+  return <p>{items.length} pods</p>;
+}
+```
+
+With `clusters: []`, the hook skips requests and returns `items: null`.
+Check whether there are matching clusters before showing a loading state.
+
+The optional filters are `source` (`cluster_inventory` or `cluster_api`),
+`originCluster` (the management connection name), and `originNamespace` (the
+namespace of the ClusterProfile or Cluster). Each result includes a display name
+and the owner resource's API version, kind, namespace, name, and UID. Resource
+requests use the user's OIDC session and RBAC on the target connection.
+
 ### Route
 
 Show a component in the main area at a given URL with
