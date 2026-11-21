@@ -28,6 +28,7 @@ import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import { useIsResourceServed } from '../../lib/k8s/resourceAvailability';
+import ResourcePoolStatusRequest from '../../lib/k8s/resourcePoolStatusRequest';
 import {
   useCompositePodGroupClusters,
   useSchedulingApisEnabled,
@@ -97,6 +98,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   // Dynamic resource allocation is stable from Kubernetes 1.34, so only show the
   // Devices section on clusters that serve resource.k8s.io/v1.
   const devicesEnabled = useIsResourceServed(DeviceClass);
+  const poolStatusEnabled = useIsResourceServed(ResourcePoolStatusRequest);
 
   // CompositePodGroup needs its own feature gate on top, and unlike the flat resources
   // it is only ever served by v1alpha3, so ask for the resource itself.
@@ -526,6 +528,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'resourceSlices',
             label: t('glossary|Resource Slices'),
           },
+          ...(poolStatusEnabled
+            ? [
+                {
+                  name: 'poolAvailability',
+                  label: t('glossary|Pool Availability'),
+                },
+              ]
+            : []),
         ],
       });
     }

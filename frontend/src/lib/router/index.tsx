@@ -45,6 +45,7 @@ import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
 import DeviceClassDetails from '../../components/device/DeviceClassDetails';
 import DeviceClassList from '../../components/device/DeviceClassList';
+import PoolAvailability from '../../components/device/PoolAvailability';
 import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
 import ResourceClaimList from '../../components/device/ResourceClaimList';
 import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
@@ -890,6 +891,13 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Resource Slice',
     sidebar: 'resourceSlices',
     component: () => <ResourceSliceDetails />,
+  },
+  poolAvailability: {
+    path: '/poolavailability',
+    exact: true,
+    name: 'Pool Availability',
+    sidebar: 'poolAvailability',
+    component: () => <PoolAvailability />,
   },
   priorityclasses: {
     path: '/priorityclasses',
