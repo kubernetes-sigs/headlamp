@@ -230,13 +230,19 @@ export function useKubeObject<K extends KubeObject>({
     queryKey,
     queryFn: async ({ signal }) => {
       const cacheEntry = client.getQueryCache().find({ queryKey, exact: true });
+      const recovering = isWatchRefresh(cacheEntry);
       const readOptions = {
         cluster,
         signal,
-        ...(isWatchRefresh(cacheEntry) ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
+        ...(recovering ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
       };
       const path = KubeObjectEndpoint.toUrl(endpoint!, namespace);
-      const params = withDiscoveryConnectionRevision(cleanedUpQueryParams, connectionRevision);
+      const readParams = { ...cleanedUpQueryParams };
+      if (recovering) {
+        delete readParams.resourceVersion;
+        delete readParams.resourceVersionMatch;
+      }
+      const params = withDiscoveryConnectionRevision(readParams, connectionRevision);
       let object: KubeObjectInterface;
       try {
         object = await clusterFetch(makeUrl([path, name], params), readOptions).then(response =>
@@ -265,6 +271,8 @@ export function useKubeObject<K extends KubeObject>({
           };
         } catch (listError) {
           if (listError instanceof ApiError && listError.status === 403) {
+            const verified = client.getQueryData<Instance | null>(queryKey);
+            if (verified && watchOnlyObjects.has(verified)) return verified;
             throw new ObjectWatchRequired(error);
           }
           throw listError;
@@ -323,7 +331,7 @@ export function useKubeObject<K extends KubeObject>({
     const watchParams: QueryParameters = {
       ...withDiscoveryConnectionRevision(cleanedUpQueryParams, connectionRevision),
       watch: '1',
-      fieldSelector: `metadata.name=${name}`,
+      ...namedListParams(name, cleanedUpQueryParams),
     };
     const latestWatchParams = { ...watchParams };
     delete latestWatchParams.resourceVersion;
@@ -343,6 +351,7 @@ export function useKubeObject<K extends KubeObject>({
     });
     let refreshing: Promise<void> | undefined;
     let lastWatchVersion: string | undefined;
+    let reconcileOnReconnect = true;
 
     return [
       {
@@ -352,7 +361,10 @@ export function useKubeObject<K extends KubeObject>({
         async getWatchUrl(reconnecting: boolean) {
           const expired = refreshing;
           refreshing = undefined;
-          if (reconnecting) await (expired ?? refreshObject());
+          if (reconnecting && (expired || reconcileOnReconnect)) {
+            reconcileOnReconnect = false;
+            await (expired ?? refreshObject());
+          }
 
           const version = currentVersion();
           const requiresWatch = cacheEntry?.state.error instanceof ObjectWatchRequired;
@@ -366,6 +378,7 @@ export function useKubeObject<K extends KubeObject>({
           return latestWatchUrl;
         },
         onOpen(url: string, event: Event) {
+          reconcileOnReconnect = true;
           // A versionless watch has no deletion event for an object already absent.
           // Reconcile after the stream is established so its events cover later changes.
           if (url === latestWatchUrl && !watchOnly && !cacheEntry?.state.error) {
@@ -374,8 +387,8 @@ export function useKubeObject<K extends KubeObject>({
         },
         onClose() {
           const resource = cacheEntry?.state.data;
-          if (!cacheEntry || cacheEntry.state.error || !resource || !watchOnlyObjects.has(resource))
-            return;
+          if (!cacheEntry || !resource || !watchOnlyObjects.delete(resource)) return;
+          if (cacheEntry.state.error) return;
           cacheEntry.setState({
             error: new ObjectWatchRequired(
               new ApiError('Unable to verify the resource', { cluster, namespace })

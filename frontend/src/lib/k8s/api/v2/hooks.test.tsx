@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } 
 import WS from 'vitest-websocket-mock';
 import { setConfig } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
+import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { getResourceDiscoveryConnection } from './discoveryConnection';
 import { clusterFetch } from './fetch';
@@ -137,7 +138,7 @@ describe('useEndpoints', () => {
       ];
       mockClusterFetch.mockImplementation(rawUrl => {
         const url = new URL(rawUrl, 'https://headlamp.test/');
-        if (url.pathname === '/apis/networking.k8s.io/v1') {
+        if (!listAllowed && url.pathname === '/apis/networking.k8s.io/v1') {
           return Promise.resolve(mockJsonResponse({ resources: [{ name: 'ingresses' }] }));
         }
         if (url.pathname === '/apis/networking.k8s.io/v1beta1') {
@@ -159,6 +160,15 @@ describe('useEndpoints', () => {
       );
       await waitFor(() => expect(result.current.endpoint).toEqual(endpoints[1]));
       expect(result.current.error).toBeNull();
+      if (listAllowed) {
+        const calls = mockClusterFetch.mock.calls.map(
+          ([url]) => new URL(url, 'https://headlamp.test/')
+        );
+        expect(
+          calls.some(url => url.searchParams.get('fieldSelector') === 'metadata.name=demo')
+        ).toBe(true);
+        expect(calls.map(url => url.pathname)).not.toContain('/apis/networking.k8s.io/v1');
+      }
     }
   );
 
@@ -498,7 +508,8 @@ describe('useKubeObject watch wiring', () => {
     connectionRevision?: string,
     initialData?: InstanceType<typeof MockPod>,
     kubeObjectClass = MockPod,
-    verifyClient?: () => boolean
+    verifyClient?: () => boolean,
+    queryParams?: QueryParameters
   ) {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
     const cluster = 'discovered';
@@ -548,6 +559,7 @@ describe('useKubeObject watch wiring', () => {
           namespace: 'my-ns',
           cluster,
           initialData,
+          queryParams,
         }),
       { wrapper: createWrapper(), initialProps: { initialData } }
     );
@@ -612,7 +624,13 @@ describe('useKubeObject watch wiring', () => {
       .mockResolvedValueOnce(mockJsonResponse(pod('1')))
       .mockResolvedValueOnce(mockJsonResponse(pod('1')))
       .mockRejectedValueOnce(new ApiError('Not found', { status: 404 }));
-    const { result, connected, server, cleanup } = await renderDiscoveredPodWatch();
+    const { result, connected, server, cleanup } = await renderDiscoveredPodWatch(
+      'route-a',
+      undefined,
+      MockPod,
+      undefined,
+      { resourceVersion: '0' }
+    );
 
     try {
       const original = await server.connected;
@@ -623,6 +641,14 @@ describe('useKubeObject watch wiring', () => {
       );
       await waitFor(() => expect(result.current.error?.status).toBe(404));
       expect(result.current.data).toBeNull();
+      const readUrls = mockClusterFetch.mock.calls.map(
+        ([url]) => new URL(url, 'https://headlamp.test/')
+      );
+      expect(readUrls[0].searchParams.get('resourceVersion')).toBe('0');
+      expect(readUrls.slice(1).every(url => !url.searchParams.has('resourceVersion'))).toBe(true);
+      expect(
+        readUrls.every(url => url.searchParams.get('__headlamp_connection_revision') === 'route-a')
+      ).toBe(true);
     } finally {
       cleanup();
     }
@@ -740,6 +766,16 @@ describe('useKubeObject watch wiring', () => {
           await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('2'));
           expect(result.current.error).toBeNull();
 
+          mockClusterFetch
+            .mockRejectedValueOnce(new ApiError('GET is forbidden', { status: 403 }))
+            .mockRejectedValueOnce(new ApiError('LIST is forbidden', { status: 403 }));
+          const { cacheEntry } = mockUseWebSockets.mock.lastCall?.[0].connections[0];
+          await act(async () => {
+            await cacheEntry.fetch();
+          });
+          expect(result.current.data?.metadata.resourceVersion).toBe('2');
+          expect(result.current.error).toBeNull();
+
           server.send(
             JSON.stringify({
               type: 'ERROR',
@@ -769,18 +805,30 @@ describe('useKubeObject watch wiring', () => {
             items: found ? [listedPod] : [],
           })
         );
-      const { result, cleanup } = await renderDiscoveredPodWatch('route-a');
+      const { result, server, cleanup } = await renderDiscoveredPodWatch(
+        'route-a',
+        undefined,
+        MockPod,
+        undefined,
+        found ? { fieldSelector: 'status.phase=Pending' } : undefined
+      );
 
       try {
         if (found) {
           await waitFor(() => expect(result.current.data?.jsonData).toEqual(pod('2')));
           expect(result.current.error).toBeNull();
+          const watch = await server.connected;
+          expect(new URL(watch.url).searchParams.get('fieldSelector')).toBe(
+            'status.phase=Pending,metadata.name=my-pod'
+          );
         } else {
           await waitFor(() => expect(result.current.error?.status).toBe(404));
           expect(result.current.data).toBeNull();
         }
         const url = new URL(mockClusterFetch.mock.calls[1][0], 'https://headlamp.test/');
-        expect(url.searchParams.get('fieldSelector')).toBe('metadata.name=my-pod');
+        expect(url.searchParams.get('fieldSelector')).toBe(
+          found ? 'status.phase=Pending,metadata.name=my-pod' : 'metadata.name=my-pod'
+        );
         expect(url.searchParams.has('labelSelector')).toBe(false);
       } finally {
         cleanup();

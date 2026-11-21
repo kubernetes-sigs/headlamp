@@ -20,6 +20,13 @@ import { getWorker } from 'msw-storybook-addon';
 import path from 'path';
 import * as previewAnnotations from '../.storybook/preview';
 
+// Snapshots use the stories' HTTP fixtures. Watch behavior is covered in the
+// resource hook tests, which run against mock WebSocket servers.
+vi.mock('./lib/k8s/api/v2/webSocket', async importOriginal => ({
+  ...(await importOriginal<typeof import('./lib/k8s/api/v2/webSocket')>()),
+  useWebSockets: () => {},
+}));
+
 vi.mock('./lib/k8s/api/v1/clusterRequests', async () => {
   const actual = await vi.importActual('./lib/k8s/api/v1/clusterRequests');
   return {

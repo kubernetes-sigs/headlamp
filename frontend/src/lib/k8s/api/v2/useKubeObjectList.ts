@@ -384,23 +384,14 @@ export function kubeObjectListQuery<K extends KubeObject>(
   };
 }
 
-function setListWatchError(
+function setListWatchError<K extends KubeObject>(
   client: QueryClient,
   queryKey: QueryKey,
-  update: KubeListUpdateEvent<KubeObjectInterface>,
-  cluster: string,
-  namespace?: string
+  error?: ApiError
 ) {
-  const error = new ApiError(update.object?.message ?? 'The resource watch stopped', {
-    status: update.object?.code,
-    cluster,
-    namespace,
-  });
-  client.getQueryCache().find({ queryKey, exact: true })?.setState({
-    error,
-    errorUpdatedAt: Date.now(),
-    status: 'error',
-  });
+  client.setQueryData<ListResponse<K>>(queryKey, cached =>
+    cached && cached.watchError !== error ? { ...cached, watchError: error } : cached
+  );
 }
 
 interface WatchedList {
@@ -509,6 +500,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     [stableWatchQueryParamsKey]
   );
   /* eslint-enable react-hooks/exhaustive-deps */
+  const pinned = isExactListVersion(stableQueryParams ?? {});
 
   // Create stable connection URLs for each list
   // Updates only when endpoint, lists, or stableQueryParams change
@@ -566,8 +558,20 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       }
 
       if (update.type === 'ERROR') {
-        if (update.object?.code === 410) void client.invalidateQueries({ queryKey, exact: true });
-        else setListWatchError(client, queryKey, update, cluster, namespace);
+        const status = update.object?.code;
+        if (status === 410 && !pinned) {
+          void client.invalidateQueries({ queryKey, exact: true });
+        } else {
+          setListWatchError(
+            client,
+            queryKey,
+            new ApiError(update.object?.message ?? 'The resource watch stopped', {
+              status,
+              cluster,
+              namespace,
+            })
+          );
+        }
         return;
       }
 
@@ -580,14 +584,14 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         const newList = KubeList.applyUpdate(oldResponse.list, update, kubeObjectClass, cluster);
 
         // Only update if the list actually changed
-        if (newList === oldResponse.list) {
+        if (newList === oldResponse.list && !oldResponse.watchError) {
           return oldResponse;
         }
 
-        return { ...oldResponse, list: newList };
+        return { ...oldResponse, list: newList, watchError: undefined };
       });
     },
-    [client, kubeObjectClass, endpoint]
+    [client, kubeObjectClass, endpoint, pinned]
   );
 
   // Set up WebSocket subscriptions
@@ -597,11 +601,20 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     }
 
     const cleanups: (() => void)[] = [];
-    let stopped = false;
-
     // Create subscriptions for each connection
     connections.forEach(({ url, cluster, namespace, queryKey }) => {
+      if (pinned && client.getQueryData<ListResponse<K>>(queryKey)?.watchError?.status === 410) {
+        return;
+      }
       const parsedUrl = new URL(url, BASE_WS_URL);
+      let stopped = false;
+      let unsubscribe: (() => void) | undefined;
+      const stop = () => {
+        if (stopped) return;
+        stopped = true;
+        unsubscribe?.();
+      };
+      cleanups.push(stop);
 
       // Subscribe to WebSocket updates
       WebSocketManager.subscribe(
@@ -609,13 +622,22 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
         update => {
-          if (!stopped) handleUpdate(update, cluster, namespace, queryKey);
+          if (stopped) return;
+          handleUpdate(update, cluster, namespace, queryKey);
+          if (pinned && update?.type === 'ERROR' && update.object?.code === 410) stop();
         },
-        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
+        error => {
+          if (!stopped)
+            setListWatchError(
+              client,
+              queryKey,
+              new ApiError(error.message, { cluster, namespace })
+            );
+        }
       ).then(
         cleanup => {
           if (stopped) cleanup();
-          else cleanups.push(cleanup);
+          else unsubscribe = cleanup;
         },
         error => {
           // Track retry count in the URL's searchParams
@@ -631,10 +653,9 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
-      stopped = true;
       cleanups.forEach(cleanup => cleanup());
     };
-  }, [connections, enabled, endpoint, handleUpdate]);
+  }, [client, connections, enabled, endpoint, handleUpdate, pinned]);
 }
 
 /**
@@ -705,10 +726,10 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
       ).queryKey;
       const pinned = isExactListVersion(stableQueryParams ?? {});
       const rememberWatchError = (error?: ApiError) =>
-        client.setQueryData<ListResponse<K>>(queryKey, cached =>
-          cached && cached.watchError !== error ? { ...cached, watchError: error } : cached
-        );
+        setListWatchError<K>(client, queryKey, error);
       let relisting: Promise<void> | undefined;
+      let needsRelist = false;
+      let attemptedUpgradeRecovery = false;
 
       return {
         cluster,
@@ -721,28 +742,39 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           ) {
             return null;
           }
-          if (reconnecting) {
-            const refresh = relisting ?? refreshWatchQuery(client, queryKey, {});
+          if (reconnecting && needsRelist) {
+            const refresh = relisting ?? refreshWatchQuery(client, queryKey);
             relisting = undefined;
-            try {
-              await refresh;
-            } catch (error) {
-              if (!(pinned && error instanceof ApiError && error.status === 410)) throw error;
-              rememberWatchError(error);
-              return null;
-            }
+            await refresh;
+            needsRelist = false;
           }
           const cached = client.getQueryData<ListResponse<K>>(queryKey);
           if (cached?.list.metadata.continue) return null;
           return watchUrl(cached?.list.metadata.resourceVersion ?? resourceVersion);
         },
         onOpen() {
+          attemptedUpgradeRecovery = false;
+          needsRelist = false;
+          relisting = undefined;
           rememberWatchError();
+        },
+        onOpenFailure() {
+          if (!pinned && !attemptedUpgradeRecovery) {
+            // An upgrade can be rejected before the browser receives a 410 frame.
+            attemptedUpgradeRecovery = true;
+            needsRelist = true;
+          }
+          if (!client.getQueryData<ListResponse<K>>(queryKey)?.watchError) {
+            rememberWatchError(
+              new ApiError('Unable to open the resource watch', { cluster, namespace })
+            );
+          }
         },
         onMessage(update: KubeListUpdateEvent<KubeObjectInterface>) {
           if (update.type === 'ERROR') {
             const status = update.object?.code;
             if (status === 410 && !pinned) {
+              needsRelist = true;
               relisting = refreshWatchQuery(client, queryKey, update);
             } else {
               rememberWatchError(

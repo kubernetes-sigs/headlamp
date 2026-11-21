@@ -203,6 +203,35 @@ describe('useWebSockets', () => {
     expect(otherClose).toHaveBeenCalledTimes(1);
   });
 
+  it('closes all sockets on unmount when a close listener throws', async () => {
+    const podUrl = 'api/v1/pods?watch=1';
+    const serviceUrl = 'api/v1/services?watch=1';
+    const podServer = new WS(`${BASE_WS_URL}${podUrl}`);
+    const serviceServer = new WS(`${BASE_WS_URL}${serviceUrl}`);
+    const error = new Error('close failed during unmount');
+    const failingClose = vi.fn(() => {
+      throw error;
+    });
+    const serviceClose = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { unmount } = renderHook(() =>
+      useWebSockets({
+        connections: [
+          { cluster: '', url: podUrl, onMessage: vi.fn(), onClose: failingClose },
+          { cluster: '', url: serviceUrl, onMessage: vi.fn(), onClose: serviceClose },
+        ],
+      })
+    );
+    await Promise.all([podServer.connected, serviceServer.connected]);
+
+    unmount();
+
+    await Promise.all([podServer.closed, serviceServer.closed]);
+    expect(failingClose).toHaveBeenCalledTimes(1);
+    expect(serviceClose).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledWith('WebSocket listener error:', error);
+  });
+
   it('opens separate sockets for the same URL when listeners use different caches', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=1';
     const server = new WS(`${BASE_WS_URL}${url}`);
@@ -318,6 +347,45 @@ describe('useWebSockets', () => {
       expect(onMessageA).not.toHaveBeenCalled();
       expect(onMessageB).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('uses the remaining URL provider when the first listener unsubscribes before resolving', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=5';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    let resolveFirst!: (url: string | null) => void;
+    const firstUrl = new Promise<string | null>(resolve => {
+      resolveFirst = resolve;
+    });
+    const first = renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: vi.fn(), getWatchUrl: () => firstUrl }],
+      })
+    );
+    const getWatchUrl = vi.fn().mockResolvedValue(url);
+    renderHook(() =>
+      useWebSockets({ connections: [{ cluster: '', url, onMessage: vi.fn(), getWatchUrl }] })
+    );
+
+    first.unmount();
+    resolveFirst(null);
+
+    await server.connected;
+    expect(getWatchUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a rejected upgrade before the watch opens', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=6';
+    new WS(`${BASE_WS_URL}${url}`, { verifyClient: () => false });
+    const onOpenFailure = vi.fn();
+    const onOpen = vi.fn();
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: vi.fn(), onOpen, onOpenFailure }],
+      })
+    );
+
+    await waitFor(() => expect(onOpenFailure).toHaveBeenCalledTimes(1));
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it('keeps a pending shared websocket alive when its first listener unsubscribes', async () => {

@@ -67,6 +67,9 @@ export type WebSocketConnectionRequest<T> = {
   /** Runs when the server accepts this watch. */
   onOpen?: (url: string, event: Event) => void;
 
+  /** Runs when the connection closes without being accepted. */
+  onOpenFailure?: () => void;
+
   /** Runs when this watch loses its connection or its last subscriber. */
   onClose?: () => void;
 
@@ -84,7 +87,7 @@ const sockets = new Map<string, WebSocket | symbol>();
 const reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 type WebSocketListener = Pick<
   WebSocketConnectionRequest<any>,
-  'onMessage' | 'getWatchUrl' | 'onOpen' | 'onClose'
+  'onMessage' | 'getWatchUrl' | 'onOpen' | 'onOpenFailure' | 'onClose'
 >;
 const listeners = new Map<string, WebSocketListener[]>();
 const cacheEntryIds = new WeakMap<object, number>();
@@ -237,9 +240,19 @@ export function useWebSockets<T>({
         sockets.set(connectionKey, pendingSocket);
 
         try {
-          const watch = listeners.get(connectionKey)?.find(listener => listener.getWatchUrl);
-          const watchUrl = watch?.getWatchUrl ? await watch.getWatchUrl(reconnecting) : url;
-          if (sockets.get(connectionKey) !== pendingSocket) return;
+          let watchUrl: string | null = url;
+          for (;;) {
+            const watch = listeners.get(connectionKey)?.find(listener => listener.getWatchUrl);
+            if (!watch?.getWatchUrl) break;
+            try {
+              watchUrl = await watch.getWatchUrl(reconnecting);
+            } catch (error) {
+              if (listeners.get(connectionKey)?.includes(watch)) throw error;
+            }
+            if (sockets.get(connectionKey) !== pendingSocket) return;
+            if (listeners.get(connectionKey)?.includes(watch)) break;
+            watchUrl = url;
+          }
           if (watchUrl === null) {
             sockets.delete(connectionKey);
             return;
@@ -277,9 +290,10 @@ export function useWebSockets<T>({
               reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
             }
             retry();
-            listeners
-              .get(connectionKey)
-              ?.forEach(listener => notifyWatchListener(() => listener.onClose?.()));
+            listeners.get(connectionKey)?.forEach(listener => {
+              if (openedAt === undefined) notifyWatchListener(() => listener.onOpenFailure?.());
+              notifyWatchListener(() => listener.onClose?.());
+            });
           });
         } catch (error) {
           if (sockets.get(connectionKey) !== pendingSocket) return;
