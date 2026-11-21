@@ -464,7 +464,7 @@ export function registerRouteFilter(filterFunc: (entry: Route) => Route | null) 
  * });
  * ```
  *
- * @see {@link https://github.com/kinvolk/headlamp/blob/main/frontend/src/lib/router.tsx Route examples}
+ * @see {@link https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/router/index.tsx Route examples}
  * @see {@link https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar Sidebar Example}
  *
  */

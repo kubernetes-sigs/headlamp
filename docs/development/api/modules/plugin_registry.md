@@ -905,7 +905,7 @@ registerRoute({
 });
 ```
 
-**`see`** [Route examples](https://github.com/kinvolk/headlamp/blob/main/frontend/src/lib/router.tsx)
+**`see`** [Route examples](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/router/index.tsx)
 
 **`see`** [Sidebar Example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
 
