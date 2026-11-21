@@ -155,6 +155,31 @@ describe('apiProxy', () => {
       }
     });
 
+    it.each([true, false])(
+      'drops a public GET result from a replaced connection (JSON: %s)',
+      async isJSON => {
+        const revision = vi
+          .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+          .mockReturnValue('same:1');
+        const get = nock(baseApiUrl)
+          .get(`/clusters/${clusterName}${testPath}`)
+          .query({ __headlamp_connection_revision: 'same' })
+          .reply(200, () => {
+            revision.mockReturnValue('same:2');
+            return mockResponse;
+          });
+
+        try {
+          await expect(
+            apiProxy.clusterRequest(testPath, { cluster: clusterName, isJSON })
+          ).rejects.toMatchObject({ status: 409 });
+          expect(get.isDone()).toBe(true);
+        } finally {
+          revision.mockRestore();
+        }
+      }
+    );
+
     it('Successfully makes a request', async () => {
       nock(baseApiUrl).get(testPath).reply(200, mockResponse);
 

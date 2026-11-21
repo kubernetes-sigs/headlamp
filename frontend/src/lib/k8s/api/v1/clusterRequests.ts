@@ -152,6 +152,9 @@ export async function clusterRequest(
   const expectedDiscoveryConnection =
     boundConnection ??
     (cluster ? { revision: getDiscoveredConnectionRevision(cluster) } : undefined);
+  const method = opts.method?.toUpperCase() ?? 'GET';
+  const readConnection =
+    method === 'GET' || method === 'HEAD' ? expectedDiscoveryConnection : undefined;
 
   let fullPath = path;
   if (cluster) {
@@ -249,18 +252,16 @@ export async function clusterRequest(
       clearTimeout(id);
     }
 
+    if (readConnection) assertCurrentDiscoveryConnection(cluster, readConnection.revision);
     const error = new Error(message) as ApiError;
     error.status = status;
     return Promise.reject(error);
   }
 
-  if (!isJSON) {
-    clearTimeout(id);
-    return Promise.resolve(response);
-  }
-
   try {
-    return await response.json();
+    const result = isJSON ? await response.json() : response;
+    if (readConnection) assertCurrentDiscoveryConnection(cluster, readConnection.revision);
+    return result;
   } finally {
     clearTimeout(id);
   }
