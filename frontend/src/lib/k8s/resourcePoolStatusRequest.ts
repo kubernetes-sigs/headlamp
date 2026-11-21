@@ -41,6 +41,14 @@ export interface PoolStatus {
   validationError?: string;
 }
 
+/**
+ * @param pool - A pool from the status of a request.
+ * @returns true when the driver had not published the whole pool, so its counts are unset.
+ */
+export function isPoolIncomplete(pool: PoolStatus): boolean {
+  return !!pool.validationError?.startsWith('PoolIncomplete:');
+}
+
 export type PoolStatusRequestCondition = Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'>;
 
 export interface ResourcePoolStatusRequestStatus {
@@ -96,6 +104,10 @@ class ResourcePoolStatusRequest extends KubeObject<KubeResourcePoolStatusRequest
     return this.hasCondition('Failed');
   }
 
+  get isWaitingForPools(): boolean {
+    return this.hasCondition('WaitingForPools');
+  }
+
   get isPending(): boolean {
     return !this.isComplete && !this.isFailed;
   }
@@ -137,12 +149,14 @@ export class PoolStatusRequestTimeoutError extends Error {
  * 1.37, a driver with an incomplete pool leaves its request without a status.
  * @param spec - The driver, and optionally the pool, to ask about.
  * @param cluster - The cluster to ask.
+ * @param onProgress - Called with the request while it is not answered yet.
  * @returns The answered request, which may have failed.
  * @throws PoolStatusRequestTimeoutError when the cluster does not answer in time.
  */
 export async function requestPoolStatus(
   spec: ResourcePoolStatusRequestSpec,
-  cluster: string
+  cluster: string,
+  onProgress?: (current: ResourcePoolStatusRequest) => void
 ): Promise<ResourcePoolStatusRequest> {
   const { apiVersion, apiName, kind } = ResourcePoolStatusRequest;
   const url = `/apis/${apiVersion}/${apiName}`;
@@ -159,6 +173,7 @@ export async function requestPoolStatus(
     let current = new ResourcePoolStatusRequest(created, cluster);
 
     while (current.isPending) {
+      onProgress?.(current);
       await new Promise(resolve =>
         setTimeout(resolve, Math.min(POOL_STATUS_POLL_INTERVAL_MS, deadline - Date.now()))
       );
@@ -192,10 +207,15 @@ export async function requestPoolStatus(
 /**
  * Runs a pool status request when asked, for example from a button.
  * @param cluster - The cluster to ask.
+ * @param onProgress - Called with the request while it is not answered yet.
  * @returns A mutation whose variables are the spec of the request.
  */
-export function usePoolStatusRequest(cluster: string) {
+export function usePoolStatusRequest(
+  cluster: string,
+  onProgress?: (current: ResourcePoolStatusRequest) => void
+) {
   return useMutation({
-    mutationFn: (spec: ResourcePoolStatusRequestSpec) => requestPoolStatus(spec, cluster),
+    mutationFn: (spec: ResourcePoolStatusRequestSpec) =>
+      requestPoolStatus(spec, cluster, onProgress),
   });
 }

@@ -24,6 +24,7 @@ import type {
   ResourcePoolStatusRequestStatus,
 } from './resourcePoolStatusRequest';
 import ResourcePoolStatusRequest, {
+  isPoolIncomplete,
   PoolStatusRequestTimeoutError,
   requestPoolStatus,
   usePoolStatusRequest,
@@ -158,6 +159,28 @@ describe('ResourcePoolStatusRequest', () => {
     expect(request.failureMessage).toBe('Listing failed');
   });
 
+  it('waits for pools while the condition says so', () => {
+    const waiting = wrap(
+      makeRequest({ conditions: [condition('WaitingForPools', 'Waiting for gpu-pool')] })
+    );
+
+    expect(waiting.isWaitingForPools).toBe(true);
+    expect(waiting.isPending).toBe(true);
+    expect(wrap(complete).isWaitingForPools).toBe(false);
+  });
+
+  it('tells an incomplete pool from one with no free devices', () => {
+    expect(
+      isPoolIncomplete({
+        ...pool,
+        totalDevices: undefined,
+        validationError: 'PoolIncomplete: 1 of 2 slices published',
+      })
+    ).toBe(true);
+    expect(isPoolIncomplete({ ...pool, availableDevices: 0 })).toBe(false);
+    expect(isPoolIncomplete({ ...pool, validationError: 'Some other problem' })).toBe(false);
+  });
+
   it('ignores a condition that is not true', () => {
     const request = wrap(
       makeRequest({ conditions: [{ ...condition('Complete', ''), status: 'False' }] })
@@ -218,6 +241,24 @@ describe('requestPoolStatus', () => {
       cluster,
       timeout: expect.any(Number),
     });
+  });
+
+  it('reports each unanswered read while it waits', async () => {
+    const waiting = makeRequest({
+      conditions: [condition('WaitingForPools', 'Waiting for gpu-pool')],
+    });
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockResolvedValueOnce(waiting).mockResolvedValueOnce(complete);
+    const onProgress = vi.fn();
+
+    const result = requestPoolStatus(spec, cluster, onProgress);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect((await result).isComplete).toBe(true);
+    expect(onProgress.mock.calls.map(([current]) => current.isWaitingForPools)).toEqual([
+      false,
+      true,
+    ]);
   });
 
   it('returns a failed request, and removes it', async () => {
