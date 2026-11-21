@@ -2557,7 +2557,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/drain-node",
-		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrain))).Methods("POST")
+		c.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(c.handleNodeDrain)))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/drain-node-status",
 		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrainStatus))).Methods("GET")
 	router.Handle("/encoded-clusters/{encodedClusterName}/clear-token",
@@ -3564,6 +3564,10 @@ func (c *HeadlampConfig) drainContextKey(r *http.Request, cluster string) (strin
 		return "", errors.New("cluster does not match request path")
 	}
 
+	if resolved, ok := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext); ok {
+		return resolved.key, nil
+	}
+
 	return c.getContextKeyForRequest(r)
 }
 
@@ -3614,7 +3618,7 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ctxtProxy, err := c.KubeConfigStore.GetContext(contextKey)
+	contextKey, ctxtProxy, err := c.getContextWithWebSocketFallback(r, contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "Cluster not found", http.StatusNotFound)
 

@@ -149,6 +149,25 @@ func cacheConnectionRequest(t *testing.T, router http.Handler, method, token str
 	return response
 }
 
+func TestDiscoveredDrainRejectsChangedConnection(t *testing.T) {
+	upstream, requests := newCacheConnectionServer(t, "pod", "user", nil)
+	connection := cacheConnectionContext(t, upstream, kubeconfig.ClusterInventory)
+	connection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "replacement"}
+	_, router := cacheConnectionRouter(t, connection)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		"/clusters/cache-switch/drain-node?"+discoveryConnectionRevisionParam+"=original",
+		strings.NewReader(`{"cluster":"cache-switch","nodeName":"node-a"}`))
+	req.Header.Set("Authorization", "Bearer user")
+	req.Header.Set("Content-Type", "application/json")
+
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	require.Equal(t, http.StatusConflict, res.Code)
+	require.Zero(t, requests.Load())
+}
+
 func TestDiscoveredRequestsUseTheExpectedConnection(t *testing.T) {
 	first, _ := newCacheConnectionServer(t, "first-pod", "user", func(r *http.Request) {
 		assert.False(t, r.URL.Query().Has(discoveryConnectionRevisionParam))

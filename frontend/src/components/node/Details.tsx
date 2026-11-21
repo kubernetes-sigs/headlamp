@@ -26,7 +26,7 @@ import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { useCluster } from '../../lib/k8s';
 import { apply } from '../../lib/k8s/api/v1/apply';
-import { drainNode, drainNodeStatus } from '../../lib/k8s/api/v1/drainNode';
+import { drainNodeForResource, drainNodeStatus } from '../../lib/k8s/api/v1/drainNode';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type { KubeNodeSummaryStats } from '../../lib/k8s/api/v2/nodeSummaryApi';
 import { KubeContainer, KubeMetrics } from '../../lib/k8s/cluster';
@@ -243,7 +243,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
     dispatch(
       clusterAction(
         () =>
-          drainNode(clusterName, node.metadata.name)
+          drainNodeForResource(clusterName, node)
             .then(() => {
               if (isMountedRef.current && currentNodeIdRef.current === reqId)
                 setPollingDrainNodeName(node.metadata.name);

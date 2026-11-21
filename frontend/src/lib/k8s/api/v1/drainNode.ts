@@ -16,8 +16,12 @@
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
+import type Node from '../../node';
+import { getResourceConnectionQuery } from '../v2/discoveryConnection';
 import { clusterFetch } from '../v2/fetch';
 import { JSON_HEADERS } from './constants';
+import { asQuery } from './formatUrl';
+import type { QueryParameters } from './queryParameters';
 
 /**
  * Drain a node
@@ -35,10 +39,19 @@ import { JSON_HEADERS } from './constants';
  * to get the status of the drain node process.
  */
 export function drainNode(cluster: string, nodeName: string) {
+  return requestNodeDrain(cluster, nodeName);
+}
+
+export async function drainNodeForResource(cluster: string, node: Node) {
+  const query = getResourceConnectionQuery(node, cluster, {});
+  return requestNodeDrain(cluster, node.getName(), query);
+}
+
+function requestNodeDrain(cluster: string, nodeName: string, query?: QueryParameters) {
   const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
   Object.entries(getHeadlampAPIHeaders()).forEach(([name, value]) => headers.set(name, value));
 
-  return clusterFetch('/drain-node', {
+  return clusterFetch('/drain-node' + asQuery(query), {
     cluster,
     method: 'POST',
     headers: headers,
