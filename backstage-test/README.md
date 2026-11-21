@@ -23,8 +23,10 @@ make backend-embed
 Execute the binary with the required parameters, including the trusted origin of the Backstage host (`--backstage-origin` or `HEADLAMP_CONFIG_BACKSTAGE_ORIGIN`). By default no origin is trusted and `HEADLAMP_READY` / `postMessage` token and kubeconfig messages are rejected:
 
 ```bash
-./backend/headlamp-server --base-url="/api/headlamp" --enable-dynamic-clusters --backstage-origin="http://localhost:8000"
+./backend/headlamp-server --base-url="/api/headlamp" --enable-dynamic-clusters --backstage-origin="http://localhost:8000" --allowed-frame-ancestors="http://localhost:8000"
 ```
+
+Headlamp also refuses to be framed by default, so `--allowed-frame-ancestors` must list the Backstage host for the iframe to load.
 
 You can also pass a comma-separated list of origins (for example `https://backstage.example.com,https://other-backstage.example.com`), or configure `REACT_APP_BACKSTAGE_ORIGIN` when building the frontend.
 

@@ -6778,3 +6778,90 @@ func TestClusterMetadataSeparatesResourceAndContextNamespaces(t *testing.T) {
 	require.Equal(t, "workload", presentation.DisplayName)
 	require.Equal(t, connection.Name, c.getClusters()[0].Name)
 }
+
+func TestFrameAncestorsMiddleware(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	t.Run("default configuration", func(t *testing.T) {
+		cfg := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:    false,
+					KubeConfigStore: kubeConfigStore,
+				},
+				Cache: cache,
+			},
+		}
+		handler, err := serverHandler(newTestHandlerCtx(t), cfg)
+		require.NoError(t, err)
+
+		for _, path := range []string{"/config", "/"} {
+			req, err := http.NewRequestWithContext(context.Background(), "GET", path, nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, "DENY", rr.Header().Get("X-Frame-Options"), "path: %s", path)
+			assert.Equal(t, "frame-ancestors 'none'", rr.Header().Get("Content-Security-Policy"), "path: %s", path)
+		}
+	})
+
+	t.Run("allowed frame ancestors configuration", func(t *testing.T) {
+		cfg := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:          false,
+					KubeConfigStore:       kubeConfigStore,
+					AllowedFrameAncestors: []string{"https://example.com", "https://app.example.com"},
+				},
+				Cache: cache,
+			},
+		}
+		handler, err := serverHandler(newTestHandlerCtx(t), cfg)
+		require.NoError(t, err)
+
+		for _, path := range []string{"/config", "/"} {
+			req, err := http.NewRequestWithContext(context.Background(), "GET", path, nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Empty(t, rr.Header().Get("X-Frame-Options"), "path: %s", path)
+			assert.Equal(t, "frame-ancestors https://example.com https://app.example.com",
+				rr.Header().Get("Content-Security-Policy"), "path: %s", path)
+		}
+	})
+}
+
+// An explicit 'none' is the default policy, so it must keep the
+// X-Frame-Options fallback.
+func TestFrameAncestorsMiddlewareExplicitNone(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigStore:       kubeConfigStore,
+				AllowedFrameAncestors: []string{"'none'"},
+			},
+			Cache: cache,
+		},
+	}
+	handler, err := serverHandler(newTestHandlerCtx(t), cfg)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/config", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, "DENY", rr.Header().Get("X-Frame-Options"))
+	assert.Equal(t, "frame-ancestors 'none'", rr.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+}
