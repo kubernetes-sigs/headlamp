@@ -265,7 +265,7 @@ test('creates a pod from YAML and every open tab follows it until kubectl delete
   }
 });
 
-test('warns and preserves edits when a pod is modified externally', async ({ page }) => {
+test('warns and preserves edits when a resource is modified externally', async ({ page }) => {
   test.setTimeout(90000);
   const name = `headlamp-edit-conflict-${Date.now()}`;
   const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
@@ -281,10 +281,18 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
     await kubectl(
       kubeconfig,
       '--namespace=default',
-      'run',
+      'create',
+      'configmap',
       name,
-      '--image=registry.k8s.io/pause:3.10',
-      '--restart=Never'
+      '--from-literal=initial=value'
+    );
+    await kubectl(
+      kubeconfig,
+      '--namespace=default',
+      'label',
+      'configmap',
+      name,
+      'e2e.headlamp.dev/initial=true'
     );
 
     // Clusters that authenticate with a client certificate need no token.
@@ -292,11 +300,11 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
     if (token) {
       await new HeadlampPage(page).setAuthCookie('test', token);
     }
-    await page.goto('/c/test/pods', { waitUntil: 'domcontentloaded' });
+    await page.goto('/c/test/configmaps', { waitUntil: 'domcontentloaded' });
 
-    const podLink = page.getByRole('link', { name, exact: true });
-    await expect(podLink).toBeVisible({ timeout: 15000 });
-    await podLink.click();
+    const configMapLink = page.getByRole('link', { name, exact: true });
+    await expect(configMapLink).toBeVisible({ timeout: 15000 });
+    await configMapLink.click();
 
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
     await page.getByText('Use minimal editor').click();
@@ -315,10 +323,9 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
       kubeconfig,
       '--namespace=default',
       'label',
-      'pod',
+      'configmap',
       name,
-      `e2e.headlamp.dev/external=${Date.now()}`,
-      '--overwrite'
+      'e2e.headlamp.dev/external=true'
     );
 
     const warningAlert = page.getByRole('alert').filter({
@@ -328,13 +335,48 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
     await expect(warningAlert).toBeVisible({ timeout: 15000 });
     await expect(warningAlert).toHaveClass(/MuiAlert-standardWarning/);
     await expect(editor).toHaveValue(editedYaml);
+
+    await page.getByRole('button', { name: /undo/i }).click();
+    await page.getByTestId('confirm-button').click();
+    await expect(editor).toHaveValue(/e2e\.headlamp\.dev\/external: 'true'/);
+    await expect(editor).not.toHaveValue(/e2e\.headlamp\.dev\/unsaved/);
+
+    const latestYaml = await editor.inputValue();
+    const postUndoEdit = latestYaml.replace(
+      'metadata:\n',
+      'metadata:\n  annotations:\n    e2e.headlamp.dev/after-undo: "true"\n'
+    );
+    expect(postUndoEdit).not.toBe(latestYaml);
+    await editor.fill(postUndoEdit);
+
+    const saveButton = page.getByRole('button', { name: /save & apply/i });
+    await expect(saveButton).toBeEnabled();
+    await saveButton.click();
+    await expect(page.getByText(`Applied changes to ${name}.`)).toBeVisible({ timeout: 15000 });
+
+    await expect
+      .poll(async () => {
+        const { stdout } = await execFileAsync('kubectl', [
+          '--kubeconfig',
+          kubeconfig,
+          '--context=kind-test',
+          '--namespace=default',
+          'get',
+          'configmap',
+          name,
+          '-o=json',
+        ]);
+        return JSON.parse(stdout).metadata.labels['e2e.headlamp.dev/external'];
+      })
+      .toBe('true');
   } finally {
     await kubectl(
       kubeconfig,
       '--namespace=default',
       'delete',
-      'pod',
+      'configmap',
       name,
+      '--wait=false',
       '--ignore-not-found=true'
     )
       .catch(() => undefined)
