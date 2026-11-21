@@ -16,7 +16,6 @@
 
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_NODE_SHELL_NAMESPACE, loadClusterSettings } from '../../helpers/clusterSettings';
-import { getCluster } from '../../lib/cluster';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 import store from '../../redux/stores/store';
@@ -54,7 +53,7 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   if (item === null) {
     return <></>;
   }
-  const cluster = getCluster();
+  const cluster = item.cluster || null;
   function isLinux(item: Node | null): boolean {
     return item?.status?.nodeInfo?.operatingSystem === 'linux';
   }
@@ -66,8 +65,14 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   }
   return (
     <>
-      <AuthVisible authVerb="create" item={Pod} namespace={namespace}>
-        <AuthVisible item={Pod} namespace={namespace} authVerb="get" subresource="exec">
+      <AuthVisible authVerb="create" item={Pod} namespace={namespace} cluster={item.cluster}>
+        <AuthVisible
+          item={Pod}
+          namespace={namespace}
+          authVerb="get"
+          subresource="exec"
+          cluster={item.cluster}
+        >
           <ActionButton
             description={
               isLinux(item)
