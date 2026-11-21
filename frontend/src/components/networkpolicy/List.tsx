@@ -35,15 +35,14 @@ export function NetworkPolicyList() {
           gridTemplate: 'auto',
           label: t('translation|Type'),
           getValue: networkpolicy => {
-            const isIngressAvailable =
-              networkpolicy.jsonData.spec.ingress && networkpolicy.jsonData.spec.ingress.length > 0;
-            const isEgressAvailable =
-              networkpolicy.jsonData.spec.egress && networkpolicy.jsonData.spec.egress.length > 0;
-            return isIngressAvailable && isEgressAvailable
+            const types = networkpolicy.policyTypes;
+            const hasIngress = types.includes('Ingress');
+            const hasEgress = types.includes('Egress');
+            return hasIngress && hasEgress
               ? 'Ingress and Egress'
-              : isIngressAvailable
+              : hasIngress
               ? 'Ingress'
-              : isEgressAvailable
+              : hasEgress
               ? 'Egress'
               : 'None';
           },
