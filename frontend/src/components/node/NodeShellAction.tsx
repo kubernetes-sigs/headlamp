@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_NODE_SHELL_NAMESPACE, loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
+import Job from '../../lib/k8s/job';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 import store from '../../redux/stores/store';
@@ -66,36 +67,40 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   }
   return (
     <>
-      <AuthVisible authVerb="create" item={Pod} namespace={namespace}>
-        <AuthVisible item={Pod} namespace={namespace} authVerb="get" subresource="exec">
-          <ActionButton
-            description={
-              isLinux(item)
-                ? t('Debug Node')
-                : t('Debug node is not supported in this OS: {{ nodeOS }}', {
-                    nodeOS: item?.status?.nodeInfo?.operatingSystem,
-                  })
-            }
-            icon="mdi:bug"
-            onClick={() => {
-              Activity.launch({
-                id: activityId,
-                location: 'full',
-                title: t('Shell: {{ itemName }}', { itemName: item.metadata.name }),
-                cluster: item.cluster,
-                content: (
-                  <NodeShellTerminal
-                    key="terminal"
-                    item={item}
-                    onClose={() => Activity.close(activityId)}
-                  />
-                ),
-              });
-            }}
-            iconButtonProps={{
-              disabled: !isLinux(item),
-            }}
-          />
+      <AuthVisible authVerb="create" item={Job} namespace={namespace}>
+        <AuthVisible authVerb="delete" item={Job} namespace={namespace}>
+          <AuthVisible authVerb="list" item={Pod} namespace={namespace}>
+            <AuthVisible item={Pod} namespace={namespace} authVerb="get" subresource="exec">
+              <ActionButton
+                description={
+                  isLinux(item)
+                    ? t('Debug Node')
+                    : t('Debug node is not supported in this OS: {{ nodeOS }}', {
+                        nodeOS: item?.status?.nodeInfo?.operatingSystem,
+                      })
+                }
+                icon="mdi:bug"
+                onClick={() => {
+                  Activity.launch({
+                    id: activityId,
+                    location: 'full',
+                    title: t('Shell: {{ itemName }}', { itemName: item.metadata.name }),
+                    cluster: item.cluster,
+                    content: (
+                      <NodeShellTerminal
+                        key="terminal"
+                        item={item}
+                        onClose={() => Activity.close(activityId)}
+                      />
+                    ),
+                  });
+                }}
+                iconButtonProps={{
+                  disabled: !isLinux(item),
+                }}
+              />
+            </AuthVisible>
+          </AuthVisible>
         </AuthVisible>
       </AuthVisible>
     </>
