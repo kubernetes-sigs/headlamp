@@ -136,3 +136,38 @@ it('restarts explicit node metric and stats polling and drops results from the o
     vi.useRealTimers();
   }
 });
+
+it('starts summary polling when a name appears and drops responses for the previous node', async () => {
+  const cluster = 'summary-test';
+  const oldSummary = Promise.withResolvers<Response>();
+  const newSummary = Promise.withResolvers<Response>();
+  const summary = { node: { fs: { capacityBytes: 20 } } };
+  const fetch = vi.mocked(clusterFetch).mockReset();
+  fetch.mockReturnValueOnce(oldSummary.promise).mockReturnValueOnce(newSummary.promise);
+  const { result, rerender, unmount } = renderHook<
+    ReturnType<typeof Node.useNodeSummaryStats>,
+    { nodeName?: string }
+  >(({ nodeName }) => Node.useNodeSummaryStats(nodeName, cluster), {
+    initialProps: { nodeName: undefined },
+    wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>,
+  });
+
+  try {
+    expect(fetch).not.toHaveBeenCalled();
+    rerender({ nodeName: 'node-a' });
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining('/nodes/node-a/'), { cluster });
+    rerender({ nodeName: 'node-b' });
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining('/nodes/node-b/'), { cluster });
+    await act(async () => {
+      newSummary.resolve(Response.json(summary));
+    });
+    expect(result.current).toEqual([summary, null]);
+    await act(async () => {
+      oldSummary.resolve(Response.json({ node: { fs: { capacityBytes: 10 } } }));
+    });
+    expect(result.current).toEqual([summary, null]);
+  } finally {
+    unmount();
+    fetch.mockReset();
+  }
+});

@@ -143,24 +143,28 @@ class Node extends KubeObject<KubeNode> {
     }
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectionRequests(cluster, (requestCluster, isCurrent, changed) => {
-      if (changed) {
-        setSummaryStats(null);
-        setError(null);
-      }
-      return [
-        nodeSummaryStats(
-          nodeName || '',
-          value => {
-            if (isCurrent()) setStats(value);
-          },
-          err => {
-            if (isCurrent()) setError(err);
-          },
-          requestCluster
-        ),
-      ];
-    });
+    useConnectionRequests(
+      cluster,
+      (requestCluster, isCurrent, changed) => {
+        if (changed) {
+          setSummaryStats(null);
+          setError(null);
+        }
+        return [
+          nodeSummaryStats(
+            nodeName || '',
+            value => {
+              if (isCurrent()) setStats(value);
+            },
+            err => {
+              if (isCurrent()) setError(err);
+            },
+            requestCluster
+          ),
+        ];
+      },
+      nodeName || ''
+    );
 
     return [summaryStats, error];
   }
