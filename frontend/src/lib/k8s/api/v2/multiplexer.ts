@@ -182,7 +182,19 @@ export const WebSocketManager = {
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
 
-    // Add to active subscriptions
+    // Register listeners only after the request can be sent. A failed connection
+    // must not leave a subscription for a later socket to replay.
+    const socket = await this.connect();
+    const userId = getUserIdFromLocalStorage();
+    const requestMsg: WebSocketMessage = {
+      clusterId,
+      path,
+      query,
+      userId: userId || '',
+      type: 'REQUEST',
+    };
+    socket.send(JSON.stringify(requestMsg));
+
     this.activeSubscriptions.set(key, { clusterId, path, query });
 
     // Add message listener
@@ -196,18 +208,6 @@ export const WebSocketManager = {
       errListeners.add(onError);
       this.errorListeners.set(key, errListeners);
     }
-
-    // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
@@ -465,25 +465,19 @@ export function useWebSocket<T>({
 
     let cleanup: (() => void) | undefined;
     let isCancelled = false;
-    let subscriptionPath: string | undefined;
-    let subscriptionQuery = '';
 
     const connectWebSocket = async () => {
-      let stableOnError: ((err: Error) => void) | undefined;
       try {
         const parsedUrl = new URL(url, getBaseWsUrl());
-        subscriptionPath = parsedUrl.pathname;
-        subscriptionQuery = parsedUrl.search.slice(1);
-        stableOnError = (err: Error) => {
-          console.error('WebSocket error for', subscriptionPath, err);
-          onError?.(err);
-        };
         const unsubscribe = await WebSocketManager.subscribe(
           cluster,
-          subscriptionPath,
-          subscriptionQuery,
+          parsedUrl.pathname,
+          parsedUrl.search.slice(1),
           stableOnMessage,
-          stableOnError
+          err => {
+            console.error('WebSocket error for', parsedUrl.pathname, err);
+            onError?.(err);
+          }
         );
         if (isCancelled) {
           unsubscribe();
@@ -491,17 +485,6 @@ export function useWebSocket<T>({
           cleanup = unsubscribe;
         }
       } catch (err) {
-        if (subscriptionPath) {
-          const key = WebSocketManager.createKey(cluster, subscriptionPath, subscriptionQuery);
-          WebSocketManager.unsubscribe(
-            key,
-            cluster,
-            subscriptionPath,
-            subscriptionQuery,
-            stableOnMessage,
-            stableOnError
-          );
-        }
         if (isCancelled) {
           return;
         }
