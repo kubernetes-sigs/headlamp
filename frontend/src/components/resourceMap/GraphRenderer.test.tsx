@@ -19,6 +19,7 @@ import { GraphRenderer } from './GraphRenderer';
 
 const mocks = vi.hoisted(() => ({
   reactFlowProps: undefined as Record<string, any> | undefined,
+  graphMiniMapProps: undefined as Record<string, any> | undefined,
 }));
 
 vi.mock('@xyflow/react', () => ({
@@ -36,6 +37,13 @@ vi.mock('./GraphControls', () => ({
   GraphControls: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+vi.mock('./GraphMiniMap', () => ({
+  GraphMiniMap: (props: any) => {
+    mocks.graphMiniMapProps = props;
+    return null;
+  },
+}));
+
 vi.mock('./edges/GraphEdgeComponent', () => ({
   GraphEdgeComponent: () => null,
 }));
@@ -51,6 +59,7 @@ vi.mock('react-i18next', () => ({
 describe('GraphRenderer', () => {
   beforeEach(() => {
     mocks.reactFlowProps = undefined;
+    mocks.graphMiniMapProps = undefined;
   });
 
   it('forwards continuous viewport movement through onMove', () => {
@@ -63,5 +72,12 @@ describe('GraphRenderer', () => {
     const viewport = { x: 10, y: 20, zoom: 1 };
     act(() => mocks.reactFlowProps?.onMove(null, viewport));
     expect(onMove).toHaveBeenCalledWith(null, viewport);
+  });
+
+  it('passes onMinimapInteraction to GraphMiniMap', () => {
+    const onMinimapInteraction = vi.fn();
+    render(<GraphRenderer nodes={[]} edges={[]} onMinimapInteraction={onMinimapInteraction} />);
+
+    expect(mocks.graphMiniMapProps?.onInteraction).toBe(onMinimapInteraction);
   });
 });
