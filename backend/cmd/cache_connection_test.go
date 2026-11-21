@@ -188,7 +188,7 @@ func TestDiscoveredRequestsUseTheExpectedConnection(t *testing.T) {
 	require.JSONEq(t, `{"message":"Discovered cluster connection changed"}`, conflict.Body.String())
 	require.Equal(t, http.StatusConflict, request(http.MethodGet, true).Code)
 
-	for _, method := range []string{http.MethodPatch, http.MethodPut, http.MethodDelete} {
+	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete} {
 		require.Equal(t, http.StatusConflict, request(method, false).Code)
 	}
 

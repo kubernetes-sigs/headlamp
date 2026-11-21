@@ -16,8 +16,10 @@
 
 import { Base64 } from 'js-base64';
 import { patch, post } from './api/v1/clusterRequests';
+import { asQuery } from './api/v1/formatUrl';
 import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
 import { stream } from './api/v1/streamingApi';
+import { getResourceMutationQuery } from './api/v2/discoveryConnection';
 import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -232,8 +234,11 @@ class Pod extends KubeObject<KubePod> {
     return references;
   }
 
-  evict() {
-    const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction`;
+  async evict() {
+    const cluster = this._clusterName;
+    const query = getResourceMutationQuery(this, cluster, {});
+    const url =
+      `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction` + asQuery(query);
     return post(
       url,
       {
@@ -243,7 +248,7 @@ class Pod extends KubeObject<KubePod> {
         },
       },
       true,
-      { cluster: this._clusterName }
+      { cluster }
     );
   }
 
@@ -442,9 +447,13 @@ class Pod extends KubeObject<KubePod> {
       },
     };
 
-    const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/ephemeralcontainers`;
+    const cluster = this.cluster;
+    const query = getResourceMutationQuery(this, cluster, {});
+    const url =
+      `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/ephemeralcontainers` +
+      asQuery(query);
 
-    await patch(url, patchBody, true, { cluster: this.cluster });
+    await patch(url, patchBody, true, { cluster });
   }
 
   private getLastRestartDate(container: KubeContainerStatus, lastRestartDate: Date): Date {

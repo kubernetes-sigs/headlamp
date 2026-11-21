@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { ApiError } from './ApiError';
+
 const resourceConnections = new WeakMap<object, { cluster: string; revision: string }>();
 
 export function recordDiscoveryConnection(resource: object, cluster: string, revision?: string) {
@@ -28,4 +30,16 @@ export function getResourceDiscoveryConnection(resource: object) {
 export function withDiscoveryConnectionRevision<T extends object>(params: T, revision?: string) {
   const routingRevision = revision?.split(':', 1)[0];
   return routingRevision ? { ...params, __headlamp_connection_revision: routingRevision } : params;
+}
+
+export function getResourceMutationQuery<T extends object>(
+  resource: object,
+  cluster: string,
+  params: T
+) {
+  const connection = getResourceDiscoveryConnection(resource);
+  if (connection && connection.cluster !== cluster) {
+    throw new ApiError('Discovered cluster connection changed', { status: 409 });
+  }
+  return withDiscoveryConnectionRevision(params, connection?.revision);
 }
