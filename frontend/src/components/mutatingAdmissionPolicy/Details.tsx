@@ -47,20 +47,20 @@ export default function MutatingAdmissionPolicyDetails(props: { name?: string; c
         item && [
           {
             name: t('API Version'),
-            value: item.jsonData.apiVersion,
+            value: item.jsonData?.apiVersion,
           },
           {
             name: t('Failure Policy'),
-            value: item.spec.failurePolicy,
+            value: item.spec?.failurePolicy,
           },
           {
             name: t('Reinvocation Policy'),
-            value: item.spec.reinvocationPolicy,
+            value: item.spec?.reinvocationPolicy,
           },
           {
             name: t('translation|Param Kind'),
             value:
-              [item.spec.paramKind?.apiVersion, item.spec.paramKind?.kind]
+              [item.spec?.paramKind?.apiVersion, item.spec?.paramKind?.kind]
                 .filter(Boolean)
                 .join(' ') || '-',
           },
@@ -73,7 +73,7 @@ export default function MutatingAdmissionPolicyDetails(props: { name?: string; c
             section: (
               <SectionBox title={t('translation|Mutations')}>
                 <SimpleTable
-                  data={item.spec.mutations || []}
+                  data={item.spec?.mutations || []}
                   columns={[
                     {
                       label: t('translation|Patch Type'),
@@ -95,8 +95,8 @@ export default function MutatingAdmissionPolicyDetails(props: { name?: string; c
               <SectionBox title={t('translation|Match Constraints')}>
                 <SimpleTable
                   data={ruleRows(
-                    item.spec.matchConstraints?.resourceRules,
-                    item.spec.matchConstraints?.excludeResourceRules
+                    item.spec?.matchConstraints?.resourceRules,
+                    item.spec?.matchConstraints?.excludeResourceRules
                   )}
                   columns={[
                     {
@@ -136,7 +136,7 @@ export default function MutatingAdmissionPolicyDetails(props: { name?: string; c
             section: (
               <SectionBox title={t('translation|Match Conditions')}>
                 <SimpleTable
-                  data={item.spec.matchConditions || []}
+                  data={item.spec?.matchConditions || []}
                   columns={[
                     {
                       label: t('translation|Name'),
