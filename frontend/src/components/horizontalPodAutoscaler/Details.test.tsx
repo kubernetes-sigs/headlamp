@@ -97,4 +97,30 @@ describe('HpaDetails', () => {
     const lastScale = props.extraInfo(hpa).find((f: any) => f.name.includes('Last Scale Time'));
     expect(lastScale.hide).toBe(true);
   });
+
+  it('safely handles an HPA with undefined status, spec, and referenceObject without throwing in extraInfo', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-hpa' }}>
+        <HpaDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const bareHpa = { jsonData: {} } as any;
+
+    expect(() => props.extraInfo(bareHpa)).not.toThrow();
+    const byName = Object.fromEntries(
+      props.extraInfo(bareHpa).map((f: any) => [String(f.name).split('|').pop(), f.value])
+    );
+
+    expect(byName['MinReplicas']).toBe(0);
+    expect(byName['MaxReplicas']).toBe(0);
+    expect(byName['Deployment pods']).toContain('0 current / 0 desired');
+
+    const lastScale = props.extraInfo(bareHpa).find((f: any) => f.name.includes('Last Scale Time'));
+    expect(lastScale.hide).toBe(true);
+
+    const ref = props.extraInfo(bareHpa).find((f: any) => f.name.includes('Reference'));
+    expect(ref.hide).toBe(true);
+  });
 });
