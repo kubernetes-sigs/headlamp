@@ -16,6 +16,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { prepareApply } from '../../lib/k8s/api/v1/apply';
 import { TestContext } from '../../test';
 import CronJobDetails from './Details';
 
@@ -29,7 +30,10 @@ const { mockApply, capturedAction, mockUseGet, authVisibleProps } = vi.hoisted((
   mockUseGet: vi.fn(),
 }));
 
-vi.mock('../../lib/k8s/api/v1/apply', () => ({ apply: mockApply }));
+vi.mock('../../lib/k8s/api/v1/apply', () => ({
+  apply: mockApply,
+  prepareApply: vi.fn((cluster: string) => (body: unknown) => mockApply(body, cluster)),
+}));
 
 vi.mock('../../lib/k8s/cronJob', () => ({
   default: { kind: 'CronJob', useGet: mockUseGet },
@@ -118,6 +122,7 @@ describe('CronJobDetails: Spawn Job', () => {
     capturedAction.current = null;
     authVisibleProps.length = 0;
     mockApply.mockClear();
+    vi.mocked(prepareApply).mockClear();
     mockUseGet.mockClear();
     mockUseGet.mockReturnValue([makeCronJob(), null]);
   });
@@ -135,6 +140,12 @@ describe('CronJobDetails: Spawn Job', () => {
     // clusterAction defers the callback by CLUSTER_ACTION_GRACE_PERIOD, so the
     // cluster has to be resolved before then rather than inside apply().
     expect(capturedAction.current).not.toBeNull();
+    expect(prepareApply).toHaveBeenCalledWith(
+      OWNER_CLUSTER,
+      expect.objectContaining({
+        metadata: expect.objectContaining({ name: 'test-cronjob' }),
+      })
+    );
     await capturedAction.current!();
 
     expect(mockApply).toHaveBeenCalledTimes(1);

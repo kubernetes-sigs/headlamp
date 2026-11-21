@@ -29,7 +29,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
-import { apply } from '../../lib/k8s/api/v1/apply';
+import { prepareApply } from '../../lib/k8s/api/v1/apply';
 import CronJob from '../../lib/k8s/cronJob';
 import Job from '../../lib/k8s/job';
 import { localeDate } from '../../lib/util';
@@ -98,18 +98,11 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
         },
       ];
     }
-    onClose();
-    // Resolve the cluster at click time. The callback below does not run until
-    // CLUSTER_ACTION_GRACE_PERIOD has elapsed, and apply() without an explicit
-    // cluster falls back to whichever cluster the URL points at when it finally
-    // runs — so a cluster switch during the undo window, or a details panel
-    // opened from a multi-cluster view, would spawn the Job on another cluster.
-    // The caller's cluster wins over the object's: it is the one the CronJob was
-    // requested from, and stays correct even if the object is later rebuilt
-    // without one.
     const cluster = clusterProp || cronJob.cluster;
+    const applyJob = prepareApply(cluster, cronJob);
+    onClose();
     dispatch(
-      clusterAction(() => apply(job, cluster), {
+      clusterAction(() => applyJob(job), {
         startMessage: t('translation|Spawning Job {{ newItemName }}…', {
           newItemName: jobName,
         }),

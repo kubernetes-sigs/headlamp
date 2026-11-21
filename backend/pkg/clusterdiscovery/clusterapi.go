@@ -84,7 +84,7 @@ func NewClusterAPISource() Source {
 // Descriptor identifies the source and the fields shown for its connections.
 func (*clusterAPISource) Descriptor() Descriptor {
 	return Descriptor{
-		ID: "cluster_api", DisplayName: "Cluster API", Resource: clusterAPIResource,
+		ID: "cluster_api", DisplayName: "Cluster API", Resource: clusterAPIResource, Kind: "Cluster",
 		View: SourceView{
 			NameLabel: "Cluster",
 			Columns: []SourceColumn{

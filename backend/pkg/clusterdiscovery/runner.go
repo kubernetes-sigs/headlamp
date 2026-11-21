@@ -82,6 +82,10 @@ type Options struct {
 	HubConfig *rest.Config
 	// HubNamespace is the default namespace for the in-cluster root.
 	HubNamespace string
+	// HubCluster is the Headlamp connection name for the in-cluster root.
+	HubCluster string
+	// OnConnectionsChanged runs after the runner stores or removes discovered connections.
+	OnConnectionsChanged func()
 	// DiscoverFromStore enables discovery from non-internal contexts already in Store.
 	DiscoverFromStore bool
 }
@@ -96,6 +100,8 @@ type Runner struct {
 	namespaces            []string
 	hubConfig             *rest.Config
 	hubNamespace          string
+	hubCluster            string
+	onConnectionsChanged  func()
 	discoverFromStore     bool
 
 	source Source
@@ -193,6 +199,8 @@ func NewRunner(opts Options, source Source) (*Runner, error) {
 		namespaces:            namespaces,
 		hubConfig:             opts.HubConfig,
 		hubNamespace:          opts.HubNamespace,
+		hubCluster:            opts.HubCluster,
+		onConnectionsChanged:  opts.OnConnectionsChanged,
 		discoverFromStore:     opts.DiscoverFromStore,
 		source:                source,
 		now:                   time.Now,
@@ -695,12 +703,30 @@ func (r *Runner) pruneOwnerLocked(ownerKey string) []string {
 
 // removeContexts removes contexts from the store and logs failures.
 func (r *Runner) removeContexts(contextNames []string) {
+	changed := false
+
 	for _, contextName := range contextNames {
 		if err := r.store.RemoveContext(contextName); err != nil {
 			logger.Log(logger.LevelWarn, map[string]string{"context": contextName}, err,
 				"cluster-discovery: failed to prune context")
+
+			continue
 		}
+
+		changed = true
 	}
+
+	if changed && r.onConnectionsChanged != nil {
+		r.onConnectionsChanged()
+	}
+}
+
+func (r *Runner) originCluster(root string) string {
+	if root == inClusterRootID {
+		return cmp.Or(r.hubCluster, inClusterRootID)
+	}
+
+	return strings.TrimPrefix(root, storeRootPrefix)
 }
 
 // hasNoCRD reports whether a server is still cached as missing the owner CRD.

@@ -17,6 +17,7 @@
 import type { ConnectionPresentation } from '../../helpers/clusterPresentation';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
+import type { RegisteredClusterOrigin } from '../clusterRegistration';
 import { KubeMetadata } from './KubeMetadata';
 export {
   KubeObject,
@@ -63,6 +64,8 @@ export interface Cluster {
   meta_data?: {
     /** Human-readable name and fields to show for the connection. */
     presentation?: ConnectionPresentation;
+    discoveryOrigin?: RegisteredClusterOrigin;
+    discoveryConnectionRevision?: string;
     [key: string]: any;
   };
   useToken?: boolean;

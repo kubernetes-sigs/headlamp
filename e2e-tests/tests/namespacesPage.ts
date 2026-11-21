@@ -94,12 +94,13 @@ export class NamespacesPage {
     await page.waitForLoadState('load');
 
     const namespaceLink = page.locator(`a:has-text("${name}")`);
+    const visibilityTimeout = 10000;
     try {
-      await namespaceLink.waitFor({ state: 'visible', timeout: 10000 });
-    } catch (error) {
-      await this.page.reload({ waitUntil: 'networkidle' });
+      await namespaceLink.waitFor({ state: 'visible', timeout: visibilityTimeout });
+    } catch {
+      await this.page.reload();
+      await namespaceLink.waitFor({ state: 'visible', timeout: visibilityTimeout });
     }
-    await expect(namespaceLink).toBeVisible();
 
     await namespaceLink.click();
     await page.getByRole('button', { name: 'Delete' }).click();

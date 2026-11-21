@@ -1550,7 +1550,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1604,7 +1604,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -1683,7 +1683,7 @@ func TestDrainNodeEvictsInsteadOfDeleting(t *testing.T) {
 	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
 	evictionRemovesPod(fakeClient)
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 
 	var evictions, deletes int
@@ -1730,7 +1730,7 @@ func TestDrainNodeRetriesEvictionBlockedByPDB(t *testing.T) {
 		return false, nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(3), attempts.Load())
 }
@@ -1751,7 +1751,7 @@ func TestDrainNodeFailsWhenPDBBlocksUntilTimeout(t *testing.T) {
 		return false, nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
@@ -1864,7 +1864,7 @@ func TestDrainNodeWaitsForEvictedPodToTerminate(t *testing.T) {
 		return action.GetSubresource() == "eviction", nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 
 	assert.Never(t, func() bool {
 		item, err := testCache.Get(context.Background(), cacheKey)
@@ -1891,7 +1891,7 @@ func TestDrainNodeFailsWhenEvictedPodNeverTerminates(t *testing.T) {
 		return action.GetSubresource() == "eviction", nil, nil
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
@@ -1926,7 +1926,7 @@ func TestDrainNodeDoesNotEvictReplacementPod(t *testing.T) {
 			corev1.Resource("pods"), "pdb-pod", errors.New("precondition failed: UID mismatch"))
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(2), attempts.Load(), "the replacement pod must not be evicted")
 }
@@ -1962,7 +1962,7 @@ func TestDrainNodeDoesNotWaitForReplacementPodBlockedByPDB(t *testing.T) {
 
 	start := time.Now()
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Less(t, time.Since(start), drainEvictTimeout, "the drain must not wait for the replacement pod")
 	assert.Equal(t, int32(2), attempts.Load())
@@ -2007,14 +2007,14 @@ func TestDrainNodeJoiningRequestWaitsForInitialStatus(t *testing.T) {
 		return true, nil, errors.New("node is gone")
 	})
 
-	go c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	go c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 
 	<-blocking.entered
 
 	joined := make(chan struct{})
 
 	go func() {
-		c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+		c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 		close(joined)
 	}()
 
@@ -2070,7 +2070,7 @@ func TestDrainNodeStopsEvictingAtTheDeadline(t *testing.T) {
 		return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
 	})
 
-	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	c.drainNode(context.Background(), fakeClient, "test-node", cacheKey)
 	assert.Equal(t, "error: failed to evict 3 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(1), attempts.Load(), "no eviction may be started after the deadline")
 }
@@ -2095,7 +2095,7 @@ func TestDrainNodeReportsInProgressWhileBlocked(t *testing.T) {
 
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	item, err := testCache.Get(ctx, cacheKey)
 	require.NoError(t, err, "a status must exist as soon as the drain is started")
@@ -2138,7 +2138,7 @@ func TestDrainNodeRenewsStatusWhileARequestIsStalled(t *testing.T) {
 
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	<-started
 
@@ -2205,11 +2205,11 @@ func TestDrainNodeIgnoresRequestsWhileDraining(t *testing.T) {
 
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	<-started
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	assert.Equal(t, int32(1), nodeReads.Load(), "a drain that is already running must not be started again")
 
@@ -2222,7 +2222,7 @@ func TestDrainNodeIgnoresRequestsWhileDraining(t *testing.T) {
 	// The guard is released when the drain ends.
 	waitForDrainToEnd(t, c, cacheKey)
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
 	assert.Equal(t, int32(2), nodeReads.Load(), "the node must be drainable again after the drain finished")
@@ -2286,7 +2286,7 @@ func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	assert.Never(t, func() bool {
 		_, err := testCache.Get(context.Background(), cacheKey)
@@ -2341,7 +2341,7 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", cacheKey)
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -6636,6 +6636,26 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 			assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
 		})
 	}
+}
+
+func TestDevModeAllowsCacheControlPreflight(t *testing.T) {
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{DevMode: true, KubeConfigStore: kubeconfig.NewContextStore()},
+			Cache:       cache.New[interface{}](),
+		},
+	})
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/clusters/workload/api/v1/pods", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	req.Header.Set("Access-Control-Request-Headers", "authorization,cache-control")
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Header().Get("Access-Control-Allow-Headers"), "Cache-Control")
 }
 
 func TestGetConfigIncludesBackstageOrigin(t *testing.T) {

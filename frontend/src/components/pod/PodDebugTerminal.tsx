@@ -24,9 +24,10 @@ import { useTranslation } from 'react-i18next';
 import { DEFAULT_POD_DEBUG_IMAGE, loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import { KubeContainer, KubeContainerStatus } from '../../lib/k8s/cluster';
-import Pod from '../../lib/k8s/pod';
+import type Pod from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
 import { useTypedSelector } from '../../redux/hooks';
+import { fetchLatestKubeObject } from '../common/Resource/fetchLatestKubeObject';
 
 /**
  * Props for PodDebugTerminal.
@@ -123,22 +124,7 @@ async function debugPod(
     while (retries < maxRetries) {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Refresh pod data
-      const updatedPod: Pod = await new Promise<Pod>((resolve, reject) => {
-        Pod.apiGet(
-          (pod: Pod) => {
-            resolve(pod);
-          },
-          item.getName(),
-          item.getNamespace(),
-          (err: any) => {
-            if (err) reject(err);
-          },
-          {
-            cluster: item.cluster || undefined,
-          }
-        )();
-      });
+      const updatedPod = await fetchLatestKubeObject(item);
 
       // Check if ephemeral container is running
       const ephemeralStatus = updatedPod.status?.ephemeralContainerStatuses?.find(

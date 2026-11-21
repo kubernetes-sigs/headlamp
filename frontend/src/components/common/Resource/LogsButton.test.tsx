@@ -17,6 +17,10 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { labelSelectorToQuery } from '../../../lib/k8s';
+import {
+  getResourceDiscoveryConnection,
+  recordDiscoveryConnection,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
@@ -373,6 +377,33 @@ describe('LogsButton', () => {
     });
 
     expect(vi.mocked(labelSelectorToQuery)).not.toHaveBeenCalled();
+  });
+
+  it('lists and streams workload pods on the workload connection', async () => {
+    const item = new Deployment(deploymentData as any, 'east');
+    recordDiscoveryConnection(item, 'east', 'original:1');
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+    const origins: ReturnType<typeof getResourceDiscoveryConnection>[] = [];
+    const getLogs = vi.spyOn(Pod.prototype, 'getLogs').mockImplementation(function (this: Pod) {
+      origins.push(getResourceDiscoveryConnection(this));
+      return () => {};
+    });
+
+    try {
+      render(
+        <TestContext>
+          <WorkloadLogs item={item} />
+        </TestContext>
+      );
+      await waitFor(() => expect(getLogs).toHaveBeenCalled());
+      expect(mockClusterFetch).toHaveBeenCalledWith(
+        expect.stringContaining('__headlamp_connection_revision=original'),
+        { cluster: 'east' }
+      );
+      expect(origins).toContainEqual({ cluster: 'east', revision: 'original:1' });
+    } finally {
+      getLogs.mockRestore();
+    }
   });
 
   it('launches activity with correct metadata on click', () => {

@@ -20,6 +20,7 @@ import {
   storeResolvedAllowedNamespaces,
 } from '../../helpers/clusterSettings';
 import { useAllowedNamespacesFromSelector } from './allowedNamespaces';
+import { ListWatchError } from './api/v2/ApiError';
 import Namespace from './namespace';
 
 // vi.mock is hoisted above the imports by vitest, so Namespace resolves to this mock.
@@ -101,6 +102,20 @@ describe('useAllowedNamespacesFromSelector', () => {
     const { result } = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
 
     expect(result.current.namespaces).toEqual([]);
+    expect(result.current.isSuccess).toBe(true);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('caches the resolved namespaces when LIST succeeds but WATCH fails', () => {
+    mockList({
+      items: [ns('a')],
+      isError: true,
+      error: new ListWatchError('Unable to open the resource watch'),
+    });
+
+    const { result } = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+
+    expect(loadResolvedAllowedNamespaces('prod')?.namespaces).toEqual(['a']);
     expect(result.current.isSuccess).toBe(true);
     expect(result.current.error).toBeNull();
   });

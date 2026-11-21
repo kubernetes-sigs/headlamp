@@ -16,6 +16,7 @@
 
 import type { KubeObjectInterface } from '../../KubeObject';
 import { KubeObject } from '../../KubeObject';
+import { recordDiscoveryConnection } from './discoveryConnection';
 
 export interface KubeList<T extends KubeObjectInterface> {
   kind: string;
@@ -51,7 +52,8 @@ export const KubeList = {
     list: KubeList<KubeObject<ObjectInterface>>,
     update: KubeListUpdateEvent<ObjectInterface>,
     itemClass: ObjectClass,
-    cluster: string
+    cluster: string,
+    connectionRevision?: string
   ): KubeList<KubeObject<ObjectInterface>> {
     // Skip if the update's resource version is older than or equal to what we have
     if (
@@ -67,13 +69,17 @@ export const KubeList = {
 
     switch (update.type) {
       case 'ADDED':
-      case 'MODIFIED':
+      case 'MODIFIED': {
+        const resource = new itemClass(update.object, cluster);
+        if (cluster) resource.cluster = cluster;
+        recordDiscoveryConnection(resource, cluster, connectionRevision);
         if (index !== -1) {
-          newItems[index] = new itemClass(update.object, cluster);
+          newItems[index] = resource;
         } else {
-          newItems.push(new itemClass(update.object, cluster));
+          newItems.push(resource);
         }
         break;
+      }
       case 'DELETED':
         if (index !== -1) {
           newItems.splice(index, 1);

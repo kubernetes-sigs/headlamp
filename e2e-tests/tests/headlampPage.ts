@@ -145,10 +145,8 @@ export class HeadlampPage {
   }
 
   async navigateTopage(path: string, title?: RegExp) {
-    await this.page.goto(`${this.testURL}${path}`, {
-      waitUntil: 'networkidle',
-    });
-    await this.page.waitForLoadState('load');
+    // The discovery configuration stream stays open after the page is ready.
+    await this.page.goto(`${this.testURL}${path}`);
     if (title) {
       await this.hasTitleContaining(title);
     }

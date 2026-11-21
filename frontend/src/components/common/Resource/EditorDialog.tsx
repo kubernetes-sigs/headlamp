@@ -33,7 +33,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
-import { apply, ApplyOptions } from '../../../lib/k8s/api/v1/apply';
+import { ApplyOptions, prepareApply } from '../../../lib/k8s/api/v1/apply';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
@@ -502,10 +502,10 @@ export default function EditorDialog(props: EditorDialogProps) {
 
   const applyFunc = async (
     newItems: KubeObjectInterface[],
-    clusterName: string,
+    applyToCluster: ReturnType<typeof prepareApply>,
     options?: ApplyOptions
   ) => {
-    await Promise.allSettled(newItems.map(newItem => apply(newItem, clusterName, options))).then(
+    await Promise.allSettled(newItems.map(newItem => applyToCluster(newItem, options))).then(
       (values: any) => {
         values.forEach((value: any, index: number) => {
           if (value.status === 'rejected') {
@@ -555,16 +555,18 @@ export default function EditorDialog(props: EditorDialogProps) {
     }
 
     const newItemDefs = obj!;
+    const source = item && typeof item === 'object' ? item : undefined;
 
     if (mode === 'dryRun') {
       const resourceNames = newItemDefs.map(
         newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
       );
       const clusterName = cluster || (item as KubeObjectIsh)?.cluster || getCluster() || '';
+      const applyToCluster = prepareApply(clusterName, source);
 
       setError('');
       dispatch(
-        clusterAction(() => applyFunc(newItemDefs, clusterName, { dryRun: true }), {
+        clusterAction(() => applyFunc(newItemDefs, applyToCluster, { dryRun: true }), {
           startMessage: t('translation|Running dry run for {{ newItemName }}…', {
             newItemName: resourceNames.join(','),
           }),
@@ -587,10 +589,11 @@ export default function EditorDialog(props: EditorDialogProps) {
         newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
       );
       const clusterName = cluster || (item as KubeObjectIsh)?.cluster || getCluster() || '';
+      const applyToCluster = prepareApply(clusterName, source);
 
       setError('');
       dispatch(
-        clusterAction(() => applyFunc(newItemDefs, clusterName), {
+        clusterAction(() => applyFunc(newItemDefs, applyToCluster), {
           startMessage: t('translation|Applying {{ newItemName }}…', {
             newItemName: resourceNames.join(','),
           }),

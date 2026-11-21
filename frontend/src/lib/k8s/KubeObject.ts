@@ -37,12 +37,41 @@ import type {
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
-import type { ApiError } from './api/v2/ApiError';
+import type { ScaleApi } from './api/v1/scaleApi';
+import { ApiError } from './api/v2/ApiError';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
+import {
+  getResourceConnectionQuery,
+  recordDiscoveryConnection,
+  withDiscoveryConnectionRevision,
+} from './api/v2/discoveryConnection';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
+
+function getApiReadConnection(opts?: ApiListSingleNamespaceOptions) {
+  const cluster = opts?.cluster || getCluster() || undefined;
+  const currentRevision = cluster ? getDiscoveredConnectionRevision(cluster) : undefined;
+  const routingRevision = opts?.queryParams?.__headlamp_connection_revision;
+  // A caller may still require an earlier route after discovery has updated.
+  const revision =
+    routingRevision && currentRevision?.split(':', 1)[0] !== routingRevision
+      ? routingRevision
+      : currentRevision;
+  return { cluster, revision };
+}
+
+function setResourceReadConnection<K extends KubeObject>(
+  resource: K,
+  cluster: string | undefined,
+  revision: string | undefined
+): K {
+  resource.cluster = cluster ?? '';
+  recordDiscoveryConnection(resource, resource.cluster, revision);
+  return resource;
+}
 
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
@@ -276,18 +305,6 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListSingleNamespaceOptions
   ): () => Promise<CancelFunction> {
-    const createInstance = (item: any): any => this.create(item);
-
-    const args: any[] = [(list: any[]) => onList(list.map((item: any) => createInstance(item)))];
-
-    if (this.apiEndpoint.isNamespaced) {
-      // An empty string means "all namespaces" and matches the namespace: string
-      // contract on ApiWithNamespaceClient.list (a falsy value is treated the same).
-      args.unshift(opts?.namespace || '');
-    }
-
-    args.push(onError);
-
     const queryParams: QueryParameters = {};
     if (opts?.queryParams?.labelSelector) {
       queryParams['labelSelector'] = opts.queryParams.labelSelector;
@@ -298,11 +315,22 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     if (opts?.queryParams?.limit) {
       queryParams['limit'] = opts.queryParams.limit;
     }
-    args.push(queryParams);
-
-    args.push(opts?.cluster);
-
-    return this.apiEndpoint.list.bind(null, ...args);
+    return () => {
+      const { cluster, revision } = getApiReadConnection(opts);
+      const onResults = (list: KubeObjectInterface[]) =>
+        onList(
+          list.map(item => setResourceReadConnection(this.create(item, cluster), cluster, revision))
+        );
+      const args: any[] = [
+        onResults,
+        onError,
+        withDiscoveryConnectionRevision(queryParams, revision),
+        cluster,
+      ];
+      // An empty string represents a list across all namespaces.
+      if (this.apiEndpoint.isNamespaced) args.unshift(opts?.namespace || '');
+      return this.apiEndpoint.list.bind(null, ...args)();
+    };
   }
 
   static useApiList<K extends KubeObject>(
@@ -504,18 +532,17 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
-    const createInstance = (item: any) => this.create(item);
-    const args: any[] = [name, (obj: any) => onGet(createInstance(obj))];
-
-    if (this.apiEndpoint.isNamespaced) {
-      args.unshift(namespace);
-    }
-
-    args.push(onError);
-    args.push(opts?.queryParams);
-    args.push(opts?.cluster);
-
-    return this.apiEndpoint.get.bind(null, ...args);
+    return () => {
+      const { cluster, revision } = getApiReadConnection(opts);
+      const onResult = (item: KubeObjectInterface) =>
+        onGet(setResourceReadConnection(this.create(item, cluster), cluster, revision));
+      const queryParams = revision
+        ? withDiscoveryConnectionRevision(opts?.queryParams ?? {}, revision)
+        : opts?.queryParams;
+      const args: any[] = [name, onResult, onError, queryParams, cluster];
+      if (this.apiEndpoint.isNamespaced) args.unshift(namespace);
+      return this.apiEndpoint.get.bind(null, ...args)();
+    };
   }
 
   static useApiGet<K extends KubeObject>(
@@ -540,7 +567,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return this.constructor as KubeObjectClass;
   }
 
-  delete(force?: boolean) {
+  async delete(force?: boolean) {
     const args: string[] = [this.getName()];
     if (this.isNamespaced) {
       args.unshift(this.getNamespace()!);
@@ -555,12 +582,14 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       params.gracePeriodSeconds = 0;
     }
 
+    const query = getResourceConnectionQuery(this, this._clusterName, params);
     // @ts-ignore
-    return this._class().apiEndpoint.delete(...args, params, this._clusterName);
+    return this._class().apiEndpoint.delete(...args, query, this._clusterName);
   }
 
-  update(data: KubeObjectInterface) {
-    return this._class().apiEndpoint.put(data, {}, this._clusterName);
+  async update(data: KubeObjectInterface) {
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
+    return this._class().apiEndpoint.put(data, query, this._clusterName);
   }
 
   /**
@@ -568,7 +597,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
    * the original and modified objects. This avoids 409 Conflict errors on resources
    * that are frequently updated by controllers (e.g. HPA).
    */
-  patchUpdate(
+  async patchUpdate(
     original: KubeObjectInterface,
     modified: KubeObjectInterface
   ): Promise<KubeObjectInterface> {
@@ -594,19 +623,20 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
 
     const endpoint = this._class().apiEndpoint;
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     if (this.isNamespaced) {
       return (endpoint as ApiWithNamespaceClient<KubeObjectInterface>).jsonPatch(
         filteredOps,
         this.getNamespace()!,
         this.getName(),
-        {},
+        query,
         this._clusterName
       );
     }
     return (endpoint as ApiClient<KubeObjectInterface>).jsonPatch(
       filteredOps,
       this.getName(),
-      {},
+      query,
       this._clusterName
     );
   }
@@ -625,26 +655,19 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       replicas: numReplicas,
     };
 
-    type ApiEndpointWithScale = {
-      scale: {
-        patch: (
-          body: { spec: { replicas: number } },
-          metadata: KubeMetadata,
-          clusterName?: string
-        ) => Promise<any>;
-      };
-    };
-
-    return (this._class().apiEndpoint as ApiEndpointWithScale).scale.patch(
-      {
-        spec,
-      },
-      this.metadata,
-      this._clusterName
-    );
+    const { scale } = this._class().apiEndpoint as { scale: ScaleApi };
+    let query: ReturnType<typeof getResourceConnectionQuery>;
+    try {
+      query = getResourceConnectionQuery(this, this._clusterName, {});
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const args: Parameters<ScaleApi['patch']> = [{ spec }, this.metadata, this._clusterName];
+    if (Object.keys(query).length) args.push(query);
+    return scale.patch(...args);
   }
 
-  patch(body: RecursivePartial<T>) {
+  async patch(body: RecursivePartial<T>) {
     const args: any[] = [body];
 
     if (this.isNamespaced) {
@@ -653,8 +676,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     args.push(this.getName());
 
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     // @ts-ignore
-    return this._class().apiEndpoint.patch(...args, {}, this._clusterName);
+    return this._class().apiEndpoint.patch(...args, query, this._clusterName);
   }
 
   /** Performs a request to check if the user has the given permission.

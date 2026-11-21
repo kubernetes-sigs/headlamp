@@ -25,6 +25,11 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../lib/cluster';
+import { getDiscoveredConnectionRevision } from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
+import {
+  isDiscoveryConnectionChanged,
+  withDiscoveryConnectionRevision,
+} from '../../lib/k8s/api/v2/discoveryConnection';
 import Namespace from '../../lib/k8s/namespace';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
@@ -41,7 +46,11 @@ export default function CreateNamespaceButton() {
   const dispatch: AppDispatch = useDispatch();
 
   function createNewNamespace() {
-    const clusterData = getCluster();
+    const cluster = getCluster() || '';
+    const query = withDiscoveryConnectionRevision(
+      {},
+      cluster ? getDiscoveredConnectionRevision(cluster) : undefined
+    );
     const newNamespaceData = {
       apiVersion: 'v1',
       kind: 'Namespace',
@@ -54,13 +63,13 @@ export default function CreateNamespaceButton() {
 
     async function namespaceRequest() {
       try {
-        const response = await Namespace.apiEndpoint.post(newNamespaceData, {}, clusterData || '');
+        const response = await Namespace.apiEndpoint.post(newNamespaceData, query, cluster);
         setNamespaceName('');
         return response;
       } catch (error: any) {
         const statusCode = error?.status;
         console.error('Error creating namespace:', error);
-        if (statusCode === 409) {
+        if (statusCode === 409 && !isDiscoveryConnectionChanged(error)) {
           setNamespaceDialogOpen(true);
           setNamespaceExistsError(true);
         }

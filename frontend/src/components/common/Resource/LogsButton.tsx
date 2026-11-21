@@ -31,6 +31,11 @@ import { useSnackbar } from 'notistack';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { labelSelectorToQuery } from '../../../lib/k8s';
+import {
+  getResourceConnectionQuery,
+  getResourceDiscoveryConnection,
+  recordDiscoveryConnection,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import { clusterFetch } from '../../../lib/k8s/api/v2/fetch';
 import { makeUrl } from '../../../lib/k8s/api/v2/makeUrl';
 import { KubeContainerStatus } from '../../../lib/k8s/cluster';
@@ -181,18 +186,24 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
           );
         }
 
-        const queryParams = { labelSelector };
+        const cluster = item.cluster;
+        const origin = getResourceDiscoveryConnection(item);
+        const queryParams = getResourceConnectionQuery(item, cluster, { labelSelector });
 
         const response = await clusterFetch(
           makeUrl(`/api/v1/namespaces/${item.metadata.namespace}/pods`, queryParams),
-          { cluster: item.cluster }
+          { cluster }
         ).then(it => it.json());
 
         if (!response?.items) {
           throw new Error(t('translation|Invalid response from server'));
         }
 
-        return response.items.map((podData: any) => new Pod(podData, item.cluster));
+        return response.items.map((podData: any) => {
+          const pod = new Pod(podData, cluster);
+          recordDiscoveryConnection(pod, cluster, origin?.revision);
+          return pod;
+        });
       } catch (error) {
         console.error('Error in getRelatedPods:', error);
         throw new Error(

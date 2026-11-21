@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"math/big"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -38,6 +39,36 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+func TestDiscoveredConnectionRevisionAgreesAcrossReplicas(t *testing.T) {
+	first := &Runner{store: kubeconfig.NewContextStore()}
+	second := &Runner{store: kubeconfig.NewContextStore()}
+	proxy := url.URL{Scheme: "https", Host: "proxy.example.com", User: url.UserPassword("fixture", "first")}
+	connection := &kubeconfig.Context{
+		Name:      "spoke",
+		Discovery: &kubeconfig.DiscoveryOrigin{ResourceUID: "owner"},
+		Cluster: &api.Cluster{
+			Server:   "https://spoke.example.com",
+			ProxyURL: proxy.String(),
+		},
+	}
+
+	firstConnection := connection.Copy()
+	first.storeConnection(firstConnection, "owner")
+	require.NotEmpty(t, firstConnection.Discovery.ConnectionRevision)
+
+	secondConnection := connection.Copy()
+	proxy.User = url.UserPassword("fixture", "second")
+	secondConnection.Cluster.ProxyURL = proxy.String()
+	second.storeConnection(secondConnection, "owner")
+	require.Equal(t, firstConnection.Discovery.ConnectionRevision, secondConnection.Discovery.ConnectionRevision)
+
+	replacement := connection.Copy()
+	proxy.Host = "replacement.example.com"
+	replacement.Cluster.ProxyURL = proxy.String()
+	second.storeConnection(replacement, "owner")
+	require.NotEqual(t, firstConnection.Discovery.ConnectionRevision, replacement.Discovery.ConnectionRevision)
+}
 
 var generatedTestCA = sync.OnceValue(func() []byte {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -133,9 +164,10 @@ func TestRegistryRejectsUnusableSources(t *testing.T) {
 		name       string
 		descriptor Descriptor
 	}{
-		{name: "no ID", descriptor: Descriptor{DisplayName: "Fleet", Resource: sampleFleetResource}},
-		{name: "no display name", descriptor: Descriptor{ID: "fleet", Resource: sampleFleetResource}},
-		{name: "no owner resource", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet"}},
+		{name: "no ID", descriptor: Descriptor{DisplayName: "Fleet", Resource: sampleFleetResource, Kind: "FleetMember"}},
+		{name: "no display name", descriptor: Descriptor{ID: "fleet", Resource: sampleFleetResource, Kind: "FleetMember"}},
+		{name: "no owner resource", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet", Kind: "FleetMember"}},
+		{name: "no owner kind", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet", Resource: sampleFleetResource}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := registry.Register(describedSource{descriptor: tc.descriptor})

@@ -17,7 +17,14 @@
 import _ from 'lodash';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface, KubeObjectInterfaceCreate } from '../../KubeObject';
-import type { ApiError } from '../v2/ApiError';
+import { ApiError } from '../v2/ApiError';
+import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
+import {
+  DISCOVERY_CONNECTION_CHANGED,
+  getResourceDiscoveryConnection,
+  isDiscoveryConnectionChanged,
+  withDiscoveryConnectionRevision,
+} from '../v2/discoveryConnection';
 import { getClusterDefaultNamespace } from './clusterApi';
 import { resourceDefToApiFactory } from './factories';
 import type { QueryParameters } from './queryParameters';
@@ -31,9 +38,6 @@ export interface ApplyOptions {
  *
  * Tries to POST, and if there's a conflict it does a PUT to the api endpoint.
  *
- * Overloads:
- * - When called with a KubeObjectInterfaceCreate body, the parameter type is the create type.
- * - Otherwise it accepts a full KubeObjectInterface.
  *
  * @param body - The kubernetes object body to apply.
  * @param clusterName - The cluster to apply the body to. By default uses the current cluster (URL defined).
@@ -44,23 +48,50 @@ export async function apply<T extends KubeObjectInterfaceCreate>(
   body: T,
   clusterName?: string,
   options?: ApplyOptions
-): Promise<T>;
-export async function apply<T extends KubeObjectInterface>(
+): Promise<T> {
+  return prepareApply(clusterName)(body, options);
+}
+
+/** Capture the destination at confirmation, before a deferred or multi-resource apply starts. */
+export function prepareApply(clusterName?: string, source?: object) {
+  const cluster = clusterName || getCluster() || undefined;
+  const origin = source && getResourceDiscoveryConnection(source);
+  const revision =
+    origin?.revision ?? (cluster ? getDiscoveredConnectionRevision(cluster) : undefined);
+
+  return async <T extends KubeObjectInterfaceCreate>(body: T, options?: ApplyOptions) => {
+    if (origin && origin.cluster !== cluster) {
+      throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
+    }
+    return applyToConnection(body, cluster, revision, options);
+  };
+}
+
+function applyToConnection<T extends KubeObjectInterfaceCreate>(
   body: T,
-  clusterName?: string,
+  cluster: string | undefined,
+  revision: string | undefined,
+  options?: ApplyOptions
+): Promise<T>;
+async function applyToConnection<T extends KubeObjectInterface>(
+  body: T,
+  cluster: string | undefined,
+  revision: string | undefined,
   options: ApplyOptions = {}
 ): Promise<T> {
   const bodyToApply = _.cloneDeep(body);
+  const queryParams: QueryParameters = withDiscoveryConnectionRevision(
+    options.dryRun ? { dryRun: 'All' } : {},
+    revision
+  );
 
   let apiEndpoint;
   try {
-    apiEndpoint = await resourceDefToApiFactory(bodyToApply, clusterName);
+    apiEndpoint = await resourceDefToApiFactory(bodyToApply, cluster);
   } catch (err) {
     console.error(`Error getting api endpoint when applying the resource ${bodyToApply}: ${err}`);
     throw err;
   }
-
-  const cluster = clusterName || getCluster();
 
   // Check if the default namespace is needed. And we need to do this before
   // getting the apiEndpoint because it will affect the endpoint itself.
@@ -77,7 +108,6 @@ export async function apply<T extends KubeObjectInterface>(
   }
 
   const resourceVersion = bodyToApply.metadata.resourceVersion;
-  const queryParams: QueryParameters = options.dryRun ? { dryRun: 'All' } : {};
 
   try {
     delete bodyToApply.metadata.resourceVersion;
@@ -85,6 +115,7 @@ export async function apply<T extends KubeObjectInterface>(
   } catch (err) {
     // We had a conflict or cannot create. Try a PUT in case the resource already exists.
     const errorCode = (err as ApiError).status;
+    if (isDiscoveryConnectionChanged(err)) throw err;
     if (errorCode !== 409 && errorCode !== 403) throw err;
 
     // Preserve the resourceVersion if its an update request

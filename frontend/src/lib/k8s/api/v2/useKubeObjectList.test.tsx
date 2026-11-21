@@ -14,11 +14,21 @@
  * limitations under the License.
  */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  focusManager,
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { setConfig } from '../../../../redux/configSlice';
+import store from '../../../../redux/stores/store';
+import Namespace from '../../namespace';
 import { ApiError } from './ApiError';
+import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
+import { getResourceDiscoveryConnection } from './discoveryConnection';
 import { clusterFetch } from './fetch';
 import {
   DEFAULT_LIST_LIMIT,
@@ -168,6 +178,10 @@ const mockClass = class {
   };
 
   constructor(public jsonData: any) {}
+
+  get metadata() {
+    return this.jsonData.metadata;
+  }
 } as any;
 
 const mockNodeClass = class {
@@ -221,6 +235,14 @@ function makePod(name: string, resourceVersion: string) {
       uid: name,
     },
   };
+}
+
+function podListPage(name: string, resourceVersion: string, continueToken?: string) {
+  return new Response(
+    JSON.stringify(
+      makeListResponse({ items: [makePod(name, resourceVersion)], resourceVersion, continueToken })
+    )
+  );
 }
 
 function queryClientWrapper(queryClient: QueryClient) {
@@ -1547,6 +1569,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
     vi.clearAllMocks();
+    mockClusterFetch.mockReset();
   });
 
   it('should subscribe using WebSocketManager when multiplexer is enabled', () => {
@@ -1574,6 +1597,1141 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.any(Function)
     );
   });
+
+  it('refreshes a configured namespace selector after its multiplexed watch is rejected', async () => {
+    const cluster = 'restricted-namespace-watch';
+    const labelSelector = 'team=frontend';
+    const settingsKey = `cluster_settings.${cluster}`;
+    localStorage.setItem(settingsKey, JSON.stringify({ allowedNamespacesSelector: labelSelector }));
+    focusManager.setFocused(true);
+    mockClusterFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            makeListResponse({
+              kind: 'NamespaceList',
+              items: [{ metadata: { name: 'team-a', resourceVersion: '1' } }],
+            })
+          )
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            makeListResponse({
+              kind: 'NamespaceList',
+              resourceVersion: '2',
+              items: [],
+            })
+          )
+        )
+      );
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: Namespace,
+          requests: [{ cluster }],
+          queryParams: { labelSelector },
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+
+    try {
+      await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['team-a']);
+      vi.useFakeTimers({
+        toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+      });
+      act(() => mockSubscribe.mock.calls[0][4](new Error('Watch forbidden')));
+      await act(async () => vi.advanceTimersByTimeAsync(2));
+      expect(result.current.errors?.[0].message).toBe('Watch forbidden');
+      await act(async () => vi.advanceTimersByTimeAsync(29_950));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+      expect(mockClusterFetch.mock.calls[1][0]).toBe(
+        'api/v1/namespaces?labelSelector=team%3Dfrontend'
+      );
+      expect(mockClusterFetch.mock.calls[1][1].headers).toEqual({ 'Cache-Control': 'no-cache' });
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(result.current.items).toEqual([]);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
+      localStorage.removeItem(settingsKey);
+    }
+  });
+
+  it.each(['the next event', 'a replacement subscription'] as const)(
+    'keeps a multiplexed watch error separate from LIST and clears it on %s',
+    async recovery => {
+      mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
+      const client = new QueryClient();
+      const requests = [{ cluster: 'ordinary' }];
+      const wrapper = queryClientWrapper(client);
+      const watching = renderHook(
+        () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+        {
+          wrapper,
+        }
+      );
+      const listing = renderHook(
+        () => useKubeObjectList({ kubeObjectClass: mockClass, requests, watch: false }),
+        { wrapper }
+      );
+
+      await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+      const onMessage = mockSubscribe.mock.calls[0][3];
+      act(() => onMessage({ type: 'ERROR', object: { code: 403, message: 'Forbidden' } }));
+      await waitFor(() => expect(watching.result.current.errors?.[0].status).toBe(403));
+      expect(listing.result.current.errors).toBeNull();
+      expect(listing.result.current.items?.[0].metadata.name).toBe('pod-1');
+
+      if (recovery === 'the next event') {
+        act(() => onMessage({ type: 'MODIFIED', object: makePod('pod-1', '2') }));
+      } else {
+        mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '2'));
+        await act(async () => client.invalidateQueries());
+        await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(2));
+      }
+      await waitFor(() => expect(watching.result.current.errors).toBeNull());
+      expect(listing.result.current.items?.[0].metadata.resourceVersion).toBe('2');
+    }
+  );
+
+  it('unsubscribes a pinned multiplexed watch when its cursor expires', async () => {
+    mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
+    const unsubscribe = vi.fn();
+    mockSubscribe.mockResolvedValueOnce(unsubscribe);
+    const requests = [{ cluster: 'ordinary' }];
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests,
+          queryParams: { resourceVersion: '1', resourceVersionMatch: 'Exact' },
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+
+    await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+    act(() => mockSubscribe.mock.calls[0][3]({ type: 'ERROR', object: { code: 410 } }));
+    await waitFor(() => expect(result.current.errors?.[0].status).toBe(410));
+    expect(result.current.items?.[0].metadata.name).toBe('pod-1');
+    expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  function registerDiscoveredCluster(connectionRevision?: string) {
+    const previous = store.getState().config.clusters;
+    store.dispatch(
+      setConfig({
+        clusters: {
+          ...previous,
+          discovered: {
+            name: 'discovered',
+            auth_type: 'oidc',
+            server: 'https://old-discovery.example.com',
+            meta_data: {
+              discoveryConnectionRevision: connectionRevision,
+              discoveryOrigin: {
+                cluster: 'management',
+                resource: {
+                  apiVersion: 'cluster.x-k8s.io/v1beta2',
+                  kind: 'Cluster',
+                  namespace: 'default',
+                  name: 'workload',
+                  uid: 'workload-uid',
+                },
+              },
+            },
+          },
+        },
+      })
+    );
+    return () => store.dispatch(setConfig({ clusters: previous }));
+  }
+
+  it('keeps a discovered cluster watch open on updates and relists when its version expires', async () => {
+    const restoreClusters = registerDiscoveredCluster('route-a');
+    const queryClient = new QueryClient();
+    mockClusterFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeListResponse())))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(makeListResponse({ resourceVersion: '10' })))
+      );
+    const requests = [{ cluster: 'discovered' }];
+    try {
+      const result = renderHook(() => useKubeObjectList({ kubeObjectClass: mockClass, requests }), {
+        wrapper: queryClientWrapper(queryClient),
+      });
+      const connections = () => mockUseWebSockets.mock.lastCall?.[0].connections;
+
+      await waitFor(() => expect(connections()).toHaveLength(1));
+      const initialConnections = connections();
+      const [connection] = initialConnections;
+      expect(connection.url).toBe(
+        'api/v1/pods?watch=1&resourceVersion=1&__headlamp_connection_revision=route-a'
+      );
+
+      act(() => connection.onMessage({ type: 'ADDED', object: makePod('pod-1', '2') }));
+      await waitFor(() => expect(result.result.current.items).toHaveLength(1));
+      expect(connections()).toBe(initialConnections);
+      const [resource] = result.result.current.items!;
+      expect(resource.cluster).toBe('discovered');
+      expect(getResourceDiscoveryConnection(resource)).toEqual({
+        cluster: 'discovered',
+        revision: getDiscoveredConnectionRevision('discovered'),
+      });
+      await expect(connection.getWatchUrl(false)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=2&__headlamp_connection_revision=route-a'
+      );
+
+      act(() => connection.onMessage({ type: 'ERROR', object: { kind: 'Status', code: 410 } }));
+      await waitFor(() => expect(result.result.current.items).toHaveLength(0));
+      expect(connections()).toBe(initialConnections);
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=10&__headlamp_connection_revision=route-a'
+      );
+      expect(mockClusterFetch.mock.calls[1][1].headers).toEqual({ 'Cache-Control': 'no-cache' });
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      restoreClusters();
+    }
+  });
+
+  it('keeps watch updates when an older background list response arrives', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const queryClient = new QueryClient();
+    const delayedList = deferred<Response>();
+    const staleList = JSON.stringify(makeListResponse());
+    mockClusterFetch
+      .mockResolvedValueOnce(new Response(staleList))
+      .mockReturnValueOnce(delayedList.promise);
+    const requests = [{ cluster: 'discovered' }];
+    const { result, unmount } = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+    try {
+      const connections = () => mockUseWebSockets.mock.lastCall?.[0].connections;
+
+      await waitFor(() => expect(connections()).toHaveLength(1));
+      const [connection] = connections();
+      const refetch = queryClient.invalidateQueries();
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+      const signal = mockClusterFetch.mock.calls[1][1].signal;
+
+      act(() => connection.onMessage({ type: 'ADDED', object: makePod('pod-1', '2') }));
+      await waitFor(() => expect(result.current.items).toHaveLength(1));
+
+      await act(async () => {
+        delayedList.resolve(new Response(staleList));
+        await refetch;
+      });
+      const cached = queryClient.getQueryData<ListResponse<any>>([
+        'kubeObject',
+        'list',
+        'v1',
+        'pods',
+        'discovered',
+        '',
+        {},
+      ]);
+      expect(cached?.list.items).toHaveLength(1);
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it('resumes from the cached cursor and periodically relists after rejected upgrades', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    mockClusterFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify(makeListResponse())))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(makeListResponse({ resourceVersion: '10' })))
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(makeListResponse({ resourceVersion: '20' })))
+      );
+    const requests = [{ cluster: 'discovered' }];
+    const clock = vi.spyOn(Date, 'now');
+    try {
+      renderHook(() => useKubeObjectList({ kubeObjectClass: mockClass, requests }), {
+        wrapper: queryClientWrapper(new QueryClient()),
+      });
+      const connections = () => mockUseWebSockets.mock.lastCall?.[0].connections;
+
+      await waitFor(() => expect(connections()).toHaveLength(1));
+      const [connection] = connections();
+      expect(connection.url).toBe('api/v1/pods?watch=1&resourceVersion=1');
+
+      act(() => connection.onMessage({ type: 'ADDED', object: makePod('new-pod', '2') }));
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=2'
+      );
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+      const failureAt = Date.now();
+      clock.mockReturnValue(failureAt);
+      act(() => connection.onOpenFailure());
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=10'
+      );
+      act(() => connection.onOpenFailure());
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=10'
+      );
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+      clock.mockReturnValue(failureAt + 30_000);
+      act(() => connection.onOpenFailure());
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=20'
+      );
+      expect(mockClusterFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      clock.mockRestore();
+      restoreClusters();
+    }
+  });
+
+  it.each(['a rejected upgrade', 'an expired watch'])(
+    'restores a complete paginated snapshot after %s',
+    async reason => {
+      const restoreClusters = registerDiscoveredCluster();
+      const lastPage = deferred<Response>();
+      mockClusterFetch
+        .mockResolvedValueOnce(podListPage('old-first', '1', 'old-next'))
+        .mockResolvedValueOnce(podListPage('old-last', '1'))
+        .mockResolvedValueOnce(podListPage('new-first', '10', 'new-next'))
+        .mockReturnValueOnce(lastPage.promise);
+
+      const requests = [{ cluster: 'discovered' }];
+      const { result, unmount } = renderHook(
+        () =>
+          useKubeObjectList({ kubeObjectClass: mockClass, requests, queryParams: { limit: 1 } }),
+        { wrapper: queryClientWrapper(new QueryClient()) }
+      );
+      const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections?.[0];
+      const names = () => result.current.items?.map(item => item.metadata.name);
+      let reopening: Promise<string | null> | undefined;
+
+      try {
+        await waitFor(() => expect(result.current.loadMore).toBeDefined());
+        await act(async () => result.current.loadMore?.());
+        await waitFor(() => expect(watch()?.url).toBe('api/v1/pods?watch=1&resourceVersion=1'));
+        expect(names()).toEqual(['old-first', 'old-last']);
+
+        const previousWatch = watch();
+        if (reason === 'an expired watch') {
+          act(() => previousWatch.onMessage({ type: 'ERROR', object: { code: 410 } }));
+        } else {
+          act(() => previousWatch.onOpenFailure());
+        }
+        reopening = previousWatch.getWatchUrl(true);
+        await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(4));
+        expect(mockClusterFetch.mock.calls[3][0]).toBe('api/v1/pods?limit=1&continue=new-next');
+        expect(result.current.hasMore).toBe(false);
+        expect(names()).toEqual(['old-first', 'old-last']);
+
+        await act(async () => lastPage.resolve(podListPage('new-last', '10')));
+        await expect(reopening).resolves.toBe('api/v1/pods?watch=1&resourceVersion=10');
+        await waitFor(() => expect(names()).toEqual(['new-first', 'new-last']));
+        expect(watch()).toBe(previousWatch);
+        expect(result.current.loadMore).toBeUndefined();
+
+        act(() => watch().onMessage({ type: 'ADDED', object: makePod('live-pod', '11') }));
+        await waitFor(() => expect(names()).toEqual(['new-first', 'new-last', 'live-pod']));
+      } finally {
+        unmount();
+        lastPage.resolve(podListPage('new-last', '10'));
+        try {
+          await reopening;
+        } finally {
+          restoreClusters();
+        }
+      }
+    }
+  );
+
+  it('keeps a complete list when another observer refreshes during Load More', async () => {
+    const queryClient = new QueryClient();
+    const oldLastPage = deferred<Response>();
+    const replacementFirstPage = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('old-first', '1', 'old-next'))
+      .mockReturnValueOnce(oldLastPage.promise)
+      .mockReturnValueOnce(replacementFirstPage.promise)
+      .mockResolvedValueOnce(podListPage('new-last', '10'));
+
+    const options = {
+      kubeObjectClass: mockClass,
+      requests: [{ cluster: 'default' }],
+      queryParams: { limit: 1 },
+    };
+    const wrapper = queryClientWrapper(queryClient);
+    const watching = renderHook(() => useKubeObjectList(options), { wrapper });
+    const snapshot = renderHook(() => useKubeObjectList({ ...options, watch: false }), { wrapper });
+
+    await waitFor(() => expect(snapshot.result.current.loadMore).toBeDefined());
+    const loadingMore = snapshot.result.current.loadMore!();
+    const refreshing = queryClient.invalidateQueries();
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      oldLastPage.resolve(podListPage('old-last', '1'));
+      await loadingMore;
+    });
+    await waitFor(() => expect(watching.result.current.hasMore).toBe(false));
+
+    await act(async () => {
+      replacementFirstPage.resolve(podListPage('new-first', '10', 'new-next'));
+      await refreshing;
+    });
+    await waitFor(() =>
+      expect(snapshot.result.current.items?.map(item => item.metadata.name)).toEqual([
+        'new-first',
+        'new-last',
+      ])
+    );
+    expect(watching.result.current.hasMore).toBe(false);
+    expect(mockClusterFetch.mock.calls[3][0]).toBe('api/v1/pods?limit=1&continue=new-next');
+  });
+
+  it('retains the page boundary when the list has no watch observers', async () => {
+    const queryClient = new QueryClient();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('old-only', '1'))
+      .mockResolvedValueOnce(podListPage('new-first', '10', 'new-next'));
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+          queryParams: { limit: 1 },
+          watch: false,
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('old-only'));
+    await act(async () => queryClient.invalidateQueries());
+    await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('new-first'));
+    expect(result.current.hasMore).toBe(true);
+    expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns the first page when the last watch observer unmounts during refresh', async () => {
+    const queryClient = new QueryClient();
+    const pendingPage = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('old-only', '1'))
+      .mockResolvedValueOnce(podListPage('new-first', '10', 'new-next'))
+      .mockReturnValueOnce(pendingPage.promise);
+    const options = {
+      kubeObjectClass: mockClass,
+      requests: [{ cluster: 'default' }],
+      queryParams: { limit: 1 },
+    };
+    const wrapper = queryClientWrapper(queryClient);
+    const watching = renderHook(() => useKubeObjectList(options), { wrapper });
+    const snapshot = renderHook(() => useKubeObjectList({ ...options, watch: false }), { wrapper });
+
+    await waitFor(() => expect(watching.result.current.items?.[0].metadata.name).toBe('old-only'));
+    const refreshing = queryClient.invalidateQueries();
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(3));
+    watching.unmount();
+
+    await act(async () => {
+      pendingPage.resolve(podListPage('new-second', '10', 'new-third'));
+      await refreshing;
+    });
+    await waitFor(() => expect(snapshot.result.current.items?.[0].metadata.name).toBe('new-first'));
+    expect(snapshot.result.current.items).toHaveLength(1);
+    expect(snapshot.result.current.hasMore).toBe(true);
+    expect(mockClusterFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it.each(['page', 'expiry error'])(
+    'loads the replacement snapshot before an outdated continuation %s settles',
+    async outcome => {
+      const queryClient = new QueryClient();
+      const previousPage = deferred<void>();
+      mockClusterFetch
+        .mockResolvedValueOnce(podListPage('old-first', '1', 'old-next'))
+        .mockReturnValueOnce(
+          previousPage.promise.then(() => {
+            if (outcome === 'expiry error')
+              throw new ApiError('Old token expired', { status: 410 });
+            return podListPage('old-last', '1');
+          })
+        )
+        .mockResolvedValueOnce(podListPage('new-first', '10', 'new-next'))
+        .mockResolvedValueOnce(podListPage('new-last', '10'));
+      const { result } = renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: mockClass,
+            requests: [{ cluster: 'default' }],
+            queryParams: { limit: 1 },
+          }),
+        { wrapper: queryClientWrapper(queryClient) }
+      );
+
+      await waitFor(() => expect(result.current.loadMore).toBeDefined());
+      const loadingMore = result.current.loadMore!();
+      await act(async () => queryClient.invalidateQueries());
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('new-first'));
+
+      await act(async () => result.current.loadMore?.());
+      await waitFor(() =>
+        expect(result.current.items?.map(item => item.metadata.name)).toEqual([
+          'new-first',
+          'new-last',
+        ])
+      );
+      expect(mockClusterFetch.mock.calls[3][0]).toBe('api/v1/pods?limit=1&continue=new-next');
+      await act(async () => {
+        previousPage.resolve();
+        await loadingMore;
+      });
+      expect(result.current.error).toBeNull();
+      expect(result.current.hasMore).toBe(false);
+      expect(result.current.items).toHaveLength(2);
+    }
+  );
+
+  function updateDiscoveredConnection(server: string, discoveryConnectionRevision: string) {
+    act(() => {
+      const clusters = store.getState().config.clusters!;
+      const cluster = clusters.discovered;
+      store.dispatch(
+        setConfig({
+          clusters: {
+            ...clusters,
+            discovered: {
+              ...cluster,
+              server,
+              meta_data: { ...cluster.meta_data, discoveryConnectionRevision },
+            },
+          },
+        })
+      );
+    });
+  }
+
+  it('replaces list data and watches when the discovery connection changes', async () => {
+    const restoreClusters = registerDiscoveredCluster('connection-a');
+    const replacementList = deferred<Response>();
+    const returnedList = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(makeListResponse({ items: [makePod('old-pod', '1')] })))
+      )
+      .mockReturnValueOnce(replacementList.promise)
+      .mockReturnValueOnce(returnedList.promise);
+    const requests = [{ cluster: 'discovered' }];
+    const { result, unmount } = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections?.[0];
+    try {
+      await waitFor(() => expect(watch()?.cacheEntry).toBeDefined());
+      const previousWatch = watch();
+      expect(previousWatch.url).toContain('__headlamp_connection_revision=connection-a');
+      expect(result.current.items?.[0].metadata.name).toBe('old-pod');
+
+      updateDiscoveredConnection('https://new-discovery.example.com', 'connection-b');
+
+      await waitFor(() => expect(watch()).toBeUndefined());
+      expect(result.current.items).toBeNull();
+      act(() => previousWatch.onMessage({ type: 'ADDED', object: makePod('late-old-pod', '2') }));
+
+      await act(async () =>
+        replacementList.resolve(
+          new Response(JSON.stringify(makeListResponse({ items: [makePod('new-pod', '1')] })))
+        )
+      );
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('new-pod'));
+      await waitFor(() => expect(watch()?.cacheEntry).toBeDefined());
+      expect(watch().cacheEntry).not.toBe(previousWatch.cacheEntry);
+      expect(watch().url).toContain('__headlamp_connection_revision=connection-b');
+      expect(result.current.items).toHaveLength(1);
+
+      updateDiscoveredConnection('https://old-discovery.example.com', 'connection-a');
+      await waitFor(() => expect(watch()).toBeUndefined());
+      expect(result.current.items).toBeNull();
+      await act(async () =>
+        returnedList.resolve(
+          new Response(JSON.stringify(makeListResponse({ items: [makePod('returned-pod', '1')] })))
+        )
+      );
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('returned-pod'));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it('refreshes a list when the connection changes and returns while no list is mounted', async () => {
+    const restoreClusters = registerDiscoveredCluster('connection-a');
+    const freshList = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('old-pod', '1'))
+      .mockReturnValueOnce(freshList.promise);
+    const requests = [{ cluster: 'discovered' }];
+    const wrapper = queryClientWrapper(new QueryClient());
+    const mountList = () =>
+      renderHook(() => useKubeObjectList({ kubeObjectClass: mockClass, requests }), { wrapper });
+    const original = mountList();
+
+    try {
+      await waitFor(() => expect(original.result.current.items?.[0].metadata.name).toBe('old-pod'));
+      original.unmount();
+      updateDiscoveredConnection('https://new-discovery.example.com', 'connection-b');
+      updateDiscoveredConnection('https://old-discovery.example.com', 'connection-a');
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+
+      const remounted = mountList();
+      try {
+        await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+        expect(remounted.result.current.items).toBeNull();
+
+        await act(async () => freshList.resolve(podListPage('fresh-pod', '1')));
+        await waitFor(() =>
+          expect(remounted.result.current.items?.[0].metadata.name).toBe('fresh-pod')
+        );
+      } finally {
+        remounted.unmount();
+      }
+    } finally {
+      original.unmount();
+      freshList.resolve(podListPage('fresh-pod', '1'));
+      restoreClusters();
+    }
+  });
+
+  it('ignores old pagination failures and keeps the replacement page request pending', async () => {
+    const restoreClusters = registerDiscoveredCluster('connection-a');
+    const oldPage = deferred<void>();
+    const newPage = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            makeListResponse({
+              items: [makePod('old-pod', '1')],
+              continueToken: 'old-page',
+            })
+          )
+        )
+      )
+      .mockReturnValueOnce(
+        oldPage.promise.then(() => {
+          throw new ApiError('Previous connection failed', { status: 503 });
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            makeListResponse({
+              items: [makePod('new-pod', '1')],
+              continueToken: 'new-page',
+            })
+          )
+        )
+      )
+      .mockReturnValueOnce(newPage.promise);
+
+    const requests = [{ cluster: 'discovered' }];
+    const { result, unmount } = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests, queryParams: { limit: 1 } }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    try {
+      await waitFor(() => expect(result.current.loadMore).toBeDefined());
+      const oldOperation = result.current.loadMore!();
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+      expect(mockClusterFetch.mock.calls[1][0]).toContain(
+        '__headlamp_connection_revision=connection-a'
+      );
+
+      updateDiscoveredConnection('https://new-discovery.example.com', 'connection-b');
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('new-pod'));
+      const newOperation = result.current.loadMore!();
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(4));
+      expect(mockClusterFetch.mock.calls[3][0]).toContain(
+        '__headlamp_connection_revision=connection-b'
+      );
+
+      await act(async () => {
+        oldPage.resolve();
+        await oldOperation;
+      });
+      expect(result.current.error).toBeNull();
+      expect(result.current.items).toHaveLength(1);
+      const duplicate = result.current.loadMore!();
+      expect(mockClusterFetch).toHaveBeenCalledTimes(4);
+
+      await act(async () => {
+        newPage.resolve(
+          new Response(JSON.stringify(makeListResponse({ items: [makePod('new-page-pod', '1')] })))
+        );
+        await Promise.all([newOperation, duplicate]);
+      });
+      await waitFor(() =>
+        expect(result.current.items?.map(item => item.metadata.name)).toEqual([
+          'new-pod',
+          'new-page-pod',
+        ])
+      );
+      expect(result.current.error).toBeNull();
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it('uses the direct watch for discovered clusters in a mixed list', () => {
+    const restoreClusters = registerDiscoveredCluster();
+
+    const lists = [
+      { cluster: 'ordinary', resourceVersion: '1' },
+      { cluster: 'discovered', resourceVersion: '2' },
+    ];
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+    try {
+      const { rerender, unmount } = renderHook(
+        ({ activeLists }) =>
+          useWatchKubeObjectLists({ kubeObjectClass: mockClass, endpoint, lists: activeLists }),
+        {
+          initialProps: { activeLists: lists },
+          wrapper: ({ children }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          ),
+        }
+      );
+
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+      expect(mockSubscribe.mock.calls[0][0]).toBe('ordinary');
+      expect(mockUseWebSockets).toHaveBeenLastCalledWith({
+        enabled: true,
+        connections: [expect.objectContaining({ cluster: 'discovered' })],
+      });
+
+      rerender({ activeLists: [lists[0]] });
+      expect(mockUseWebSockets).toHaveBeenLastCalledWith({ enabled: false, connections: [] });
+      unmount();
+    } finally {
+      restoreClusters();
+    }
+  });
+
+  it('keeps pending reads guarded until a replacement registration is observed', async () => {
+    const restoreClusters = registerDiscoveredCluster('connection-a');
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('before', '1'))
+      .mockRejectedValueOnce(new ApiError('Discovered cluster connection changed', { status: 409 }))
+      .mockResolvedValueOnce(podListPage('replacement', '1'));
+    const requests = [{ cluster: 'discovered' }];
+    const { result, unmount } = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+
+    try {
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('before'));
+      act(restoreClusters);
+      await waitFor(() => expect(result.current.errors?.[0].status).toBe(409));
+      expect(mockClusterFetch.mock.calls[1][0]).toContain('__headlamp_connection_revision=removed');
+      expect(result.current.items).toEqual([]);
+
+      act(() => {
+        registerDiscoveredCluster('connection-b');
+      });
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('replacement'));
+      expect(mockClusterFetch.mock.calls[2][0]).toContain(
+        '__headlamp_connection_revision=connection-b'
+      );
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it('keeps late multiplexed messages in the connection that subscribed', () => {
+    const client = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const previous = store.getState().config.clusters;
+    store.dispatch(
+      setConfig({
+        clusters: { ...previous, discovered: { name: 'discovered', auth_type: 'oidc' } },
+      })
+    );
+    const lists = [{ cluster: 'discovered', resourceVersion: '1' }];
+    const snapshot = {
+      list: { items: [], metadata: { resourceVersion: '1' } },
+      cluster: 'discovered',
+    };
+    const oldKey = kubeObjectListQuery(mockClass, endpoint, '', 'discovered', {}).queryKey;
+    client.setQueryData(oldKey, snapshot);
+    const { unmount } = renderHook(
+      () => useWatchKubeObjectLists({ kubeObjectClass: mockClass, endpoint, lists }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    const onMessage = mockSubscribe.mock.calls[0][3];
+    let restoreClusters = () => {};
+    try {
+      act(() => {
+        restoreClusters = registerDiscoveredCluster('replacement');
+        const replacementKey = kubeObjectListQuery(
+          mockClass,
+          endpoint,
+          '',
+          'discovered',
+          {}
+        ).queryKey;
+        client.setQueryData(replacementKey, snapshot);
+        onMessage({ type: 'ADDED', object: makePod('late-old-pod', '2') });
+        expect(client.getQueryData(replacementKey)).toEqual(snapshot);
+        expect(client.getQueryData(oldKey)).not.toEqual(snapshot);
+      });
+    } finally {
+      unmount();
+      restoreClusters();
+      store.dispatch(setConfig({ clusters: previous }));
+    }
+  });
+
+  it('keeps a direct watch error and the list until the watch is accepted again', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const snapshot = () => podListPage('pod-1', '1');
+    mockClusterFetch.mockResolvedValueOnce(snapshot()).mockResolvedValueOnce(snapshot());
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({ kubeObjectClass: mockClass, requests: [{ cluster: 'discovered' }] }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      act(() =>
+        connection.onMessage({
+          type: 'ERROR',
+          object: { kind: 'Status', code: 403, message: 'Forbidden' },
+        })
+      );
+      await waitFor(() => expect(result.current.errors?.[0].status).toBe(403));
+      await act(async () => {
+        await connection.getWatchUrl(true);
+      });
+      expect(result.current.errors?.[0].message).toBe('Forbidden');
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['pod-1']);
+
+      act(() => connection.onOpen());
+      await waitFor(() => expect(result.current.errors).toBeNull());
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it('refreshes a configured namespace selector after an accepted direct watch fails', async () => {
+    const cluster = 'discovered';
+    const labelSelector = 'team=frontend';
+    const settingsKey = `cluster_settings.${cluster}`;
+    const restoreClusters = registerDiscoveredCluster('namespace-origin');
+    localStorage.setItem(settingsKey, JSON.stringify({ allowedNamespacesSelector: labelSelector }));
+    focusManager.setFocused(true);
+    mockClusterFetch
+      .mockResolvedValueOnce(
+        Response.json(
+          makeListResponse({
+            kind: 'NamespaceList',
+            items: [{ metadata: { name: 'team-a', resourceVersion: '1' } }],
+          })
+        )
+      )
+      .mockResolvedValueOnce(
+        Response.json(makeListResponse({ kind: 'NamespaceList', resourceVersion: '2', items: [] }))
+      );
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: Namespace,
+          requests: [{ cluster }],
+          queryParams: { labelSelector },
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+    const sendWatchError = () => {
+      watch().onOpen();
+      watch().onMessage({
+        type: 'ERROR',
+        object: { kind: 'Status', code: 403, message: 'Forbidden' },
+      });
+    };
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['team-a']);
+      vi.useFakeTimers({
+        toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+      });
+      act(sendWatchError);
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      act(sendWatchError);
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      act(sendWatchError);
+      await act(async () => vi.advanceTimersByTimeAsync(9_950));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+      expect(mockClusterFetch.mock.calls[1]).toEqual([
+        'api/v1/namespaces?labelSelector=team%3Dfrontend&__headlamp_connection_revision=namespace-origin',
+        expect.objectContaining({ cluster, headers: { 'Cache-Control': 'no-cache' } }),
+      ]);
+      expect(result.current.items).toEqual([]);
+      expect(result.current.error?.status).toBe(403);
+
+      act(() =>
+        watch().onMessage({
+          type: 'ADDED',
+          object: {
+            kind: 'Namespace',
+            metadata: { name: 'team-b', uid: 'team-b', resourceVersion: '3' },
+          },
+        })
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(30_100));
+      expect(result.current.error).toBeNull();
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['team-b']);
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
+      localStorage.removeItem(settingsKey);
+      restoreClusters();
+    }
+  });
+
+  it('preserves a background LIST failure when the watch fails and recovers', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const client = new QueryClient();
+    const forbidden = new ApiError('LIST is forbidden', { status: 403 });
+    mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
+    const requests = [{ cluster: 'discovered' }];
+    const wrapper = queryClientWrapper(client);
+    const watching = renderHook(() => useKubeObjectList({ kubeObjectClass: mockClass, requests }), {
+      wrapper,
+    });
+    const listing = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests, watch: false }),
+      { wrapper }
+    );
+    const watch = () =>
+      mockUseWebSockets.mock.calls.findLast(([options]) => options.connections.length > 0)?.[0]
+        .connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      mockClusterFetch.mockRejectedValueOnce(forbidden);
+      await act(async () => client.invalidateQueries());
+      await waitFor(() => expect(listing.result.current.errors?.[0]).toBe(forbidden));
+
+      act(() => connection.onOpenFailure());
+      expect(connection.cacheEntry.state.data.watchError?.message).toBe(
+        'Unable to open the resource watch'
+      );
+      expect(connection.cacheEntry.state.status).toBe('error');
+      expect(watching.result.current.errors?.[0]).toBe(forbidden);
+      expect(listing.result.current.errors?.[0]).toBe(forbidden);
+
+      act(() => {
+        connection.onOpen();
+        connection.onMessage({ type: 'ADDED', object: makePod('pod-2', '2') });
+      });
+      expect(connection.cacheEntry.state.data.watchError).toBeUndefined();
+      expect(connection.cacheEntry.state.status).toBe('error');
+      expect(listing.result.current.errors?.[0]).toBe(forbidden);
+    } finally {
+      listing.unmount();
+      watching.unmount();
+      restoreClusters();
+    }
+  });
+
+  it('starts a recovery LIST after a rejected upgrade while an ordinary refetch is pending', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const client = new QueryClient();
+    const oldRefetch = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('pod-old', '1'))
+      .mockReturnValueOnce(oldRefetch.promise)
+      .mockResolvedValueOnce(podListPage('pod-new', '10'));
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({ kubeObjectClass: mockClass, requests: [{ cluster: 'discovered' }] }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      const pending = client.invalidateQueries();
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+      expect(mockClusterFetch.mock.calls[1][1].headers).toBeUndefined();
+
+      await act(async () => {
+        connection.onOpenFailure();
+        await expect(connection.getWatchUrl(true)).resolves.toBe(
+          'api/v1/pods?watch=1&resourceVersion=10'
+        );
+      });
+      expect(mockClusterFetch.mock.calls[1][1].signal?.aborted).toBe(true);
+      expect(mockClusterFetch.mock.calls[2][1].headers).toEqual({ 'Cache-Control': 'no-cache' });
+      await act(async () => {
+        oldRefetch.resolve(podListPage('pod-old', '1'));
+        await pending;
+      });
+      expect(connection.cacheEntry.state.data.list.items[0].metadata.name).toBe('pod-new');
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('pod-new'));
+    } finally {
+      oldRefetch.resolve(podListPage('pod-old', '1'));
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it('waits for the replacement LIST while the query is offline', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const client = new QueryClient();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('pod-old', '1'))
+      .mockResolvedValueOnce(podListPage('pod-new', '10'));
+    const { unmount } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'discovered' }],
+        }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      onlineManager.setOnline(false);
+      act(() => connection.onMessage({ type: 'ERROR', object: { code: 410 } }));
+      const reopened = vi.fn();
+      const reconnecting = connection.getWatchUrl(true).then(reopened);
+      await waitFor(() =>
+        expect(
+          client
+            .getQueryCache()
+            .getAll()
+            .some(query => query.state.fetchStatus === 'paused')
+        ).toBe(true)
+      );
+      expect(reopened).not.toHaveBeenCalled();
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        onlineManager.setOnline(true);
+        await reconnecting;
+      });
+      expect(reopened).toHaveBeenCalledWith('api/v1/pods?watch=1&resourceVersion=10');
+      expect(mockClusterFetch.mock.calls[1][1].headers).toEqual({ 'Cache-Control': 'no-cache' });
+    } finally {
+      onlineManager.setOnline(true);
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it('does not reopen from a stale version when the expiration relist fails', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const unavailable = new ApiError('Unavailable', { status: 503 });
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('pod-old', '1'))
+      .mockRejectedValueOnce(unavailable)
+      .mockResolvedValueOnce(podListPage('pod-new', '10'));
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({ kubeObjectClass: mockClass, requests: [{ cluster: 'discovered' }] }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      act(() => connection.onMessage({ type: 'ERROR', object: { code: 410 } }));
+      await expect(connection.getWatchUrl(true)).rejects.toBe(unavailable);
+      await expect(connection.getWatchUrl(true)).resolves.toBe(
+        'api/v1/pods?watch=1&resourceVersion=10'
+      );
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('pod-new'));
+      expect(watch()).toBe(connection);
+      for (const [, options] of mockClusterFetch.mock.calls.slice(1)) {
+        expect(options.headers).toEqual({ 'Cache-Control': 'no-cache' });
+      }
+    } finally {
+      unmount();
+      restoreClusters();
+    }
+  });
+
+  it.each([{ resourceVersionMatch: 'Exact' }, { limit: 1 }])(
+    'reports expiration of a list explicitly pinned to a resource version (%o)',
+    async match => {
+      const restoreClusters = registerDiscoveredCluster();
+      mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
+      const { result, unmount } = renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: mockClass,
+            requests: [{ cluster: 'discovered' }],
+            queryParams: { resourceVersion: '1', ...match },
+          }),
+        { wrapper: queryClientWrapper(new QueryClient()) }
+      );
+      const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+
+      try {
+        await waitFor(() => expect(watch()).toBeDefined());
+        const connection = watch();
+        expect(connection.url).toBe('api/v1/pods?resourceVersion=1&watch=1');
+        act(() => connection.onMessage({ type: 'ADDED', object: makePod('pod-2', '2') }));
+        await expect(connection.getWatchUrl(true)).resolves.toBe(
+          'api/v1/pods?resourceVersion=2&watch=1'
+        );
+        expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+        act(() => connection.onMessage({ type: 'ERROR', object: { code: 410 } }));
+        await expect(connection.getWatchUrl(true)).resolves.toBeNull();
+        await waitFor(() => expect(result.current.errors?.[0].status).toBe(410));
+        expect(result.current.items?.[0].metadata.name).toBe('pod-1');
+        expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+      } finally {
+        unmount();
+        restoreClusters();
+      }
+    }
+  );
 
   it('should subscribe to multiple clusters', () => {
     const lists = [
@@ -1687,7 +2845,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     });
 
     // The watch cannot report what changed since, such as deletions, so the list is fetched again.
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey, exact: true });
   });
 
   it('should omit pagination query params after loading all pages', async () => {

@@ -17,6 +17,7 @@
 import Button from '@mui/material/Button';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
+import { prepareApply } from '../../../lib/k8s/api/v1/apply';
 import store from '../../../redux/stores/store';
 import { TestContext } from '../../../test';
 import { ActivitiesRenderer, Activity } from '../../activity/Activity';
@@ -95,6 +96,9 @@ vi.mock('../../../lib/cluster', () => ({
 
 vi.mock('../../../lib/k8s/api/v1/apply', () => ({
   apply: mockApply,
+  prepareApply: vi.fn(
+    (cluster: string) => (body: unknown, options?: unknown) => mockApply(body, cluster, options)
+  ),
 }));
 
 vi.mock('../../../redux/clusterActionSlice', async importOriginal => {
@@ -817,6 +821,7 @@ describe('EditorDialog', () => {
       })
     );
 
+    expect(vi.mocked(prepareApply).mock.lastCall?.[0]).toBe(expectedCluster);
     await act(async () => capturedAction.current?.());
     expect(mockApply).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'Node' }),
