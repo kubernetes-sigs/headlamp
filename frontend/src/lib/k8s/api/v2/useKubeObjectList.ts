@@ -22,15 +22,15 @@ import {
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
+import { shouldRetryQuery } from '../../../queryClient';
 import type { KubeObject, KubeObjectClass, KubeObjectInterface } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError, ListWatchError } from './ApiError';
 import {
   getDiscoveredConnectionRevision,
   useDiscoveredConnectionRevisions,
-  withDiscoveryConnectionRevision,
 } from './discoveredConnectionRevisions';
-import { recordDiscoveryConnection } from './discoveryConnection';
+import { recordDiscoveryConnection, withDiscoveryConnectionRevision } from './discoveryConnection';
 import { clusterFetch } from './fetch';
 import type { QueryListResponse } from './hooks';
 import { useEndpoints } from './hooks';
@@ -233,6 +233,7 @@ async function fetchKubeObjectListPage<K extends KubeObject>(
     {
       cluster,
       signal,
+      expectedDiscoveryConnection: { revision: connectionRevision },
       ...(fresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
     }
   ).then(response => response.json());
@@ -593,19 +594,15 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
       if (update.type === 'ERROR') {
         const status = update.object?.code;
-        if (status === 410 && !pinned) {
-          void refreshWatchQuery(client, queryKey);
-        } else {
-          setListWatchError(
-            client,
-            queryKey,
-            new ListWatchError(update.object?.message ?? 'The resource watch stopped', {
-              status,
-              cluster,
-              namespace,
-            })
-          );
-        }
+        setListWatchError(
+          client,
+          queryKey,
+          new ListWatchError(update.object?.message ?? 'The resource watch stopped', {
+            status,
+            cluster,
+            namespace,
+          })
+        );
         return;
       }
 
@@ -619,7 +616,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         entry.setState({ data: { ...cached, list, watchError: undefined } });
       }
     },
-    [client, kubeObjectClass, endpoint, pinned]
+    [client, kubeObjectClass, endpoint]
   );
 
   // Set up WebSocket subscriptions
@@ -637,11 +634,21 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       setListWatchError<K>(client, queryKey);
       const parsedUrl = new URL(url, BASE_WS_URL);
       let stopped = false;
+      let recovering = false;
+      let retryRelist: ReturnType<typeof setTimeout> | undefined;
       let unsubscribe: (() => void) | undefined;
       const stop = () => {
         if (stopped) return;
         stopped = true;
+        clearTimeout(retryRelist);
         unsubscribe?.();
+      };
+      const relist = () => {
+        void refreshWatchQuery(client, queryKey).catch(error => {
+          if (!stopped && shouldRetryQuery(0, error)) {
+            retryRelist = setTimeout(relist, UPGRADE_FAILURE_RELIST_INTERVAL_MS);
+          }
+        });
       };
       cleanups.push(stop);
       const reportError = (error: Error) => {
@@ -660,9 +667,15 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
         update => {
-          if (stopped) return;
+          if (stopped || recovering) return;
+          const expired = update?.type === 'ERROR' && update.object?.code === 410;
+          if (expired && !pinned) {
+            recovering = true;
+            relist();
+            return;
+          }
           handleUpdate(update, cluster, namespace, queryKey);
-          if (pinned && update?.type === 'ERROR' && update.object?.code === 410) stop();
+          if (expired) stop();
         },
         reportError
       ).then(cleanup => {
@@ -760,6 +773,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
       return {
         cluster,
         cacheEntry: client.getQueryCache().find({ queryKey, exact: true }),
+        expectedDiscoveryConnection: { revision: connectionRevision },
         url: watchUrl(resourceVersion),
         async getWatchUrl(reconnecting: boolean) {
           if (pinned && readWatchError()?.status === 410) {

@@ -639,9 +639,10 @@ describe('useKubeObjectList', () => {
     );
     const response = await (query.queryFn as any)();
 
-    expect(mockClusterFetch).toHaveBeenCalledWith('api/v1/namespaces', {
-      cluster: 'unrestricted',
-    });
+    expect(mockClusterFetch).toHaveBeenCalledWith(
+      'api/v1/namespaces',
+      expect.objectContaining({ cluster: 'unrestricted' })
+    );
     expect(response.skipWatch).toBeUndefined();
   });
 
@@ -682,7 +683,7 @@ describe('useKubeObjectList', () => {
     expect(response.skipWatch).toBe(true);
     expect(mockClusterFetch).toHaveBeenCalledWith(
       'api/v1/namespaces?labelSelector=team%3Dfrontend',
-      { cluster: 'restricted' }
+      expect.objectContaining({ cluster: 'restricted' })
     );
   });
 
@@ -728,7 +729,7 @@ describe('useKubeObjectList', () => {
     expect(mockClusterFetch).toHaveBeenCalledTimes(1);
     expect(mockClusterFetch).toHaveBeenCalledWith(
       'api/v1/namespaces?labelSelector=team%3Dfrontend',
-      { cluster: 'restricted' }
+      expect.objectContaining({ cluster: 'restricted' })
     );
     expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual(['team-a']);
   });
@@ -763,7 +764,7 @@ describe('useKubeObjectList', () => {
 
     expect(mockClusterFetch).toHaveBeenCalledWith(
       'api/v1/namespaces?labelSelector=team%3Dfrontend',
-      { cluster: 'restricted' }
+      expect.objectContaining({ cluster: 'restricted' })
     );
   });
 
@@ -868,9 +869,10 @@ describe('useKubeObjectList', () => {
 
     await (query.queryFn as any)();
 
-    expect(mockClusterFetch).toHaveBeenCalledWith('api/v1/pods', {
-      cluster: 'default',
-    });
+    expect(mockClusterFetch).toHaveBeenCalledWith(
+      'api/v1/pods',
+      expect.objectContaining({ cluster: 'default' })
+    );
   });
 
   it('should not fetch when no endpoint is available', async () => {
@@ -2922,6 +2924,46 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     });
     expect(result.current.items?.map(item => item.metadata.name)).toEqual(['fresh-pod']);
   });
+
+  it.each([true, false])(
+    'retries a failed expiry relist while subscribed (%s)',
+    async subscribed => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        mockClusterFetch
+          .mockResolvedValueOnce(podListPage('old-pod', '1'))
+          .mockRejectedValueOnce(new ApiError('Unavailable', { status: 503 }))
+          .mockResolvedValueOnce(podListPage('fresh-pod', '10'));
+        const unwatch = vi.fn();
+        mockSubscribe.mockResolvedValueOnce(unwatch);
+        const requests = [{ cluster: 'ordinary' }];
+        const { unmount } = renderHook(
+          () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+          { wrapper: queryClientWrapper(new QueryClient()) }
+        );
+        await act(async () => vi.advanceTimersByTimeAsync(1));
+        expect(mockSubscribe).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          mockSubscribe.mock.calls[0][3]({ type: 'ERROR', object: { code: 410 } });
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+        if (!subscribed) unmount();
+
+        await act(async () => vi.advanceTimersByTimeAsync(30_001));
+        expect(mockClusterFetch).toHaveBeenCalledTimes(subscribed ? 3 : 2);
+        expect(mockSubscribe).toHaveBeenCalledTimes(subscribed ? 2 : 1);
+        expect(unwatch).toHaveBeenCalledOnce();
+        if (subscribed) {
+          expect(mockSubscribe.mock.lastCall?.[2]).toContain('resourceVersion=10');
+          unmount();
+        }
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
 
   it('should omit pagination query params after loading all pages', async () => {
     const queryClient = new QueryClient();

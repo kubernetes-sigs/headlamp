@@ -17,6 +17,8 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
+import { assertCurrentDiscoveryConnection } from './discoveryConnection';
 import { getBaseWsUrl } from './webSocket';
 
 const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
@@ -47,7 +49,10 @@ export const WebSocketManager = {
   completedPaths: new Set<string>(),
 
   /** Map of active WebSocket subscriptions with their details */
-  activeSubscriptions: new Map<string, { clusterId: string; path: string; query: string }>(),
+  activeSubscriptions: new Map<
+    string,
+    { clusterId: string; path: string; query: string; revision?: string }
+  >(),
 
   /** Map to track pending unsubscribe operations for debouncing */
   pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
@@ -151,7 +156,8 @@ export const WebSocketManager = {
    * @param socket - WebSocket connection to subscribe to
    */
   resubscribeAll(socket: WebSocket): void {
-    this.activeSubscriptions.forEach(({ clusterId, path, query }) => {
+    this.activeSubscriptions.forEach(({ clusterId, path, query, revision }) => {
+      if (getDiscoveredConnectionRevision(clusterId) !== revision) return;
       const userId = getUserIdFromLocalStorage();
       const requestMsg: WebSocketMessage = {
         clusterId,
@@ -181,10 +187,12 @@ export const WebSocketManager = {
     onError?: (err: Error) => void
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
+    const revision = getDiscoveredConnectionRevision(clusterId);
 
     // Register listeners only after the request can be sent. A failed connection
     // must not leave a subscription for a later socket to replay.
     const socket = await this.connect();
+    assertCurrentDiscoveryConnection(clusterId, revision);
     const userId = getUserIdFromLocalStorage();
     const requestMsg: WebSocketMessage = {
       clusterId,
@@ -195,7 +203,7 @@ export const WebSocketManager = {
     };
     socket.send(JSON.stringify(requestMsg));
 
-    this.activeSubscriptions.set(key, { clusterId, path, query });
+    this.activeSubscriptions.set(key, { clusterId, path, query, revision });
 
     // Add message listener
     const listeners = this.listeners.get(key) || new Set();
@@ -323,6 +331,12 @@ export const WebSocketManager = {
       }
 
       const key = this.createKey(data.clusterId, data.path, data.query || '');
+      const subscription = this.activeSubscriptions.get(key);
+      if (
+        subscription &&
+        getDiscoveredConnectionRevision(subscription.clusterId) !== subscription.revision
+      )
+        return;
 
       // Handle COMPLETE messages
       if (data.type === 'COMPLETE') {

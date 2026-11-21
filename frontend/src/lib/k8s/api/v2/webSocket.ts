@@ -20,6 +20,12 @@ import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPI
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
+import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
+import type { DiscoveryConnectionRequest } from './discoveryConnection';
+import {
+  assertCurrentDiscoveryConnection,
+  isDiscoveryConnectionChanged,
+} from './discoveryConnection';
 import { makeUrl } from './makeUrl';
 
 const INITIAL_RECONNECT_DELAY_MS = 3000;
@@ -60,6 +66,8 @@ export type WebSocketConnectionRequest<T> = {
 
   /** Watches share a socket only within the same cache entry. */
   cacheEntry?: object;
+
+  expectedDiscoveryConnection?: DiscoveryConnectionRequest;
 
   /** Provides the current URL before opening or reconnecting a watch. */
   getWatchUrl?: (reconnecting: boolean) => Promise<string | null>;
@@ -124,6 +132,7 @@ export async function openWebSocket<T>(
     protocols: moreProtocols = [],
     type = 'binary',
     cluster = getCluster() ?? '',
+    expectedDiscoveryConnection,
     onMessage,
   }: {
     /**
@@ -138,6 +147,7 @@ export async function openWebSocket<T>(
      * Cluster name
      */
     cluster?: string;
+    expectedDiscoveryConnection?: DiscoveryConnectionRequest;
     /**
      * Message callback
      */
@@ -166,9 +176,20 @@ export async function openWebSocket<T>(
     }
   }
 
+  if (expectedDiscoveryConnection) {
+    assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
+  }
+
   const socket = new WebSocket(makeUrl([getBaseWsUrl(), ...path], {}), protocols);
   socket.binaryType = 'arraybuffer';
   socket.addEventListener('message', (body: MessageEvent) => {
+    if (
+      expectedDiscoveryConnection &&
+      getDiscoveredConnectionRevision(cluster) !== expectedDiscoveryConnection.revision
+    ) {
+      socket.close();
+      return;
+    }
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
     onMessage(data);
   });
@@ -208,7 +229,13 @@ export function useWebSockets<T>({
     if (!enabled) return;
 
     /** Open a connection to websocket */
-    function connect({ cluster, url, cacheEntry, ...listener }: WebSocketConnectionRequest<T>) {
+    function connect({
+      cluster,
+      url,
+      cacheEntry,
+      expectedDiscoveryConnection,
+      ...listener
+    }: WebSocketConnectionRequest<T>) {
       const connectionKey = connectionKeyFor(cluster, url, cacheEntry);
 
       // Always register the current listener, even when reusing an existing socket.
@@ -217,7 +244,11 @@ export function useWebSockets<T>({
       let reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
 
       function retry() {
-        if (!listeners.get(connectionKey)?.some(listener => listener.getWatchUrl)) {
+        if (
+          (expectedDiscoveryConnection &&
+            getDiscoveredConnectionRevision(cluster) !== expectedDiscoveryConnection.revision) ||
+          !listeners.get(connectionKey)?.some(listener => listener.getWatchUrl)
+        ) {
           sockets.delete(connectionKey);
           return;
         }
@@ -262,6 +293,7 @@ export function useWebSockets<T>({
             protocols,
             type,
             cluster,
+            expectedDiscoveryConnection,
             onMessage(update) {
               if (sockets.get(connectionKey) !== socket) return;
               listeners
@@ -298,7 +330,7 @@ export function useWebSockets<T>({
         } catch (error) {
           if (sockets.get(connectionKey) !== pendingSocket) return;
           retry();
-          console.error(error);
+          if (!isDiscoveryConnectionChanged(error)) console.error(error);
         }
       }
 

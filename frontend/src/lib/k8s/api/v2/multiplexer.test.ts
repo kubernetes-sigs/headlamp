@@ -21,6 +21,7 @@ import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
+import * as discoveredRevisions from './discoveredConnectionRevisions';
 import { MULTIPLEXER_ENDPOINT } from './multiplexer';
 import { useWebSocket } from './multiplexer';
 import { WebSocketManager } from './multiplexer';
@@ -313,6 +314,47 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
       expect(WebSocketManager.listeners.has(key)).toBe(false);
       expect(WebSocketManager.errorListeners.has(key)).toBe(false);
+    });
+
+    it('does not subscribe after a same-named cluster is replaced while opening', async () => {
+      const revision = vi
+        .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+        .mockReturnValue(undefined);
+      const connection = Promise.withResolvers<WebSocket>();
+      vi.spyOn(WebSocketManager, 'connect').mockReturnValue(connection.promise);
+      const send = vi.fn();
+
+      const subscription = WebSocketManager.subscribe(
+        clusterName,
+        '/api/v1/pods',
+        'watch=1',
+        onMessage
+      );
+      revision.mockReturnValue('replacement:1');
+      connection.resolve({ send } as unknown as WebSocket);
+
+      await expect(subscription).rejects.toMatchObject({ status: 409 });
+      expect(send).not.toHaveBeenCalled();
+      expect(WebSocketManager.activeSubscriptions.size).toBe(0);
+    });
+
+    it('does not replay or deliver an ordinary watch after a discovered connection replaces it', async () => {
+      const revision = vi
+        .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+        .mockReturnValue(undefined);
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      revision.mockReturnValue('replacement:1');
+      const send = vi.fn();
+
+      mockServer.send(
+        JSON.stringify({ clusterId: clusterName, path, query, type: 'DATA', data: '{}' })
+      );
+      WebSocketManager.resubscribeAll({ send } as unknown as WebSocket);
+
+      expect(onMessage).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
     });
 
     it('should handle duplicate subscriptions', async () => {

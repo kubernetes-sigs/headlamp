@@ -625,6 +625,35 @@ describe('useKubeObject watch wiring', () => {
     }
   }, 10000);
 
+  it('ignores a delayed bookmark from before a background object refresh', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    mockClusterFetch
+      .mockResolvedValueOnce(mockJsonResponse(pod('1')))
+      .mockResolvedValueOnce(mockJsonResponse(pod('5')))
+      .mockResolvedValueOnce(mockJsonResponse(pod('5')));
+    const { result, connected, server, cleanup } = await renderDiscoveredPodWatch('route-a');
+    try {
+      const original = await server.connected;
+      server.send(JSON.stringify({ type: 'MODIFIED', object: pod('2') }));
+      await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('2'));
+
+      const connection = mockUseWebSockets.mock.lastCall?.[0].connections[0];
+      await act(async () => {
+        await connection.cacheEntry.fetch();
+      });
+      await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('5'));
+      server.send(
+        JSON.stringify({ type: 'BOOKMARK', object: { metadata: { resourceVersion: '3' } } })
+      );
+
+      original.close();
+      await waitFor(() => expect(connected).toHaveBeenCalledTimes(2), { timeout: 3500 });
+      expect(new URL(connected.mock.calls[1][0].url).searchParams.get('resourceVersion')).toBe('5');
+    } finally {
+      cleanup();
+    }
+  }, 6000);
+
   it('keeps reading the object when successive watch upgrades fail', async () => {
     mockClusterFetch
       .mockResolvedValueOnce(mockJsonResponse(pod('1')))

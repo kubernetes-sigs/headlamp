@@ -23,12 +23,12 @@ import { ApiError } from './ApiError';
 import {
   getDiscoveredConnectionRevision,
   useDiscoveredConnectionRevisions,
-  withDiscoveryConnectionRevision,
 } from './discoveredConnectionRevisions';
 import {
   getResourceDiscoveryConnection,
   isDiscoveryConnectionChanged,
   recordDiscoveryConnection,
+  withDiscoveryConnectionRevision,
 } from './discoveryConnection';
 import { clusterFetch } from './fetch';
 import type { KubeListUpdateEvent } from './KubeList';
@@ -259,6 +259,7 @@ export function useKubeObject<K extends KubeObject>({
       const readOptions = {
         cluster,
         signal,
+        expectedDiscoveryConnection: { revision: connectionRevision },
         ...(recovering ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
       };
       const path = KubeObjectEndpoint.toUrl(endpoint!, namespace);
@@ -402,6 +403,7 @@ export function useKubeObject<K extends KubeObject>({
     };
     let refreshing: Promise<void> | undefined;
     let lastWatchVersion: string | undefined;
+    let watchedObjectVersion = currentVersion();
     let bookmark: { version: string; objectVersion?: string } | undefined;
     let reconcileOnReconnect = true;
 
@@ -409,6 +411,7 @@ export function useKubeObject<K extends KubeObject>({
       {
         cluster,
         cacheEntry,
+        expectedDiscoveryConnection: { revision: connectionRevision },
         url: watchOnly ? latestWatchUrl : makeUrl([path], watchParams),
         async getWatchUrl(reconnecting: boolean) {
           const expired = refreshing;
@@ -419,6 +422,7 @@ export function useKubeObject<K extends KubeObject>({
           }
 
           const objectVersion = currentVersion();
+          watchedObjectVersion = objectVersion;
           // Versions are opaque. A read that changed the object supersedes the stream checkpoint.
           if (bookmark && bookmark.objectVersion !== objectVersion) bookmark = undefined;
           const version = bookmark?.version ?? objectVersion;
@@ -486,15 +490,17 @@ export function useKubeObject<K extends KubeObject>({
           }
           if (update.type === 'BOOKMARK') {
             const version = update.object?.metadata?.resourceVersion;
-            if (version) bookmark = { version, objectVersion: currentVersion() };
+            if (version) bookmark = { version, objectVersion: watchedObjectVersion };
             return;
           }
           if (update.type === 'DELETED') {
+            watchedObjectVersion = undefined;
             bookmark = undefined;
             void refreshObject(update, () => client.setQueryData(queryKey, null));
             return;
           }
           if (update.object && (update.type === 'ADDED' || update.type === 'MODIFIED')) {
+            watchedObjectVersion = update.object.metadata?.resourceVersion;
             bookmark = undefined;
             // Let the stream update win over an older GET still in flight.
             if (client.getQueryState(queryKey)?.fetchStatus !== 'idle') {
@@ -591,6 +597,7 @@ const getWorkingEndpoint = async (
     return clusterFetch(url, {
       method: 'GET',
       cluster: cluster ?? getCluster() ?? '',
+      expectedDiscoveryConnection: { revision: connectionRevision },
     }).then(() => endpoint);
   });
 
@@ -604,6 +611,7 @@ const getWorkingEndpoint = async (
       const fetch = (path: string, params: QueryParameters = {}) =>
         clusterFetch(makeUrl(path, withDiscoveryConnectionRevision(params, connectionRevision)), {
           cluster,
+          expectedDiscoveryConnection: { revision: connectionRevision },
         });
       // Prefer an endpoint where LIST is authorized. If it is denied too, API
       // discovery can confirm the resource is served before trying WATCH.

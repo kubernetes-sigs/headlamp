@@ -68,7 +68,8 @@ var (
 	// so the watch cannot resume and the client has to list again.
 	errWatchExpired = errors.New("watch resource version expired")
 	// errConnectionSuperseded reports that a reconnect took over the connection's stream.
-	errConnectionSuperseded = errors.New("connection superseded by a reconnect")
+	errConnectionSuperseded     = errors.New("connection superseded by a reconnect")
+	errClusterConnectionChanged = errors.New("cluster connection changed")
 )
 
 // watchExpiredEvent is the watch event the cluster sends when a resource version expires.
@@ -98,6 +99,8 @@ type Connection struct {
 	Path string
 	// Query is the query of the connection.
 	Query string
+	// clusterContext identifies the route selected when the watch first connects.
+	clusterContext *kubeconfig.Context
 	// WSConn is the WebSocket connection to the cluster.
 	WSConn *websocket.Conn
 	// Status is the status of the connection.
@@ -151,10 +154,13 @@ type Message struct {
 	Type string `json:"type"`
 }
 
+type connectionKey struct {
+	clusterID, path, userID, query string
+}
+
 // Multiplexer manages multiple WebSocket connections.
 type Multiplexer struct {
-	// connections is a map of connections indexed by the cluster ID and path.
-	connections map[string]*Connection
+	connections map[connectionKey]*Connection
 	// mutex is a mutex to synchronize access to the connections.
 	mutex sync.RWMutex
 	// upgrader is the WebSocket upgrader.
@@ -242,7 +248,7 @@ func (conn *WSConnLock) Close() error {
 // NewMultiplexer creates a new Multiplexer instance.
 func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
 	return &Multiplexer{
-		connections:                  make(map[string]*Connection),
+		connections:                  make(map[connectionKey]*Connection),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
@@ -415,8 +421,13 @@ func (m *Multiplexer) dialClusterConnection(
 	query string,
 	clientConn *WSConnLock,
 	token *string,
+	expectedContext *kubeconfig.Context,
 ) (*Connection, error) {
 	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
+	if expectedContext != nil && clusterContext != expectedContext {
+		return nil, errClusterConnectionChanged
+	}
+
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: clusterID}, err, "getting cluster config")
 		return nil, err
@@ -433,6 +444,8 @@ func (m *Multiplexer) dialClusterConnection(
 	}
 
 	connection := m.createConnection(clusterID, userID, path, query, clientConn, authToken)
+
+	connection.clusterContext = clusterContext
 	if m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken() {
 		connection.usesServiceAccountToken = true
 	}
@@ -468,13 +481,13 @@ func (m *Multiplexer) establishClusterConnection(
 	clientConn *WSConnLock,
 	token *string,
 ) (*Connection, error) {
-	connection, err := m.dialClusterConnection(clusterID, userID, path, query, clientConn, token)
+	connection, err := m.dialClusterConnection(clusterID, userID, path, query, clientConn, token, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	m.mutex.Lock()
-	connKey := m.createConnectionKey(clusterID, path, userID)
+	connKey := connectionKey{clusterID, path, userID, query}
 	m.connections[connKey] = connection
 	m.mutex.Unlock()
 
@@ -483,8 +496,7 @@ func (m *Multiplexer) establishClusterConnection(
 	return connection, nil
 }
 
-// getClusterConfigWithFallback attempts to get the cluster config,
-// falling back to a combined key for stateless clusters.
+// getClusterConfigWithFallback resolves a user-specific context before the shared context.
 func (m *Multiplexer) getClusterConfigWithFallback(clusterID, userID string) (*rest.Config, error) {
 	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
 	if err != nil {
@@ -500,19 +512,13 @@ func (m *Multiplexer) getClusterConfigWithFallback(clusterID, userID string) (*r
 }
 
 func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*kubeconfig.Context, error) {
-	// Try to get config for stateful cluster first.
-	clusterContext, err := m.getClusterContext(clusterID)
-	if err != nil {
-		// If not found, try with the combined key for stateless clusters.
-		combinedKey := fmt.Sprintf("%s%s", clusterID, userID)
-
-		clusterContext, err = m.getClusterContext(combinedKey)
-		if err != nil {
-			return nil, fmt.Errorf("getting cluster config: %w", err)
+	if userID != "" {
+		if clusterContext, err := m.getClusterContext(statelessContextKey(clusterID, userID)); err == nil {
+			return clusterContext, nil
 		}
 	}
 
-	return clusterContext, nil
+	return m.getClusterContext(clusterID)
 }
 
 func (m *Multiplexer) clusterConnectionToken(
@@ -759,7 +765,13 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		resumeWatchQuery(conn.Query, resourceVersion),
 		client,
 		token,
+		conn.clusterContext,
 	)
+	if errors.Is(err, errClusterConnectionChanged) {
+		m.removeConnection(conn)
+		return nil, err
+	}
+
 	if err != nil {
 		if !m.replaceRegistered(conn, nil) {
 			// conn was closed or another subscription owns its key now; stop retrying for it.
@@ -796,7 +808,7 @@ func (m *Multiplexer) replaceRegistered(conn, newConn *Connection) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := connectionKey{conn.ClusterID, conn.Path, conn.UserID, conn.Query}
 	if m.connections[connKey] != conn || conn.IsClosed() {
 		return false
 	}
@@ -861,7 +873,7 @@ func (m *Multiplexer) processClientMessage(
 ) {
 	// Check if it's a close message
 	if msg.Type == "CLOSE" {
-		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
+		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
 
 		return
 	}
@@ -964,13 +976,13 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
 	if token == nil || strings.TrimSpace(*token) == "" {
-		clusterContext, err := m.kubeConfigStore.GetContext(msg.ClusterID)
+		clusterContext, err := m.getClusterContextWithFallback(msg.ClusterID, msg.UserID)
 		if err == nil && clusterContext.RequiresUserAuthentication() {
 			return nil, errUserAuthRequired
 		}
 	}
 
-	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+	connKey := connectionKey{msg.ClusterID, msg.Path, msg.UserID, msg.Query}
 
 	m.mutex.RLock()
 	conn, exists := m.connections[connKey]
@@ -1350,7 +1362,7 @@ func (m *Multiplexer) sendDataMessage(
 func (m *Multiplexer) removeConnection(conn *Connection) {
 	m.mutex.Lock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := connectionKey{conn.ClusterID, conn.Path, conn.UserID, conn.Query}
 	if m.connections[connKey] == conn {
 		delete(m.connections, connKey)
 	}
@@ -1401,8 +1413,8 @@ func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, 
 }
 
 // CloseConnection closes a specific connection based on its identifier.
-func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
-	connKey := m.createConnectionKey(clusterID, path, userID)
+func (m *Multiplexer) CloseConnection(clusterID, path, userID, query string) {
+	connKey := connectionKey{clusterID, path, userID, query}
 
 	m.mutex.Lock()
 
@@ -1417,13 +1429,6 @@ func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
 
 	conn.updateStatus(StateClosed, nil)
 	conn.safeClose()
-}
-
-// createConnectionKey creates a unique key for a connection based on cluster ID, path, and user ID.
-// Uses string concatenation instead of fmt.Sprintf to avoid allocation overhead
-// on this hot path (called on every WebSocket message routing).
-func (m *Multiplexer) createConnectionKey(clusterID, path, userID string) string {
-	return clusterID + ":" + path + ":" + userID
 }
 
 // createWebSocketURL creates a WebSocket URL from the given parameters.
