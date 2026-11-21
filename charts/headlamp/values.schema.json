@@ -577,6 +577,11 @@
           "type": ["integer", "null"],
           "description": "Kubernetes Service Nodeport"
         },
+        "externalTrafficPolicy": {
+          "type": ["string", "null"],
+          "enum": ["Cluster", "Local", "", null],
+          "description": "Kubernetes Service externalTrafficPolicy (Cluster or Local)"
+        },
         "extraServicePorts": {
           "type": "array",
           "description": "Additional ports to expose on the Service in addition to the default http port",
