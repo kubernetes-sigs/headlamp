@@ -128,6 +128,33 @@ describe('apiProxy', () => {
       nock.cleanAll();
     });
 
+    it('keeps a public write on the connection selected before kubeconfig lookup', async () => {
+      const revision = vi
+        .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+        .mockReturnValue('same:1');
+      const lookup = Promise.withResolvers<null>();
+      const findKubeconfig = vi
+        .spyOn(statelessKubeconfig, 'findKubeconfigByClusterName')
+        .mockReturnValueOnce(lookup.promise);
+      const request = nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/default/pods`)
+        .query(true)
+        .reply(201, mockResponse);
+      try {
+        const write = apiProxy.post('/api/v1/namespaces/default/pods', { kind: 'Pod' }, true, {
+          cluster: clusterName,
+        });
+        revision.mockReturnValue('same:2');
+        lookup.resolve(null);
+
+        await expect(write).rejects.toMatchObject({ status: 409 });
+        expect(request.isDone()).toBe(false);
+      } finally {
+        revision.mockRestore();
+        findKubeconfig.mockRestore();
+      }
+    });
+
     it('Successfully makes a request', async () => {
       nock(baseApiUrl).get(testPath).reply(200, mockResponse);
 
@@ -232,6 +259,26 @@ describe('apiProxy', () => {
   describe('apiFactory, apiFactoryWithNamespace', () => {
     let cb: Mock;
     let errCb: Mock;
+
+    it('includes the selected route in a public write with existing query parameters', async () => {
+      const revision = vi
+        .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+        .mockReturnValue('same:1');
+      const request = nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/default/pods`)
+        .query({ dryRun: 'All', __headlamp_connection_revision: 'same' })
+        .reply(201, mockResponse);
+      try {
+        await expect(
+          apiProxy.post('/api/v1/namespaces/default/pods?dryRun=All', { kind: 'Pod' }, true, {
+            cluster: clusterName,
+          })
+        ).resolves.toEqual(mockResponse);
+        expect(request.isDone()).toBe(true);
+      } finally {
+        revision.mockRestore();
+      }
+    });
 
     beforeEach(() => {
       nock(baseApiUrl)
@@ -765,7 +812,6 @@ describe('apiProxy', () => {
       mockServer.on('connection', connected);
       apiProxy.stream(testPath, cb, {
         cluster: clusterName,
-        expectedDiscoveryConnection: { revision: 'same:1' },
         failCb,
       });
 
@@ -779,9 +825,12 @@ describe('apiProxy', () => {
       const revision = vi
         .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
         .mockReturnValue('same:1');
+      mockServer.close();
+      mockServer = new WS(
+        `${wsUrl}clusters/${clusterName}${testPath}?__headlamp_connection_revision=same`
+      );
       const socket = apiProxy.stream(testPath, cb, {
         cluster: clusterName,
-        expectedDiscoveryConnection: { revision: 'same:1' },
         isJson: true,
       });
 

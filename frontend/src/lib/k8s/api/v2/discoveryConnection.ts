@@ -63,6 +63,19 @@ export function withDiscoveryConnectionRevision<T extends object>(params: T, rev
   return routingRevision ? { ...params, __headlamp_connection_revision: routingRevision } : params;
 }
 
+/** Pin a path supplied by a low-level API caller, preserving an explicitly selected route. */
+export function withDiscoveryConnectionPath(path: string, revision?: string) {
+  const routingRevision = getRoutingRevision(revision);
+  if (!routingRevision) return path;
+
+  const queryIndex = path.indexOf('?');
+  const param = '__headlamp_connection_revision';
+  if (queryIndex >= 0 && new URLSearchParams(path.slice(queryIndex + 1)).has(param)) return path;
+
+  const separator = queryIndex < 0 ? '?' : '&';
+  return path + separator + new URLSearchParams({ [param]: routingRevision });
+}
+
 /** Carry the local revision through async request setup without sending it on the wire. */
 export function bindDiscoveryConnection<T extends object>(params: T, revision?: string) {
   const query = withDiscoveryConnectionRevision({ ...params }, revision);

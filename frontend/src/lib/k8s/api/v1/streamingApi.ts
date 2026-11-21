@@ -26,9 +26,9 @@ import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevis
 import type { DiscoveryConnectionRequest } from '../v2/discoveryConnection';
 import {
   assertCurrentDiscoveryConnection,
-  discoveryRequestOptions,
   getDiscoveryRequestBinding,
   isDiscoveryConnectionChanged,
+  withDiscoveryConnectionPath,
 } from '../v2/discoveryConnection';
 import { clusterRequest } from './clusterRequests';
 import { CLUSTERS_PREFIX } from './constants';
@@ -50,6 +50,15 @@ export type StreamUpdate<T = any> = {
 export type StreamResultsCb<T = any> = (data: T) => void;
 export type StreamUpdatesCb<T = any> = (data: T | StreamUpdate<T>) => void;
 export type StreamErrCb = (err: Error & { status?: number }, cancelStreamFunc?: () => void) => void;
+
+function streamRequestOptions(cluster: string, queryParams?: QueryParameters) {
+  return {
+    cluster,
+    expectedDiscoveryConnection: getDiscoveryRequestBinding(queryParams) ?? {
+      revision: getDiscoveredConnectionRevision(cluster),
+    },
+  };
+}
 
 /**
  * Fetches the data and watches for changes to the data.
@@ -73,6 +82,7 @@ export function streamResult<T extends KubeObjectInterface>(
   let isCancelled = false;
   let socket: ReturnType<typeof stream>;
   const clusterName = cluster || getCluster() || '';
+  const options = streamRequestOptions(clusterName, queryParams);
 
   if (isDebugVerbose('k8s/apiProxy@streamResult')) {
     console.debug('k8s/apiProxy@streamResult', { url, name, queryParams });
@@ -84,12 +94,10 @@ export function streamResult<T extends KubeObjectInterface>(
 
   async function run() {
     try {
-      const options = discoveryRequestOptions(clusterName, queryParams);
       const item = await clusterRequest(`${url}/${name}` + asQuery(queryParams), options);
 
       if (isCancelled) return;
-      const binding = getDiscoveryRequestBinding(queryParams);
-      if (binding) assertCurrentDiscoveryConnection(clusterName, binding.revision);
+      assertCurrentDiscoveryConnection(clusterName, options.expectedDiscoveryConnection.revision);
 
       if (isDebugVerbose('k8s/apiProxy@streamResult run cb(item)')) {
         console.debug('k8s/apiProxy@streamResult run cb(item)', { item });
@@ -165,6 +173,7 @@ export function streamResultsForCluster(
 ): Promise<() => void> {
   const { cb, errCb, cluster = '' } = params;
   const clusterName = cluster || getCluster() || '';
+  const options = streamRequestOptions(clusterName, queryParams);
 
   const results: Record<string, any> = {};
   let isCancelled = false;
@@ -186,12 +195,10 @@ export function streamResultsForCluster(
 
   async function run() {
     try {
-      const options = discoveryRequestOptions(clusterName, queryParams);
       const { kind, items, metadata } = await clusterRequest(url + asQuery(queryParams), options);
 
       if (isCancelled) return;
-      const binding = getDiscoveryRequestBinding(queryParams);
-      if (binding) assertCurrentDiscoveryConnection(clusterName, binding.revision);
+      assertCurrentDiscoveryConnection(clusterName, options.expectedDiscoveryConnection.revision);
 
       add(items, kind);
 
@@ -331,8 +338,12 @@ export interface StreamArgs {
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
   let connection: StreamConnection | null = null;
   let isCancelled = false;
-  const { failCb, expectedDiscoveryConnection } = args;
+  const { failCb } = args;
   const cluster = args.cluster || getCluster() || '';
+  const expectedDiscoveryConnection = args.expectedDiscoveryConnection ?? {
+    revision: getDiscoveredConnectionRevision(cluster),
+  };
+  const streamUrl = withDiscoveryConnectionPath(url, expectedDiscoveryConnection.revision);
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
   const { isJson = false, additionalProtocols, connectCb, reconnectOnFailure = !failCb } = args;
 
@@ -356,11 +367,9 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   async function connect() {
     if (isCancelled) return;
     try {
-      if (expectedDiscoveryConnection) {
-        assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
-      }
+      assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
       if (connectCb) connectCb();
-      const next = await connectStreamWithParams(url, cb, onFail, {
+      const next = await connectStreamWithParams(streamUrl, cb, onFail, {
         cluster,
         isJson,
         additionalProtocols,

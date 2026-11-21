@@ -28,10 +28,12 @@ import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
+import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
 import type { DiscoveryConnectionRequest } from '../v2/discoveryConnection';
 import {
   assertCurrentDiscoveryConnection,
   getDiscoveryRequestBinding,
+  withDiscoveryConnectionPath,
 } from '../v2/discoveryConnection';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
@@ -133,7 +135,7 @@ export async function clusterRequest(
     cluster: paramsCluster,
     autoLogoutOnAuthError = true,
     isJSON = true,
-    expectedDiscoveryConnection = getDiscoveryRequestBinding(queryParams),
+    expectedDiscoveryConnection: boundConnection = getDiscoveryRequestBinding(queryParams),
     ...otherParams
   } = params;
 
@@ -147,6 +149,9 @@ export async function clusterRequest(
   });
   const opts = { ...otherParams, headers };
   const cluster = paramsCluster || '';
+  const expectedDiscoveryConnection =
+    boundConnection ??
+    (cluster ? { revision: getDiscoveredConnectionRevision(cluster) } : undefined);
 
   let fullPath = path;
   if (cluster) {
@@ -166,8 +171,10 @@ export async function clusterRequest(
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
-  let url = combinePath(getAppUrl(), fullPath);
-  url += asQuery(queryParams);
+  const url = withDiscoveryConnectionPath(
+    combinePath(getAppUrl(), fullPath) + asQuery(queryParams),
+    expectedDiscoveryConnection?.revision
+  );
   const requestData = {
     signal: controller.signal,
     credentials: 'include' as RequestCredentials,
