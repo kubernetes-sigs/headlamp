@@ -260,7 +260,9 @@ func (r *CacheRead) Store(response *ResponseCapture) error {
 		return nil
 	}
 
-	return r.watcher.cache.SetWithTTL(context.Background(), r.key, encoded, responseTTL)
+	_, err = storeWithinLimits(r.watcher.cache, r.key, encoded, responseTTL)
+
+	return err
 }
 
 // run keeps the watch going until ctx is cancelled or the watcher is replaced, retrying
