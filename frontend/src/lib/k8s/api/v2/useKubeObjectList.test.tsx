@@ -2372,6 +2372,96 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     }
   });
 
+  it('preserves a background LIST failure when the watch fails and recovers', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const client = new QueryClient();
+    const forbidden = new ApiError('LIST is forbidden', { status: 403 });
+    mockClusterFetch.mockResolvedValueOnce(podListPage('pod-1', '1'));
+    const requests = [{ cluster: 'discovered' }];
+    const wrapper = queryClientWrapper(client);
+    const watching = renderHook(() => useKubeObjectList({ kubeObjectClass: mockClass, requests }), {
+      wrapper,
+    });
+    const listing = renderHook(
+      () => useKubeObjectList({ kubeObjectClass: mockClass, requests, watch: false }),
+      { wrapper }
+    );
+    const watch = () =>
+      mockUseWebSockets.mock.calls.findLast(([options]) => options.connections.length > 0)?.[0]
+        .connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      mockClusterFetch.mockRejectedValueOnce(forbidden);
+      await act(async () => client.invalidateQueries());
+      await waitFor(() => expect(listing.result.current.errors?.[0]).toBe(forbidden));
+
+      act(() => connection.onOpenFailure());
+      expect(connection.cacheEntry.state.data.watchError?.message).toBe(
+        'Unable to open the resource watch'
+      );
+      expect(connection.cacheEntry.state.status).toBe('error');
+      expect(watching.result.current.errors?.[0]).toBe(forbidden);
+      expect(listing.result.current.errors?.[0]).toBe(forbidden);
+
+      act(() => {
+        connection.onOpen();
+        connection.onMessage({ type: 'ADDED', object: makePod('pod-2', '2') });
+      });
+      expect(connection.cacheEntry.state.data.watchError).toBeUndefined();
+      expect(connection.cacheEntry.state.status).toBe('error');
+      expect(listing.result.current.errors?.[0]).toBe(forbidden);
+    } finally {
+      listing.unmount();
+      watching.unmount();
+      restoreClusters();
+    }
+  });
+
+  it('starts a recovery LIST after a rejected upgrade while an ordinary refetch is pending', async () => {
+    const restoreClusters = registerDiscoveredCluster();
+    const client = new QueryClient();
+    const oldRefetch = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(podListPage('pod-old', '1'))
+      .mockReturnValueOnce(oldRefetch.promise)
+      .mockResolvedValueOnce(podListPage('pod-new', '10'));
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({ kubeObjectClass: mockClass, requests: [{ cluster: 'discovered' }] }),
+      { wrapper: queryClientWrapper(client) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      const connection = watch();
+      const pending = client.invalidateQueries();
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+      expect(mockClusterFetch.mock.calls[1][1].headers).toBeUndefined();
+
+      await act(async () => {
+        connection.onOpenFailure();
+        await expect(connection.getWatchUrl(true)).resolves.toBe(
+          'api/v1/pods?watch=1&resourceVersion=10'
+        );
+      });
+      expect(mockClusterFetch.mock.calls[1][1].signal?.aborted).toBe(true);
+      expect(mockClusterFetch.mock.calls[2][1].headers).toEqual({ 'Cache-Control': 'no-cache' });
+      await act(async () => {
+        oldRefetch.resolve(podListPage('pod-old', '1'));
+        await pending;
+      });
+      expect(connection.cacheEntry.state.data.list.items[0].metadata.name).toBe('pod-new');
+      await waitFor(() => expect(result.current.items?.[0].metadata.name).toBe('pod-new'));
+    } finally {
+      oldRefetch.resolve(podListPage('pod-old', '1'));
+      unmount();
+      restoreClusters();
+    }
+  });
+
   it('waits for the replacement LIST while the query is offline', async () => {
     const restoreClusters = registerDiscoveredCluster();
     const client = new QueryClient();

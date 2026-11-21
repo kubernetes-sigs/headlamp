@@ -390,9 +390,11 @@ function setListWatchError<K extends KubeObject>(
   queryKey: QueryKey,
   error?: ListWatchError
 ) {
-  const cached = client.getQueryData<ListResponse<K>>(queryKey);
-  if (cached && cached.watchError !== error) {
-    client.setQueryData(queryKey, { ...cached, watchError: error });
+  const entry = client.getQueryCache().find<ListResponse<K>>({ queryKey, exact: true });
+  const cached = entry?.state.data;
+  if (entry && cached && cached.watchError !== error) {
+    // A watch state change must not turn a failed LIST into a successful read.
+    entry.setState({ data: { ...cached, watchError: error } });
   }
 }
 
@@ -577,21 +579,15 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         return;
       }
 
-      // Update React Query cache with new data
-      client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
-        if (!oldResponse) {
-          return oldResponse;
-        }
-
-        const newList = KubeList.applyUpdate(oldResponse.list, update, kubeObjectClass, cluster);
-
-        // Only update if the list actually changed
-        if (newList === oldResponse.list && !oldResponse.watchError) {
-          return oldResponse;
-        }
-
-        return { ...oldResponse, list: newList, watchError: undefined };
-      });
+      const entry = client
+        .getQueryCache()
+        .find<ListResponse<KubeObject>>({ queryKey, exact: true });
+      const cached = entry?.state.data;
+      if (!entry || !cached) return;
+      const list = KubeList.applyUpdate(cached.list, update, kubeObjectClass, cluster);
+      if (list !== cached.list || cached.watchError) {
+        entry.setState({ data: { ...cached, list, watchError: undefined } });
+      }
     },
     [client, kubeObjectClass, endpoint, pinned]
   );
@@ -796,8 +792,11 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             return;
           }
 
-          const cached = client.getQueryData<ListResponse<K>>(queryKey);
-          if (!cached) return;
+          const entry = client
+            .getQueryCache()
+            .find<ListResponse<KubeObject>>({ queryKey, exact: true });
+          const cached = entry?.state.data;
+          if (!entry || !cached) return;
 
           const list = KubeList.applyUpdate(
             cached.list,
@@ -810,16 +809,18 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
 
           const objectChanged =
             update.type === 'ADDED' || update.type === 'MODIFIED' || update.type === 'DELETED';
-          if (objectChanged && client.getQueryState(queryKey)?.fetchStatus !== 'idle') {
+          if (objectChanged && entry.state.fetchStatus !== 'idle') {
             // An earlier LIST must not replace a newer update from the same watch.
             void client.cancelQueries({ queryKey, exact: true });
           }
 
-          client.setQueryData(queryKey, {
-            ...cached,
-            watchStartResourceVersion:
-              cached.watchStartResourceVersion ?? cached.list.metadata.resourceVersion,
-            list,
+          entry.setState({
+            data: {
+              ...cached,
+              watchStartResourceVersion:
+                cached.watchStartResourceVersion ?? cached.list.metadata.resourceVersion,
+              list,
+            },
           });
         },
       };

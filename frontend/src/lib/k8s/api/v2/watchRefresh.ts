@@ -37,7 +37,8 @@ export function refreshWatchQuery(
   const pending = event ? eventRefreshes.get(event) : activeRefreshes.get(cacheEntry);
   if (pending) return pending;
 
-  if (event) void client.cancelQueries(filters);
+  // A request already in flight may have started before recovery was marked.
+  void client.cancelQueries(filters);
   beforeRead?.();
 
   const request = Promise.resolve().then(async () => {
