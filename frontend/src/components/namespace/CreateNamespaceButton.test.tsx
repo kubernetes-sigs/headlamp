@@ -20,7 +20,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 import * as cluster from '../../lib/cluster';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import * as discoveredRevisions from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
-import { DISCOVERY_CONNECTION_CHANGED } from '../../lib/k8s/api/v2/discoveryConnection';
+import {
+  DISCOVERY_CONNECTION_CHANGED,
+  getDiscoveryRequestBinding,
+} from '../../lib/k8s/api/v2/discoveryConnection';
 import Namespace from '../../lib/k8s/namespace';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { TestContext } from '../../test';
@@ -39,11 +42,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it('uses the connection selected before namespace creation was deferred', async () => {
+it('keeps the captured revision and reports a proxy connection error', async () => {
   vi.spyOn(cluster, 'getCluster').mockReturnValue('discovered');
-  const revision = vi
-    .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
-    .mockReturnValue('original:1');
+  vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('original:1');
   const post = vi
     .spyOn(Namespace.apiEndpoint, 'post')
     .mockRejectedValue(new ApiError(`Conflict - ${DISCOVERY_CONNECTION_CHANGED}`, { status: 409 }));
@@ -57,7 +58,6 @@ it('uses the connection selected before namespace creation was deferred', async 
   fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'example' } });
   fireEvent.click(screen.getByTestId('create-namespace-dialog-create-button'));
 
-  revision.mockReturnValue('replacement:2');
   const [create] = vi.mocked(clusterAction).mock.lastCall!;
   await act(async () => {
     await expect(create()).rejects.toThrow(DISCOVERY_CONNECTION_CHANGED);
@@ -68,5 +68,43 @@ it('uses the connection selected before namespace creation was deferred', async 
     { __headlamp_connection_revision: 'original' },
     'discovered'
   );
+  expect(getDiscoveryRequestBinding(post.mock.calls[0][1])).toEqual({ revision: 'original:1' });
   expect(screen.queryByText('A namespace with this name already exists.')).toBeNull();
 });
+
+it.each([
+  { beforeConfirmation: true, initial: 'original:1', replacement: 'original:2' },
+  { beforeConfirmation: false, initial: 'original:1', replacement: 'original:2' },
+  { beforeConfirmation: false, initial: undefined, replacement: 'original:1' },
+])(
+  'rejects a namespace create after the connection changes (before confirm: $beforeConfirmation, initial: $initial)',
+  async ({ beforeConfirmation, initial, replacement }) => {
+    vi.spyOn(cluster, 'getCluster').mockReturnValue('selected');
+    const revision = vi
+      .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+      .mockReturnValue(initial);
+    const post = vi.spyOn(Namespace.apiEndpoint, 'post').mockResolvedValue({});
+    render(
+      <TestContext>
+        <CreateNamespaceButton />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('Create Namespace'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'example' },
+    });
+    if (beforeConfirmation) revision.mockReturnValue(replacement);
+    fireEvent.click(screen.getByTestId('create-namespace-dialog-create-button'));
+    revision.mockReturnValue(replacement);
+
+    const [create] = vi.mocked(clusterAction).mock.lastCall!;
+    await act(async () => {
+      await expect(create()).rejects.toMatchObject({
+        status: 409,
+        message: DISCOVERY_CONNECTION_CHANGED,
+      });
+    });
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.queryByText('A namespace with this name already exists.')).toBeNull();
+  }
+);

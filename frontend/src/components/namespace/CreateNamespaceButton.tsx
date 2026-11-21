@@ -27,8 +27,9 @@ import { useDispatch } from 'react-redux';
 import { getCluster } from '../../lib/cluster';
 import { getDiscoveredConnectionRevision } from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
+  assertCurrentDiscoveryConnection,
+  bindDiscoveryConnection,
   isDiscoveryConnectionChanged,
-  withDiscoveryConnectionRevision,
 } from '../../lib/k8s/api/v2/discoveryConnection';
 import Namespace from '../../lib/k8s/namespace';
 import { clusterAction } from '../../redux/clusterActionSlice';
@@ -41,16 +42,18 @@ export default function CreateNamespaceButton() {
   const { t } = useTranslation(['glossary', 'translation']);
   const [namespaceName, setNamespaceName] = useState('');
   const [namespaceDialogOpen, setNamespaceDialogOpen] = useState(false);
+  const [namespaceConnection, setNamespaceConnection] = useState<{
+    cluster: string;
+    revision?: string;
+  }>();
   const [namespaceExistsError, setNamespaceExistsError] = useState(false);
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
 
   function createNewNamespace() {
-    const cluster = getCluster() || '';
-    const query = withDiscoveryConnectionRevision(
-      {},
-      cluster ? getDiscoveredConnectionRevision(cluster) : undefined
-    );
+    if (!namespaceConnection) return;
+    const { cluster, revision } = namespaceConnection;
+    const query = bindDiscoveryConnection({}, revision);
     const newNamespaceData = {
       apiVersion: 'v1',
       kind: 'Namespace',
@@ -63,6 +66,7 @@ export default function CreateNamespaceButton() {
 
     async function namespaceRequest() {
       try {
+        assertCurrentDiscoveryConnection(cluster, revision);
         const response = await Namespace.apiEndpoint.post(newNamespaceData, query, cluster);
         setNamespaceName('');
         return response;
@@ -128,6 +132,8 @@ export default function CreateNamespaceButton() {
         description={t('translation|Create Namespace')}
         icon={'mdi:plus-circle'}
         onClick={() => {
+          const cluster = getCluster() || '';
+          setNamespaceConnection({ cluster, revision: getDiscoveredConnectionRevision(cluster) });
           setNamespaceDialogOpen(true);
         }}
       />
