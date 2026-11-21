@@ -20,6 +20,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import * as discoveredRevisions from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import { recordDiscoveryConnection } from '../../../lib/k8s/api/v2/discoveryConnection';
 import Deployment from '../../../lib/k8s/deployment';
+import type { RollbackResult } from '../../../lib/k8s/rollback';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import { TestContext } from '../../../test';
 import RollbackButton from './RollbackButton';
@@ -34,6 +35,44 @@ vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
 }));
 
 afterEach(() => vi.restoreAllMocks());
+
+it.each(['before preview', 'during preview'])(
+  'rejects preview for an unstamped workload when the connection changes %s',
+  async when => {
+    const original = new Deployment(Deployment.getBaseObject(), 'discovered');
+    const revision = vi
+      .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+      .mockReturnValue('same:1');
+    vi.spyOn(original, 'getRevisionHistory').mockResolvedValue([
+      { revision: 1, createdAt: '2026-01-01T00:00:00Z', images: [], isCurrent: false },
+    ]);
+    const pending = Promise.withResolvers<RollbackResult>();
+    const rollback = vi.spyOn(original, 'rollback').mockReturnValue(pending.promise);
+    render(
+      <TestContext>
+        <RollbackButton item={original} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('Rollback'));
+    const preview = await screen.findByRole('button', { name: /preview/i });
+    await waitFor(() => expect(preview).toBeEnabled());
+
+    if (when === 'before preview') {
+      revision.mockReturnValue('same:2');
+      fireEvent.click(preview);
+      expect(rollback).not.toHaveBeenCalled();
+    } else {
+      fireEvent.click(preview);
+      expect(rollback).toHaveBeenCalledWith({ toRevision: 1, dryRun: true });
+      revision.mockReturnValue('same:2');
+      await act(async () =>
+        pending.resolve({ success: true, message: 'ok', dryRunResult: Deployment.getBaseObject() })
+      );
+    }
+
+    expect(await screen.findByText(/discovered cluster connection changed/i)).toBeInTheDocument();
+  }
+);
 
 it('does not roll back a replacement workload from the already open dialog', async () => {
   const cluster = 'discovered';

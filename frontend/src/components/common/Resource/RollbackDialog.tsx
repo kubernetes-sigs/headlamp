@@ -31,10 +31,9 @@ import Typography from '@mui/material/Typography';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
-import type { RevisionInfo } from '../../../lib/k8s/rollback';
+import type { RevisionInfo, RollbackResult } from '../../../lib/k8s/rollback';
 import { DateLabel } from '../Label';
 import DryRunPreviewDialog from './DryRunPreviewDialog';
-import type { RollbackableResource } from './RollbackButton';
 
 interface RollbackDialogProps {
   /** Whether the dialog is open */
@@ -43,14 +42,14 @@ interface RollbackDialogProps {
   resourceKind: string;
   /** The name of the resource */
   resourceName: string;
-  /** The resource instance (needed for dry-run) */
-  resource: RollbackableResource;
   /** Function to fetch revision history */
   getRevisionHistory: () => Promise<RevisionInfo[]>;
   /** Callback when dialog is closed (cancelled) */
   onClose: () => void;
   /** Callback when user confirms rollback with selected revision (undefined = previous) */
   onConfirm: (toRevision?: number) => void;
+  /** Dry-run the rollback on the connection selected when the dialog opened. */
+  onPreview: (toRevision: number) => Promise<RollbackResult>;
 }
 
 /**
@@ -61,7 +60,7 @@ interface RollbackDialogProps {
  * and shows the full resulting resource YAML in a read-only editor.
  */
 export default function RollbackDialog(props: RollbackDialogProps) {
-  const { open, resourceKind, resourceName, resource, getRevisionHistory, onClose, onConfirm } =
+  const { open, resourceKind, resourceName, getRevisionHistory, onClose, onConfirm, onPreview } =
     props;
   const { t } = useTranslation(['translation']);
 
@@ -142,10 +141,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
     setPreviewData(null);
 
     try {
-      const result = await resource.rollback({
-        toRevision: selectedRevision,
-        dryRun: true,
-      });
+      const result = await onPreview(selectedRevision);
 
       if (currentRequestId !== previewRequestId.current || !open) {
         return;
