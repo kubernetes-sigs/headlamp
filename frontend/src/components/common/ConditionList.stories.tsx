@@ -26,26 +26,23 @@ export default {
 
 // Transition/update times are intentionally omitted: ConditionList renders them via DateLabel
 // (absolute, timezone-dependent), so including them would make the snapshots differ between a
-// local run and CI. lastProbeTime is required by the type but never rendered.
+// local run and CI.
 const CONDITIONS: KubeCondition[] = [
   {
     type: 'Ready',
     status: 'True',
-    lastProbeTime: null,
     reason: 'PodReady',
     message: 'Pod is ready',
   },
   {
     type: 'PodScheduled',
     status: 'False',
-    lastProbeTime: null,
     reason: 'Unschedulable',
     message: 'No nodes available',
   },
   {
     type: 'Initialized',
     status: 'Unknown',
-    lastProbeTime: null,
   },
 ];
 

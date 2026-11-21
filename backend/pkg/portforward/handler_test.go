@@ -193,8 +193,8 @@ func TestStartPortForward(t *testing.T) {
 	stopResp := httptest.NewRecorder()
 
 	stopReqPayload := map[string]interface{}{
-		"id":           id,
-		"stopOrDelete": true,
+		"id":       id,
+		"justStop": true,
 	}
 
 	jsonStopReq, err := json.Marshal(stopReqPayload)
@@ -304,8 +304,8 @@ func TestStartPortForward(t *testing.T) {
 	deleteResp := httptest.NewRecorder()
 
 	deleteReqPayload := map[string]interface{}{
-		"id":           id,
-		"stopOrDelete": false,
+		"id":       id,
+		"justStop": false,
 	}
 
 	jsonDeleteReq, err := json.Marshal(deleteReqPayload)
