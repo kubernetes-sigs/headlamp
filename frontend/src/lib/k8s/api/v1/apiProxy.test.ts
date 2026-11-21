@@ -27,6 +27,7 @@ import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import * as cluster from '../../../cluster';
 import { encodeClusterPath } from '../../../oidcLogout';
 import * as apiProxy from '../../apiProxy';
+import * as discoveredRevisions from '../v2/discoveredConnectionRevisions';
 
 const baseApiUrl = getAppUrl();
 const wsUrl = baseApiUrl.replace('http', 'ws');
@@ -1277,6 +1278,21 @@ describe('apiProxy', () => {
           'desktop-token'
         );
         expect(options.body).toEqual(JSON.stringify({ cluster: clusterName, nodeName }));
+      });
+
+      it('pins a drain requested by name to the current discovered connection', async () => {
+        const revision = vi
+          .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+          .mockReturnValue('original:1');
+        try {
+          await expect(apiProxy.drainNode(clusterName, nodeName)).resolves.toEqual(mockResponse);
+          const [path] = (fetch as Mock).mock.lastCall!;
+          expect(path).toBe(
+            `${baseApiUrl}clusters/${clusterName}/drain-node?__headlamp_connection_revision=original`
+          );
+        } finally {
+          revision.mockRestore();
+        }
       });
 
       it('Successfully handles drainNode with error', async () => {

@@ -1548,8 +1548,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.Handle("/drain-node",
 		config.authenticatedHandler(http.HandlerFunc(config.handleNodeDrain))).Methods("POST")
 	r.Handle("/drain-node-status",
-		config.authenticatedHandler(http.HandlerFunc(
-			config.handleNodeDrainStatus))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
+		config.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(
+			config.handleNodeDrainStatus)))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
 		// Shadow createHeadlampHandler's outer-scope err so any log call in
@@ -2557,9 +2557,9 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/drain-node",
-		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrain))).Methods("POST")
+		c.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(c.handleNodeDrain)))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/drain-node-status",
-		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrainStatus))).Methods("GET")
+		c.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(c.handleNodeDrainStatus)))).Methods("GET")
 	router.Handle("/encoded-clusters/{encodedClusterName}/clear-token",
 		c.authenticatedHandler(http.HandlerFunc(c.handleClearToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/set-token",
@@ -2580,24 +2580,33 @@ const discoveryConnectionRevisionParam = "__headlamp_connection_revision"
 // Authentication already resolved the request's connection for the cache and proxy.
 func requireMatchingDiscoveryConnection(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		params := r.URL.Query()
-		if expected := params.Get(discoveryConnectionRevisionParam); expected != "" {
-			resolved, _ := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext)
-			if resolved.context == nil || resolved.context.Discovery == nil ||
-				resolved.context.Discovery.ConnectionRevision != expected {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusConflict)
-				_, _ = io.WriteString(w, `{"message":"Discovered cluster connection changed"}`)
-
-				return
-			}
-
-			params.Del(discoveryConnectionRevisionParam)
-			r.URL.RawQuery = params.Encode()
+		resolved, _ := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext)
+		if validateDiscoveryConnectionRevision(w, r, resolved.context) {
+			next.ServeHTTP(w, r)
 		}
-
-		next.ServeHTTP(w, r)
 	})
+}
+
+func validateDiscoveryConnectionRevision(w http.ResponseWriter, r *http.Request, connection *kubeconfig.Context) bool {
+	params := r.URL.Query()
+
+	expected := params.Get(discoveryConnectionRevisionParam)
+	if expected == "" {
+		return true
+	}
+
+	if connection == nil || connection.Discovery == nil || connection.Discovery.ConnectionRevision != expected {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = io.WriteString(w, `{"message":"Discovered cluster connection changed"}`)
+
+		return false
+	}
+
+	params.Del(discoveryConnectionRevisionParam)
+	r.URL.RawQuery = params.Encode()
+
+	return true
 }
 
 func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request) {
@@ -3614,7 +3623,7 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	ctxtProxy, err := c.KubeConfigStore.GetContext(contextKey)
+	contextKey, ctxtProxy, err := c.getContextWithWebSocketFallback(r, contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "Cluster not found", http.StatusNotFound)
 
@@ -3629,6 +3638,12 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		c.handleError(w, ctx, span, errors.New("user authentication is required"),
 			"missing drain credentials", http.StatusUnauthorized)
 
+		return
+	}
+
+	// Legacy submissions carry the cluster in the body, so the connection is
+	// resolved here instead of in the cluster-scoped middleware.
+	if mux.Vars(r)["clusterName"] == "" && !validateDiscoveryConnectionRevision(w, r, ctxtProxy) {
 		return
 	}
 
@@ -3655,7 +3670,8 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	// The drain can take minutes and runs in the background. drainNode publishes its status before it
 	// returns, so the client's first poll finds one instead of a 404. Starting it before the response is
 	// written also means a request that joins a running drain does not touch that drain's status.
-	c.drainNode(serverCtx, clientset, drainPayload.NodeName, contextKey)
+	cacheKey := drainCacheKey(drainPayload.NodeName, contextKey, ctxtProxy)
+	c.drainNode(serverCtx, clientset, drainPayload.NodeName, cacheKey)
 
 	if err = json.NewEncoder(w).Encode(responsePayload); err != nil {
 		c.handleError(w, ctx, span, err, "writing response", http.StatusInternalServerError)
@@ -3664,9 +3680,14 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// drainCacheKey is the cache key under which the status of draining a node is kept.
-func drainCacheKey(nodeName, contextKey string) string {
-	return uuid.NewSHA1(uuid.Nil, []byte(nodeName+"\x00"+contextKey)).String()
+// drainCacheKey scopes a drain and its status to the connection that owns it.
+func drainCacheKey(nodeName, contextKey string, connection *kubeconfig.Context) string {
+	key := nodeName + "\x00" + contextKey
+	if connection != nil && connection.Discovery != nil && connection.Discovery.ConnectionRevision != "" {
+		key += "\x00" + connection.Discovery.ConnectionRevision
+	}
+
+	return uuid.NewSHA1(uuid.Nil, []byte(key)).String()
 }
 
 // setDrainStatus stores the status of a drain. Until the drain finishes, the status is
@@ -3679,13 +3700,11 @@ func (c *HeadlampConfig) drainNode(
 	ctx context.Context,
 	clientset kubernetes.Interface,
 	nodeName string,
-	contextKey string,
+	cacheKey string,
 ) {
 	if ctx.Err() != nil {
 		return
 	}
-
-	cacheKey := drainCacheKey(nodeName, contextKey)
 
 	// A drain of this node is already running. It keeps the status up to date, and a second one would
 	// renew it independently and could overwrite or publish a result while the first is still going.
@@ -4113,7 +4132,8 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	cacheKey := drainCacheKey(drainPayload.NodeName, contextKey)
+	_, connection, _ := c.getContextWithWebSocketFallback(r, contextKey)
+	cacheKey := drainCacheKey(drainPayload.NodeName, contextKey, connection)
 
 	cacheItem, err := c.Cache.Get(ctx, cacheKey)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -149,6 +150,107 @@ func cacheConnectionRequest(t *testing.T, router http.Handler, method, token str
 	return response
 }
 
+func TestDiscoveredDrainRejectsChangedConnection(t *testing.T) {
+	var requests atomic.Int32
+
+	upstream, _ := newCacheConnectionServer(t, "pod", "user", func(*http.Request) { requests.Add(1) })
+	connection := cacheConnectionContext(t, upstream, kubeconfig.ClusterInventory)
+	connection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "replacement"}
+	cfg := newDrainAuthConfig(t, connection)
+	cfg.KubeConfigDir = t.TempDir()
+	cfg.KubeConfigPath = filepath.Join(cfg.KubeConfigDir, "missing")
+	router := createHeadlampHandler(t.Context(), cfg)
+
+	for _, path := range []string{"/clusters/cache-switch/drain-node", "/drain-node"} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				path+"?"+discoveryConnectionRevisionParam+"=original",
+				strings.NewReader(`{"cluster":"cache-switch","nodeName":"node-a"}`))
+			req.Header.Set("Authorization", "Bearer user")
+			req.Header.Set("Content-Type", "application/json")
+
+			res := httptest.NewRecorder()
+			router.ServeHTTP(res, req)
+
+			require.Equal(t, http.StatusConflict, res.Code)
+			require.Zero(t, requests.Load())
+		})
+	}
+}
+
+//nolint:funlen // Exercises drain submission and polling across two mock clusters.
+func TestDiscoveredDrainKeepsStatusWithItsConnection(t *testing.T) {
+	originalStarted := make(chan struct{})
+	original, _ := newCacheConnectionServer(t, "pod", "user", func(r *http.Request) {
+		if r.URL.Path == "/api/v1/nodes/node-a" {
+			close(originalStarted)
+			<-r.Context().Done()
+		}
+	})
+	replacement := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/api/v1/nodes/node-a":
+			_, _ = w.Write([]byte(`{"kind":"Node","apiVersion":"v1","metadata":{"name":"node-a"}}`))
+		case "/api/v1/pods":
+			_, _ = w.Write([]byte(`{"kind":"PodList","apiVersion":"v1","items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(replacement.Close)
+
+	originalConnection := cacheConnectionContext(t, original, kubeconfig.ClusterInventory)
+	originalConnection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "original"}
+	cfg, router := cacheConnectionRouter(t, originalConnection)
+	cfg.ServerCtx = t.Context()
+
+	request := func(method, path, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequestWithContext(t.Context(), method, "/clusters/cache-switch"+path,
+			strings.NewReader(body))
+		r.Header.Set("Authorization", "Bearer user")
+		r.Header.Set("Content-Type", "application/json")
+
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, r)
+
+		return response
+	}
+
+	const (
+		payload    = `{"cluster":"cache-switch","nodeName":"node-a"}`
+		statusPath = "/drain-node-status?nodeName=node-a"
+	)
+
+	require.Equal(t, http.StatusOK, request(http.MethodPost, "/drain-node", payload).Code)
+
+	select {
+	case <-originalStarted:
+	case <-time.After(time.Second):
+		t.Fatal("original drain did not start")
+	}
+
+	originalStatus := request(http.MethodGet, statusPath, "")
+	require.Equal(t, http.StatusOK, originalStatus.Code)
+	require.Contains(t, originalStatus.Body.String(), drainStatusInProgress)
+
+	replacementConnection := cacheConnectionContext(t, replacement, kubeconfig.ClusterInventory)
+	replacementConnection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "replacement"}
+	require.NoError(t, cfg.KubeConfigStore.AddContext(replacementConnection))
+
+	require.Equal(t, http.StatusConflict, request(http.MethodGet,
+		statusPath+"&"+discoveryConnectionRevisionParam+"=original", "").Code)
+	require.Equal(t, http.StatusNotFound, request(http.MethodGet, statusPath, "").Code)
+
+	require.Equal(t, http.StatusOK, request(http.MethodPost, "/drain-node", payload).Code)
+	require.Eventually(t, func() bool {
+		response := request(http.MethodGet, statusPath+"&"+discoveryConnectionRevisionParam+"=replacement", "")
+
+		return response.Code == http.StatusOK && strings.Contains(response.Body.String(), `"id":"success"`)
+	}, time.Second, 10*time.Millisecond)
+}
+
 func TestDiscoveredRequestsUseTheExpectedConnection(t *testing.T) {
 	first, _ := newCacheConnectionServer(t, "first-pod", "user", func(r *http.Request) {
 		assert.False(t, r.URL.Query().Has(discoveryConnectionRevisionParam))
@@ -188,7 +290,7 @@ func TestDiscoveredRequestsUseTheExpectedConnection(t *testing.T) {
 	require.JSONEq(t, `{"message":"Discovered cluster connection changed"}`, conflict.Body.String())
 	require.Equal(t, http.StatusConflict, request(http.MethodGet, true).Code)
 
-	for _, method := range []string{http.MethodPatch, http.MethodPut, http.MethodDelete} {
+	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete} {
 		require.Equal(t, http.StatusConflict, request(method, false).Code)
 	}
 

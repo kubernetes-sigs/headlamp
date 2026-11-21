@@ -65,7 +65,9 @@ func (c *HeadlampConfig) resolveRequestContext(
 			return r, nil
 		}
 
-		return r, kContext
+		resolved := resolvedClusterContext{key: clusterName, context: kContext}
+
+		return r.WithContext(context.WithValue(r.Context(), resolvedClusterContextKey{}, resolved)), kContext
 	}
 
 	contextKey, err := c.getContextKeyForRequest(r)
