@@ -241,12 +241,14 @@ describe('AuthVisible', () => {
           },
         })
       );
+    const lateGrant = Promise.withResolvers<{ status: { allowed: boolean } }>();
     const subject = {
       apiName: 'pods',
       apiVersion: 'v1',
       getAuthorization: vi
         .fn()
         .mockResolvedValueOnce({ status: { allowed: true } })
+        .mockReturnValueOnce(lateGrant.promise)
         .mockResolvedValueOnce({ status: { allowed: false, reason: 'Denied on replacement' } }),
     };
     const retained = {
@@ -278,6 +280,12 @@ describe('AuthVisible', () => {
       await screen.findByText('Create pod');
       await screen.findByText('Delete retained pod');
       act(() => {
+        void queryClient.invalidateQueries({
+          predicate: query => query.queryKey[0] === 'authVisible' && query.queryKey[4] === 'create',
+        });
+      });
+      await waitFor(() => expect(subject.getAuthorization).toHaveBeenCalledTimes(2));
+      act(() => {
         select('replacement');
       });
       await waitFor(() =>
@@ -286,7 +294,14 @@ describe('AuthVisible', () => {
           reason: 'Denied on replacement',
         })
       );
-      expect(subject.getAuthorization).toHaveBeenCalledTimes(2);
+      expect(subject.getAuthorization).toHaveBeenCalledTimes(3);
+      await act(async () => {
+        lateGrant.resolve({ status: { allowed: true } });
+      });
+      expect(onCreateResult).toHaveBeenLastCalledWith({
+        allowed: false,
+        reason: 'Denied on replacement',
+      });
       expect(screen.queryByText('Create pod')).not.toBeInTheDocument();
       expect(screen.queryByText('Delete retained pod')).not.toBeInTheDocument();
       expect(retained.getAuthorization).toHaveBeenCalledOnce();

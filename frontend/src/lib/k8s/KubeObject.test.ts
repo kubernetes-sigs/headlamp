@@ -565,21 +565,42 @@ describe('KubeObject', () => {
       expect(post).toHaveBeenCalledOnce();
     });
 
-    it('keeps the captured connection revision across authorization API fallback', async () => {
+    it('does not try another authorization API after the connection changes', async () => {
       const revision = vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('original:1');
-      const response = { status: { allowed: true } };
-      vi.mocked(post)
-        .mockImplementationOnce(async () => {
-          revision.mockReturnValue('replacement:2');
-          throw { status: 404 };
-        })
-        .mockResolvedValueOnce(response);
+      vi.mocked(post).mockImplementationOnce(async () => {
+        revision.mockReturnValue('replacement:2');
+        throw { status: 404 };
+      });
 
-      await expect(Widget.fetchAuthorization({ verb: 'get' }, 'east')).resolves.toEqual(response);
+      await expect(Widget.fetchAuthorization({ verb: 'get' }, 'east')).rejects.toMatchObject({
+        status: 409,
+      });
       expect(vi.mocked(post).mock.calls.map(([path]) => path)).toEqual([
         '/apis/authorization.k8s.io/v1/selfsubjectaccessreviews?__headlamp_connection_revision=original',
-        '/apis/authorization.k8s.io/v1beta1/selfsubjectaccessreviews?__headlamp_connection_revision=original',
       ]);
+    });
+
+    it('discards a successful authorization result from a replaced connection', async () => {
+      const revision = vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('original:1');
+      const late = Promise.withResolvers<{ status: { allowed: boolean } }>();
+      vi.mocked(post).mockReturnValueOnce(late.promise);
+      const review = Widget.fetchAuthorization({ verb: 'get' }, 'east');
+      revision.mockReturnValue('replacement:2');
+      late.resolve({ status: { allowed: true } });
+
+      await expect(review).rejects.toMatchObject({ status: 409 });
+    });
+
+    it('does not ask another connection about a retained resource', async () => {
+      vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('replacement:2');
+      const widget = new Widget(data, 'east');
+      recordDiscoveryConnection(widget, 'east', 'original:1');
+
+      await expect(widget.getAuthorization('update')).rejects.toMatchObject({ status: 409 });
+      await expect(widget.getAuthorization('update', {}, 'west')).rejects.toMatchObject({
+        status: 409,
+      });
+      expect(post).not.toHaveBeenCalled();
     });
 
     it('propagates a missing authorization API after both supported versions fail', async () => {

@@ -44,6 +44,7 @@ import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRe
 import {
   createDiscoveryConnectionChangedError,
   getResourceConnectionQuery,
+  getResourceDiscoveryConnection,
   getRoutingRevision,
   recordDiscoveryConnection,
   withDiscoveryConnectionRevision,
@@ -687,8 +688,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     for (let j = 0; j < authApiVersions.length; j++) {
       const authVersion = authApiVersions[j];
 
+      if (requestCluster && getDiscoveredConnectionRevision(requestCluster) !== revision) {
+        throw createDiscoveryConnectionChangedError();
+      }
       try {
-        return await post(
+        const result = await post(
           `/apis/authorization.k8s.io/${authVersion}/selfsubjectaccessreviews${query}`,
           {
             kind: 'SelfSubjectAccessReview',
@@ -700,6 +704,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           false,
           { cluster: requestCluster }
         );
+        if (requestCluster && getDiscoveredConnectionRevision(requestCluster) !== revision) {
+          throw createDiscoveryConnectionChangedError();
+        }
+        return result;
       } catch (err) {
         // If this is the last attempt or the error is not 404, let it throw.
         if ((err as ApiError).status !== 404 || j === authApiVersions.length - 1) {
@@ -768,6 +776,13 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     reqResourseAttrs?: AuthRequestResourceAttrs,
     cluster?: string
   ) {
+    const { cluster: requestCluster, revision } = getApiReadConnection({
+      cluster: cluster ?? this.cluster,
+    });
+    const origin = getResourceDiscoveryConnection(this);
+    if (origin && (origin.cluster !== requestCluster || origin.revision !== revision)) {
+      throw createDiscoveryConnectionChangedError();
+    }
     const resourceAttrs: AuthRequestResourceAttrs = {
       name: this.getName(),
       verb,
@@ -793,7 +808,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       resourceAttrs['version'] = version;
     }
 
-    return this._class().getAuthorization(verb, resourceAttrs, cluster ?? this.cluster);
+    return this._class().getAuthorization(verb, resourceAttrs, requestCluster);
   }
 
   static getErrorMessage(err: ApiError | null) {
