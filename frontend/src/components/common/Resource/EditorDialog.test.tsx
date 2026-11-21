@@ -898,6 +898,42 @@ describe('EditorDialog', () => {
     }
   );
 
+  it.each([/dry run/i, /save & apply/i])('uses the origin of array elements for %s', action => {
+    const manifest = { apiVersion: 'v1', kind: 'Node', metadata: { name: 'new' } };
+    const saved = { ...manifest, metadata: { name: 'saved' } };
+    recordDiscoveryConnection(saved, 'discovered', 'original:1');
+    renderEditorDialog({ item: [manifest, saved] });
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: action }));
+
+    expect(vi.mocked(prepareApply).mock.lastCall?.[0]).toBe('discovered');
+    expect(vi.mocked(prepareApply).mock.lastCall?.[1]).toBe(saved);
+    expect(mockClusterAction).toHaveBeenCalledOnce();
+  });
+
+  it.each([/dry run/i, /save & apply/i])(
+    'rejects mixed array element origins before %s',
+    action => {
+      const first = { apiVersion: 'v1', kind: 'Node', metadata: { name: 'first' } };
+      const second = { ...first, metadata: { name: 'second' } };
+      recordDiscoveryConnection(first, 'discovered', 'original:1');
+      recordDiscoveryConnection(second, 'discovered', 'replacement:2');
+      renderEditorDialog({ item: [first, second] });
+      fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+        target: { value: 'valid yaml' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: action }));
+
+      expect(
+        screen.getByText('Resources belong to different cluster connections.')
+      ).toBeInTheDocument();
+      expect(prepareApply).not.toHaveBeenCalled();
+      expect(mockClusterAction).not.toHaveBeenCalled();
+    }
+  );
+
   it('uses fallback resource labels and an empty cluster for dry runs', async () => {
     mockLoadAll.mockReturnValueOnce([
       { apiVersion: 'v1', kind: 'Node', metadata: {} },

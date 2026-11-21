@@ -34,7 +34,10 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
 import { ApplyOptions, prepareApply } from '../../../lib/k8s/api/v1/apply';
-import { getResourceDiscoveryConnection } from '../../../lib/k8s/api/v2/discoveryConnection';
+import {
+  createDiscoveryConnectionChangedError,
+  getResourceDiscoveryConnection,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
@@ -577,20 +580,46 @@ export default function EditorDialog(props: EditorDialogProps) {
       return;
     }
 
+    if (mode === 'apply' && typeof onSave === 'function') {
+      onSave(obj);
+      return;
+    }
+    if (mode === 'apply' && onSave !== 'default') return;
+
     const newItemDefs = obj!;
     const source =
       treatItemChangesAsEdits && item && typeof item === 'object' ? item : applySourceRef.current;
-    const sourceCluster = source && getResourceDiscoveryConnection(source)?.cluster;
+    let applySource = source;
+    let origin = source && getResourceDiscoveryConnection(source);
+    if (Array.isArray(source)) {
+      for (const sourceItem of source) {
+        const itemOrigin = getResourceDiscoveryConnection(sourceItem);
+        if (!itemOrigin) continue;
+        if (!origin) {
+          origin = itemOrigin;
+          applySource = sourceItem;
+        } else if (
+          itemOrigin.cluster !== origin.cluster ||
+          itemOrigin.revision !== origin.revision
+        ) {
+          setError(t('Resources belong to different cluster connections.'));
+          return;
+        }
+      }
+    }
     const clusterName =
-      cluster || sourceCluster || (source as KubeObjectIsh)?.cluster || getCluster() || '';
+      cluster || origin?.cluster || (source as KubeObjectIsh)?.cluster || getCluster() || '';
+    if (origin && origin.cluster !== clusterName) {
+      setError(createDiscoveryConnectionChangedError().message);
+      return;
+    }
+    const applyToCluster = prepareApply(clusterName, applySource);
+    const resourceNames = newItemDefs.map(
+      newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
+    );
+    setError('');
 
     if (mode === 'dryRun') {
-      const resourceNames = newItemDefs.map(
-        newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
-      );
-      const applyToCluster = prepareApply(clusterName, source);
-
-      setError('');
       dispatch(
         clusterAction(() => applyFunc(newItemDefs, applyToCluster, { dryRun: true }), {
           startMessage: t('translation|Running dry run for {{ newItemName }}…', {
@@ -610,36 +639,26 @@ export default function EditorDialog(props: EditorDialogProps) {
       return;
     }
 
-    if (typeof onSave === 'string' && onSave === 'default') {
-      const resourceNames = newItemDefs.map(
-        newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
-      );
-      const applyToCluster = prepareApply(clusterName, source);
+    dispatch(
+      clusterAction(() => applyFunc(newItemDefs, applyToCluster), {
+        startMessage: t('translation|Applying {{ newItemName }}…', {
+          newItemName: resourceNames.join(','),
+        }),
+        cancelledMessage: t('translation|Cancelled applying {{ newItemName }}.', {
+          newItemName: resourceNames.join(','),
+        }),
+        successMessage: t('translation|Applied {{ newItemName }}.', {
+          newItemName: resourceNames.join(','),
+        }),
+        errorMessage: t('translation|Failed to apply {{ newItemName }}.', {
+          newItemName: resourceNames.join(','),
+        }),
+      })
+    );
 
-      setError('');
-      dispatch(
-        clusterAction(() => applyFunc(newItemDefs, applyToCluster), {
-          startMessage: t('translation|Applying {{ newItemName }}…', {
-            newItemName: resourceNames.join(','),
-          }),
-          cancelledMessage: t('translation|Cancelled applying {{ newItemName }}.', {
-            newItemName: resourceNames.join(','),
-          }),
-          successMessage: t('translation|Applied {{ newItemName }}.', {
-            newItemName: resourceNames.join(','),
-          }),
-          errorMessage: t('translation|Failed to apply {{ newItemName }}.', {
-            newItemName: resourceNames.join(','),
-          }),
-        })
-      );
-
-      dispatchCreateEvent({
-        status: EventStatus.CONFIRMED,
-      });
-    } else if (typeof onSave === 'function') {
-      onSave!(obj);
-    }
+    dispatchCreateEvent({
+      status: EventStatus.CONFIRMED,
+    });
   }
 
   function makeEditor() {
