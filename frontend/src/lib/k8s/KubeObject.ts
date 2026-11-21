@@ -37,7 +37,12 @@ import type {
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
-import type { ApiError } from './api/v2/ApiError';
+import type { ScaleApi } from './api/v1/scaleApi';
+import { ApiError } from './api/v2/ApiError';
+import {
+  getResourceDiscoveryConnection,
+  withDiscoveryConnectionRevision,
+} from './api/v2/discoveryConnection';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
@@ -50,6 +55,14 @@ function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   }
 
   return getCombinedAllowedNamespaces(cluster);
+}
+
+function getResourceMutationQuery<T extends object>(resource: KubeObject, params: T) {
+  const connection = getResourceDiscoveryConnection(resource);
+  if (connection && connection.cluster !== resource._clusterName) {
+    throw new ApiError('Discovered cluster connection changed', { status: 409 });
+  }
+  return withDiscoveryConnectionRevision(params, connection?.revision);
 }
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
@@ -540,7 +553,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return this.constructor as KubeObjectClass;
   }
 
-  delete(force?: boolean) {
+  async delete(force?: boolean) {
     const args: string[] = [this.getName()];
     if (this.isNamespaced) {
       args.unshift(this.getNamespace()!);
@@ -555,12 +568,14 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       params.gracePeriodSeconds = 0;
     }
 
+    const query = getResourceMutationQuery(this, params);
     // @ts-ignore
-    return this._class().apiEndpoint.delete(...args, params, this._clusterName);
+    return this._class().apiEndpoint.delete(...args, query, this._clusterName);
   }
 
-  update(data: KubeObjectInterface) {
-    return this._class().apiEndpoint.put(data, {}, this._clusterName);
+  async update(data: KubeObjectInterface) {
+    const query = getResourceMutationQuery(this, {});
+    return this._class().apiEndpoint.put(data, query, this._clusterName);
   }
 
   /**
@@ -568,7 +583,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
    * the original and modified objects. This avoids 409 Conflict errors on resources
    * that are frequently updated by controllers (e.g. HPA).
    */
-  patchUpdate(
+  async patchUpdate(
     original: KubeObjectInterface,
     modified: KubeObjectInterface
   ): Promise<KubeObjectInterface> {
@@ -594,19 +609,20 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
 
     const endpoint = this._class().apiEndpoint;
+    const query = getResourceMutationQuery(this, {});
     if (this.isNamespaced) {
       return (endpoint as ApiWithNamespaceClient<KubeObjectInterface>).jsonPatch(
         filteredOps,
         this.getNamespace()!,
         this.getName(),
-        {},
+        query,
         this._clusterName
       );
     }
     return (endpoint as ApiClient<KubeObjectInterface>).jsonPatch(
       filteredOps,
       this.getName(),
-      {},
+      query,
       this._clusterName
     );
   }
@@ -625,26 +641,14 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       replicas: numReplicas,
     };
 
-    type ApiEndpointWithScale = {
-      scale: {
-        patch: (
-          body: { spec: { replicas: number } },
-          metadata: KubeMetadata,
-          clusterName?: string
-        ) => Promise<any>;
-      };
-    };
-
-    return (this._class().apiEndpoint as ApiEndpointWithScale).scale.patch(
-      {
-        spec,
-      },
-      this.metadata,
-      this._clusterName
-    );
+    const { scale } = this._class().apiEndpoint as { scale: ScaleApi };
+    const query = getResourceMutationQuery(this, {});
+    const args: Parameters<ScaleApi['patch']> = [{ spec }, this.metadata, this._clusterName];
+    if (Object.keys(query).length) args.push(query);
+    return scale.patch(...args);
   }
 
-  patch(body: RecursivePartial<T>) {
+  async patch(body: RecursivePartial<T>) {
     const args: any[] = [body];
 
     if (this.isNamespaced) {
@@ -653,8 +657,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     args.push(this.getName());
 
+    const query = getResourceMutationQuery(this, {});
     // @ts-ignore
-    return this._class().apiEndpoint.patch(...args, {}, this._clusterName);
+    return this._class().apiEndpoint.patch(...args, query, this._clusterName);
   }
 
   /** Performs a request to check if the user has the given permission.

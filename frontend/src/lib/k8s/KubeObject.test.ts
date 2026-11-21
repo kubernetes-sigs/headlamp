@@ -54,6 +54,7 @@ import { post } from './api/v1/clusterRequests';
 import { ApiClient, ApiWithNamespaceClient } from './api/v1/factories';
 import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import { ScaleApi } from './api/v1/scaleApi';
+import { recordDiscoveryConnection } from './api/v2/discoveryConnection';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
@@ -251,6 +252,38 @@ describe('KubeObject', () => {
 
       await expect(new Widget(data, 'east').patchUpdate(data, data)).resolves.toBe(data);
       expect(endpoint.jsonPatch).toHaveBeenCalledWith(operations, 'apps', 'sample', {}, 'east');
+    });
+
+    it('uses the originating route for mutations of a retained discovered resource', async () => {
+      const widget = new Widget(data, 'east');
+      recordDiscoveryConnection(widget, 'east', 'original:2');
+      const query = { __headlamp_connection_revision: 'original' };
+      const operations = [{ op: 'replace' as const, path: '/spec/replicas', value: 3 }];
+      vi.mocked(computePatchOperations).mockReturnValue(operations);
+
+      await widget.delete(true);
+      expect(endpoint.delete).toHaveBeenCalledWith(
+        'apps',
+        'sample',
+        { ...query, gracePeriodSeconds: 0 },
+        'east'
+      );
+      await widget.update(data);
+      expect(endpoint.put).toHaveBeenCalledWith(data, query, 'east');
+      await widget.patch({ spec: { replicas: 3 } });
+      expect(endpoint.patch).toHaveBeenCalledWith(
+        { spec: { replicas: 3 } },
+        'apps',
+        'sample',
+        query,
+        'east'
+      );
+      await widget.patchUpdate(data, data);
+      expect(endpoint.jsonPatch).toHaveBeenCalledWith(operations, 'apps', 'sample', query, 'east');
+
+      widget.cluster = 'west';
+      await expect(widget.delete()).rejects.toMatchObject({ status: 409 });
+      expect(endpoint.delete).toHaveBeenCalledTimes(1);
     });
 
     it('rejects edits limited to server-managed fields rather than silently discarding them', async () => {
