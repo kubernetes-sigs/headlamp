@@ -70,6 +70,10 @@ class ObjectWatchRequired extends ApiError {
 
 const watchOnlyObjects = new WeakSet<KubeObject>();
 
+type ObjectWatchEvent =
+  | KubeListUpdateEvent<KubeObjectInterface>
+  | { type: 'BOOKMARK'; object?: { metadata?: { resourceVersion?: string } } };
+
 function namedListParams(name: string, params: QueryParameters = {}): QueryParameters {
   const fieldSelector = [params.fieldSelector, `metadata.name=${name}`].filter(Boolean).join(',');
   return params.labelSelector
@@ -393,8 +397,12 @@ export function useKubeObject<K extends KubeObject>({
       queryKey,
       exact: true,
     });
+    const clearUnavailableObject = (error: ApiError) => {
+      cacheEntry?.setState({ data: null, error, errorUpdatedAt: Date.now(), status: 'error' });
+    };
     let refreshing: Promise<void> | undefined;
     let lastWatchVersion: string | undefined;
+    let bookmark: { version: string; objectVersion?: string } | undefined;
     let reconcileOnReconnect = true;
 
     return [
@@ -410,7 +418,10 @@ export function useKubeObject<K extends KubeObject>({
             await (expired ?? refreshObject());
           }
 
-          const version = currentVersion();
+          const objectVersion = currentVersion();
+          // Versions are opaque. A read that changed the object supersedes the stream checkpoint.
+          if (bookmark && bookmark.objectVersion !== objectVersion) bookmark = undefined;
+          const version = bookmark?.version ?? objectVersion;
           const requiresWatch = cacheEntry?.state.error instanceof ObjectWatchRequired;
           if (!requiresWatch && !expired && version && version !== lastWatchVersion) {
             lastWatchVersion = version;
@@ -437,41 +448,54 @@ export function useKubeObject<K extends KubeObject>({
           const resource = cacheEntry?.state.data;
           if (!cacheEntry || !resource || !watchOnlyObjects.delete(resource)) return;
           if (isObjectUnavailable(cacheEntry.state.error)) return;
-          cacheEntry.setState({
-            data: null,
-            error: new ObjectWatchRequired(
+          clearUnavailableObject(
+            new ObjectWatchRequired(
               new ApiError('Unable to verify the resource', { cluster, namespace })
-            ),
-            errorUpdatedAt: Date.now(),
-            status: 'error',
-          });
+            )
+          );
         },
-        onMessage(update: KubeListUpdateEvent<KubeObjectInterface>) {
+        onMessage(update: ObjectWatchEvent) {
           if (update.type === 'ERROR') {
             const status = update.object?.code;
             if (status === 410) {
+              bookmark = undefined;
               refreshing = refreshObject(update);
-            } else {
-              const error = new ApiError(update.object?.message ?? 'The resource watch stopped', {
-                status,
+              return;
+            }
+
+            const error = new ApiError(update.object?.message ?? 'The resource watch stopped', {
+              status,
+            });
+            if (status === 403) {
+              // A rejected WATCH does not establish that GET or LIST was revoked.
+              void refreshObject(update, () => {
+                const resource = cacheEntry?.state.data;
+                if (resource && watchOnlyObjects.delete(resource)) {
+                  cacheEntry?.setState({ data: null });
+                }
+              }).then(() => {
+                if (cacheEntry?.state.error instanceof ObjectWatchRequired) {
+                  clearUnavailableObject(error);
+                }
               });
-              if (isObjectUnavailable(error)) {
-                void client.cancelQueries({ queryKey, exact: true });
-                cacheEntry?.setState({
-                  data: null,
-                  error,
-                  errorUpdatedAt: Date.now(),
-                  status: 'error',
-                });
-              }
+            } else if (isObjectUnavailable(error)) {
+              void client.cancelQueries({ queryKey, exact: true });
+              clearUnavailableObject(error);
             }
             return;
           }
+          if (update.type === 'BOOKMARK') {
+            const version = update.object?.metadata?.resourceVersion;
+            if (version) bookmark = { version, objectVersion: currentVersion() };
+            return;
+          }
           if (update.type === 'DELETED') {
+            bookmark = undefined;
             void refreshObject(update, () => client.setQueryData(queryKey, null));
             return;
           }
           if (update.object && (update.type === 'ADDED' || update.type === 'MODIFIED')) {
+            bookmark = undefined;
             // Let the stream update win over an older GET still in flight.
             if (client.getQueryState(queryKey)?.fetchStatus !== 'idle') {
               void client.cancelQueries({ queryKey, exact: true });

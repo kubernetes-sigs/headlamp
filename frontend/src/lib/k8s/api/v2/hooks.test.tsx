@@ -581,14 +581,21 @@ describe('useKubeObject watch wiring', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     mockClusterFetch
       .mockResolvedValueOnce(mockJsonResponse(pod('1')))
-      .mockResolvedValueOnce(mockJsonResponse(pod('3')))
+      .mockResolvedValueOnce(mockJsonResponse(pod('2')))
       .mockResolvedValueOnce(mockJsonResponse(pod('3')))
       .mockResolvedValueOnce(mockJsonResponse(pod('3')));
-    const { result, connected, server, cleanup } = await renderDiscoveredPodWatch();
+    const { result, connected, server, cleanup } = await renderDiscoveredPodWatch(
+      'route-a',
+      undefined,
+      MockPod,
+      undefined,
+      { allowWatchBookmarks: 'true' }
+    );
 
     try {
       const original = await server.connected;
       expect(new URL(original.url).searchParams.get('resourceVersion')).toBe('1');
+      expect(new URL(original.url).searchParams.get('allowWatchBookmarks')).toBe('true');
       server.send(JSON.stringify({ type: 'MODIFIED', object: pod('2') }));
       await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('2'));
       server.send(
@@ -600,7 +607,7 @@ describe('useKubeObject watch wiring', () => {
       await waitFor(() => expect(connected).toHaveBeenCalledTimes(2), { timeout: 3500 });
       const resumed = connected.mock.calls[1][0];
       expect(new URL(resumed.url).searchParams.get('resourceVersion')).toBe('3');
-      expect(result.current.data?.metadata.resourceVersion).toBe('3');
+      expect(result.current.data?.metadata.resourceVersion).toBe('2');
 
       server.send(JSON.stringify({ type: 'ERROR', object: { kind: 'Status', code: 410 } }));
       await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(3));
@@ -836,6 +843,9 @@ describe('useKubeObject watch wiring', () => {
           expect(result.current.data?.metadata.resourceVersion).toBe('2');
           expect(result.current.error).toBeNull();
 
+          mockClusterFetch
+            .mockRejectedValueOnce(new ApiError('GET is forbidden', { status: 403 }))
+            .mockRejectedValueOnce(new ApiError('LIST is forbidden', { status: 403 }));
           server.send(
             JSON.stringify({
               type: 'ERROR',
@@ -851,6 +861,30 @@ describe('useKubeObject watch wiring', () => {
     },
     6500
   );
+
+  it('continues showing an object when only its watch is forbidden', async () => {
+    const revalidation = Promise.withResolvers<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce(mockJsonResponse(pod('1')))
+      .mockReturnValueOnce(revalidation.promise);
+    const { result, server, cleanup } = await renderDiscoveredPodWatch();
+
+    try {
+      await server.connected;
+      server.send(JSON.stringify({ type: 'ERROR', object: { kind: 'Status', code: 403 } }));
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+      expect(result.current.data?.metadata.resourceVersion).toBe('1');
+      expect(result.current.error).toBeNull();
+      await act(async () => {
+        revalidation.resolve(mockJsonResponse(pod('2')));
+      });
+      await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('2'));
+      expect(result.current.error).toBeNull();
+    } finally {
+      cleanup();
+      revalidation.resolve(mockJsonResponse(pod('2')));
+    }
+  });
 
   it.each([false, true])(
     'uses the name-filtered list to verify existence (found: %s)',
