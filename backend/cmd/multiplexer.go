@@ -31,6 +31,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/rest"
@@ -424,7 +425,7 @@ func (m *Multiplexer) dialClusterConnection(
 	expectedContext *kubeconfig.Context,
 ) (*Connection, error) {
 	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
-	if expectedContext != nil && clusterContext != expectedContext {
+	if expectedContext != nil && !sameClusterConnection(expectedContext, clusterContext) {
 		return nil, errClusterConnectionChanged
 	}
 
@@ -509,6 +510,22 @@ func (m *Multiplexer) getClusterConfigWithFallback(clusterID, userID string) (*r
 	}
 
 	return config, nil
+}
+
+func sameClusterConnection(expected, current *kubeconfig.Context) bool {
+	if current == expected {
+		return true
+	}
+
+	if current == nil {
+		return false
+	}
+
+	// The store can load an equivalent context into a different object.
+	expectedKey, expectedErr := k8cache.ContextCacheKey(expected.Name, expected)
+	currentKey, currentErr := k8cache.ContextCacheKey(current.Name, current)
+
+	return expectedErr == nil && currentErr == nil && expectedKey == currentKey
 }
 
 func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*kubeconfig.Context, error) {

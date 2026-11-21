@@ -142,9 +142,10 @@ func TestMultiplexerKeepsWatchOnItsUserContext(t *testing.T) {
 	require.NoError(t, store.AddContext(shared))
 
 	userKey := statelessContextKey(cluster, user)
-	require.NoError(t, store.AddContextWithKeyAndTTL(&kubeconfig.Context{
-		Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
-	}, userKey, time.Minute))
+	userContext := func() *kubeconfig.Context {
+		return &kubeconfig.Context{Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true}}
+	}
+	require.NoError(t, store.AddContextWithKeyAndTTL(userContext(), userKey, time.Minute))
 
 	conn, err := m.establishClusterConnection(cluster, user, "/api/v1/pods", "watch=1", nil, nil)
 	require.NoError(t, err)
@@ -153,12 +154,21 @@ func TestMultiplexerKeepsWatchOnItsUserContext(t *testing.T) {
 
 	require.Equal(t, server.URL, conn.clusterContext.Cluster.Server)
 
+	require.NoError(t, store.AddContextWithKeyAndTTL(userContext(), userKey, time.Minute))
+
+	refreshed, err := m.reconnect(conn)
+	require.NoError(t, err)
+
+	defer m.removeConnection(refreshed)
+
+	require.Equal(t, server.URL, refreshed.clusterContext.Cluster.Server)
+
 	require.NoError(t, store.RemoveContext(userKey))
 
-	replacement, err := m.reconnect(conn)
+	replacement, err := m.reconnect(refreshed)
 	require.ErrorIs(t, err, errClusterConnectionChanged)
 	require.Nil(t, replacement)
-	require.True(t, conn.IsClosed())
+	require.True(t, refreshed.IsClosed())
 }
 
 func TestCreateConnection(t *testing.T) {
