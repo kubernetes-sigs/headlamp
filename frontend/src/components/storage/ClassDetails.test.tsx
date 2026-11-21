@@ -143,32 +143,4 @@ describe('StorageClassDetails', () => {
       ['kubernetes.io/hostname in (node-1)'],
     ]);
   });
-
-  it('shows when all topology terms are empty', () => {
-    render(
-      <TestContext routerMap={{ name: 'standard' }}>
-        <StorageClassDetails />
-      </TestContext>
-    );
-
-    const props = mockDetailsGrid.mock.calls[0][0];
-    const valueFor = (allowedTopologies: any) =>
-      render(
-        <>
-          {
-            props
-              .extraInfo({ ...storageClass, allowedTopologies })
-              .find((f: any) => f.name === 'Allowed Topologies').value
-          }
-        </>
-      ).container.textContent;
-
-    expect(valueFor([{}])).toBe('Only empty topology terms');
-    expect(
-      valueFor([
-        {},
-        { matchLabelExpressions: [{ key: 'kubernetes.io/hostname', values: ['node-1'] }] },
-      ])
-    ).toBe('kubernetes.io/hostname in (node-1)');
-  });
 });

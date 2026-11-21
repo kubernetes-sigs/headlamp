@@ -25,26 +25,16 @@ import StorageClass, { KubeStorageClass } from '../../lib/k8s/storageClass';
 import { DetailsGrid, MetadataDictGrid, metadataStyles } from '../common/Resource';
 
 function AllowedTopologies(props: { terms: NonNullable<KubeStorageClass['allowedTopologies']> }) {
-  const { t } = useTranslation();
-  // Terms are ORed. Skip empty terms, which have no requirements to show.
-  const terms = props.terms
-    .map(
-      term =>
-        matchExpressionSimplifier(
-          term.matchLabelExpressions?.map(expression => ({ ...expression, operator: 'In' }))
-        ) || []
-    )
-    .filter(expressions => expressions.length > 0);
-
-  if (terms.length === 0) {
-    return <>{t('translation|Only empty topology terms')}</>;
-  }
-
+  // Terms are ORed. The expressions within a term are ANDed.
   return (
     <Stack spacing={1}>
-      {terms.map((expressions, index) => (
+      {props.terms.map((term, index) => (
         <div key={index}>
-          {expressions.map(expression => (
+          {(
+            matchExpressionSimplifier(
+              term.matchLabelExpressions?.map(expression => ({ ...expression, operator: 'In' }))
+            ) || []
+          ).map(expression => (
             <Typography
               key={expression}
               display="inline-block"
