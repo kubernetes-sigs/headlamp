@@ -7,11 +7,13 @@ metadata:
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
 spec:
-  {{- with .Values.podDisruptionBudget.maxUnavailable }}
-  maxUnavailable: {{ . }}
+  {{- $maxUnavailable := .Values.podDisruptionBudget.maxUnavailable }}
+  {{- $minAvailable := .Values.podDisruptionBudget.minAvailable }}
+  {{- if not (kindIs "invalid" $maxUnavailable) }}
+  maxUnavailable: {{ $maxUnavailable }}
   {{- end }}
-  {{- with .Values.podDisruptionBudget.minAvailable }}
-  minAvailable: {{ . }}
+  {{- if and (not (kindIs "invalid" $minAvailable)) (or (kindIs "invalid" $maxUnavailable) (ne (toString $minAvailable) "0")) }}
+  minAvailable: {{ $minAvailable }}
   {{- end }}
   {{- if (semverCompare ">= 1.27-0" .Capabilities.KubeVersion.Version) }}
   {{- if hasKey .Values.podDisruptionBudget "unhealthyPodEvictionPolicy" }}
