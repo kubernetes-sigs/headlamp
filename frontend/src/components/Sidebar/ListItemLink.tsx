@@ -258,7 +258,9 @@ export default function ListItemLink(props: ListItemLinkProps) {
             primary={primary}
             secondary={subtitle}
             secondaryTypographyProps={
-              typeof subtitle === 'string' ? { sx: { whiteSpace: 'pre' } } : undefined
+              // Non-string subtitles (e.g. the cluster badges) contain block
+              // elements, which can't be nested in the default <p>.
+              typeof subtitle === 'string' ? { sx: { whiteSpace: 'pre' } } : { component: 'div' }
             }
           />
         )}
