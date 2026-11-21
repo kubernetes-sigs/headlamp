@@ -96,7 +96,7 @@ export function streamResult<T extends KubeObjectInterface>(
     } catch (err) {
       console.error('Error in api request', { err, url });
       // @todo: sometimes errCb is {}, the typing for apiProxy needs improving.
-      //        See https://github.com/kinvolk/headlamp/pull/833
+      //        See https://github.com/kubernetes-sigs/headlamp/pull/833
       if (errCb && typeof errCb === 'function') errCb(err as ApiError, cancel);
     }
   }
