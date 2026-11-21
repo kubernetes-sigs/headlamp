@@ -94,9 +94,20 @@ interface DrainNodeStatus {
  * @throws {Error} if the response is not ok
  */
 export function drainNodeStatus(cluster: string, nodeName: string): Promise<DrainNodeStatus> {
+  return requestNodeDrainStatus(cluster, { nodeName });
+}
+
+export async function drainNodeStatusForResource(cluster: string, node: Node) {
+  return requestNodeDrainStatus(
+    cluster,
+    getResourceConnectionQuery(node, cluster, { nodeName: node.getName() })
+  );
+}
+
+function requestNodeDrainStatus(cluster: string, query: Record<string, string>) {
   const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
   Object.entries(getHeadlampAPIHeaders()).forEach(([name, value]) => headers.set(name, value));
-  return clusterFetch(`/drain-node-status?${new URLSearchParams({ nodeName })}`, {
+  return clusterFetch(`/drain-node-status?${new URLSearchParams(query)}`, {
     cluster,
     method: 'GET',
     headers: headers,

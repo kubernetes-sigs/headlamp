@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useParams } from 'react-router-dom';
 import { useCluster } from '../../lib/k8s';
-import { drainNodeForResource, drainNodeStatus } from '../../lib/k8s/api/v1/drainNode';
+import { drainNodeForResource, drainNodeStatusForResource } from '../../lib/k8s/api/v1/drainNode';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type { KubeNodeSummaryStats } from '../../lib/k8s/api/v2/nodeSummaryApi';
 import { KubeContainer, KubeMetrics } from '../../lib/k8s/cluster';
@@ -79,6 +79,11 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const urlCluster = useCluster();
   const cluster = props.cluster ?? urlCluster ?? undefined;
   const name = props.name ?? params.name;
+
+  return <NodeDetailsContent key={JSON.stringify([cluster, name])} cluster={cluster} name={name} />;
+}
+
+function NodeDetailsContent({ cluster, name }: { cluster?: string; name: string }) {
   const { t } = useTranslation(['glossary']);
   const dispatch: AppDispatch = useDispatch();
 
@@ -87,7 +92,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const [nodeSummaryStats, nodeSummaryError] = Node.useNodeSummaryStats(name, cluster);
   const [isupdatingNodeScheduleProperty, setisUpdatingNodeScheduleProperty] = React.useState(false);
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
-  const [pollingDrainNodeName, setPollingDrainNodeName] = React.useState<string | null>(null);
+  const [drainingNode, setDrainingNode] = useState<Node | null>(null);
   const { items: nodePods, isSuccess: nodePodsLoaded } = Pod.useList({
     fieldSelector: name
       ? `spec.nodeName=${name},status.phase!=Succeeded,status.phase!=Failed`
@@ -98,7 +103,6 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const [nodeToDrain, setNodeToDrain] = useState<Node | null>(null);
 
   const isMountedRef = React.useRef(true);
-  const currentNodeIdRef = React.useRef(`${cluster}:${name}`);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -106,14 +110,6 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
       isMountedRef.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    currentNodeIdRef.current = `${cluster}:${name}`;
-    setisNodeDrainInProgress(false);
-    setisUpdatingNodeScheduleProperty(false);
-    setPollingDrainNodeName(null);
-    setNodeToDrain(null);
-  }, [name, cluster]);
 
   function getAddresses(item: Node) {
     return (
@@ -128,7 +124,6 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
 
   function handleNodeScheduleState(node: Node, cordon: boolean) {
     if (!cluster) return;
-    const reqId = `${cluster}:${node.metadata.name}`;
     setisUpdatingNodeScheduleProperty(true);
 
     dispatch(
@@ -137,8 +132,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
           node
             .update({ ...node.jsonData, spec: { ...node.spec, unschedulable: !cordon } })
             .finally(() => {
-              if (isMountedRef.current && currentNodeIdRef.current === reqId)
-                setisUpdatingNodeScheduleProperty(false);
+              if (isMountedRef.current) setisUpdatingNodeScheduleProperty(false);
             }),
         {
           startMessage: cordon
@@ -156,8 +150,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             ? t('Uncordon node {{name}} cancelled.', { name: node.metadata.name })
             : t('Cordon node {{name}} cancelled.', { name: node.metadata.name }),
           cancelCallback: () => {
-            if (isMountedRef.current && currentNodeIdRef.current === reqId)
-              setisUpdatingNodeScheduleProperty(false);
+            if (isMountedRef.current) setisUpdatingNodeScheduleProperty(false);
           },
         }
       )
@@ -166,27 +159,24 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
 
   useEffect(() => {
     const clusterName = cluster;
-    const nodeName = pollingDrainNodeName;
-
-    if (!nodeName || !clusterName) {
+    if (!drainingNode || !clusterName) {
       return;
     }
 
     const drainCluster = clusterName;
-    const drainNodeName = nodeName;
-    const reqId = `${drainCluster}:${drainNodeName}`;
+    const node = drainingNode;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     function poll() {
-      drainNodeStatus(drainCluster, drainNodeName)
+      drainNodeStatusForResource(drainCluster, node)
         .then(data => {
-          if (!isMountedRef.current || currentNodeIdRef.current !== reqId) {
+          if (!isMountedRef.current) {
             return;
           }
 
           if (data && data.id.startsWith('error')) {
             enqueueSnackbar(data.id, { variant: 'error' });
-            setPollingDrainNodeName(null);
+            setDrainingNode(null);
             return;
           }
 
@@ -195,13 +185,13 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             return;
           }
 
-          setPollingDrainNodeName(null);
+          setDrainingNode(null);
         })
         .catch(error => {
-          if (!isMountedRef.current || currentNodeIdRef.current !== reqId) return;
+          if (!isMountedRef.current) return;
 
           enqueueSnackbar(error.message, { variant: 'error' });
-          setPollingDrainNodeName(null);
+          setDrainingNode(null);
         });
     }
 
@@ -212,12 +202,11 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
         clearTimeout(timer);
       }
     };
-  }, [pollingDrainNodeName, cluster, enqueueSnackbar]);
+  }, [drainingNode, cluster, enqueueSnackbar]);
 
   function handleNodeDrain(node: Node) {
     const clusterName = cluster;
     if (!clusterName) return;
-    const reqId = `${clusterName}:${node.metadata.name}`;
 
     setisNodeDrainInProgress(true);
     dispatch(
@@ -225,16 +214,10 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
         () =>
           drainNodeForResource(clusterName, node)
             .then(() => {
-              if (isMountedRef.current && currentNodeIdRef.current === reqId)
-                setPollingDrainNodeName(node.metadata.name);
-            })
-            .catch(error => {
-              if (isMountedRef.current && currentNodeIdRef.current === reqId)
-                enqueueSnackbar(error.message, { variant: 'error' });
+              if (isMountedRef.current) setDrainingNode(node);
             })
             .finally(() => {
-              if (isMountedRef.current && currentNodeIdRef.current === reqId)
-                setisNodeDrainInProgress(false);
+              if (isMountedRef.current) setisNodeDrainInProgress(false);
             }),
         {
           startMessage: t('Draining node {{name}}…', { name: node.metadata.name }),
@@ -242,8 +225,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
           errorMessage: t('Failed to drain node {{name}}.', { name: node.metadata.name }),
           cancelledMessage: t('Draining node {{name}} cancelled.', { name: node.metadata.name }),
           cancelCallback: () => {
-            if (isMountedRef.current && currentNodeIdRef.current === reqId)
-              setisNodeDrainInProgress(false);
+            if (isMountedRef.current) setisNodeDrainInProgress(false);
           },
         }
       )
@@ -258,9 +240,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
           name: nodeToDrain?.metadata.name,
         })}
         onConfirm={() => {
-          if (!nodeToDrain) return;
-          setNodeToDrain(null);
-          handleNodeDrain(nodeToDrain);
+          if (nodeToDrain) handleNodeDrain(nodeToDrain);
         }}
         handleClose={() => setNodeToDrain(null)}
         open={nodeToDrain !== null}
@@ -310,7 +290,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
                     icon="mdi:delete-variant"
                     onClick={() => setNodeToDrain(item ?? null)}
                     iconButtonProps={{
-                      disabled: isNodeDrainInProgress || !!pollingDrainNodeName,
+                      disabled: isNodeDrainInProgress || !!drainingNode,
                     }}
                   />
                 </AuthVisible>

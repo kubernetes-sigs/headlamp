@@ -15,16 +15,19 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
+import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { drainNodeStatusForResource } from '../../lib/k8s/api/v1/drainNode';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { recordDiscoveryConnection } from '../../lib/k8s/api/v2/discoveryConnection';
 import * as fetchModule from '../../lib/k8s/api/v2/fetch';
 import Node from '../../lib/k8s/node';
 import { createMuiTheme } from '../../lib/themes';
 import { CLUSTER_ACTION_GRACE_PERIOD } from '../../redux/clusterActionSlice';
+import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import Details from './Details';
 import { NODE_DETAILED_DATA } from './storyHelper';
@@ -66,10 +69,11 @@ it('keeps the originally selected connection when confirming a drain', async () 
     .mockRejectedValue(new ApiError('Discovered cluster connection changed', { status: 409 }));
 
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const store = configureStore({ reducer: reducers });
   const theme = createMuiTheme({ base: 'light', name: 'light' });
   const page = () => (
     <QueryClientProvider client={queryClient}>
-      <TestContext>
+      <TestContext store={store}>
         <ThemeProvider theme={theme}>
           <Details cluster={cluster} name={originalNode.getName()} />
         </ThemeProvider>
@@ -94,4 +98,27 @@ it('keeps the originally selected connection when confirming a drain', async () 
     '/drain-node?__headlamp_connection_revision=original',
     expect.objectContaining({ cluster, method: 'POST' }),
   ]);
+  expect(Object.values(store.getState().clusterAction)).toEqual([
+    expect.objectContaining({
+      state: 'error',
+      message: expect.stringContaining('Discovered cluster connection changed'),
+    }),
+  ]);
+});
+
+it('polls drain status for the connection that started the drain', async () => {
+  const cluster = 'discovered';
+  const node = new Node(NODE_DETAILED_DATA, cluster);
+  recordDiscoveryConnection(node, cluster, 'original');
+  const clusterFetch = vi
+    .spyOn(fetchModule, 'clusterFetch')
+    .mockResolvedValue(Response.json({ id: 'draining', cluster }));
+
+  await expect(drainNodeStatusForResource(cluster, node)).resolves.toMatchObject({
+    id: 'draining',
+  });
+  expect(clusterFetch).toHaveBeenCalledWith(
+    `/drain-node-status?nodeName=${node.getName()}&__headlamp_connection_revision=original`,
+    expect.objectContaining({ cluster, method: 'GET' })
+  );
 });
