@@ -642,7 +642,12 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     };
 
     const { scale } = this._class().apiEndpoint as { scale: ScaleApi };
-    const query = getResourceMutationQuery(this, {});
+    let query: ReturnType<typeof getResourceMutationQuery>;
+    try {
+      query = getResourceMutationQuery(this, {});
+    } catch (error) {
+      return Promise.reject(error);
+    }
     const args: Parameters<ScaleApi['patch']> = [{ spec }, this.metadata, this._clusterName];
     if (Object.keys(query).length) args.push(query);
     return scale.patch(...args);

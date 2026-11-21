@@ -320,6 +320,22 @@ describe('KubeObject', () => {
       expect(patch).toHaveBeenCalledWith({ spec: { replicas: 3 } }, data.metadata, 'east');
     });
 
+    it('rejects scaling a retained resource reassigned to another cluster', async () => {
+      const patch = vi.fn<ScaleApi['patch']>().mockResolvedValue(data);
+      Widget.apiEndpoint = { ...endpoint, scale: { get: vi.fn(), put: vi.fn(), patch } };
+      const widget = new Widget(data, 'east');
+      recordDiscoveryConnection(widget, 'east', 'original:2');
+
+      await widget.scale(3);
+      expect(patch).toHaveBeenCalledWith({ spec: { replicas: 3 } }, data.metadata, 'east', {
+        __headlamp_connection_revision: 'original',
+      });
+
+      widget.cluster = 'west';
+      await expect(widget.scale(3)).rejects.toMatchObject({ status: 409 });
+      expect(patch).toHaveBeenCalledTimes(1);
+    });
+
     it('does not insert a namespace into a cluster-scoped JSON patch request', async () => {
       class ClusterWidget extends Widget {
         static isNamespaced = false;
