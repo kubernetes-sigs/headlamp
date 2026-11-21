@@ -26,7 +26,9 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/schema"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	"github.com/rs/zerolog"
@@ -386,6 +388,8 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 }
 
 type UninstallReleaseRequest struct {
+	// cluster comes from the route and only scopes the action status cache key.
+	cluster   string
 	Name      string `json:"name" validate:"required"`
 	Namespace string `json:"namespace" validate:"required"`
 }
@@ -437,7 +441,9 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		return
 	}
 
-	err = h.setReleaseStatus("uninstall", req.Name, processing, nil)
+	req.cluster = routeCluster(r)
+
+	err = h.setReleaseStatus(req.statusScope(), "uninstall", req.Name, processing, nil)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opUninstallRelease, logFieldReleaseName: req.Name},
 			err, "setting status")
@@ -481,10 +487,12 @@ func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *ac
 		status = failed
 	}
 
-	h.setReleaseStatusSilent("uninstall", req.Name, status, err)
+	h.setReleaseStatusSilent(req.statusScope(), "uninstall", req.Name, status, err)
 }
 
 type RollbackReleaseRequest struct {
+	// cluster comes from the route and only scopes the action status cache key.
+	cluster   string
 	Name      string `json:"name" validate:"required"`
 	Namespace string `json:"namespace" validate:"required"`
 	Revision  int    `json:"revision" validate:"required"`
@@ -535,7 +543,9 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		return
 	}
 
-	err = h.setReleaseStatus("rollback", req.Name, processing, nil)
+	req.cluster = routeCluster(r)
+
+	err = h.setReleaseStatus(req.statusScope(), "rollback", req.Name, processing, nil)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -577,10 +587,12 @@ func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *acti
 		status = failed
 	}
 
-	h.setReleaseStatusSilent("rollback", req.Name, status, err)
+	h.setReleaseStatusSilent(req.statusScope(), "rollback", req.Name, status, err)
 }
 
 type CommonInstallUpdateRequest struct {
+	// cluster comes from the route and only scopes the action status cache key.
+	cluster     string
 	Name        string `json:"name" validate:"required"`
 	Namespace   string `json:"namespace" validate:"required"`
 	Description string `json:"description" validate:"required"`
@@ -598,6 +610,23 @@ type InstallRequest struct {
 func (req *InstallRequest) Validate() error {
 	validate := validator.New()
 	return validate.Struct(req)
+}
+
+// routeCluster returns the cluster name from the request route, or "" when there is none.
+func routeCluster(r *http.Request) string {
+	return mux.Vars(r)["clusterName"]
+}
+
+func (req *UninstallReleaseRequest) statusScope() actionScope {
+	return actionScope{cluster: req.cluster, namespace: req.Namespace}
+}
+
+func (req *RollbackReleaseRequest) statusScope() actionScope {
+	return actionScope{cluster: req.cluster, namespace: req.Namespace}
+}
+
+func (req *CommonInstallUpdateRequest) statusScope() actionScope {
+	return actionScope{cluster: req.cluster, namespace: req.Namespace}
 }
 
 func handleError(w http.ResponseWriter, releaseName string, err error, message string, status int) {
@@ -656,7 +685,9 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
-	err = h.setReleaseStatus("install", req.Name, processing, nil)
+	req.cluster = routeCluster(r)
+
+	err = h.setReleaseStatus(req.statusScope(), "install", req.Name, processing, nil)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -673,6 +704,7 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 
 // Returns the chart, and err, and if dependencyUpdate is true then we also update the chart dependencies.
 func (h *Handler) getChart(
+	scope actionScope,
 	actionName string,
 	reqChart string,
 	reqName string,
@@ -683,21 +715,21 @@ func (h *Handler) getChart(
 	// locate chart
 	chartPath, err := chartPathOptions.LocateChart(reqChart, settings)
 	if err != nil {
-		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "locating chart")
+		h.logActionState(scope, zlog.Error(), err, actionName, reqChart, reqName, failed, "locating chart")
 		return nil, err
 	}
 
 	// load chart
 	chart, err := loader.Load(chartPath)
 	if err != nil {
-		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "loading chart")
+		h.logActionState(scope, zlog.Error(), err, actionName, reqChart, reqName, failed, "loading chart")
 		return nil, err
 	}
 
 	// chart is installable only if it is of type application or empty
 	if chart.Metadata.Type != "" && chart.Metadata.Type != "application" {
 		typeErr := fmt.Errorf("chart type %q is not installable", chart.Metadata.Type)
-		h.logActionState(zlog.Error(), typeErr, actionName, reqChart, reqName, failed, "chart is not installable")
+		h.logActionState(scope, zlog.Error(), typeErr, actionName, reqChart, reqName, failed, "chart is not installable")
 
 		return nil, typeErr
 	}
@@ -717,7 +749,7 @@ func (h *Handler) getChart(
 
 			err = manager.Update()
 			if err != nil {
-				h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "updating dependencies")
+				h.logActionState(scope, zlog.Error(), err, actionName, reqChart, reqName, failed, "updating dependencies")
 				return nil, err
 			}
 		}
@@ -783,10 +815,13 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.Version = req.Version
 
 	if !VerifyUser(actionConfig, req) {
+		h.setReleaseStatusSilent(req.statusScope(), "install", req.Name, failed,
+			errors.New("user verification failed: could not confirm the caller's identity or privileges"))
+
 		return
 	}
 
-	chart, err := h.getChart("install", req.Chart, req.Name,
+	chart, err := h.getChart(req.statusScope(), "install", req.Chart, req.Name,
 		installClient.ChartPathOptions, req.DependencyUpdate, h.EnvSettings)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
@@ -799,7 +834,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "decoding values")
-		h.setReleaseStatusSilent("install", req.Name, failed, err)
+		h.setReleaseStatusSilent(req.statusScope(), "install", req.Name, failed, err)
 
 		return
 	}
@@ -808,7 +843,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	if err = yaml.Unmarshal(decodedBytes, &values); err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "unmarshalling values")
-		h.setReleaseStatusSilent("install", req.Name, failed, err)
+		h.setReleaseStatusSilent(req.statusScope(), "install", req.Name, failed, err)
 
 		return
 	}
@@ -816,12 +851,12 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	if _, err = installClient.Run(chart, values); err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "installing chart")
-		h.setReleaseStatusSilent("install", req.Name, failed, err)
+		h.setReleaseStatusSilent(req.statusScope(), "install", req.Name, failed, err)
 
 		return
 	}
 
-	h.setReleaseStatusSilent("install", req.Name, success, nil)
+	h.setReleaseStatusSilent(req.statusScope(), "install", req.Name, success, nil)
 }
 
 type UpgradeReleaseRequest struct {
@@ -872,7 +907,9 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
-	err = h.setReleaseStatus("upgrade", req.Name, processing, nil)
+	req.cluster = routeCluster(r)
+
+	err = h.setReleaseStatus(req.statusScope(), "upgrade", req.Name, processing, nil)
 	if err != nil {
 		handleError(w, req.Name, err, "setting status", http.StatusInternalServerError)
 		return
@@ -885,7 +922,8 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	h.returnResponse(w, req.Name, http.StatusAccepted, "upgrade request accepted")
 }
 
-func (h *Handler) logActionState(zlog *zerolog.Event,
+func (h *Handler) logActionState(scope actionScope,
+	zlog *zerolog.Event,
 	err error,
 	action string,
 	chart string,
@@ -903,17 +941,20 @@ func (h *Handler) logActionState(zlog *zerolog.Event,
 		Str("status", status).
 		Msg(message)
 
-	h.setReleaseStatusSilent(action, releaseName, status, err)
+	h.setReleaseStatusSilent(scope, action, releaseName, status, err)
 }
 
 func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action.Configuration) {
+	scope := req.statusScope()
+
 	// find chart
 	upgradeClient := action.NewUpgrade(actionConfig)
 	upgradeClient.Namespace = req.Namespace
 	upgradeClient.Description = req.Description
 	upgradeClient.Version = req.Version
 
-	chart, err := h.getChart("upgrade", req.Chart, req.Name, upgradeClient.ChartPathOptions, true, h.EnvSettings)
+	chart, err := h.getChart(scope, "upgrade", req.Chart, req.Name,
+		upgradeClient.ChartPathOptions, true, h.EnvSettings)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "getting chart")
@@ -925,29 +966,30 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 
 	valuesStr, err := base64.StdEncoding.DecodeString(req.Values)
 	if err != nil {
-		h.logActionState(zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "values decoding failed")
+		h.logActionState(scope, zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "values decoding failed")
 		return
 	}
 
 	err = yaml.Unmarshal(valuesStr, &values)
 	if err != nil {
-		h.logActionState(zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "values un-marshalling failed")
+		h.logActionState(scope, zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "values un-marshalling failed")
 		return
 	}
 
 	// Upgrade chart
 	_, err = upgradeClient.Run(req.Name, chart, values)
 	if err != nil {
-		h.logActionState(zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "chart upgrade failed")
+		h.logActionState(scope, zlog.Error(), err, "upgrade", req.Chart, req.Name, failed, "chart upgrade failed")
 		return
 	}
 
-	h.logActionState(zlog.Info(), nil, "upgrade", req.Chart, req.Name, success, "chart upgradeable is successful")
+	h.logActionState(scope, zlog.Info(), nil, "upgrade", req.Chart, req.Name, success, "chart upgradeable is successful")
 }
 
 type ActionStatusRequest struct {
-	Name   string `json:"name" validate:"required"`
-	Action string `json:"action" validate:"required"`
+	Name      string `json:"name" validate:"required"`
+	Action    string `json:"action" validate:"required"`
+	Namespace string `json:"namespace" validate:"required"`
 }
 
 func (a *ActionStatusRequest) Validate() error {
@@ -987,10 +1029,17 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 		return
 	}
 
-	stat, err := h.getReleaseStatus(request.Action, request.Name)
+	scope := actionScope{cluster: routeCluster(r), namespace: request.Namespace}
+
+	stat, err := h.getReleaseStatus(scope, request.Action, request.Name)
 	if err != nil {
+		code := http.StatusInternalServerError
+		if errors.Is(err, cache.ErrNotFound) {
+			code = http.StatusNotFound
+		}
+
 		logger.Log(logger.LevelError, nil, err, "getting status")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), code)
 
 		return
 	}
@@ -1013,7 +1062,13 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
+	// 202 only while the action is still running
+	code := http.StatusOK
+	if stat.Status == processing {
+		code = http.StatusAccepted
+	}
+
+	w.WriteHeader(code)
 
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
