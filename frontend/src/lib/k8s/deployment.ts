@@ -15,7 +15,8 @@
  */
 
 import { jsonPatch } from './api/v1/clusterRequests';
-import { getApiRoot } from './api/v1/formatUrl';
+import { asQuery, getApiRoot } from './api/v1/formatUrl';
+import { getResourceConnectionQuery } from './api/v2/discoveryConnection';
 import type { KubeContainer, LabelSelector } from './cluster';
 import type { KubeMetadata } from './KubeMetadata';
 import type { KubeObjectInterface } from './KubeObject';
@@ -87,6 +88,8 @@ class Deployment extends KubeObject<KubeDeployment> {
    * @returns Promise resolving to array of owned ReplicaSets.
    */
   async getOwnedReplicaSets(): Promise<ReplicaSet[]> {
+    const cluster = this.cluster;
+    const queryParams = getResourceConnectionQuery(this, cluster, {});
     return new Promise((resolve, reject) => {
       let cancel: (() => void) | undefined;
       const request = ReplicaSet.apiList(
@@ -100,7 +103,7 @@ class Deployment extends KubeObject<KubeDeployment> {
           if (cancel) cancel();
         },
         reject,
-        { namespace: this.getNamespace(), cluster: this.cluster }
+        { namespace: this.getNamespace(), cluster, queryParams }
       );
       request().then(c => {
         cancel = c;
@@ -193,12 +196,12 @@ class Deployment extends KubeObject<KubeDeployment> {
       ];
 
       const apiRoot = getApiRoot('apps', 'v1');
-      let url = `${apiRoot}/namespaces/${this.getNamespace()}/deployments/${this.getName()}`;
-      if (dryRun) {
-        url += '?dryRun=All';
-      }
-
-      const result = await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
+      const cluster = this.cluster;
+      const query = getResourceConnectionQuery(this, cluster, dryRun ? { dryRun: 'All' } : {});
+      const url =
+        `${apiRoot}/namespaces/${this.getNamespace()}/deployments/${this.getName()}` +
+        asQuery(query);
+      const result = await jsonPatch(url, patchOperations, true, { cluster });
 
       if (!dryRun) {
         this.revisionHistoryCache = undefined;
