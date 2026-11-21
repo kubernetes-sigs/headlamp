@@ -195,6 +195,46 @@ describe('IngressList', () => {
     expect(pathsColumn.getValue(ingress)).toBe('/legacy › legacy-service:');
   });
 
+  it('shows only the backend when a path is not set', () => {
+    render(
+      <TestContext>
+        <IngressList />
+      </TestContext>
+    );
+
+    // path is optional for pathType ImplementationSpecific.
+    const ingress = createMockIngress([
+      {
+        http: {
+          paths: [
+            {
+              pathType: 'ImplementationSpecific',
+              backend: {
+                service: {
+                  name: 'web',
+                  port: { number: 80 },
+                },
+              },
+            },
+            {
+              path: '/api',
+              pathType: 'Prefix',
+              backend: {
+                service: {
+                  name: 'api',
+                  port: { number: 8080 },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const pathsColumn = getColumn('paths');
+    expect(pathsColumn.getValue(ingress)).toBe('web:80, /api › api:8080');
+  });
+
   it('extracts paths with resource backend', () => {
     render(
       <TestContext>
