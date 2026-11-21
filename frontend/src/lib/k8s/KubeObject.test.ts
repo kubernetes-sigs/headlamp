@@ -38,6 +38,9 @@ vi.mock('./api/v1/hooks', () => ({
   useConnectApi: vi.fn(),
   useSelectedClusters: vi.fn(),
 }));
+vi.mock('./api/v2/discoveredConnectionRevisions', () => ({
+  getDiscoveredConnectionRevision: vi.fn(),
+}));
 vi.mock('./api/v2/hooks', () => ({ useKubeObject: vi.fn() }));
 vi.mock('./api/v2/useKubeObjectList', () => ({
   makeListRequests: vi.fn(),
@@ -54,7 +57,11 @@ import { post } from './api/v1/clusterRequests';
 import { ApiClient, ApiWithNamespaceClient } from './api/v1/factories';
 import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import { ScaleApi } from './api/v1/scaleApi';
-import { recordDiscoveryConnection } from './api/v2/discoveryConnection';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
+import {
+  getResourceDiscoveryConnection,
+  recordDiscoveryConnection,
+} from './api/v2/discoveryConnection';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
@@ -197,6 +204,43 @@ describe('KubeObject', () => {
       expect(getCombinedAllowedNamespaces).not.toHaveBeenCalled();
     });
 
+    it.each([
+      { currentRevision: 'original:1', recordedRevision: 'original:1' },
+      { currentRevision: 'replacement:2', recordedRevision: 'original' },
+    ])(
+      'keeps the guarded LIST origin when the current revision is $currentRevision',
+      async ({ currentRevision, recordedRevision }) => {
+        vi.mocked(getDiscoveredConnectionRevision).mockReturnValue(currentRevision);
+        const onList = vi.fn<(items: Widget[]) => void>();
+        await Widget.apiList(onList, undefined, {
+          cluster: 'east',
+          namespace: 'apps',
+          queryParams: { __headlamp_connection_revision: 'original' },
+        })();
+
+        const [, callback, , query, cluster] = vi.mocked(endpoint.list).mock.calls[0];
+        expect(query).toEqual({ __headlamp_connection_revision: 'original' });
+        expect(cluster).toBe('east');
+        vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('replacement:3');
+        vi.mocked(getCluster).mockReturnValue('selected-later');
+        // The streaming list callback receives an array.
+        const onResults = callback as unknown as (items: KubeObjectInterface[]) => void;
+        onResults([data]);
+
+        const [item] = onList.mock.calls[0][0];
+        expect(getResourceDiscoveryConnection(item)).toEqual({
+          cluster: 'east',
+          revision: recordedRevision,
+        });
+        await item.update(data);
+        expect(endpoint.put).toHaveBeenCalledWith(
+          data,
+          { __headlamp_connection_revision: 'original' },
+          'east'
+        );
+      }
+    );
+
     it('wraps a get response and forwards request errors and cancellation', async () => {
       const cancel = vi.fn();
       const onError = vi.fn();
@@ -217,6 +261,26 @@ describe('KubeObject', () => {
         'east'
       );
       expect(onGet).toHaveBeenCalledWith(expect.objectContaining({ jsonData: data }));
+    });
+
+    it('keeps the connection selected when an implicit GET starts', async () => {
+      vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('original:1');
+      const onGet = vi.fn<(item: Widget) => void>();
+      await Widget.apiGet(onGet, 'sample', 'apps')();
+
+      const [, , onResult, , query, cluster] = vi.mocked(endpoint.get).mock.calls[0];
+      expect(query).toEqual({ __headlamp_connection_revision: 'original' });
+      expect(cluster).toBe('selected');
+      vi.mocked(getCluster).mockReturnValue('selected-later');
+      onResult(data);
+
+      const [item] = onGet.mock.calls[0];
+      await item.update(data);
+      expect(endpoint.put).toHaveBeenCalledWith(
+        data,
+        { __headlamp_connection_revision: 'original' },
+        'selected'
+      );
     });
 
     it('sets background propagation and immediate deletion for a forced Job deletion', () => {

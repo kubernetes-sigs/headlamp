@@ -39,12 +39,39 @@ import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ScaleApi } from './api/v1/scaleApi';
 import { ApiError } from './api/v2/ApiError';
-import { getResourceConnectionQuery } from './api/v2/discoveryConnection';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
+import {
+  getResourceConnectionQuery,
+  recordDiscoveryConnection,
+  withDiscoveryConnectionRevision,
+} from './api/v2/discoveryConnection';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
+
+function getApiReadConnection(opts?: ApiListSingleNamespaceOptions) {
+  const cluster = opts?.cluster || getCluster() || undefined;
+  const currentRevision = cluster ? getDiscoveredConnectionRevision(cluster) : undefined;
+  const routingRevision = opts?.queryParams?.__headlamp_connection_revision;
+  // A caller may still require an earlier route after discovery has updated.
+  const revision =
+    routingRevision && currentRevision?.split(':', 1)[0] !== routingRevision
+      ? routingRevision
+      : currentRevision;
+  return { cluster, revision };
+}
+
+function setResourceReadConnection<K extends KubeObject>(
+  resource: K,
+  cluster: string | undefined,
+  revision: string | undefined
+): K {
+  resource.cluster = cluster ?? '';
+  recordDiscoveryConnection(resource, resource.cluster, revision);
+  return resource;
+}
 
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
@@ -278,18 +305,6 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListSingleNamespaceOptions
   ): () => Promise<CancelFunction> {
-    const createInstance = (item: any): any => this.create(item);
-
-    const args: any[] = [(list: any[]) => onList(list.map((item: any) => createInstance(item)))];
-
-    if (this.apiEndpoint.isNamespaced) {
-      // An empty string means "all namespaces" and matches the namespace: string
-      // contract on ApiWithNamespaceClient.list (a falsy value is treated the same).
-      args.unshift(opts?.namespace || '');
-    }
-
-    args.push(onError);
-
     const queryParams: QueryParameters = {};
     if (opts?.queryParams?.labelSelector) {
       queryParams['labelSelector'] = opts.queryParams.labelSelector;
@@ -300,14 +315,22 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     if (opts?.queryParams?.limit) {
       queryParams['limit'] = opts.queryParams.limit;
     }
-    if (opts?.queryParams?.__headlamp_connection_revision) {
-      queryParams.__headlamp_connection_revision = opts.queryParams.__headlamp_connection_revision;
-    }
-    args.push(queryParams);
-
-    args.push(opts?.cluster);
-
-    return this.apiEndpoint.list.bind(null, ...args);
+    return () => {
+      const { cluster, revision } = getApiReadConnection(opts);
+      const onResults = (list: KubeObjectInterface[]) =>
+        onList(
+          list.map(item => setResourceReadConnection(this.create(item, cluster), cluster, revision))
+        );
+      const args: any[] = [
+        onResults,
+        onError,
+        withDiscoveryConnectionRevision(queryParams, revision),
+        cluster,
+      ];
+      // An empty string represents a list across all namespaces.
+      if (this.apiEndpoint.isNamespaced) args.unshift(opts?.namespace || '');
+      return this.apiEndpoint.list.bind(null, ...args)();
+    };
   }
 
   static useApiList<K extends KubeObject>(
@@ -509,18 +532,17 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
-    const createInstance = (item: any) => this.create(item);
-    const args: any[] = [name, (obj: any) => onGet(createInstance(obj))];
-
-    if (this.apiEndpoint.isNamespaced) {
-      args.unshift(namespace);
-    }
-
-    args.push(onError);
-    args.push(opts?.queryParams);
-    args.push(opts?.cluster);
-
-    return this.apiEndpoint.get.bind(null, ...args);
+    return () => {
+      const { cluster, revision } = getApiReadConnection(opts);
+      const onResult = (item: KubeObjectInterface) =>
+        onGet(setResourceReadConnection(this.create(item, cluster), cluster, revision));
+      const queryParams = revision
+        ? withDiscoveryConnectionRevision(opts?.queryParams ?? {}, revision)
+        : opts?.queryParams;
+      const args: any[] = [name, onResult, onError, queryParams, cluster];
+      if (this.apiEndpoint.isNamespaced) args.unshift(namespace);
+      return this.apiEndpoint.get.bind(null, ...args)();
+    };
   }
 
   static useApiGet<K extends KubeObject>(
