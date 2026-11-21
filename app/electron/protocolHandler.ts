@@ -17,7 +17,7 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import i18n from './i18next.config';
 import { dispatchOAuthCallback } from './oauthProvider';
-import { isProtocolUrl } from './protocol';
+import { getRouteFromProtocolUrl, isProtocolUrl } from './protocol';
 
 /** Configures product protocol callback validation and fallback behavior. */
 export interface ProtocolHandlerOptions {
@@ -144,14 +144,13 @@ export function createProtocolHandler(options: ProtocolHandlerOptions): Protocol
 
   /** Routes a valid callback that no OAuth provider claimed to the renderer. */
   function loadUnclaimedUrl(callbackUrl: URL): void {
-    const urlParam = callbackUrl.hostname;
     const baseUrl = options.startUrl.endsWith('/')
       ? options.startUrl.slice(0, options.startUrl.length - 1)
       : options.startUrl;
-    options.getMainWindow()?.loadURL(baseUrl + '#/' + urlParam + callbackUrl.search);
+    options.getMainWindow()?.loadURL(baseUrl + '#/' + getRouteFromProtocolUrl(callbackUrl));
   }
 
-  /** Restores and focuses the current window when one is available. */
+  /** Restores, shows, and focuses the current window when one is available. */
   function focusMainWindow(): void {
     const mainWindow = options.getMainWindow();
     if (!mainWindow) {
@@ -159,6 +158,10 @@ export function createProtocolHandler(options: ProtocolHandlerOptions): Protocol
     }
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
+    }
+    // A window hidden to the tray stays invisible after restore() and focus().
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
     }
     mainWindow.focus();
   }
