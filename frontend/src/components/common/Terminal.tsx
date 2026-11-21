@@ -195,7 +195,7 @@ export default function Terminal(props: TerminalProps) {
 
     // to check if we are connecting to the socket for the first time
     let firstConnect = false;
-    // Send resize command to server once connection is establised.
+    // Send resize command to server once connection is established.
     if (!xtermc.connected) {
       xterm.clear();
       (async function () {
@@ -226,7 +226,7 @@ export default function Terminal(props: TerminalProps) {
       return;
     }
     if (isAttach) {
-      // in case of attach if we didn't recieve any data from the process we should notify the user that if any data comes
+      // in case of attach if we didn't receive any data from the process we should notify the user that if any data comes
       // we will be showing it in the terminal
       if (firstConnect && !text) {
         text =
