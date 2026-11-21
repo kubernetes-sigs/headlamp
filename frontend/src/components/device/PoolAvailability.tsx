@@ -133,7 +133,6 @@ export default function PoolAvailability() {
   const { mutate, reset } = status;
 
   const run = useCallback(() => {
-    setProgress(undefined);
     mutate({ driver, poolName: pool || undefined });
   }, [mutate, driver, pool]);
 
@@ -144,6 +143,11 @@ export default function PoolAvailability() {
       reset();
     }
   }, [isServed, driver, run, reset]);
+
+  const refresh = () => {
+    setProgress(undefined);
+    run();
+  };
 
   const isCurrentProgress =
     progress?.spec.driver === driver && (progress.spec.poolName ?? '') === pool;
@@ -204,7 +208,7 @@ export default function PoolAvailability() {
               <Button onClick={() => show({ driver })}>{t('translation|Show all pools')}</Button>
             </>
           )}
-          <Button variant="contained" disabled={!driver || status.isPending} onClick={run}>
+          <Button variant="contained" disabled={!driver || status.isPending} onClick={refresh}>
             {t('translation|Refresh')}
           </Button>
         </Box>
