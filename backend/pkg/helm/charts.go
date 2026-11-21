@@ -17,8 +17,6 @@ limitations under the License.
 package helm
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -107,20 +105,5 @@ func (h *Handler) ListCharts(w http.ResponseWriter, r *http.Request) {
 		Charts: chartInfos,
 	}
 
-	var buf bytes.Buffer
-
-	err = json.NewEncoder(&buf).Encode(response)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "encoding charts response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if _, err := w.Write(buf.Bytes()); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing charts response")
-	}
+	writeJSONResponse(w, http.StatusOK, response)
 }
