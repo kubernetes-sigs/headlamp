@@ -22,8 +22,13 @@ import (
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	helmtime "helm.sh/helm/v3/pkg/time"
+	authv1 "k8s.io/api/authentication/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -483,7 +488,7 @@ func TestVerifyUserTimesOut(t *testing.T) {
 
 	start := time.Now()
 
-	assert.False(t, VerifyUser(actionConfig, InstallRequest{}))
+	assert.Error(t, VerifyUser(actionConfig, ""))
 	assert.Less(t, time.Since(start), 2*time.Second)
 }
 
@@ -609,6 +614,311 @@ func TestGetReleaseHistory_Validation(t *testing.T) {
 			h.GetReleaseHistory(nil, rr, req)
 
 			assert.Equal(t, tt.wantStatus, rr.Code)
+		})
+	}
+}
+
+type authRESTGetter struct {
+	cfg *rest.Config
+}
+
+var _ genericclioptions.RESTClientGetter = (*authRESTGetter)(nil)
+
+func (a *authRESTGetter) ToRESTConfig() (*rest.Config, error) {
+	return a.cfg, nil
+}
+
+func (a *authRESTGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return nil, nil
+}
+
+func (a *authRESTGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	return nil, nil
+}
+
+func (a *authRESTGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return nil
+}
+
+func newAuthTestServer(t *testing.T, username string, statusCode ...int) *httptest.Server {
+	t.Helper()
+
+	serverStatus := http.StatusOK
+	if len(statusCode) > 0 && statusCode[0] != 0 {
+		serverStatus = statusCode[0]
+	}
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/apis/authentication.k8s.io/v1/selfsubjectreviews" {
+			if serverStatus != http.StatusOK {
+				http.Error(w, "internal server error", serverStatus)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(&authv1.SelfSubjectReview{
+				Status: authv1.SelfSubjectReviewStatus{
+					UserInfo: authv1.UserInfo{
+						Username: username,
+					},
+				},
+			})
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+}
+
+func newAuthActionConfig(
+	serverURL string,
+	storageInst *storage.Storage,
+	expectSuccess bool,
+) *action.Configuration {
+	actionConfig := &action.Configuration{
+		RESTClientGetter: &authRESTGetter{
+			cfg: &rest.Config{Host: serverURL},
+		},
+		Releases: storageInst,
+		Log:      func(string, ...interface{}) {},
+	}
+
+	if expectSuccess {
+		actionConfig.KubeClient = &kubefake.PrintingKubeClient{}
+	}
+
+	return actionConfig
+}
+
+func createDeployedRelease(t *testing.T, storageInst *storage.Storage, name string) {
+	t.Helper()
+
+	rel := &release.Release{
+		Name:    name,
+		Version: 1,
+		Info: &release.Info{
+			Status: release.StatusDeployed,
+		},
+	}
+
+	require.NoError(t, storageInst.Create(rel))
+}
+
+func assertUninstallResult(
+	t *testing.T,
+	actionConfig *action.Configuration,
+	stat *stat,
+	expectSuccess bool,
+	expectedErr string,
+) {
+	t.Helper()
+
+	if expectSuccess {
+		assert.Equal(t, "success", stat.Status)
+		assert.Nil(t, stat.Err)
+
+		_, err := actionConfig.Releases.Last("my-release")
+		assert.ErrorIs(t, err, driver.ErrReleaseNotFound)
+
+		return
+	}
+
+	assert.Equal(t, "failed", stat.Status)
+	require.NotNil(t, stat.Err)
+	assert.Contains(t, *stat.Err, expectedErr)
+
+	currentRel, err := actionConfig.Releases.Last("my-release")
+	require.NoError(t, err)
+	assert.Equal(t, release.StatusDeployed, currentRel.Info.Status)
+}
+
+//nolint:funlen // Test exercises user verification cases for Helm uninstall
+func TestUninstallRelease_UserVerification(t *testing.T) {
+	tests := []struct {
+		name          string
+		username      string
+		statusCode    int
+		expectSuccess bool
+		expectedErr   string
+	}{
+		{
+			name:          "anonymous user rejected before uninstall Run",
+			username:      "system:anonymous",
+			expectSuccess: false,
+			expectedErr:   "user is not authorized to perform this operation",
+		},
+		{
+			name:          "unauthenticated user (empty username) rejected before uninstall Run",
+			username:      "",
+			expectSuccess: false,
+			expectedErr:   "user is not authorized to perform this operation",
+		},
+		{
+			name:          "api error during verification preserves error in status",
+			username:      "",
+			statusCode:    http.StatusInternalServerError,
+			expectSuccess: false,
+			expectedErr:   "failed to verify user identity",
+		},
+		{
+			name:          "unsupported cluster version (api not found) returns clear error",
+			username:      "",
+			statusCode:    http.StatusNotFound,
+			expectSuccess: false,
+			expectedErr:   "cluster does not support SelfSubjectReview API (requires Kubernetes 1.28+)",
+		},
+		{
+			name:          "authenticated user permitted and uninstalls release",
+			username:      "alice",
+			expectSuccess: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := newAuthTestServer(t, tt.username, tt.statusCode)
+			defer server.Close()
+
+			storageInst := storage.Init(driver.NewMemory())
+			createDeployedRelease(t, storageInst, "my-release")
+
+			actionConfig := newAuthActionConfig(server.URL, storageInst, tt.expectSuccess)
+			h := &Handler{Cache: cache.New[interface{}]()}
+
+			h.uninstallRelease(UninstallReleaseRequest{
+				Name:      "my-release",
+				Namespace: "default",
+			}, actionConfig)
+
+			stat, err := h.getReleaseStatus("uninstall", "my-release")
+			require.NoError(t, err)
+
+			assertUninstallResult(t, actionConfig, stat, tt.expectSuccess, tt.expectedErr)
+		})
+	}
+}
+
+func setupRollbackReleases(t *testing.T, storageInst *storage.Storage, name string) {
+	t.Helper()
+
+	rel1 := &release.Release{
+		Name:    name,
+		Version: 1,
+		Info: &release.Info{
+			Status: release.StatusSuperseded,
+		},
+	}
+	rel2 := &release.Release{
+		Name:    name,
+		Version: 2,
+		Info: &release.Info{
+			Status: release.StatusDeployed,
+		},
+	}
+
+	require.NoError(t, storageInst.Create(rel1))
+	require.NoError(t, storageInst.Create(rel2))
+}
+
+func assertRollbackResult(
+	t *testing.T,
+	actionConfig *action.Configuration,
+	stat *stat,
+	expectSuccess bool,
+	expectedErr string,
+) {
+	t.Helper()
+
+	history, err := actionConfig.Releases.History("my-release")
+	require.NoError(t, err)
+
+	if expectSuccess {
+		assert.Equal(t, "success", stat.Status)
+		assert.Nil(t, stat.Err)
+		assert.Len(t, history, 3)
+
+		lastRel, err := actionConfig.Releases.Last("my-release")
+		require.NoError(t, err)
+		assert.Equal(t, 3, lastRel.Version)
+
+		return
+	}
+
+	assert.Equal(t, "failed", stat.Status)
+	require.NotNil(t, stat.Err)
+	assert.Contains(t, *stat.Err, expectedErr)
+	assert.Len(t, history, 2)
+
+	lastRel, err := actionConfig.Releases.Last("my-release")
+	require.NoError(t, err)
+	assert.Equal(t, 2, lastRel.Version)
+	assert.Equal(t, release.StatusDeployed, lastRel.Info.Status)
+}
+
+//nolint:funlen // Test exercises user verification cases for Helm rollback
+func TestRollbackRelease_UserVerification(t *testing.T) {
+	tests := []struct {
+		name          string
+		username      string
+		statusCode    int
+		expectSuccess bool
+		expectedErr   string
+	}{
+		{
+			name:          "anonymous user rejected before rollback Run",
+			username:      "system:anonymous",
+			expectSuccess: false,
+			expectedErr:   "user is not authorized to perform this operation",
+		},
+		{
+			name:          "unauthenticated user (empty username) rejected before rollback Run",
+			username:      "",
+			expectSuccess: false,
+			expectedErr:   "user is not authorized to perform this operation",
+		},
+		{
+			name:          "api error during verification preserves error in status",
+			username:      "",
+			statusCode:    http.StatusInternalServerError,
+			expectSuccess: false,
+			expectedErr:   "failed to verify user identity",
+		},
+		{
+			name:          "unsupported cluster version (api not found) returns clear error",
+			username:      "",
+			statusCode:    http.StatusNotFound,
+			expectSuccess: false,
+			expectedErr:   "cluster does not support SelfSubjectReview API (requires Kubernetes 1.28+)",
+		},
+		{
+			name:          "authenticated user permitted and rolls back release",
+			username:      "alice",
+			expectSuccess: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := newAuthTestServer(t, tt.username, tt.statusCode)
+			defer server.Close()
+
+			storageInst := storage.Init(driver.NewMemory())
+			setupRollbackReleases(t, storageInst, "my-release")
+
+			actionConfig := newAuthActionConfig(server.URL, storageInst, tt.expectSuccess)
+			h := &Handler{Cache: cache.New[interface{}]()}
+
+			h.rollbackRelease(RollbackReleaseRequest{
+				Name:      "my-release",
+				Namespace: "default",
+				Revision:  1,
+			}, actionConfig)
+
+			stat, err := h.getReleaseStatus("rollback", "my-release")
+			require.NoError(t, err)
+
+			assertRollbackResult(t, actionConfig, stat, tt.expectSuccess, tt.expectedErr)
 		})
 	}
 }
