@@ -170,6 +170,39 @@ describe('useWebSockets', () => {
     });
   });
 
+  it('notifies sibling watches when a close listener throws', async () => {
+    const url = 'api/v1/pods?watch=1';
+    const otherUrl = 'api/v1/services?watch=1';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const otherServer = new WS(`${BASE_WS_URL}${otherUrl}`);
+    const error = new Error('close failed');
+    const failingClose = vi.fn(() => {
+      throw error;
+    });
+    const siblingClose = vi.fn();
+    const otherClose = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { unmount } = renderHook(() =>
+      useWebSockets({
+        connections: [
+          { cluster: '', url, onMessage: vi.fn(), onClose: failingClose },
+          { cluster: '', url, onMessage: vi.fn(), onClose: siblingClose },
+          { cluster: '', url: otherUrl, onMessage: vi.fn(), onClose: otherClose },
+        ],
+      })
+    );
+    const [socket, otherSocket] = await Promise.all([server.connected, otherServer.connected]);
+
+    socket.close();
+    await waitFor(() => expect(siblingClose).toHaveBeenCalledTimes(1));
+    expect(consoleError).toHaveBeenCalledWith('WebSocket listener error:', error);
+
+    unmount();
+    await otherServer.closed;
+    expect(otherSocket.readyState).toBe(WebSocket.CLOSED);
+    expect(otherClose).toHaveBeenCalledTimes(1);
+  });
+
   it('opens separate sockets for the same URL when listeners use different caches', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=1';
     const server = new WS(`${BASE_WS_URL}${url}`);

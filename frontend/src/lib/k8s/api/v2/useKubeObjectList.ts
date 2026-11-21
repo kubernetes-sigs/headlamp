@@ -40,6 +40,7 @@ import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
 import { kubeRequestRetry } from './retry';
+import { isWatchRefresh, refreshWatchQuery } from './watchRefresh';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
 /**
@@ -76,6 +77,8 @@ export interface ListResponse<K extends KubeObject> {
   namespace?: string;
   /** Version that started the direct watch, before watch events updated the list. */
   watchStartResourceVersion?: string;
+  /** The last failure from the direct watch, retained across snapshot refreshes. */
+  watchError?: ApiError;
   /** Revision of the discovered connection that returned this list. */
   connectionRevision?: string;
   /** Whether this synthesized list must not start a cluster-wide watch */
@@ -203,13 +206,15 @@ async function fetchKubeObjectListPage<K extends KubeObject>(
   cluster: string,
   queryParams: QueryParameters,
   connectionRevision?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  fresh = false
 ): Promise<KubeList<K>> {
   const page: KubeList<KubeObjectInterface> = await clusterFetch(
     makeUrl([path], withDiscoveryConnectionRevision(queryParams, connectionRevision)),
     {
       cluster,
       signal,
+      ...(fresh ? { headers: { 'Cache-Control': 'no-cache' } } : {}),
     }
   ).then(response => response.json());
   const kind = page.kind.replace(/List$/, '');
@@ -295,10 +300,14 @@ export function kubeObjectListQuery<K extends KubeObject>(
       : query;
   }
 
+  const retry = kubeRequestRetry;
   return {
     placeholderData: null,
     refetchInterval,
-    retry: kubeRequestRetry,
+    retry:
+      isExactListVersion(queryParams) && retry
+        ? (failures, error) => error.status !== 410 && retry(failures, error)
+        : retry,
     queryKey: [
       'kubeObject',
       'list',
@@ -314,6 +323,11 @@ export function kubeObjectListQuery<K extends KubeObject>(
       if (!endpoint) return;
 
       try {
+        const cacheEntry = context?.client.getQueryCache().find<ListResponse<K>>({
+          queryKey: context.queryKey,
+          exact: true,
+        });
+        const recovering = isWatchRefresh(cacheEntry);
         const path = KubeObjectEndpoint.toUrl(endpoint, namespace);
         const fetchPage = (params: QueryParameters) =>
           fetchKubeObjectListPage<K>(
@@ -322,17 +336,14 @@ export function kubeObjectListQuery<K extends KubeObject>(
             cluster,
             params,
             connectionRevision ?? undefined,
-            context?.signal
+            context?.signal,
+            recovering
           );
         let list = await fetchPage(queryParams);
 
         // A watch starts after all pages have loaded. Its replacement snapshot must
         // be complete as well, or the first page's continuation token stops the watch.
         if (list.metadata.continue && !queryParams.continue) {
-          const cacheEntry = context?.client.getQueryCache().find<ListResponse<K>>({
-            queryKey: context.queryKey,
-            exact: true,
-          });
           const hasWatchObserver = () =>
             !!cacheEntry?.observers.some(observer => observer.options.meta?.watchList === true);
           // Use the current cache: Load More can complete while the refresh is pending.
@@ -345,11 +356,19 @@ export function kubeObjectListQuery<K extends KubeObject>(
           }
         }
 
+        const previous = cacheEntry?.state.data;
         const response: ListResponse<K> = {
           list,
           cluster,
           namespace,
           connectionRevision: connectionRevision || undefined,
+          ...(recovering && previous
+            ? {
+                watchStartResourceVersion:
+                  previous.watchStartResourceVersion ?? previous.list.metadata.resourceVersion,
+              }
+            : {}),
+          ...(previous?.watchError ? { watchError: previous.watchError } : {}),
         };
 
         return response;
@@ -684,8 +703,11 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         undefined,
         connectionRevision ?? null
       ).queryKey;
-      const refreshList = () =>
-        client.invalidateQueries({ queryKey, exact: true }, { cancelRefetch: false });
+      const pinned = isExactListVersion(stableQueryParams ?? {});
+      const rememberWatchError = (error?: ApiError) =>
+        client.setQueryData<ListResponse<K>>(queryKey, cached =>
+          cached && cached.watchError !== error ? { ...cached, watchError: error } : cached
+        );
       let relisting: Promise<void> | undefined;
 
       return {
@@ -693,15 +715,44 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         cacheEntry: client.getQueryCache().find({ queryKey, exact: true }),
         url: watchUrl(resourceVersion),
         async getWatchUrl(reconnecting: boolean) {
-          if (reconnecting) await (relisting ?? refreshList());
-          relisting = undefined;
+          if (
+            pinned &&
+            client.getQueryData<ListResponse<K>>(queryKey)?.watchError?.status === 410
+          ) {
+            return null;
+          }
+          if (reconnecting) {
+            const refresh = relisting ?? refreshWatchQuery(client, queryKey, {});
+            relisting = undefined;
+            try {
+              await refresh;
+            } catch (error) {
+              if (!(pinned && error instanceof ApiError && error.status === 410)) throw error;
+              rememberWatchError(error);
+              return null;
+            }
+          }
           const cached = client.getQueryData<ListResponse<K>>(queryKey);
+          if (cached?.list.metadata.continue) return null;
           return watchUrl(cached?.list.metadata.resourceVersion ?? resourceVersion);
+        },
+        onOpen() {
+          rememberWatchError();
         },
         onMessage(update: KubeListUpdateEvent<KubeObjectInterface>) {
           if (update.type === 'ERROR') {
-            if (update.object?.code === 410) relisting = refreshList();
-            else setListWatchError(client, queryKey, update, cluster, namespace);
+            const status = update.object?.code;
+            if (status === 410 && !pinned) {
+              relisting = refreshWatchQuery(client, queryKey, update);
+            } else {
+              rememberWatchError(
+                new ApiError(update.object?.message ?? 'The resource watch stopped', {
+                  status,
+                  cluster,
+                  namespace,
+                })
+              );
+            }
             return;
           }
 
@@ -796,6 +847,7 @@ function withoutPaginationParams(queryParams: QueryParameters): QueryParameters 
   const params = { ...queryParams };
   delete params.continue;
   delete params.limit;
+  if (params.resourceVersionMatch === 'Exact') delete params.resourceVersionMatch;
   return params;
 }
 
@@ -849,6 +901,18 @@ function getPositiveLimit(queryParams: QueryParameters): number | undefined {
   }
 
   return Math.floor(limit);
+}
+
+function isExactListVersion(queryParams: QueryParameters): boolean {
+  if (queryParams.resourceVersionMatch) return queryParams.resourceVersionMatch === 'Exact';
+
+  // A paginated LIST with a nonzero version defaults to an exact version match.
+  return (
+    !queryParams.continue &&
+    !!queryParams.resourceVersion &&
+    queryParams.resourceVersion !== '0' &&
+    getPositiveLimit(queryParams) !== undefined
+  );
 }
 
 function getPerRequestQueryParams(
@@ -961,6 +1025,9 @@ export function useKubeObjectList<K extends KubeObject>({
   const query = useQueries({
     queries,
     combine(results) {
+      const getError = (result: (typeof results)[number]) =>
+        result.error ?? (watchList ? result.data?.watchError : undefined);
+      const errors = results.map(getError).filter((error): error is ApiError => !!error);
       const hasMore =
         hasPendingListRequests || results.some(result => !!result.data?.list?.metadata?.continue);
       const hasUnknownRemainingItemCount = results.some(
@@ -989,12 +1056,12 @@ export function useKubeObjectList<K extends KubeObject>({
           return;
         }
         const errors = clusterQueryResults
-          .map(result => result.error)
+          .map(getError)
           .filter((error): error is ApiError => !!error);
-        const isError = clusterQueryResults.some(result => result.isError);
-        const isSuccess = clusterQueryResults.every(
-          result => result.isSuccess && !result.isPlaceholderData
-        );
+        const isError = errors.length > 0;
+        const isSuccess =
+          !isError &&
+          clusterQueryResults.every(result => result.isSuccess && !result.isPlaceholderData);
         clusterResults[cluster] = {
           data: withData[0].data,
           error: errors[0] ?? null,
@@ -1019,11 +1086,11 @@ export function useKubeObjectList<K extends KubeObject>({
             : results.every(result => result.data === null)
             ? null
             : results.flatMap(result => result?.data?.list?.items ?? []),
-        errors: results.map(result => result.error).filter(Boolean),
-        isError: results.some(result => result.isError),
+        errors,
+        isError: errors.length > 0,
         isLoading: results.some(result => result.isLoading),
         isFetching: results.some(result => result.isFetching),
-        isSuccess: results.every(result => result.isSuccess),
+        isSuccess: errors.length === 0 && results.every(result => result.isSuccess),
         // Whether any result set has more items available via pagination.
         hasMore,
         remainingItemCount:

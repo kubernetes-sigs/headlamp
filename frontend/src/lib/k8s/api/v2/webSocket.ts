@@ -62,7 +62,10 @@ export type WebSocketConnectionRequest<T> = {
   cacheEntry?: object;
 
   /** Provides the current URL before opening or reconnecting a watch. */
-  getWatchUrl?: (reconnecting: boolean) => Promise<string>;
+  getWatchUrl?: (reconnecting: boolean) => Promise<string | null>;
+
+  /** Runs when the server accepts this watch. */
+  onOpen?: (url: string, event: Event) => void;
 
   /** Runs when this watch loses its connection or its last subscriber. */
   onClose?: () => void;
@@ -81,11 +84,19 @@ const sockets = new Map<string, WebSocket | symbol>();
 const reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 type WebSocketListener = Pick<
   WebSocketConnectionRequest<any>,
-  'onMessage' | 'getWatchUrl' | 'onClose'
+  'onMessage' | 'getWatchUrl' | 'onOpen' | 'onClose'
 >;
 const listeners = new Map<string, WebSocketListener[]>();
 const cacheEntryIds = new WeakMap<object, number>();
 let nextCacheEntryId = 0;
+
+function notifyWatchListener(callback: () => void) {
+  try {
+    callback();
+  } catch (error) {
+    console.error('WebSocket listener error:', error);
+  }
+}
 
 function connectionKeyFor(cluster: string, url: string, cacheEntry?: object) {
   let cacheEntryId = cacheEntry && cacheEntryIds.get(cacheEntry);
@@ -227,8 +238,12 @@ export function useWebSockets<T>({
 
         try {
           const watch = listeners.get(connectionKey)?.find(listener => listener.getWatchUrl);
-          const watchUrl = (await watch?.getWatchUrl?.(reconnecting)) ?? url;
+          const watchUrl = watch?.getWatchUrl ? await watch.getWatchUrl(reconnecting) : url;
           if (sockets.get(connectionKey) !== pendingSocket) return;
+          if (watchUrl === null) {
+            sockets.delete(connectionKey);
+            return;
+          }
 
           const socket = await openWebSocket<T>(watchUrl, {
             protocols,
@@ -236,13 +251,9 @@ export function useWebSockets<T>({
             cluster,
             onMessage(update) {
               if (sockets.get(connectionKey) !== socket) return;
-              listeners.get(connectionKey)?.forEach(listener => {
-                try {
-                  listener.onMessage(update);
-                } catch (error) {
-                  console.error('WebSocket listener error:', error);
-                }
-              });
+              listeners
+                .get(connectionKey)
+                ?.forEach(listener => notifyWatchListener(() => listener.onMessage(update)));
             },
           });
 
@@ -253,8 +264,12 @@ export function useWebSockets<T>({
 
           sockets.set(connectionKey, socket);
           let openedAt: number | undefined;
-          socket.addEventListener('open', () => {
+          socket.addEventListener('open', event => {
+            if (sockets.get(connectionKey) !== socket) return;
             openedAt = Date.now();
+            listeners
+              .get(connectionKey)
+              ?.forEach(listener => notifyWatchListener(() => listener.onOpen?.(watchUrl, event)));
           });
           socket.addEventListener('close', () => {
             if (sockets.get(connectionKey) !== socket) return;
@@ -262,7 +277,9 @@ export function useWebSockets<T>({
               reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
             }
             retry();
-            listeners.get(connectionKey)?.forEach(listener => listener.onClose?.());
+            listeners
+              .get(connectionKey)
+              ?.forEach(listener => notifyWatchListener(() => listener.onClose?.()));
           });
         } catch (error) {
           if (sockets.get(connectionKey) !== pendingSocket) return;
@@ -287,7 +304,7 @@ export function useWebSockets<T>({
         reconnectTimers.delete(connectionKey);
         if (socket && typeof socket !== 'symbol') {
           socket.close();
-          listener.onClose?.();
+          notifyWatchListener(() => listener.onClose?.());
         }
       };
     }

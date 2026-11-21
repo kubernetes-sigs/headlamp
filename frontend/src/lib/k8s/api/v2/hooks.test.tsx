@@ -127,6 +127,40 @@ describe('useEndpoints', () => {
     expect(calledUrls).not.toContain('apis/extensions/v1beta1/namespaces/default/ingresses');
   });
 
+  it.each([false, true])(
+    'finds a served version with GET denied (LIST allowed: %s)',
+    async listAllowed => {
+      const endpoints: KubeObjectEndpoint[] = [
+        { group: 'networking.k8s.io', version: 'v1beta1', resource: 'ingresses' },
+        { group: 'networking.k8s.io', version: 'v1', resource: 'ingresses' },
+      ];
+      mockClusterFetch.mockImplementation(rawUrl => {
+        const url = new URL(rawUrl, 'https://headlamp.test/');
+        if (url.pathname === '/apis/networking.k8s.io/v1') {
+          return Promise.resolve(mockJsonResponse({ resources: [{ name: 'ingresses' }] }));
+        }
+        if (url.pathname === '/apis/networking.k8s.io/v1beta1') {
+          return Promise.reject(new ApiError('Version not found', { status: 404 }));
+        }
+        if (
+          listAllowed &&
+          url.pathname === '/apis/networking.k8s.io/v1/namespaces/default/ingresses' &&
+          url.searchParams.get('fieldSelector') === 'metadata.name=demo'
+        ) {
+          return Promise.resolve(mockJsonResponse({ items: [] }));
+        }
+        return Promise.reject(new ApiError('Forbidden', { status: 403 }));
+      });
+
+      const { result } = renderHook(
+        () => useEndpoints(endpoints, 'cluster-a', 'default', 'demo', true),
+        { wrapper: createWrapper() }
+      );
+      await waitFor(() => expect(result.current.endpoint).toEqual(endpoints[1]));
+      expect(result.current.error).toBeNull();
+    }
+  );
+
   it('handles cluster-scoped GET-by-name probing without namespace', async () => {
     const endpoints: KubeObjectEndpoint[] = [
       {
@@ -535,6 +569,7 @@ describe('useKubeObject watch wiring', () => {
     mockClusterFetch
       .mockResolvedValueOnce(mockJsonResponse(pod('1')))
       .mockResolvedValueOnce(mockJsonResponse(pod('3')))
+      .mockResolvedValueOnce(mockJsonResponse(pod('3')))
       .mockResolvedValueOnce(mockJsonResponse(pod('3')));
     const { result, connected, server, cleanup } = await renderDiscoveredPodWatch();
 
@@ -564,11 +599,85 @@ describe('useKubeObject watch wiring', () => {
 
       server.send(JSON.stringify({ type: 'ADDED', object: pod('10') }));
       await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('10'));
-      expect(mockClusterFetch).toHaveBeenCalledTimes(3);
+      expect(mockClusterFetch).toHaveBeenCalledTimes(4);
     } finally {
       cleanup();
     }
   }, 10000);
+
+  it('reconciles an object deleted just before a versionless watch resumes', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    mockClusterFetch
+      .mockResolvedValueOnce(mockJsonResponse(pod('1')))
+      .mockResolvedValueOnce(mockJsonResponse(pod('1')))
+      .mockRejectedValueOnce(new ApiError('Not found', { status: 404 }));
+    const { result, connected, server, cleanup } = await renderDiscoveredPodWatch();
+
+    try {
+      const original = await server.connected;
+      original.close();
+      await waitFor(() => expect(connected).toHaveBeenCalledTimes(2), { timeout: 3500 });
+      expect(new URL(connected.mock.calls[1][0].url).searchParams.has('resourceVersion')).toBe(
+        false
+      );
+      await waitFor(() => expect(result.current.error?.status).toBe(404));
+      expect(result.current.data).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('starts a new read on expiration while an older GET is pending', async () => {
+    let resolveOldRead!: (response: Response) => void;
+    const oldRead = new Promise<Response>(resolve => {
+      resolveOldRead = resolve;
+    });
+    mockClusterFetch
+      .mockResolvedValueOnce(mockJsonResponse(pod('1')))
+      .mockReturnValueOnce(oldRead)
+      .mockRejectedValueOnce(new ApiError('Not found', { status: 404 }));
+    const { result, server, cleanup } = await renderDiscoveredPodWatch();
+
+    try {
+      await server.connected;
+      const cacheEntry = mockUseWebSockets.mock.lastCall?.[0].connections[0].cacheEntry;
+      const pending = cacheEntry.fetch().catch(() => {});
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+
+      act(() => server.send(JSON.stringify({ type: 'ERROR', object: { code: 410 } })));
+      await waitFor(() => expect(result.current.error?.status).toBe(404));
+      await act(async () => {
+        resolveOldRead(mockJsonResponse(pod('1')));
+        await pending;
+      });
+      expect(mockClusterFetch.mock.calls[1][1].signal?.aborted).toBe(true);
+      expect(result.current.error?.status).toBe(404);
+      expect(result.current.data).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('retries a failed read after observing a deletion with no cached object', async () => {
+    mockClusterFetch
+      .mockResolvedValueOnce(mockJsonResponse(pod('1')))
+      .mockRejectedValueOnce(new ApiError('Unavailable', { status: 503 }))
+      .mockResolvedValueOnce(mockJsonResponse(pod('3')));
+    const { result, server, cleanup } = await renderDiscoveredPodWatch();
+
+    try {
+      await server.connected;
+      act(() => server.send(JSON.stringify({ type: 'DELETED', object: pod('2') })));
+      await waitFor(() => expect(result.current.error?.status).toBe(503));
+      expect(result.current.data).toBeNull();
+      expect(mockUseWebSockets.mock.lastCall?.[0].enabled).toBe(true);
+      await waitFor(() => expect(result.current.data?.metadata.resourceVersion).toBe('3'), {
+        timeout: 4000,
+      });
+    } finally {
+      cleanup();
+    }
+  }, 6500);
 
   it('retries the reconnect read and reports an object deleted before the watch restarted', async () => {
     mockClusterFetch
@@ -669,7 +778,9 @@ describe('useKubeObject watch wiring', () => {
           await waitFor(() => expect(result.current.error?.status).toBe(404));
           expect(result.current.data).toBeNull();
         }
-        expect(mockClusterFetch.mock.calls[1][0]).toContain('fieldSelector=metadata.name%3Dmy-pod');
+        const url = new URL(mockClusterFetch.mock.calls[1][0], 'https://headlamp.test/');
+        expect(url.searchParams.get('fieldSelector')).toBe('metadata.name=my-pod');
+        expect(url.searchParams.has('labelSelector')).toBe(false);
       } finally {
         cleanup();
       }
@@ -710,7 +821,12 @@ describe('useKubeObject watch wiring', () => {
         await reading;
       });
       expect(mockClusterFetch).toHaveBeenCalledTimes(3);
-      expect(result.current.data?.metadata.uid).toBe(recreated ? 'replacement' : undefined);
+      if (recreated) {
+        expect(result.current.data?.metadata.uid).toBe('replacement');
+      } else {
+        expect(result.current.error?.status).toBe(404);
+        expect(result.current.data).toBeNull();
+      }
     } finally {
       cleanup();
     }

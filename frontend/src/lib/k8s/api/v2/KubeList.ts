@@ -71,6 +71,7 @@ export const KubeList = {
       case 'ADDED':
       case 'MODIFIED': {
         const resource = new itemClass(update.object, cluster);
+        if (cluster) resource.cluster = cluster;
         recordDiscoveryConnection(resource, cluster, connectionRevision);
         if (index !== -1) {
           newItems[index] = resource;
