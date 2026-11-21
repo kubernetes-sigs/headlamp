@@ -62,14 +62,20 @@ func ContextCacheKey(contextKey string, k *kubeconfig.Context) (string, error) {
 		namespace = k.KubeContext.Namespace
 	}
 
+	revision := ""
+	if k.Discovery != nil {
+		revision = k.Discovery.ConnectionRevision
+	}
+
 	connection, err := json.Marshal(struct {
-		Cluster   api.Cluster
-		AuthInfo  api.AuthInfo
-		Source    int
-		Namespace string
+		Cluster           api.Cluster
+		AuthInfo          api.AuthInfo
+		Source            int
+		Namespace         string
+		DiscoveryRevision string `json:",omitempty"`
 		// These exec settings are excluded from AuthInfo's JSON.
 		ExecDetails any
-	}{cluster, authInfo, k.Source, namespace, execDetails})
+	}{cluster, authInfo, k.Source, namespace, revision, execDetails})
 	if err != nil {
 		// Serialization errors may contain credential values supplied by an exec plugin.
 		return "", fmt.Errorf("could not identify connection settings for caching")

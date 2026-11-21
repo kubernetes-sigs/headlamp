@@ -429,6 +429,26 @@ func TestCacheConnectionTLSChange(t *testing.T) {
 	assert.EqualValues(t, 1, requests.Load())
 }
 
+func TestCacheConnectionRevisionChangeWithSameEndpoint(t *testing.T) {
+	server, requests := newCacheConnectionServer(t, "pod", "user", nil)
+	connection := cacheConnectionContext(t, server, kubeconfig.ClusterInventory)
+	connection.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "original"}
+	cfg, router := cacheConnectionRouter(t, connection)
+	require.Equal(t, http.StatusOK, cacheConnectionRequest(t, router, http.MethodGet, "user").Code)
+	requireCachedResource(t, router, "/api/v1/pods", "user", "")
+	requests.Store(0)
+
+	replacement := connection.Copy()
+	replacement.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "replacement"}
+	require.NoError(t, replacement.SetupProxy())
+	require.NoError(t, cfg.KubeConfigStore.AddContext(replacement))
+
+	response := cacheConnectionRequest(t, router, http.MethodGet, "user")
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Empty(t, response.Header().Get("X-HEADLAMP-CACHE"))
+	require.EqualValues(t, 1, requests.Load())
+}
+
 func TestCacheConnectionMetadataUpdate(t *testing.T) {
 	server, requests := newCacheConnectionServer(t, "pod", "user", nil)
 	kContext := cacheConnectionContext(t, server, kubeconfig.ClusterInventory)
