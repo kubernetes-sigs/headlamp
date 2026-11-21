@@ -365,6 +365,7 @@ export default function SimpleTable(props: SimpleTableProps) {
           className={className}
           sx={{
             overflowY: 'hidden',
+            backgroundColor: 'background.default',
             ...sx,
           }}
           component={Paper}
