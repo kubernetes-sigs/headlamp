@@ -15,8 +15,19 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { getCluster } from '../../../lib/cluster';
+import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
+import {
+  getDiscoveredConnectionRevision,
+  useDiscoveredConnectionRevisions,
+} from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
+import {
+  DISCOVERY_CONNECTION_CHANGED,
+  getResourceDiscoveryConnection,
+  isDiscoveryConnectionChanged,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
+import { shouldRetryKubeRequest } from '../../../lib/k8s/api/v2/retry';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
@@ -71,9 +82,15 @@ export default function AuthVisible(props: AuthVisibleProps) {
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
   const cluster = clusterProp ?? (item as KubeObject)?.cluster ?? getCluster();
+  const revisions = useDiscoveredConnectionRevisions();
+  const revision = cluster ? revisions.get(cluster) : undefined;
+  const origin = item && getResourceDiscoveryConnection(item);
+  const currentConnection = !origin || origin.cluster !== cluster || origin.revision === revision;
 
-  const { data } = useQuery<any>({
-    enabled: !!item && isAuthVerbValid,
+  const { data: authorization, error } = useQuery<any, Error>({
+    enabled: !!item && isAuthVerbValid && currentConnection,
+    retry: (failures, error) =>
+      !isDiscoveryConnectionChanged(error) && shouldRetryKubeRequest(failures, error),
     queryKey: [
       'authVisible',
       itemName,
@@ -83,30 +100,40 @@ export default function AuthVisible(props: AuthVisibleProps) {
       subresource,
       namespace,
       cluster,
+      revision,
     ],
-    queryFn: async () => {
-      try {
-        const res = await item!.getAuthorization(
-          authVerb,
-          { subresource, namespace },
-          cluster ?? undefined
-        );
-        return res;
-      } catch (e: any) {
-        onError?.(e);
+    queryFn: async ({ signal }) => {
+      if (cluster && getDiscoveredConnectionRevision(cluster) !== revision) {
+        throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
       }
+      signal.throwIfAborted();
+      const result = await item!.getAuthorization(
+        authVerb,
+        { subresource, namespace },
+        cluster ?? undefined
+      );
+      signal.throwIfAborted();
+      return result ?? null;
     },
   });
 
+  useEffect(() => {
+    if (error && currentConnection) onError?.(error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, currentConnection]);
+
+  const data = currentConnection && !error ? authorization : undefined;
   const visible = data?.status?.allowed ?? false;
+  const wasAllowed = useRef(false);
 
   useEffect(() => {
-    if (data) {
+    if (data || wasAllowed.current) {
       onAuthResult?.({
         allowed: visible,
-        reason: data.status?.reason ?? '',
+        reason: data?.status?.reason ?? '',
       });
     }
+    wasAllowed.current = visible;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 

@@ -18,6 +18,10 @@ import React, { useContext } from 'react';
 import { useHistory, useLocation } from 'react-router-dom';
 import { getCluster, getSelectedClusters } from '../../../cluster';
 import { SelectedClustersContext } from '../../SelectedClustersContext';
+import {
+  getDiscoveredConnectionRevision,
+  useDiscoveredConnectionRevisions,
+} from '../v2/discoveredConnectionRevisions';
 
 export type CancellablePromise = Promise<() => void>;
 
@@ -77,23 +81,46 @@ export function useSelectedClusters(): string[] {
  * @param apiCalls - functions returning cancellable promises for API calls.
  */
 export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
-  // Use the location to make sure the API calls are changed, as they may depend on the cluster
-  // (defined in the URL ATM).
-  const cluster = useCluster();
+  useConnectionRequests(undefined, () => apiCalls.map(call => call()));
+}
 
+/** Keep callback-based reads bound to their effective cluster connection. */
+export function useConnectionRequests(
+  explicitCluster: string | undefined,
+  start: (
+    cluster: string | undefined,
+    isCurrent: () => boolean,
+    changed: boolean
+  ) => CancellablePromise[],
+  requestKey?: string
+) {
+  const routeCluster = useCluster();
+  const cluster = explicitCluster || routeCluster || undefined;
+  const revisions = useDiscoveredConnectionRevisions();
+  const revision = cluster ? revisions.get(cluster) : undefined;
+  const previous = React.useRef({ cluster, revision, requestKey });
   React.useEffect(
     () => {
-      const cancellables = apiCalls.map(func => func());
+      const changed =
+        previous.current.cluster !== cluster ||
+        previous.current.revision !== revision ||
+        previous.current.requestKey !== requestKey;
+      previous.current = { cluster, revision, requestKey };
+      let active = true;
+      const isCurrent = () =>
+        active && (!cluster || getDiscoveredConnectionRevision(cluster) === revision);
+      const cancellables = start(cluster, isCurrent, changed);
 
       return function cleanup() {
+        active = false;
         for (const cancellablePromise of cancellables) {
           cancellablePromise.then(cancellable => cancellable());
         }
       };
     },
-    // If we add the apiCalls to the dependency list, then it actually
-    // results in undesired reloads.
+    // Callers build new callbacks on every render. Restart for changes to the
+    // connection, route or request inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cluster]
+    [routeCluster, cluster, revision, requestKey]
   );
 }

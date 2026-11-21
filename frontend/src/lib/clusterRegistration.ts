@@ -46,9 +46,13 @@ export interface UseRegisteredClustersOptions {
 }
 
 const selectRegisteredClusters = createSelector(
-  (state: RootState) => state.config.clusters,
-  clusters =>
-    Object.values(clusters ?? {}).flatMap<RegisteredCluster>(cluster => {
+  [
+    (state: RootState) => state.config.clusters,
+    (state: RootState) => state.config.statelessClusters,
+  ],
+  (clusters, statelessClusters) =>
+    Object.entries(clusters ?? {}).flatMap<RegisteredCluster>(([name, cluster]) => {
+      if (statelessClusters?.[name]) return [];
       const origin = cluster.meta_data?.discoveryOrigin;
       const source = cluster.meta_data?.source;
       if (!origin || typeof source !== 'string') return [];

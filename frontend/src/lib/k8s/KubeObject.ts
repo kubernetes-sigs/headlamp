@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+import { hashKey } from '@tanstack/react-query';
 import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
-import unset from 'lodash/unset';
 import React, { useMemo } from 'react';
 import {
   getCombinedAllowedNamespaces,
@@ -35,12 +35,16 @@ import type {
   RecursivePartial,
 } from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
-import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
+import { asQuery } from './api/v1/formatUrl';
+import { useConnectionRequests, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ScaleApi } from './api/v1/scaleApi';
 import { ApiError } from './api/v2/ApiError';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
 import {
-  getResourceDiscoveryConnection,
+  DISCOVERY_CONNECTION_CHANGED,
+  getResourceConnectionQuery,
+  recordDiscoveryConnection,
   withDiscoveryConnectionRevision,
 } from './api/v2/discoveryConnection';
 import { useKubeObject } from './api/v2/hooks';
@@ -49,20 +53,34 @@ import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
 
+function getApiReadConnection(opts?: ApiListSingleNamespaceOptions) {
+  const cluster = opts?.cluster || getCluster() || undefined;
+  const currentRevision = cluster ? getDiscoveredConnectionRevision(cluster) : undefined;
+  const routingRevision = opts?.queryParams?.__headlamp_connection_revision;
+  // A caller may still require an earlier route after discovery has updated.
+  const revision =
+    routingRevision && currentRevision?.split(':', 1)[0] !== routingRevision
+      ? routingRevision
+      : currentRevision;
+  return { cluster, revision };
+}
+
+function setResourceReadConnection<K extends KubeObject>(
+  resource: K,
+  cluster: string | undefined,
+  revision: string | undefined
+): K {
+  resource.cluster = cluster ?? '';
+  recordDiscoveryConnection(resource, resource.cluster, revision);
+  return resource;
+}
+
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
     return [];
   }
 
   return getCombinedAllowedNamespaces(cluster);
-}
-
-function getResourceMutationQuery<T extends object>(resource: KubeObject, params: T) {
-  const connection = getResourceDiscoveryConnection(resource);
-  if (connection && connection.cluster !== resource._clusterName) {
-    throw new ApiError('Discovered cluster connection changed', { status: 409 });
-  }
-  return withDiscoveryConnectionRevision(params, connection?.revision);
 }
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
@@ -289,18 +307,6 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListSingleNamespaceOptions
   ): () => Promise<CancelFunction> {
-    const createInstance = (item: any): any => this.create(item);
-
-    const args: any[] = [(list: any[]) => onList(list.map((item: any) => createInstance(item)))];
-
-    if (this.apiEndpoint.isNamespaced) {
-      // An empty string means "all namespaces" and matches the namespace: string
-      // contract on ApiWithNamespaceClient.list (a falsy value is treated the same).
-      args.unshift(opts?.namespace || '');
-    }
-
-    args.push(onError);
-
     const queryParams: QueryParameters = {};
     if (opts?.queryParams?.labelSelector) {
       queryParams['labelSelector'] = opts.queryParams.labelSelector;
@@ -311,11 +317,22 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     if (opts?.queryParams?.limit) {
       queryParams['limit'] = opts.queryParams.limit;
     }
-    args.push(queryParams);
-
-    args.push(opts?.cluster);
-
-    return this.apiEndpoint.list.bind(null, ...args);
+    return () => {
+      const { cluster, revision } = getApiReadConnection(opts);
+      const onResults = (list: KubeObjectInterface[]) =>
+        onList(
+          list.map(item => setResourceReadConnection(this.create(item, cluster), cluster, revision))
+        );
+      const args: any[] = [
+        onResults,
+        onError,
+        withDiscoveryConnectionRevision(queryParams, revision),
+        cluster,
+      ];
+      // An empty string represents a list across all namespaces.
+      if (this.apiEndpoint.isNamespaced) args.unshift(opts?.namespace || '');
+      return this.apiEndpoint.list.bind(null, ...args)();
+    };
   }
 
   static useApiList<K extends KubeObject>(
@@ -324,69 +341,43 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListOptions
   ) {
+    const { cluster: explicitCluster, namespace: requestedNamespaces, ...queryParams } = opts ?? {};
+    const namespaces =
+      typeof requestedNamespaces === 'string' && requestedNamespaces
+        ? [requestedNamespaces]
+        : requestedNamespaces || [];
+    if (!Array.isArray(namespaces)) {
+      throw Error('namespace should be a string or array of strings');
+    }
+
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [objs, setObjs] = React.useState<{ [key: string]: K[] }>({});
-    const listCallback = onList as (arg: any[]) => void;
-
-    function onObjs(namespace: string, objList: K[]) {
-      let newObjs: typeof objs = {};
-      // Set the objects so we have them for the next API response...
-      setObjs(previousObjs => {
-        newObjs = { ...previousObjs, [namespace || '']: objList };
-        return newObjs;
-      });
-
-      let allObjs: K[] = [];
-      Object.values(newObjs).map(currentObjs => {
-        allObjs = allObjs.concat(currentObjs);
-      });
-
-      listCallback(allObjs);
-    }
-
-    const listCalls = [];
-    const queryParams = cloneDeep(opts);
-    let namespaces: string[] = [];
-    unset(queryParams, 'namespace');
-
-    const cluster = opts?.cluster;
-
-    if (!!opts?.namespace) {
-      if (typeof opts.namespace === 'string') {
-        namespaces = [opts.namespace];
-      } else if (Array.isArray(opts.namespace)) {
-        namespaces = opts.namespace as string[];
-      } else {
-        throw Error('namespace should be a string or array of strings');
-      }
-    }
-
-    // If the request itself has no namespaces set, we check whether to apply the
-    // allowed namespaces.
-    if (namespaces.length === 0 && this.isNamespaced) {
-      namespaces = getAllowedNamespaces();
-    }
-
-    if (namespaces.length > 0) {
-      // If we have a namespace set, then we have to make an API call for each
-      // namespace and then set the objects once we have all of the responses.
-      for (const namespace of namespaces) {
-        listCalls.push(
-          this.apiList(objList => onObjs(namespace, objList as K[]), onError, {
-            namespace,
-            queryParams,
-            cluster,
-          })
+    useConnectionRequests(
+      explicitCluster,
+      (cluster, isCurrent, changed) => {
+        if (changed) onList([]);
+        const allowed =
+          namespaces.length || !this.isNamespaced
+            ? namespaces
+            : getAllowedNamespaces(cluster ?? null);
+        const requests = allowed.length ? allowed : [undefined];
+        const itemsByNamespace = new Map<string | undefined, K[]>();
+        return requests.map(namespace =>
+          this.apiList(
+            (items: K[]) => {
+              if (!isCurrent()) return;
+              itemsByNamespace.set(namespace, items);
+              onList(Array.from(itemsByNamespace.values()).flat());
+            },
+            onError &&
+              ((...args) => {
+                if (isCurrent()) onError(...args);
+              }),
+            { namespace, queryParams, cluster }
+          )()
         );
-      }
-    } else {
-      // If we don't have a namespace set, then we only have one API call
-      // response to set and we return it right away.
-      listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
-    }
-
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(...listCalls);
+      },
+      hashKey([namespaces, queryParams])
+    );
   }
 
   static useList<K extends KubeObject>(
@@ -517,18 +508,17 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
-    const createInstance = (item: any) => this.create(item);
-    const args: any[] = [name, (obj: any) => onGet(createInstance(obj))];
-
-    if (this.apiEndpoint.isNamespaced) {
-      args.unshift(namespace);
-    }
-
-    args.push(onError);
-    args.push(opts?.queryParams);
-    args.push(opts?.cluster);
-
-    return this.apiEndpoint.get.bind(null, ...args);
+    return () => {
+      const { cluster, revision } = getApiReadConnection(opts);
+      const onResult = (item: KubeObjectInterface) =>
+        onGet(setResourceReadConnection(this.create(item, cluster), cluster, revision));
+      const queryParams = revision
+        ? withDiscoveryConnectionRevision(opts?.queryParams ?? {}, revision)
+        : opts?.queryParams;
+      const args: any[] = [name, onResult, onError, queryParams, cluster];
+      if (this.apiEndpoint.isNamespaced) args.unshift(namespace);
+      return this.apiEndpoint.get.bind(null, ...args)();
+    };
   }
 
   static useApiGet<K extends KubeObject>(
@@ -542,11 +532,28 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
-    // We do the type conversion here because we want to be able to use hooks that may not have
-    // the exact signature as get callbacks.
-    const getCallback = onGet as (item: K) => void;
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(this.apiGet(getCallback, name, namespace, onError, opts));
+    useConnectionRequests(
+      opts?.cluster,
+      (cluster, isCurrent, changed) => {
+        if (changed) onGet(null);
+        return [
+          this.apiGet(
+            (item: K) => {
+              if (isCurrent()) onGet(item);
+            },
+            name,
+            namespace,
+            onError &&
+              ((...args) => {
+                if (isCurrent()) onError(...args);
+              }),
+            { ...opts, cluster }
+          )(),
+        ];
+      },
+      hashKey([name, namespace, opts?.queryParams])
+    );
   }
 
   _class() {
@@ -568,13 +575,13 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       params.gracePeriodSeconds = 0;
     }
 
-    const query = getResourceMutationQuery(this, params);
+    const query = getResourceConnectionQuery(this, this._clusterName, params);
     // @ts-ignore
     return this._class().apiEndpoint.delete(...args, query, this._clusterName);
   }
 
   async update(data: KubeObjectInterface) {
-    const query = getResourceMutationQuery(this, {});
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     return this._class().apiEndpoint.put(data, query, this._clusterName);
   }
 
@@ -609,7 +616,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
 
     const endpoint = this._class().apiEndpoint;
-    const query = getResourceMutationQuery(this, {});
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     if (this.isNamespaced) {
       return (endpoint as ApiWithNamespaceClient<KubeObjectInterface>).jsonPatch(
         filteredOps,
@@ -642,9 +649,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     };
 
     const { scale } = this._class().apiEndpoint as { scale: ScaleApi };
-    let query: ReturnType<typeof getResourceMutationQuery>;
+    let query: ReturnType<typeof getResourceConnectionQuery>;
     try {
-      query = getResourceMutationQuery(this, {});
+      query = getResourceConnectionQuery(this, this._clusterName, {});
     } catch (error) {
       return Promise.reject(error);
     }
@@ -662,7 +669,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     args.push(this.getName());
 
-    const query = getResourceMutationQuery(this, {});
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     // @ts-ignore
     return this._class().apiEndpoint.patch(...args, query, this._clusterName);
   }
@@ -672,6 +679,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
    * @returns The result of the access request.
    */
   static async fetchAuthorization(reqResourseAttrs?: AuthRequestResourceAttrs, cluster?: string) {
+    const { cluster: requestCluster, revision } = getApiReadConnection({ cluster });
+    const query = asQuery(withDiscoveryConnectionRevision({}, revision));
     // @todo: We should get the API info from the API endpoint.
     const authApiVersions = ['v1', 'v1beta1'];
     for (let j = 0; j < authApiVersions.length; j++) {
@@ -679,7 +688,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
       try {
         return await post(
-          `/apis/authorization.k8s.io/${authVersion}/selfsubjectaccessreviews`,
+          `/apis/authorization.k8s.io/${authVersion}/selfsubjectaccessreviews${query}`,
           {
             kind: 'SelfSubjectAccessReview',
             apiVersion: `authorization.k8s.io/${authVersion}`,
@@ -688,7 +697,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
             },
           },
           false,
-          { cluster }
+          { cluster: requestCluster }
         );
       } catch (err) {
         // If this is the last attempt or the error is not 404, let it throw.
@@ -704,6 +713,13 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     reqResourseAttrs?: AuthRequestResourceAttrs,
     cluster?: string
   ) {
+    const { cluster: requestCluster, revision } = getApiReadConnection({ cluster });
+    const reviewAccess = (attrs: AuthRequestResourceAttrs) => {
+      if (requestCluster && getDiscoveredConnectionRevision(requestCluster) !== revision) {
+        throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
+      }
+      return this.fetchAuthorization(attrs, requestCluster);
+    };
     const resourceAttrs: AuthRequestResourceAttrs = {
       verb,
       ...reqResourseAttrs,
@@ -718,7 +734,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // If we already have the group and version, then we can make the request without
     // trying the API info, which may have several versions and thus be less optimal.
     if (!!resourceAttrs.group && !!resourceAttrs.version && !!resourceAttrs.resource) {
-      return this.fetchAuthorization(resourceAttrs, cluster);
+      return reviewAccess(resourceAttrs);
     }
 
     // If we don't have the group or version, then we have to try all of the
@@ -732,7 +748,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       let authResult;
 
       try {
-        authResult = await this.fetchAuthorization(attrs, cluster);
+        authResult = await reviewAccess(attrs);
       } catch (err) {
         // If this is the last attempt or the error is not 404, let it throw.
         if ((err as ApiError).status !== 404 || i === apiInfo.length - 1) {

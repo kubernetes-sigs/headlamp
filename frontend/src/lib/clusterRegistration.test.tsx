@@ -18,9 +18,10 @@ import { act, renderHook } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { Provider } from 'react-redux';
 import { expect, it } from 'vitest';
-import { setConfig } from '../redux/configSlice';
+import { setConfig, setStatelessConfig } from '../redux/configSlice';
 import store from '../redux/stores/store';
 import { RegisteredClusterOrigin, useRegisteredClusters } from './clusterRegistration';
+import { getDiscoveredConnectionRevision } from './k8s/api/v2/discoveredConnectionRevisions';
 
 it('updates discovered connections and filters them by source and owner', () => {
   const origin: RegisteredClusterOrigin = {
@@ -39,11 +40,12 @@ it('updates discovered connections and filters them by source and owner', () => 
     meta_data: {
       source: 'cluster_inventory',
       discoveryOrigin: origin,
+      discoveryConnectionRevision: 'original',
       presentation: { displayName: 'Workload A', fields: {} },
     },
   };
   const regular = { name: 'ordinary', auth_type: '' };
-  const initial = store.getState().config.clusters;
+  const initial = store.getState().config;
 
   try {
     store.dispatch(setConfig({ clusters: { [regular.name]: regular } }));
@@ -90,13 +92,33 @@ it('updates discovered connections and filters them by source and owner', () => 
     rerender('team-a');
     expect(result.current).toEqual(registrations);
 
+    const oldRevision = getDiscoveredConnectionRevision(discovered.name);
+    expect(oldRevision).toMatch(/^original:/);
+    act(() => {
+      store.dispatch(
+        setStatelessConfig({
+          statelessClusters: { [discovered.name]: { name: discovered.name, auth_type: 'oidc' } },
+        })
+      );
+    });
+    expect(result.current).toEqual([]);
+    expect(getDiscoveredConnectionRevision(discovered.name)).toBeUndefined();
+
+    act(() => {
+      store.dispatch(setStatelessConfig({ statelessClusters: {} }));
+    });
+    expect(result.current).toEqual(registrations);
+    expect(getDiscoveredConnectionRevision(discovered.name)).toMatch(/^original:/);
+    expect(getDiscoveredConnectionRevision(discovered.name)).not.toBe(oldRevision);
+
     act(() => {
       store.dispatch(setConfig({ clusters: {} }));
     });
     expect(result.current).toEqual([]);
   } finally {
     act(() => {
-      store.dispatch(setConfig({ clusters: initial }));
+      store.dispatch(setStatelessConfig({ statelessClusters: initial.statelessClusters }));
+      store.dispatch(setConfig({ clusters: initial.clusters }));
     });
   }
 });

@@ -14,38 +14,52 @@
  * limitations under the License.
  */
 
+import {
+  getResourceDiscoveryConnection,
+  recordDiscoveryConnection,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 
 describe('fetchLatestKubeObject', () => {
-  it('fetches the resource by name and namespace and preserves its cluster', async () => {
-    const latestItem = { cluster: '' } as KubeObject;
-    const cancel = vi.fn();
-    const request = vi.fn(() => Promise.resolve(cancel));
-    const apiGet = vi.fn((onGet: (item: KubeObject) => void) => {
-      onGet(latestItem);
-      return request;
-    });
-    const item = {
-      cluster: 'cluster-a',
-      getName: () => 'hardware-1',
-      getNamespace: () => 'tinkerbell',
-      _class: () => ({ apiGet }),
-    } as unknown as KubeObject;
+  it.each([undefined, 'editor-origin:1'])(
+    'fetches the resource by name and namespace with its connection (%s)',
+    async revision => {
+      const latestItem = { cluster: '' } as KubeObject;
+      const cancel = vi.fn();
+      const request = vi.fn(() => Promise.resolve(cancel));
+      const apiGet = vi.fn((onGet: (item: KubeObject) => void) => {
+        onGet(latestItem);
+        return request;
+      });
+      const item = {
+        cluster: 'cluster-a',
+        getName: () => 'hardware-1',
+        getNamespace: () => 'tinkerbell',
+        _class: () => ({ apiGet }),
+      } as unknown as KubeObject;
+      recordDiscoveryConnection(item, item.cluster, revision);
 
-    await expect(fetchLatestKubeObject(item)).resolves.toBe(latestItem);
+      await expect(fetchLatestKubeObject(item)).resolves.toBe(latestItem);
 
-    expect(apiGet).toHaveBeenCalledWith(
-      expect.any(Function),
-      'hardware-1',
-      'tinkerbell',
-      expect.any(Function),
-      { cluster: 'cluster-a' }
-    );
-    expect(latestItem.cluster).toBe('cluster-a');
-    expect(request).toHaveBeenCalledTimes(1);
-    // Allow the cancel microtask scheduled by fetchLatestKubeObject() to run.
-    await new Promise<void>(resolve => queueMicrotask(resolve));
-    expect(cancel).toHaveBeenCalledTimes(1);
-  });
+      expect(apiGet).toHaveBeenCalledWith(
+        expect.any(Function),
+        'hardware-1',
+        'tinkerbell',
+        expect.any(Function),
+        {
+          cluster: 'cluster-a',
+          ...(revision && { queryParams: { __headlamp_connection_revision: 'editor-origin' } }),
+        }
+      );
+      expect(latestItem.cluster).toBe('cluster-a');
+      expect(getResourceDiscoveryConnection(latestItem)).toEqual(
+        revision ? { cluster: 'cluster-a', revision } : undefined
+      );
+      expect(request).toHaveBeenCalledTimes(1);
+      // Allow the cancel microtask scheduled by fetchLatestKubeObject() to run.
+      await new Promise<void>(resolve => queueMicrotask(resolve));
+      expect(cancel).toHaveBeenCalledTimes(1);
+    }
+  );
 });

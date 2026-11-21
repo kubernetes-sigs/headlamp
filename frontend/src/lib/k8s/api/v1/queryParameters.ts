@@ -21,6 +21,8 @@
  * QueryParamaters is a map of query parameters for the Kubernetes API.
  */
 export interface QueryParameters {
+  /** @internal Identifies the discovered connection that should serve the request. */
+  __headlamp_connection_revision?: string;
   /**
    * Continue token for paging through large result sets.
    *
