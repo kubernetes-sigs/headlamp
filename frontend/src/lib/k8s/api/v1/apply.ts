@@ -54,7 +54,7 @@ export async function apply<T extends KubeObjectInterface>(
 
   let apiEndpoint;
   try {
-    apiEndpoint = await resourceDefToApiFactory(bodyToApply, clusterName);
+    apiEndpoint = await resourceDefToApiFactory<T>(bodyToApply, clusterName);
   } catch (err) {
     console.error(`Error getting api endpoint when applying the resource ${bodyToApply}: ${err}`);
     throw err;
@@ -81,7 +81,7 @@ export async function apply<T extends KubeObjectInterface>(
 
   try {
     delete bodyToApply.metadata.resourceVersion;
-    return await apiEndpoint.post(bodyToApply, queryParams, cluster!);
+    return (await apiEndpoint.post(bodyToApply, queryParams, cluster!)) as T;
   } catch (err) {
     // We had a conflict or cannot create. Try a PUT in case the resource already exists.
     const errorCode = (err as ApiError).status;
@@ -90,6 +90,6 @@ export async function apply<T extends KubeObjectInterface>(
     // Preserve the resourceVersion if its an update request
     bodyToApply.metadata.resourceVersion = resourceVersion;
     // We had a conflict. Try a PUT
-    return apiEndpoint.put(bodyToApply, queryParams, cluster!) as Promise<T>;
+    return apiEndpoint.put(bodyToApply, queryParams, cluster!);
   }
 }
