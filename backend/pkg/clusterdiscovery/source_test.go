@@ -27,6 +27,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"net/url"
 	"sync"
@@ -39,6 +40,68 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+type notificationTestStore struct {
+	kubeconfig.ContextStore
+	err error
+}
+
+func (s *notificationTestStore) AddContext(connection *kubeconfig.Context) error {
+	if s.err != nil {
+		return s.err
+	}
+
+	return s.ContextStore.AddContext(connection)
+}
+
+func (s *notificationTestStore) RemoveContext(name string) error {
+	if s.err != nil {
+		return s.err
+	}
+
+	return s.ContextStore.RemoveContext(name)
+}
+
+func TestConnectionNotificationsFollowSuccessfulStoreChanges(t *testing.T) {
+	store := &notificationTestStore{ContextStore: kubeconfig.NewContextStore()}
+
+	var snapshots []string
+
+	runner := newTestRunner(t, Options{
+		Store: store,
+		OnConnectionsChanged: func() {
+			connections, err := store.GetContexts()
+			require.NoError(t, err)
+
+			server := ""
+			if len(connections) > 0 {
+				server = connections[0].Cluster.Server
+			}
+
+			snapshots = append(snapshots, server)
+		},
+	})
+	connection := &kubeconfig.Context{
+		Name:      "spoke",
+		Discovery: &kubeconfig.DiscoveryOrigin{ResourceUID: "owner"},
+		Cluster:   &api.Cluster{Server: "https://original.example.com"},
+	}
+	runner.storeConnection(connection, "owner", "")
+	replacement := connection.Copy()
+	replacement.Cluster.Server = "https://replacement.example.com"
+
+	store.err = errors.New("store unavailable")
+
+	runner.storeConnection(replacement, "owner", "")
+	runner.removeContexts([]string{connection.Name})
+	require.Equal(t, []string{"https://original.example.com"}, snapshots)
+
+	store.err = nil
+
+	runner.storeConnection(replacement, "owner", "")
+	runner.removeContexts([]string{connection.Name})
+	require.Equal(t, []string{"https://original.example.com", "https://replacement.example.com", ""}, snapshots)
+}
 
 func TestDiscoveredConnectionRevisionAgreesAcrossReplicas(t *testing.T) {
 	first := &Runner{store: kubeconfig.NewContextStore()}
