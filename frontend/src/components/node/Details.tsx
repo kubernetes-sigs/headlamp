@@ -58,7 +58,7 @@ import AuthVisible from '../common/Resource/AuthVisible';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
 import { NodeShellAction } from './NodeShellAction';
-import { isNodeCordoned, isNodeDrained, NodeTaintsLabel } from './utils';
+import { getNodeUptimeStart, isNodeCordoned, isNodeDrained, NodeTaintsLabel } from './utils';
 
 function NodeConditionsLabel(props: { node: Node; pods?: Pod[] | null; podsLoaded?: boolean }) {
   const { node, pods, podsLoaded } = props;
@@ -444,9 +444,9 @@ function ChartsSection(props: ChartsSectionProps) {
       return '…';
     }
 
-    const readyInfo = node.status.conditions?.find(({ type }) => type === 'Ready');
-    if (readyInfo) {
-      return timeAgo(readyInfo.lastTransitionTime as string);
+    const uptimeStart = getNodeUptimeStart(node, summaryStats);
+    if (uptimeStart) {
+      return timeAgo(uptimeStart);
     }
 
     return t('translation|Not ready yet!');
