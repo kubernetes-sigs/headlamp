@@ -24,3 +24,26 @@ export function getSelectedResourcesValue(
 
   return selectedResources.size === 0 ? '' : [...selectedResources].join('+');
 }
+
+export function serializeSelectedResources(selectedResources: Set<string>, selectAll: boolean) {
+  return selectAll ? 'all' : selectedResources.size === 0 ? '' : [...selectedResources].join('+');
+}
+
+export function reconcileSelectedResources(
+  selectedResources: Set<string> | undefined,
+  resourceIds: string[],
+  selectAll: boolean
+) {
+  if (selectAll || !selectedResources) {
+    return selectAll ? new Set(resourceIds) : selectedResources;
+  }
+
+  const availableResourceIds = new Set(resourceIds);
+  const reconciledSelection = new Set(
+    [...selectedResources].filter(resourceId => availableResourceIds.has(resourceId))
+  );
+
+  return reconciledSelection.size === selectedResources.size
+    ? selectedResources
+    : reconciledSelection;
+}
