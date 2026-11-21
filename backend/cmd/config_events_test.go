@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -124,6 +125,31 @@ func TestConfigEventsCoalescesPublishedChanges(t *testing.T) {
 	}
 }
 
+func TestConfigEventsRetriesAFailedSnapshot(t *testing.T) {
+	var reads atomic.Int32
+
+	events := newConfigEvents(t.Context(), func() ([]Cluster, error) {
+		switch reads.Add(1) {
+		case 1:
+			return nil, nil
+		case 2:
+			return nil, errors.New("temporary store read failure")
+		default:
+			return []Cluster{{Name: "workload"}}, nil
+		}
+	})
+	changed := events.nextChange()
+
+	events.notify()
+
+	select {
+	case <-changed:
+		require.EqualValues(t, 3, reads.Load())
+	case <-time.After(10 * configChangeWindow):
+		t.Fatal("change was lost after the snapshot failed")
+	}
+}
+
 func TestConfigEventsRequiresDesktopAuthenticationAndChecksOrigin(t *testing.T) {
 	const token = "test-desktop-token"
 	t.Setenv("HEADLAMP_BACKEND_TOKEN", token)
@@ -145,9 +171,11 @@ func TestConfigEventsRequiresDesktopAuthenticationAndChecksOrigin(t *testing.T) 
 		t.Helper()
 
 		dialer := *websocket.DefaultDialer
+		dialer.Subprotocols = []string{configEventProtocol}
+
 		if withToken {
-			dialer.Subprotocols = []string{"base64url.headlamp.backend.authorization.k8s.io." +
-				base64.RawURLEncoding.EncodeToString([]byte(token))}
+			dialer.Subprotocols = append(dialer.Subprotocols, "base64url.headlamp.backend.authorization.k8s.io."+
+				base64.RawURLEncoding.EncodeToString([]byte(token)))
 		}
 
 		return dialer.DialContext(t.Context(), wsURL, http.Header{"Origin": []string{origin}})
@@ -171,7 +199,7 @@ func TestConfigEventsRequiresDesktopAuthenticationAndChecksOrigin(t *testing.T) 
 
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = conn.Close() })
-	require.Empty(t, conn.Subprotocol())
+	require.Equal(t, configEventProtocol, conn.Subprotocol())
 	require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
 	_, message, err := conn.ReadMessage()
 	require.NoError(t, err)

@@ -29,10 +29,11 @@ import (
 )
 
 const (
-	configEventFrame   = `{"type":"config"}`
-	configHeartbeat    = 20 * time.Second
-	configChangeWindow = 100 * time.Millisecond
-	configWriteTimeout = 5 * time.Second
+	configEventFrame    = `{"type":"config"}`
+	configEventProtocol = "headlamp.config-events.v1"
+	configHeartbeat     = 20 * time.Second
+	configChangeWindow  = 100 * time.Millisecond
+	configWriteTimeout  = 5 * time.Second
 )
 
 // configEvents broadcasts invalidations without storing a queue for each client.
@@ -70,7 +71,12 @@ func newConfigEvents(ctx context.Context, snapshot func() ([]Cluster, error)) *c
 			}
 
 			current, err := snapshot()
-			if err != nil || reflect.DeepEqual(previous, current) {
+			if err != nil {
+				events.notify()
+				continue
+			}
+
+			if reflect.DeepEqual(previous, current) {
 				continue
 			}
 
@@ -101,7 +107,7 @@ func (e *configEvents) notify() {
 }
 
 func configEventUpgrader(devMode, desktopLoopback bool) websocket.Upgrader {
-	return websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+	return websocket.Upgrader{Subprotocols: []string{configEventProtocol}, CheckOrigin: func(r *http.Request) bool {
 		origins := r.Header.Values("Origin")
 		if len(origins) == 0 {
 			return true

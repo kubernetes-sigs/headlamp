@@ -18,6 +18,7 @@ import { getHeadlampWebSocketProtocol } from '../../helpers/getHeadlampAPIHeader
 import { makeUrl } from '../../lib/k8s/api/v2/makeUrl';
 import { getBaseWsUrl } from '../../lib/k8s/api/v2/webSocket';
 
+const CONFIG_EVENT_PROTOCOL = 'headlamp.config-events.v1';
 const MIN_RETRY_DELAY_MS = 1_000;
 const MAX_RETRY_DELAY_MS = 30_000;
 const HEALTHY_STREAM_MS = 30_000;
@@ -57,10 +58,10 @@ export function watchClusterConfig(onChange: () => Promise<unknown>): () => void
     const protocol = getHeadlampWebSocketProtocol();
     let connection: WebSocket;
     try {
-      connection = new WebSocket(
-        makeUrl([getBaseWsUrl(), 'config/events'], {}),
-        protocol ? [protocol] : []
-      );
+      connection = new WebSocket(makeUrl([getBaseWsUrl(), 'config/events'], {}), [
+        CONFIG_EVENT_PROTOCOL,
+        ...(protocol ? [protocol] : []),
+      ]);
     } catch {
       reconnect();
       return;

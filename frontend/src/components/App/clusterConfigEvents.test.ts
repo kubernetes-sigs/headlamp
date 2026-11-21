@@ -58,6 +58,7 @@ it('authenticates, refreshes on config events and reconnects after a disconnect'
 
   try {
     expect(open).toHaveBeenCalledWith('ws://localhost/headlamp/config/events', [
+      'headlamp.config-events.v1',
       'desktop-protocol',
     ]);
     sockets[0].sendConfig();
