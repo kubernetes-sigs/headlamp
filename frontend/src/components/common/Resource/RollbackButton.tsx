@@ -21,7 +21,6 @@ import { useLocation } from 'react-router';
 import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
   assertCurrentDiscoveryConnection,
-  createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
 } from '../../../lib/k8s/api/v2/discoveryConnection';
 import DaemonSet from '../../../lib/k8s/daemonSet';
@@ -93,10 +92,7 @@ export function RollbackButton(props: RollbackButtonProps) {
 
   const getRevisionHistory = useCallback(async (): Promise<RevisionInfo[]> => {
     if (!target) return [];
-    assertCurrentDiscoveryConnection(target.cluster, target.revision);
-    const history = await target.resource.getRevisionHistory();
-    assertCurrentDiscoveryConnection(target.cluster, target.revision);
-    return history;
+    return target.resource.getRevisionHistory();
   }, [target]);
 
   if (!resource) {
@@ -104,15 +100,6 @@ export function RollbackButton(props: RollbackButtonProps) {
   }
 
   const displayedResource = target?.resource ?? resource;
-
-  async function previewRollback(toRevision: number): Promise<RollbackResult> {
-    if (!target) throw createDiscoveryConnectionChangedError();
-    const { resource: rollbackResource, cluster, revision } = target;
-    assertCurrentDiscoveryConnection(cluster, revision);
-    const result = await rollbackResource.rollback({ toRevision, dryRun: true });
-    assertCurrentDiscoveryConnection(cluster, revision);
-    return result;
-  }
 
   function handleConfirm(toRevision?: number) {
     if (!target) return;
@@ -179,10 +166,11 @@ export function RollbackButton(props: RollbackButtonProps) {
         open={!!target}
         resourceKind={displayedResource.kind}
         resourceName={displayedResource.metadata.name}
+        resource={displayedResource}
+        expectedDiscoveryConnection={target ?? undefined}
         getRevisionHistory={getRevisionHistory}
         onClose={() => setTarget(null)}
         onConfirm={handleConfirm}
-        onPreview={previewRollback}
       />
     </AuthVisible>
   );

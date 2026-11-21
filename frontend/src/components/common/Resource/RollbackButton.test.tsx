@@ -23,6 +23,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import type { RollbackResult } from '../../../lib/k8s/rollback';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import { TestContext } from '../../../test';
+import { RollbackDialog } from './index';
 import RollbackButton from './RollbackButton';
 
 vi.mock('./AuthVisible', () => ({
@@ -35,6 +36,56 @@ vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
 }));
 
 afterEach(() => vi.restoreAllMocks());
+
+it.each([false, true])(
+  'supports the public dialog resource prop with replacement %s',
+  async replaced => {
+    const resource = new Deployment(Deployment.getBaseObject(), 'discovered');
+    const revision = vi
+      .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+      .mockReturnValue('same:1');
+    const rollback = vi
+      .spyOn(resource, 'rollback')
+      .mockResolvedValue({ success: true, message: 'ok' });
+    const onConfirm = vi.fn();
+    const getRevisionHistory = vi
+      .fn()
+      .mockResolvedValue([
+        { revision: 1, createdAt: '2026-01-01T00:00:00Z', images: [], isCurrent: false },
+      ]);
+    render(
+      <TestContext>
+        <RollbackDialog
+          open
+          resourceKind={resource.kind}
+          resourceName={resource.getName()}
+          resource={resource}
+          getRevisionHistory={getRevisionHistory}
+          onClose={vi.fn()}
+          onConfirm={onConfirm}
+        />
+      </TestContext>
+    );
+    const preview = await screen.findByTestId('preview-button');
+    await waitFor(() => expect(preview).toBeEnabled());
+
+    if (replaced) revision.mockReturnValue('same:2');
+    fireEvent.click(preview);
+
+    if (replaced) {
+      expect(await screen.findByText(/discovered cluster connection changed/i)).toBeInTheDocument();
+      expect(rollback).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('confirm-button'));
+      expect(onConfirm).not.toHaveBeenCalled();
+    } else {
+      expect(rollback).toHaveBeenCalledWith({ toRevision: 1, dryRun: true });
+      const confirm = screen.getByTestId('confirm-button');
+      await waitFor(() => expect(confirm).toBeEnabled());
+      fireEvent.click(confirm);
+      expect(onConfirm).toHaveBeenCalledWith(1);
+    }
+  }
+);
 
 it.each(['before preview', 'during preview'])(
   'rejects preview for an unstamped workload when the connection changes %s',
@@ -102,13 +153,11 @@ it('does not roll back a replacement workload from the already open dialog', asy
   const { rerender } = render(content(original));
   fireEvent.click(screen.getByLabelText('Rollback'));
   await waitFor(() => expect(screen.getByTestId('confirm-button')).toBeEnabled());
-
-  revision.mockReturnValue('same:2');
-  rerender(content(replacement));
-  await waitFor(() => expect(screen.getByTestId('confirm-button')).toBeEnabled());
   fireEvent.click(screen.getByTestId('confirm-button'));
   const [rollback] = vi.mocked(clusterAction).mock.lastCall!;
 
+  revision.mockReturnValue('same:2');
+  rerender(content(replacement));
   await act(async () => {
     await expect(rollback()).rejects.toMatchObject({ status: 409 });
   });
