@@ -17,9 +17,21 @@
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
+export interface KubeTypedLocalObjectReference {
+  apiGroup?: string;
+  kind: string;
+  name: string;
+}
+
+export interface KubeTypedObjectReference extends KubeTypedLocalObjectReference {
+  namespace?: string;
+}
+
 export interface KubePersistentVolumeClaim extends KubeObjectInterface {
   spec?: {
     accessModes?: string[];
+    dataSource?: KubeTypedLocalObjectReference;
+    dataSourceRef?: KubeTypedObjectReference;
     resources?: {
       limits?: object;
       requests: {
@@ -38,6 +50,8 @@ export interface KubePersistentVolumeClaim extends KubeObjectInterface {
     };
     phase?: string;
     accessModes?: string[];
+    allocatedResources?: Record<string, string>;
+    allocatedResourceStatuses?: Record<string, string>;
     [other: string]: any;
   };
 }
