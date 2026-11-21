@@ -1738,7 +1738,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		headers := handlers.AllowedHeaders([]string{
 			"X-HEADLAMP_BACKEND-TOKEN", "X-Requested-With", "Content-Type",
 			"Authorization", "Forward-To", "Cache-Control",
-			"KUBECONFIG", "X-HEADLAMP-USER-ID",
+			"KUBECONFIG", "X-HEADLAMP-USER-ID", discoveryConnectionRevisionHeader,
 		})
 		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
 

@@ -6654,7 +6654,7 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 	}
 }
 
-func TestDevModeAllowsCacheControlPreflight(t *testing.T) {
+func TestDevModeAllowsClusterPreflight(t *testing.T) {
 	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{DevMode: true, KubeConfigStore: kubeconfig.NewContextStore()},
@@ -6664,7 +6664,8 @@ func TestDevModeAllowsCacheControlPreflight(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/clusters/workload/api/v1/pods", nil)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
-	req.Header.Set("Access-Control-Request-Headers", "authorization,cache-control")
+	req.Header.Set("Access-Control-Request-Headers",
+		"authorization,cache-control,"+strings.ToLower(discoveryConnectionRevisionHeader))
 
 	recorder := httptest.NewRecorder()
 
@@ -6672,6 +6673,7 @@ func TestDevModeAllowsCacheControlPreflight(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, recorder.Header().Get("Access-Control-Allow-Headers"), "Cache-Control")
+	assert.Contains(t, recorder.Header().Get("Access-Control-Allow-Headers"), discoveryConnectionRevisionHeader)
 }
 
 func TestGetConfigIncludesBackstageOrigin(t *testing.T) {
