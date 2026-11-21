@@ -98,7 +98,18 @@ func (c *HeadlampConfig) requireUserAuthentication(next http.Handler) http.Handl
 		}
 
 		if strings.HasSuffix(pathTemplate, "/clusters/{clusterName}/set-token") {
+			if r.URL.Query().Has(discoveryConnectionRevisionParam) ||
+				r.Header.Get(discoveryConnectionRevisionHeader) != "" {
+				request, connection := c.resolveRequestContext(r, clusterName)
+				if !validateDiscoveryConnectionRevision(w, request, connection) {
+					return
+				}
+
+				r = request
+			}
+
 			next.ServeHTTP(w, r)
+
 			return
 		}
 
@@ -114,7 +125,9 @@ func (c *HeadlampConfig) requireUserAuthentication(next http.Handler) http.Handl
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		if validateDiscoveryConnectionRevision(w, r, kContext) {
+			next.ServeHTTP(w, r)
+		}
 	})
 }
 

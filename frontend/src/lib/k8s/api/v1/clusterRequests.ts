@@ -32,7 +32,9 @@ import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevis
 import type { DiscoveryConnectionRequest } from '../v2/discoveryConnection';
 import {
   assertCurrentDiscoveryConnection,
+  DISCOVERY_CONNECTION_REVISION_HEADER,
   getDiscoveryRequestBinding,
+  UNVERSIONED_DISCOVERY_CONNECTION,
   withDiscoveryConnectionPath,
 } from '../v2/discoveryConnection';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
@@ -169,6 +171,10 @@ export async function clusterRequest(
 
   if (expectedDiscoveryConnection) {
     assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
+    if (cluster && expectedDiscoveryConnection.revision === undefined) {
+      opts.headers[DISCOVERY_CONNECTION_REVISION_HEADER.toLowerCase()] =
+        UNVERSIONED_DISCOVERY_CONNECTION;
+    }
   }
 
   const controller = new AbortController();
@@ -176,7 +182,7 @@ export async function clusterRequest(
 
   const url = withDiscoveryConnectionPath(
     combinePath(getAppUrl(), fullPath) + asQuery(queryParams),
-    expectedDiscoveryConnection?.revision
+    expectedDiscoveryConnection?.revision === undefined ? undefined : expectedDiscoveryConnection
   );
   const requestData = {
     signal: controller.signal,

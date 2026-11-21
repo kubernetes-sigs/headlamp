@@ -21,19 +21,30 @@ func RequestHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	clusterName, namespace, name, requestURI := parseInfoFromRequest(r)
+	clusterName := mux.Vars(r)["clusterName"]
 
-	// Must run before anything writes to w: changing the header map after
-	// WriteHeader or Write has no effect.
-	disableResponseCaching(w)
-	setResponseSecurityHeaders(w)
-
-	// Get the context
 	ctx, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to get context")
-		w.WriteHeader(http.StatusNotFound)
+	}
 
+	RequestHandlerForContext(ctx, unsafeUseServiceAccountToken, w, r)
+}
+
+// RequestHandlerForContext proxies a service through the request's authenticated connection.
+func RequestHandlerForContext(
+	ctx *kubeconfig.Context,
+	unsafeUseServiceAccountToken bool,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	clusterName, namespace, name, requestURI := parseInfoFromRequest(r)
+
+	disableResponseCaching(w)
+	setResponseSecurityHeaders(w)
+
+	if ctx == nil {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 

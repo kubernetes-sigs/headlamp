@@ -21,7 +21,12 @@ import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfi
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { ApiError } from './ApiError';
 import type { DiscoveryConnectionRequest } from './discoveryConnection';
-import { assertCurrentDiscoveryConnection } from './discoveryConnection';
+import {
+  assertCurrentDiscoveryConnection,
+  DISCOVERY_CONNECTION_REVISION_HEADER,
+  UNVERSIONED_DISCOVERY_CONNECTION,
+  withDiscoveryConnectionPath,
+} from './discoveryConnection';
 import { makeUrl } from './makeUrl';
 
 // @deprecated BASE_HTTP_URL is deprecated for Electron apps with custom ports.
@@ -108,12 +113,19 @@ export async function clusterFetch(
 
   if (expectedDiscoveryConnection) {
     assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
+    if (cluster && expectedDiscoveryConnection.revision === undefined) {
+      init.headers.set(DISCOVERY_CONNECTION_REVISION_HEADER, UNVERSIONED_DISCOVERY_CONNECTION);
+    }
   }
 
   const urlParts = cluster ? ['clusters', cluster, url] : [url];
 
   try {
-    const response = await backendFetch(makeUrl(urlParts), init);
+    const path = withDiscoveryConnectionPath(
+      makeUrl(urlParts),
+      expectedDiscoveryConnection?.revision === undefined ? undefined : expectedDiscoveryConnection
+    );
+    const response = await backendFetch(path, init);
 
     return response;
   } catch (e) {

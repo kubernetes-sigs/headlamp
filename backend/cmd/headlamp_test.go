@@ -4086,6 +4086,8 @@ func TestHandleClusterHelm(t *testing.T) {
 	router := mux.NewRouter()
 	handleClusterHelm(config, router)
 
+	const releasesPath = "/clusters/test-cluster/helm/releases/list"
+
 	// Test cases for failed cases
 	testCases := []struct {
 		name           string
@@ -4099,6 +4101,20 @@ func TestHandleClusterHelm(t *testing.T) {
 			"GET",
 			"/clusters/test-cluster/helm/releases/list",
 			"test-token", http.StatusInternalServerError,
+		},
+		{
+			"List Releases - Valid Connection",
+			http.MethodGet,
+			releasesPath + "?" + discoveryConnectionRevisionParam + "=" + unversionedDiscoveryConnection,
+			"test-token",
+			http.StatusInternalServerError,
+		},
+		{
+			"List Releases - Wrong Connection",
+			http.MethodGet,
+			releasesPath + "?" + discoveryConnectionRevisionParam + "=stale",
+			"test-token",
+			http.StatusConflict,
 		},
 		{
 			"Install Release - Valid Token",

@@ -343,7 +343,10 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   const expectedDiscoveryConnection = args.expectedDiscoveryConnection ?? {
     revision: getDiscoveredConnectionRevision(cluster),
   };
-  const streamUrl = withDiscoveryConnectionPath(url, expectedDiscoveryConnection.revision);
+  const streamUrl = withDiscoveryConnectionPath(
+    url,
+    cluster ? expectedDiscoveryConnection : undefined
+  );
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
   const { isJson = false, additionalProtocols, connectCb, reconnectOnFailure = !failCb } = args;
 
@@ -401,13 +404,15 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   }
 
   function onFail() {
-    if (!!failCb) {
-      failCb();
+    if (isCancelled) return;
+    if (getDiscoveredConnectionRevision(cluster) !== expectedDiscoveryConnection.revision) {
+      cancel();
+      failCb?.();
+      return;
     }
 
-    if (reconnectOnFailure) {
-      retryOnFail();
-    }
+    failCb?.();
+    retryOnFail();
   }
 }
 
@@ -542,6 +547,7 @@ export async function connectStreamWithParams<T>(
       getDiscoveredConnectionRevision(cluster) !== expectedDiscoveryConnection.revision
     ) {
       close();
+      onFail();
       return;
     }
 

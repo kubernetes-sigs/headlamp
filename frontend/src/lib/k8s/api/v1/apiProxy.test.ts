@@ -155,6 +155,17 @@ describe('apiProxy', () => {
       }
     });
 
+    it('sends an explicit precondition for an unversioned cluster', async () => {
+      const request = nock(baseApiUrl)
+        .post(`/clusters/${clusterName}${testPath}`)
+        .matchHeader('X-Headlamp-Connection-Revision', 'unversioned')
+        .reply(409, { message: DISCOVERY_CONNECTION_CHANGED });
+      await expect(
+        apiProxy.post(testPath, {}, true, { cluster: clusterName })
+      ).rejects.toMatchObject({ status: 409 });
+      expect(request.isDone()).toBe(true);
+    });
+
     it.each([true, false])(
       'drops a public GET result from a replaced connection (JSON: %s)',
       async isJSON => {
@@ -857,6 +868,7 @@ describe('apiProxy', () => {
       const socket = apiProxy.stream(testPath, cb, {
         cluster: clusterName,
         isJson: true,
+        failCb,
       });
 
       await mockServer.connected;
@@ -865,6 +877,7 @@ describe('apiProxy', () => {
       revision.mockReturnValue('same:2');
       mockServer.send(JSON.stringify({ message: 'stale' }));
       expect(cb).toHaveBeenCalledOnce();
+      expect(failCb).toHaveBeenCalledOnce();
       await mockServer.closed;
       socket.cancel();
     });

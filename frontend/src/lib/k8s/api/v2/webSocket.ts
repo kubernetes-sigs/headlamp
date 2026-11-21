@@ -25,6 +25,7 @@ import type { DiscoveryConnectionRequest } from './discoveryConnection';
 import {
   assertCurrentDiscoveryConnection,
   isDiscoveryConnectionChanged,
+  withDiscoveryConnectionPath,
 } from './discoveryConnection';
 import { makeUrl } from './makeUrl';
 
@@ -180,7 +181,13 @@ export async function openWebSocket<T>(
     assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
   }
 
-  const socket = new WebSocket(makeUrl([getBaseWsUrl(), ...path], {}), protocols);
+  const socket = new WebSocket(
+    withDiscoveryConnectionPath(
+      makeUrl([getBaseWsUrl(), ...path], {}),
+      expectedDiscoveryConnection
+    ),
+    protocols
+  );
   socket.binaryType = 'arraybuffer';
   socket.addEventListener('message', (body: MessageEvent) => {
     if (

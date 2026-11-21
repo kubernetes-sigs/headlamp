@@ -17,6 +17,9 @@
 import { ApiError } from './ApiError';
 import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
 
+export const UNVERSIONED_DISCOVERY_CONNECTION = 'unversioned';
+export const DISCOVERY_CONNECTION_REVISION_HEADER = 'X-Headlamp-Connection-Revision';
+
 export const DISCOVERY_CONNECTION_CHANGED = 'Discovered cluster connection changed';
 
 export function isDiscoveryConnectionChanged(error: unknown) {
@@ -64,8 +67,12 @@ export function withDiscoveryConnectionRevision<T extends object>(params: T, rev
 }
 
 /** Pin a path supplied by a low-level API caller, preserving an explicitly selected route. */
-export function withDiscoveryConnectionPath(path: string, revision?: string) {
-  const routingRevision = getRoutingRevision(revision);
+export function withDiscoveryConnectionPath(path: string, connection?: DiscoveryConnectionRequest) {
+  if (!connection) return path;
+  const routingRevision =
+    connection.revision === undefined
+      ? UNVERSIONED_DISCOVERY_CONNECTION
+      : getRoutingRevision(connection.revision);
   if (!routingRevision) return path;
 
   const queryIndex = path.indexOf('?');

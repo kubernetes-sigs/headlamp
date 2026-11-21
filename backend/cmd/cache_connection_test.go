@@ -308,6 +308,51 @@ func TestDiscoveredRequestsUseTheExpectedConnection(t *testing.T) {
 	require.Contains(t, after.Body.String(), "first-pod")
 }
 
+func TestUnversionedRequestsCannotUseADiscoveredReplacement(t *testing.T) {
+	first, _ := newCacheConnectionServer(t, "first-pod", "user", func(r *http.Request) {
+		assert.False(t, r.URL.Query().Has(discoveryConnectionRevisionParam))
+		assert.Empty(t, r.Header.Get(discoveryConnectionRevisionHeader))
+	})
+	second, secondRequests := newCacheConnectionServer(t, "second-pod", "user", nil)
+	cfg, router := cacheConnectionRouter(t, cacheConnectionContext(t, first, kubeconfig.KubeConfig))
+
+	request := func(method string, upgrade bool) *httptest.ResponseRecorder {
+		path := "/clusters/cache-switch/api/v1/pods?limit=1"
+		if upgrade {
+			path += "&" + discoveryConnectionRevisionParam + "=" + unversionedDiscoveryConnection
+		}
+
+		req := httptest.NewRequestWithContext(t.Context(), method, path, nil)
+		req.Header.Set("Authorization", "Bearer user")
+
+		if upgrade {
+			req.Header.Set("Upgrade", "websocket")
+		} else {
+			req.Header.Set(discoveryConnectionRevisionHeader, unversionedDiscoveryConnection)
+		}
+
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+
+		return response
+	}
+
+	ordinary := request(http.MethodGet, false)
+	require.Equal(t, http.StatusOK, ordinary.Code, ordinary.Body.String())
+	require.Contains(t, ordinary.Body.String(), "first-pod")
+
+	replacement := cacheConnectionContext(t, second, kubeconfig.ClusterInventory)
+	replacement.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "replacement"}
+	require.NoError(t, cfg.KubeConfigStore.AddContext(replacement))
+
+	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete} {
+		require.Equal(t, http.StatusConflict, request(method, false).Code)
+	}
+
+	require.Equal(t, http.StatusConflict, request(http.MethodGet, true).Code)
+	require.Zero(t, secondRequests.Load())
+}
+
 func TestCacheConnectionReplacement(t *testing.T) {
 	for _, source := range []int{kubeconfig.ClusterInventory, kubeconfig.DiscoveredCluster, kubeconfig.KubeConfig} {
 		t.Run(fmt.Sprint(source), func(t *testing.T) {
@@ -575,7 +620,7 @@ func TestPortForwardUsesResolvedConnectionThroughStoreReplacement(t *testing.T) 
 	})
 	router := mux.NewRouter()
 	router.Handle("/clusters/{clusterName}/portforward",
-		cfg.authenticatedHandler(requireMatchingDiscoveryConnection(start)),
+		cfg.authenticatedHandler(start),
 	).Methods(http.MethodPost)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 		"/clusters/cache-switch/portforward?"+discoveryConnectionRevisionParam+"=original",

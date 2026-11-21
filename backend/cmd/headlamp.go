@@ -1025,7 +1025,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		config.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(config.handleStartPortForward))),
+		config.authenticatedHandler(http.HandlerFunc(config.handleStartPortForward)),
 	).Methods("POST")
 
 	r.Handle(
@@ -1533,8 +1533,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.Handle("/drain-node",
 		config.authenticatedHandler(http.HandlerFunc(config.handleNodeDrain))).Methods("POST")
 	r.Handle("/drain-node-status",
-		config.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(
-			config.handleNodeDrainStatus)))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
+		config.authenticatedHandler(http.HandlerFunc(config.handleNodeDrainStatus))).
+		Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
 		// Shadow createHeadlampHandler's outer-scope err so any log call in
@@ -2216,7 +2216,8 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		c.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
+			resolved, _ := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext)
+			serviceproxy.RequestHandlerForContext(resolved.context, c.shouldUseUnsafeServiceAccountToken(), w, r)
 		}))).Queries("request", "{request}").
 		Methods("GET")
 }
@@ -2262,7 +2263,7 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 
 	logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm operation: "+operation)
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
+	_, context, err := c.getContextWithWebSocketFallback(r, clusterName)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 		return
@@ -2542,9 +2543,9 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler {
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/drain-node",
-		c.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(c.handleNodeDrain)))).Methods("POST")
+		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrain))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/drain-node-status",
-		c.authenticatedHandler(requireMatchingDiscoveryConnection(http.HandlerFunc(c.handleNodeDrainStatus)))).Methods("GET")
+		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrainStatus))).Methods("GET")
 	router.Handle("/encoded-clusters/{encodedClusterName}/clear-token",
 		c.authenticatedHandler(http.HandlerFunc(c.handleClearToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/set-token",
@@ -2556,31 +2557,39 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	}
 
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		c.authenticatedHandler(requireMatchingDiscoveryConnection(handler)))
+		c.authenticatedHandler(handler))
 }
 
-const discoveryConnectionRevisionParam = "__headlamp_connection_revision"
+const (
+	discoveryConnectionRevisionParam  = "__headlamp_connection_revision"
+	discoveryConnectionRevisionHeader = "X-Headlamp-Connection-Revision"
+	unversionedDiscoveryConnection    = "unversioned"
+)
 
-// Require the route revision that the frontend used to key its query or watch.
-// Authentication already resolved the request's connection for the cache and proxy.
-func requireMatchingDiscoveryConnection(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resolved, _ := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext)
-		if validateDiscoveryConnectionRevision(w, r, resolved.context) {
-			next.ServeHTTP(w, r)
-		}
-	})
-}
-
-func validateDiscoveryConnectionRevision(w http.ResponseWriter, r *http.Request, connection *kubeconfig.Context) bool {
-	params := r.URL.Query()
-
-	expected := params.Get(discoveryConnectionRevisionParam)
+func matchesDiscoveryConnection(expected string, connection *kubeconfig.Context) bool {
 	if expected == "" {
 		return true
 	}
 
-	if connection == nil || connection.Discovery == nil || connection.Discovery.ConnectionRevision != expected {
+	if connection == nil {
+		return false
+	}
+
+	if expected == unversionedDiscoveryConnection {
+		return connection.Discovery == nil
+	}
+
+	return connection.Discovery != nil && connection.Discovery.ConnectionRevision == expected
+}
+
+// Validate the selected route and strip the internal precondition before forwarding.
+func validateDiscoveryConnectionRevision(w http.ResponseWriter, r *http.Request, connection *kubeconfig.Context) bool {
+	params := r.URL.Query()
+
+	expected := params.Get(discoveryConnectionRevisionParam)
+	expectedHeader := r.Header.Get(discoveryConnectionRevisionHeader)
+
+	if !matchesDiscoveryConnection(expected, connection) || !matchesDiscoveryConnection(expectedHeader, connection) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusConflict)
 		_, _ = io.WriteString(w, `{"message":"Discovered cluster connection changed"}`)
@@ -2588,8 +2597,12 @@ func validateDiscoveryConnectionRevision(w http.ResponseWriter, r *http.Request,
 		return false
 	}
 
-	params.Del(discoveryConnectionRevisionParam)
-	r.URL.RawQuery = params.Encode()
+	if params.Has(discoveryConnectionRevisionParam) {
+		params.Del(discoveryConnectionRevisionParam)
+		r.URL.RawQuery = params.Encode()
+	}
+
+	r.Header.Del(discoveryConnectionRevisionHeader)
 
 	return true
 }
