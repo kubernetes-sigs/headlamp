@@ -36,7 +36,8 @@ export function getIngressPaths(ingress: Ingress): string[] {
         } else if (!!backend?.resource) {
           target = `${backend.resource.kind}:${backend.resource.name}`;
         }
-        return `${path} › ${target}`;
+        // path is optional for pathType ImplementationSpecific.
+        return [path, target].filter(Boolean).join(' › ');
       }) ?? [];
     labels = labels.concat(text);
   });
