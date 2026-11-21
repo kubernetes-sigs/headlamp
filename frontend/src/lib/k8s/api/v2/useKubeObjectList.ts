@@ -54,6 +54,7 @@ export function getWebsocketMultiplexerEnabled(): boolean {
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
 const UPGRADE_FAILURE_RELIST_INTERVAL_MS = 30_000;
+const NAMESPACE_SELECTOR_RETRY_INTERVAL_MS = 30_000;
 
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
@@ -281,11 +282,14 @@ export function kubeObjectListQuery<K extends KubeObject>(
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
   const configuredSelector =
     loadClusterSettings(cluster).allowedNamespacesSelector?.trim() || undefined;
+  const isNamespaceList = kubeObjectClass.kind === 'Namespace';
   const isResolvingAllowedNamespaces =
-    configuredSelector !== undefined && queryParams.labelSelector?.trim() === configuredSelector;
+    isNamespaceList &&
+    configuredSelector !== undefined &&
+    queryParams.labelSelector?.trim() === configuredSelector;
 
   if (
-    kubeObjectClass.kind === 'Namespace' &&
+    isNamespaceList &&
     !isResolvingAllowedNamespaces &&
     hasAllowedNamespacesRestriction(cluster)
   ) {
@@ -301,10 +305,22 @@ export function kubeObjectListQuery<K extends KubeObject>(
       : query;
   }
 
+  const retryNamespaceSelector =
+    isResolvingAllowedNamespaces &&
+    (connectionRevision === null || connectionRevision === undefined) &&
+    getWebsocketMultiplexerEnabled();
   const retry = kubeRequestRetry;
   return {
     placeholderData: null,
-    refetchInterval,
+    refetchInterval:
+      refetchInterval ??
+      (retryNamespaceSelector
+        ? query =>
+            query.state.data?.watchError &&
+            query.observers.some(observer => observer.options.meta?.watchList === true)
+              ? NAMESPACE_SELECTOR_RETRY_INTERVAL_MS
+              : false
+        : undefined),
     retry:
       isExactListVersion(queryParams) && retry
         ? (failures, error) => error.status !== 410 && retry(failures, error)
@@ -329,6 +345,8 @@ export function kubeObjectListQuery<K extends KubeObject>(
           exact: true,
         });
         const recovering = isWatchRefresh(cacheEntry);
+        const bypassCache =
+          recovering || (retryNamespaceSelector && !!cacheEntry?.state.data?.watchError);
         const path = KubeObjectEndpoint.toUrl(endpoint, namespace);
         const fetchPage = (params: QueryParameters) =>
           fetchKubeObjectListPage<K>(
@@ -338,7 +356,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
             params,
             connectionRevision ?? undefined,
             context?.signal,
-            recovering
+            bypassCache
           );
         let list = await fetchPage(queryParams);
 
@@ -614,6 +632,15 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         unsubscribe?.();
       };
       cleanups.push(stop);
+      const reportError = (error: Error) => {
+        if (!stopped) {
+          setListWatchError<K>(
+            client,
+            queryKey,
+            new ListWatchError(error.message, { cluster, namespace })
+          );
+        }
+      };
 
       // Subscribe to WebSocket updates
       WebSocketManager.subscribe(
@@ -625,29 +652,11 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           handleUpdate(update, cluster, namespace, queryKey);
           if (pinned && update?.type === 'ERROR' && update.object?.code === 410) stop();
         },
-        error => {
-          if (!stopped)
-            setListWatchError(
-              client,
-              queryKey,
-              new ListWatchError(error.message, { cluster, namespace })
-            );
-        }
-      ).then(
-        cleanup => {
-          if (stopped) cleanup();
-          else unsubscribe = cleanup;
-        },
-        error => {
-          // Track retry count in the URL's searchParams
-          const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
-          if (retryCount < 3) {
-            // Only log and allow retry if under threshold
-            console.error('WebSocket subscription failed:', error);
-            parsedUrl.searchParams.set('retryCount', (retryCount + 1).toString());
-          }
-        }
-      );
+        reportError
+      ).then(cleanup => {
+        if (stopped) cleanup();
+        else unsubscribe = cleanup;
+      }, reportError);
     });
 
     // Cleanup subscriptions when effect re-runs or unmounts

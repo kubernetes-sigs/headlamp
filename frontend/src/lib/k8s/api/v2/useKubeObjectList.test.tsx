@@ -14,12 +14,18 @@
  * limitations under the License.
  */
 
-import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  focusManager,
+  onlineManager,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { setConfig } from '../../../../redux/configSlice';
 import store from '../../../../redux/stores/store';
+import Namespace from '../../namespace';
 import { ApiError } from './ApiError';
 import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
 import { getResourceDiscoveryConnection } from './discoveryConnection';
@@ -1590,6 +1596,72 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.any(Function),
       expect.any(Function)
     );
+  });
+
+  it('refreshes a configured namespace selector after its multiplexed watch is rejected', async () => {
+    const cluster = 'restricted-namespace-watch';
+    const labelSelector = 'team=frontend';
+    const settingsKey = `cluster_settings.${cluster}`;
+    localStorage.setItem(settingsKey, JSON.stringify({ allowedNamespacesSelector: labelSelector }));
+    focusManager.setFocused(true);
+    mockClusterFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            makeListResponse({
+              kind: 'NamespaceList',
+              items: [{ metadata: { name: 'team-a', resourceVersion: '1' } }],
+            })
+          )
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify(
+            makeListResponse({
+              kind: 'NamespaceList',
+              resourceVersion: '2',
+              items: [],
+            })
+          )
+        )
+      );
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: Namespace,
+          requests: [{ cluster }],
+          queryParams: { labelSelector },
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+
+    try {
+      await waitFor(() => expect(mockSubscribe).toHaveBeenCalledTimes(1));
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['team-a']);
+      vi.useFakeTimers({
+        toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+      });
+      act(() => mockSubscribe.mock.calls[0][4](new Error('Watch forbidden')));
+      await act(async () => vi.advanceTimersByTimeAsync(2));
+      expect(result.current.errors?.[0].message).toBe('Watch forbidden');
+      await act(async () => vi.advanceTimersByTimeAsync(29_950));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+      expect(mockClusterFetch.mock.calls[1][0]).toBe(
+        'api/v1/namespaces?labelSelector=team%3Dfrontend'
+      );
+      expect(mockClusterFetch.mock.calls[1][1].headers).toEqual({ 'Cache-Control': 'no-cache' });
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(result.current.items).toEqual([]);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
+      localStorage.removeItem(settingsKey);
+    }
   });
 
   it.each(['the next event', 'a replacement subscription'] as const)(
