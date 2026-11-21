@@ -167,7 +167,9 @@ describe('Pod class', () => {
 
   it('keeps retained pod streams on their originating discovered connection', () => {
     const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)), 'discovered');
-    vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('origin:1');
+    const revision = vi
+      .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+      .mockReturnValue('origin:1');
     recordDiscoveryConnection(pod, 'discovered', 'origin:1');
     vi.mocked(stream).mockClear();
     const onData = vi.fn();
@@ -192,10 +194,12 @@ describe('Pod class', () => {
     expect(() => pod.exec('container-1', onData, { cluster: 'replacement' })).toThrow(
       'Discovered cluster connection changed'
     );
-    pod.cluster = 'replacement';
-    expect(() => pod.getLogs('container-1', onData, {})).toThrow(
-      'Discovered cluster connection changed'
-    );
+    revision.mockReturnValue('origin:2');
+    const onReconnectStop = vi.fn();
+    const stop = pod.getLogs('container-1', onData, { onReconnectStop });
+    expect(onReconnectStop).toHaveBeenCalledOnce();
+    expect(onData).not.toHaveBeenCalled();
+    expect(stop).not.toThrow();
     expect(stream).toHaveBeenCalledTimes(3);
     vi.restoreAllMocks();
   });

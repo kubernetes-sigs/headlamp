@@ -19,7 +19,11 @@ import { patch, post } from './api/v1/clusterRequests';
 import { asQuery } from './api/v1/formatUrl';
 import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
 import { stream } from './api/v1/streamingApi';
-import { discoveryRequestOptions, getResourceConnectionQuery } from './api/v2/discoveryConnection';
+import {
+  discoveryRequestOptions,
+  getResourceConnectionQuery,
+  isDiscoveryConnectionChanged,
+} from './api/v2/discoveryConnection';
 import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -351,8 +355,14 @@ class Pod extends KubeObject<KubePod> {
       onLogs({ logs, hasJsonLogs });
     }
 
-    const cluster = this.cluster;
-    const connection = withPodStreamConnection(url, this, cluster);
+    let connection: ReturnType<typeof withPodStreamConnection>;
+    try {
+      connection = withPodStreamConnection(url, this, this.cluster);
+    } catch (error) {
+      if (!isDiscoveryConnectionChanged(error)) throw error;
+      onReconnectStop?.();
+      return () => {};
+    }
     const { cancel } = stream(connection.url, onResults, {
       ...connection.options,
       isJson: false,
