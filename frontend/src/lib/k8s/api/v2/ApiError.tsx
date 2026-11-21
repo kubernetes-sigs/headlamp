@@ -36,3 +36,6 @@ export class ApiError extends Error {
     this.cluster = props?.cluster;
   }
 }
+
+/** A resource list was fetched successfully, but its watch failed. */
+export class ListWatchError extends ApiError {}

@@ -24,7 +24,7 @@ import {
 } from '../../../../helpers/clusterSettings';
 import type { KubeObject, KubeObjectClass, KubeObjectInterface } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
-import { ApiError } from './ApiError';
+import { ApiError, ListWatchError } from './ApiError';
 import {
   getDiscoveredConnectionRevision,
   useDiscoveredConnectionRevisions,
@@ -78,7 +78,7 @@ export interface ListResponse<K extends KubeObject> {
   /** Version that started the direct watch, before watch events updated the list. */
   watchStartResourceVersion?: string;
   /** The last failure from the direct watch, retained across snapshot refreshes. */
-  watchError?: ApiError;
+  watchError?: ListWatchError;
   /** Revision of the discovered connection that returned this list. */
   connectionRevision?: string;
   /** Whether this synthesized list must not start a cluster-wide watch */
@@ -387,7 +387,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
 function setListWatchError<K extends KubeObject>(
   client: QueryClient,
   queryKey: QueryKey,
-  error?: ApiError
+  error?: ListWatchError
 ) {
   client.setQueryData<ListResponse<K>>(queryKey, cached =>
     cached && cached.watchError !== error ? { ...cached, watchError: error } : cached
@@ -565,7 +565,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           setListWatchError(
             client,
             queryKey,
-            new ApiError(update.object?.message ?? 'The resource watch stopped', {
+            new ListWatchError(update.object?.message ?? 'The resource watch stopped', {
               status,
               cluster,
               namespace,
@@ -631,7 +631,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
             setListWatchError(
               client,
               queryKey,
-              new ApiError(error.message, { cluster, namespace })
+              new ListWatchError(error.message, { cluster, namespace })
             );
         }
       ).then(
@@ -725,7 +725,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         connectionRevision ?? null
       ).queryKey;
       const pinned = isExactListVersion(stableQueryParams ?? {});
-      const rememberWatchError = (error?: ApiError) =>
+      const rememberWatchError = (error?: ListWatchError) =>
         setListWatchError<K>(client, queryKey, error);
       let relisting: Promise<void> | undefined;
       let needsRelist = false;
@@ -766,7 +766,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           }
           if (!client.getQueryData<ListResponse<K>>(queryKey)?.watchError) {
             rememberWatchError(
-              new ApiError('Unable to open the resource watch', { cluster, namespace })
+              new ListWatchError('Unable to open the resource watch', { cluster, namespace })
             );
           }
         },
@@ -778,7 +778,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
               relisting = refreshWatchQuery(client, queryKey, update);
             } else {
               rememberWatchError(
-                new ApiError(update.object?.message ?? 'The resource watch stopped', {
+                new ListWatchError(update.object?.message ?? 'The resource watch stopped', {
                   status,
                   cluster,
                   namespace,

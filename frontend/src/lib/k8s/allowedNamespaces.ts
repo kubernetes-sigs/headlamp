@@ -21,7 +21,7 @@ import {
   loadResolvedAllowedNamespaces,
   storeResolvedAllowedNamespaces,
 } from '../../helpers/clusterSettings';
-import type { ApiError } from './api/v2/ApiError';
+import { type ApiError, ListWatchError } from './api/v2/ApiError';
 import Namespace from './namespace';
 
 function sortedNamespaceNames(items: Namespace[] | null): string[] {
@@ -65,6 +65,8 @@ export function useAllowedNamespacesFromSelector(
     clusters: enabled ? [cluster] : [],
     labelSelector: enabled ? trimmedSelector : undefined,
   });
+  // A rejected watch does not invalidate the namespaces returned by LIST.
+  const resolutionFailed = isError && !(error instanceof ListWatchError);
 
   const namespaces = React.useMemo(() => sortedNamespaceNames(items), [items]);
 
@@ -78,7 +80,7 @@ export function useAllowedNamespacesFromSelector(
       return;
     }
     // Failed resolution (after retries): fail closed rather than keep a stale list.
-    if (isError) {
+    if (resolutionFailed) {
       clearResolvedAllowedNamespaces(cluster);
       return;
     }
@@ -93,12 +95,12 @@ export function useAllowedNamespacesFromSelector(
     if (changed || isResolvedAllowedNamespacesStale(cluster)) {
       storeResolvedAllowedNamespaces(cluster, trimmedSelector, namespaces);
     }
-  }, [cluster, trimmedSelector, isError, items, namespaces]);
+  }, [cluster, trimmedSelector, resolutionFailed, items, namespaces]);
 
   return {
     namespaces: enabled ? namespaces : [],
     isFetching: enabled && isFetching,
-    isSuccess: enabled && items !== null && !isError,
-    error: isError ? error : null,
+    isSuccess: enabled && items !== null && !resolutionFailed,
+    error: resolutionFailed ? error : null,
   };
 }
