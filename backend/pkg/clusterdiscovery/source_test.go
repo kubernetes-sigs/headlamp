@@ -98,7 +98,8 @@ func TestConnectionClusterRequiresUsableTLSSettings(t *testing.T) {
 			got, err := ConnectionCluster(&tc.cluster)
 			require.NoError(t, err)
 
-			_, errs := kubeconfig.LoadContextsFromAPIConfig(ConfigForCluster("connection", got, ""), false)
+			_, errs := kubeconfig.LoadContextsFromAPIConfig(
+				ConfigForCluster("connection", got, ""), kubeconfig.DiscoveredCluster, false)
 			if tc.wantErr != "" {
 				require.NotEmpty(t, errs)
 				require.ErrorContains(t, errs[0], tc.wantErr)

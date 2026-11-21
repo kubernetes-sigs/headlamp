@@ -78,6 +78,44 @@ const (
 	testServiceAccountToken = "service-account-token"
 )
 
+type failOnceAddContextStore struct {
+	kubeconfig.ContextStore
+	mu        sync.Mutex
+	remaining int
+}
+
+func (s *failOnceAddContextStore) AddContext(context *kubeconfig.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.remaining > 0 {
+		s.remaining--
+
+		return errors.New("injected context cache add failure")
+	}
+
+	return s.ContextStore.AddContext(context)
+}
+
+type failNthGetContextStore struct {
+	kubeconfig.ContextStore
+	mu     sync.Mutex
+	calls  int
+	failAt int
+}
+
+func (s *failNthGetContextStore) GetContext(name string) (*kubeconfig.Context, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.calls++
+	if s.calls == s.failAt {
+		return nil, errors.New("injected context cache read failure")
+	}
+
+	return s.ContextStore.GetContext(name)
+}
+
 func makeJSONReq(method, url string, jsonObj interface{}) (*http.Request, error) {
 	var jsonBytes []byte = nil
 
@@ -418,6 +456,123 @@ func TestCreateHeadlampHandlerLoadsDynamicClustersFromKubeConfigDir(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, kubeconfig.DynamicCluster, loadedContext.Source)
 	assert.Equal(t, kubeConfigFile, loadedContext.KubeConfigPath)
+}
+
+//nolint:funlen // Table covers lexical, symlink, and hard-link aliases.
+func TestServerHandlerRejectsOverlappingKubeConfigPersistencePaths(t *testing.T) {
+	tests := []struct {
+		name           string
+		kubeConfigPath func(t *testing.T, persistenceDir string) string
+	}{
+		{
+			name: "configured path inside persistence directory",
+			kubeConfigPath: func(_ *testing.T, persistenceDir string) string {
+				return filepath.Join(persistenceDir, "config")
+			},
+		},
+		{
+			name: "configured path through symlinked persistence directory",
+			kubeConfigPath: func(t *testing.T, persistenceDir string) string {
+				aliasDir := filepath.Join(t.TempDir(), "persistence-alias")
+				if err := os.Symlink(persistenceDir, aliasDir); err != nil {
+					t.Skipf("symlinks are unavailable: %v", err)
+				}
+
+				return filepath.Join(aliasDir, "config")
+			},
+		},
+		{
+			name: "configured dangling symlink to persistence file",
+			kubeConfigPath: func(t *testing.T, persistenceDir string) string {
+				aliasFile := filepath.Join(t.TempDir(), "pending-persistence-alias")
+				if err := os.Symlink(filepath.Join(persistenceDir, "config"), aliasFile); err != nil {
+					t.Skipf("symlinks are unavailable: %v", err)
+				}
+
+				return aliasFile
+			},
+		},
+		{
+			name: "configured path hard-linked to persistence file",
+			kubeConfigPath: func(t *testing.T, persistenceDir string) string {
+				persistenceFile := filepath.Join(persistenceDir, "config")
+				data, err := clientcmd.Write(*api.NewConfig())
+				require.NoError(t, err)
+				require.NoError(t, os.WriteFile(persistenceFile, data, 0o600))
+
+				aliasFile := filepath.Join(t.TempDir(), "persistence-hardlink")
+				if err := os.Link(persistenceFile, aliasFile); err != nil {
+					t.Skipf("hard links are unavailable: %v", err)
+				}
+
+				return aliasFile
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			persistenceDir := t.TempDir()
+			outsidePath := filepath.Join(t.TempDir(), "trusted-config")
+			kubeConfigPath := strings.Join([]string{
+				outsidePath,
+				test.kubeConfigPath(t, persistenceDir),
+			}, string(os.PathListSeparator))
+
+			cfg := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						EnableDynamicClusters: true,
+						KubeConfigPath:        kubeConfigPath,
+						KubeConfigDir:         persistenceDir,
+						KubeConfigStore:       kubeconfig.NewContextStore(),
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			handler, err := serverHandler(ctx, cfg)
+			require.ErrorContains(t, err, "dynamic cluster persistence directory")
+			assert.Nil(t, handler)
+		})
+	}
+}
+
+func TestWriteKubeConfigRejectsOverlappingTrustedPath(t *testing.T) {
+	persistenceDir := t.TempDir()
+	persistenceFile := filepath.Join(persistenceDir, "config")
+
+	config := api.NewConfig()
+	config.Clusters["dynamic-cluster"] = &api.Cluster{Server: "https://127.0.0.1:6443"}
+	config.AuthInfos["dynamic-user"] = &api.AuthInfo{Token: "dynamic-token"}
+	config.Contexts["dynamic-context"] = &api.Context{
+		Cluster:  "dynamic-cluster",
+		AuthInfo: "dynamic-user",
+	}
+
+	data, err := clientcmd.Write(*config)
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				EnableDynamicClusters: true,
+				KubeConfigPath:        persistenceFile,
+				KubeConfigDir:         persistenceDir,
+			},
+		},
+	}
+
+	_, err = c.writeKubeConfig(base64.StdEncoding.EncodeToString(data))
+	require.ErrorContains(t, err, "dynamic cluster persistence directory")
+
+	_, statErr := os.Stat(persistenceFile)
+	assert.ErrorIs(t, statErr, os.ErrNotExist)
 }
 
 func getResponse(handler http.Handler, method, url string, body interface{}) (*httptest.ResponseRecorder, error) {
@@ -3319,7 +3474,11 @@ func TestUpdateCustomContextToCacheRejectsExecForDynamicCluster(t *testing.T) {
 		},
 	}
 
-	errs := c.updateCustomContextToCache(config, original.Name, kubeconfig.DynamicCluster)
+	contexts, errs := loadCustomContexts(config, kubeconfig.DynamicCluster)
+	if len(errs) == 0 {
+		errs = c.updateCustomContextToCache(contexts, original.Name, original.KubeConfigContextName)
+	}
+
 	require.NotEmpty(t, errs)
 	assert.ErrorContains(t, errors.Join(errs...), "exec credential plugins are not permitted in dynamic clusters")
 
@@ -3331,6 +3490,217 @@ func TestUpdateCustomContextToCacheRejectsExecForDynamicCluster(t *testing.T) {
 
 	_, err = store.GetContext("sibling-context")
 	assert.Error(t, err, "rejected reload must not add sibling contexts")
+}
+
+func TestRenameClusterValidationFailureLeavesDiskAndCacheUnchanged(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+	persistenceDir := t.TempDir()
+	persistenceFile := filepath.Join(persistenceDir, "config")
+
+	config := api.NewConfig()
+	config.Clusters["target-cluster"] = &api.Cluster{Server: "https://127.0.0.1:6443"}
+	config.Clusters["legacy-cluster"] = &api.Cluster{Server: "https://127.0.0.2:6443"}
+	config.AuthInfos["target-user"] = &api.AuthInfo{Token: "target-token"}
+	config.AuthInfos["legacy-user"] = &api.AuthInfo{
+		Exec: &api.ExecConfig{
+			APIVersion:      "client.authentication.k8s.io/v1beta1",
+			Command:         "legacy-auth-plugin",
+			InteractiveMode: api.NeverExecInteractiveMode,
+		},
+	}
+	config.Contexts["target-context"] = &api.Context{
+		Cluster:  "target-cluster",
+		AuthInfo: "target-user",
+	}
+	config.Contexts["legacy-context"] = &api.Context{
+		Cluster:  "legacy-cluster",
+		AuthInfo: "legacy-user",
+	}
+	require.NoError(t, clientcmd.WriteToFile(*config, persistenceFile))
+
+	beforeDisk, err := os.ReadFile(persistenceFile) //nolint:gosec // Test path is isolated in t.TempDir.
+	require.NoError(t, err)
+
+	c, handler := newDynamicClusterTestHandler(t, true, persistenceDir)
+	storedBefore, err := c.KubeConfigStore.GetContext("target-context")
+	require.NoError(t, err)
+	require.Equal(t, kubeconfig.DynamicCluster, storedBefore.Source)
+	require.Equal(t, "target-token", storedBefore.AuthInfo.Token)
+
+	response := serveDynamicClusterRequest(t, handler, http.MethodPut, "/cluster/target-context",
+		RenameClusterRequest{
+			NewClusterName: "renamed-target",
+			Source:         "dynamic_cluster",
+		}, "")
+	require.Equal(t, http.StatusInternalServerError, response.Code)
+
+	afterDisk, err := os.ReadFile(persistenceFile) //nolint:gosec // Test path is isolated in t.TempDir.
+	require.NoError(t, err)
+	assert.Equal(t, beforeDisk, afterDisk, "a rejected rename must not mutate the persistence file")
+
+	storedAfter, err := c.KubeConfigStore.GetContext("target-context")
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, storedAfter.Source)
+	assert.Equal(t, "target-token", storedAfter.AuthInfo.Token)
+
+	_, err = c.KubeConfigStore.GetContext("renamed-target")
+	assert.Error(t, err, "a rejected rename must not create a cache entry")
+}
+
+//nolint:funlen // Table verifies transaction rollback for distinct store failures.
+func TestRenameClusterCacheFailureRestoresDiskAndCache(t *testing.T) {
+	tests := []struct {
+		name    string
+		wrap    func(kubeconfig.ContextStore) kubeconfig.ContextStore
+		wantErr string
+	}{
+		{
+			name: "add failure",
+			wrap: func(store kubeconfig.ContextStore) kubeconfig.ContextStore {
+				return &failOnceAddContextStore{ContextStore: store, remaining: 1}
+			},
+			wantErr: "injected context cache add failure",
+		},
+		{
+			name: "read failure after validation",
+			wrap: func(store kubeconfig.ContextStore) kubeconfig.ContextStore {
+				return &failNthGetContextStore{ContextStore: store, failAt: 2}
+			},
+			wantErr: "injected context cache read failure",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			persistenceDir := t.TempDir()
+			persistenceFile := filepath.Join(persistenceDir, "config")
+
+			config := api.NewConfig()
+			config.Clusters["target-cluster"] = &api.Cluster{Server: "https://127.0.0.1:6443"}
+			config.AuthInfos["target-user"] = &api.AuthInfo{Token: "target-token"}
+			config.Contexts["target-context"] = &api.Context{
+				Cluster:  "target-cluster",
+				AuthInfo: "target-user",
+			}
+			require.NoError(t, clientcmd.WriteToFile(*config, persistenceFile))
+
+			beforeDisk, err := os.ReadFile(persistenceFile) //nolint:gosec // Test path is isolated in t.TempDir.
+			require.NoError(t, err)
+
+			baseStore := kubeconfig.NewContextStore()
+			require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(
+				baseStore, persistenceFile, kubeconfig.DynamicCluster, nil))
+			store := test.wrap(baseStore)
+
+			c := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						EnableDynamicClusters: true,
+						KubeConfigDir:         persistenceDir,
+						KubeConfigStore:       store,
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/cluster/target-context", nil)
+			ctx, span := otel.Tracer("test").Start(context.Background(), t.Name())
+
+			renameErr := c.handleClusterRename(w, r, "target-context", RenameClusterRequest{
+				NewClusterName: "renamed-target",
+				Source:         "dynamic_cluster",
+			}, ctx, span)
+			span.End()
+
+			require.ErrorContains(t, renameErr, test.wantErr)
+			assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+			afterDisk, err := os.ReadFile(persistenceFile) //nolint:gosec // Test path is isolated in t.TempDir.
+			require.NoError(t, err)
+			assert.Equal(t, beforeDisk, afterDisk, "cache failure must roll back the persistence file")
+
+			stored, err := baseStore.GetContext("target-context")
+			require.NoError(t, err)
+			assert.Equal(t, kubeconfig.DynamicCluster, stored.Source)
+			assert.Equal(t, "target-token", stored.AuthInfo.Token)
+
+			_, err = baseStore.GetContext("renamed-target")
+			assert.Error(t, err)
+		})
+	}
+}
+
+//nolint:funlen // Test verifies source, both files, and cache remain unchanged.
+func TestRenameDynamicClusterRejectsKubeConfigSource(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+	trustedFile := filepath.Join(t.TempDir(), "trusted-config")
+	persistenceDir := t.TempDir()
+	persistenceFile := filepath.Join(persistenceDir, "config")
+
+	writeConfig := func(path, server, token string) {
+		config := api.NewConfig()
+		config.Clusters["shared-cluster"] = &api.Cluster{Server: server}
+		config.AuthInfos["shared-user"] = &api.AuthInfo{Token: token}
+		config.Contexts["shared-context"] = &api.Context{
+			Cluster:  "shared-cluster",
+			AuthInfo: "shared-user",
+		}
+		require.NoError(t, clientcmd.WriteToFile(*config, path))
+	}
+
+	writeConfig(trustedFile, "https://trusted.example.com", "trusted-token")
+	writeConfig(persistenceFile, "https://dynamic.example.com", "dynamic-token")
+
+	trustedBefore, err := os.ReadFile(trustedFile) //nolint:gosec // Test path is isolated in t.TempDir.
+	require.NoError(t, err)
+	persistenceBefore, err := os.ReadFile(persistenceFile) //nolint:gosec // Test path is isolated in t.TempDir.
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          true,
+				EnableDynamicClusters: true,
+				KubeConfigPath:        trustedFile,
+				KubeConfigDir:         persistenceDir,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+	handler := createHeadlampHandler(newTestHandlerCtx(t), c)
+
+	storedBefore, err := c.KubeConfigStore.GetContext("shared-context")
+	require.NoError(t, err)
+	require.Equal(t, kubeconfig.DynamicCluster, storedBefore.Source)
+	require.Equal(t, "dynamic-token", storedBefore.AuthInfo.Token)
+
+	response := serveDynamicClusterRequest(t, handler, http.MethodPut, "/cluster/shared-context",
+		RenameClusterRequest{
+			NewClusterName: "renamed-shared",
+			Source:         kubeConfigSource,
+		}, "")
+	require.Equal(t, http.StatusBadRequest, response.Code)
+
+	trustedAfter, err := os.ReadFile(trustedFile) //nolint:gosec // Test path is isolated in t.TempDir.
+	require.NoError(t, err)
+	persistenceAfter, err := os.ReadFile(persistenceFile) //nolint:gosec // Test path is isolated in t.TempDir.
+	require.NoError(t, err)
+	assert.Equal(t, trustedBefore, trustedAfter)
+	assert.Equal(t, persistenceBefore, persistenceAfter)
+
+	storedAfter, err := c.KubeConfigStore.GetContext("shared-context")
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, storedAfter.Source)
+	assert.Equal(t, "dynamic-token", storedAfter.AuthInfo.Token)
+
+	_, err = c.KubeConfigStore.GetContext("renamed-shared")
+	assert.Error(t, err)
 }
 
 // TestRenameCluster checks the cluster rename functionality.

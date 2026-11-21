@@ -572,6 +572,147 @@ func defaultHeadlampKubeConfigFile(kubeConfigDir string) (string, error) {
 	return cfg.DefaultKubeConfigFile(kubeConfigDir)
 }
 
+// canonicalPath resolves aliases in the existing portion of a path while
+// preserving any suffix that has not been created yet.
+func canonicalPath(name string) (string, error) {
+	absolute, err := filepath.Abs(name)
+	if err != nil {
+		return "", fmt.Errorf("getting absolute path for %q: %w", name, err)
+	}
+
+	candidate := filepath.Clean(absolute)
+
+	var suffix []string
+
+	for {
+		resolved, err := filepath.EvalSymlinks(candidate)
+		if err == nil {
+			return resolveCanonicalSuffix(name, resolved, suffix)
+		}
+
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", fmt.Errorf("resolving path %q: %w", name, err)
+		}
+
+		parent := filepath.Dir(candidate)
+		if parent == candidate {
+			return "", fmt.Errorf("resolving path %q: %w", name, err)
+		}
+
+		suffix = append(suffix, filepath.Base(candidate))
+		candidate = parent
+	}
+}
+
+func resolveCanonicalSuffix(name, resolved string, suffix []string) (string, error) {
+	for i := len(suffix) - 1; i >= 0; i-- {
+		next := filepath.Join(resolved, suffix[i])
+
+		info, err := os.Lstat(next)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return "", fmt.Errorf("inspecting path %q: %w", name, err)
+		}
+
+		if err != nil || info.Mode()&os.ModeSymlink == 0 {
+			resolved = next
+
+			continue
+		}
+
+		target, err := os.Readlink(next)
+		if err != nil {
+			return "", fmt.Errorf("reading path alias %q: %w", name, err)
+		}
+
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(resolved, target)
+		}
+
+		for j := i - 1; j >= 0; j-- {
+			target = filepath.Join(target, suffix[j])
+		}
+
+		return canonicalPath(target)
+	}
+
+	return filepath.Clean(resolved), nil
+}
+
+func pathOverlapsPersistenceDir(name, persistenceDir string) (bool, error) {
+	canonicalName, err := canonicalPath(name)
+	if err != nil {
+		return false, err
+	}
+
+	canonicalDir, err := canonicalPath(persistenceDir)
+	if err != nil {
+		return false, err
+	}
+
+	if !strings.EqualFold(filepath.VolumeName(canonicalDir), filepath.VolumeName(canonicalName)) {
+		return false, nil
+	}
+
+	relative, err := filepath.Rel(canonicalDir, canonicalName)
+	if err != nil {
+		return false, fmt.Errorf("comparing kubeconfig path %q with persistence directory %q: %w",
+			name, persistenceDir, err)
+	}
+
+	if relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator))) {
+		return true, nil
+	}
+
+	persistenceFile := filepath.Join(persistenceDir, "config")
+	//nolint:gosec // Compares user-configured kubeconfig identity only.
+	nameInfo, nameErr := os.Stat(name)
+	//nolint:gosec // Compares the configured persistence file identity only.
+	persistenceInfo, persistenceErr := os.Stat(persistenceFile)
+
+	if nameErr == nil && persistenceErr == nil {
+		return os.SameFile(nameInfo, persistenceInfo), nil
+	}
+
+	if nameErr != nil && !errors.Is(nameErr, fs.ErrNotExist) {
+		return false, fmt.Errorf("stating kubeconfig path %q: %w", name, nameErr)
+	}
+
+	if persistenceErr != nil && !errors.Is(persistenceErr, fs.ErrNotExist) {
+		return false, fmt.Errorf("stating persistence file %q: %w", persistenceFile, persistenceErr)
+	}
+
+	return false, nil
+}
+
+func (c *HeadlampConfig) validateKubeConfigPersistencePaths() error {
+	if !c.EnableDynamicClusters || c.KubeConfigPath == "" {
+		return nil
+	}
+
+	persistenceDir, err := cfg.MakeKubeConfigsDir(c.KubeConfigDir)
+	if err != nil {
+		return fmt.Errorf("getting kubeconfig persistence directory: %w", err)
+	}
+
+	for _, kubeConfigPath := range filepath.SplitList(c.KubeConfigPath) {
+		if kubeConfigPath == "" {
+			continue
+		}
+
+		overlaps, err := pathOverlapsPersistenceDir(kubeConfigPath, persistenceDir)
+		if err != nil {
+			return err
+		}
+
+		if overlaps {
+			return fmt.Errorf("configured kubeconfig path %q overlaps dynamic cluster persistence directory %q",
+				kubeConfigPath, persistenceDir)
+		}
+	}
+
+	return nil
+}
+
 // addPluginRoutes adds plugin routes to a router.
 // It serves plugin list base paths as json at "plugins".
 // It serves plugin static files at "plugins/", "user-plugins/" and "static-plugins/".
@@ -2001,6 +2142,10 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 }
 
 func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
+	if err := config.validateKubeConfigPersistencePaths(); err != nil {
+		return nil, err
+	}
+
 	handler := createHeadlampHandler(ctx, config)
 
 	if err := startClusterDiscovery(ctx, config); err != nil {
@@ -2957,6 +3102,8 @@ func (c *HeadlampConfig) processKubeConfig(clusterReq ClusterReq) ([]kubeconfig.
 		configPath, err := c.writeKubeConfig(*clusterReq.KubeConfig)
 		if err != nil {
 			setupErrors = append(setupErrors, err)
+
+			return nil, setupErrors
 		} else {
 			for i := range contexts {
 				contexts[i].KubeConfigPath = configPath
@@ -3004,6 +3151,10 @@ func (c *HeadlampConfig) handleLoadErrors(err error, contextLoadErrors []kubecon
 
 // writeKubeConfig persists the kubeconfig and returns its server-selected file path.
 func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) (string, error) {
+	if err := c.validateKubeConfigPersistencePaths(); err != nil {
+		return "", err
+	}
+
 	kubeConfigByte, err := base64.StdEncoding.DecodeString(kubeConfigBase64)
 	if err != nil {
 		return "", fmt.Errorf("decoding kubeconfig: %w", err)
@@ -3178,8 +3329,7 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	}, nil, "Completed stateless cluster rename")
 }
 
-// customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
-func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
+func setCustomNameExtension(config *api.Config, contextName, newClusterName string) error {
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
@@ -3206,6 +3356,15 @@ func customNameToExtensions(config *api.Config, contextName, newClusterName, pat
 
 	contextConfig.Extensions["headlamp_info"] = customObj
 
+	return nil
+}
+
+// customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
+func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
+	if err := setCustomNameExtension(config, contextName, newClusterName); err != nil {
+		return err
+	}
+
 	if err := clientcmd.WriteToFile(*config, path); err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "writing kubeconfig file")
@@ -3216,43 +3375,64 @@ func customNameToExtensions(config *api.Config, contextName, newClusterName, pat
 	return nil
 }
 
-// updateCustomContextToCache updates the custom context to the cache.
-func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string, source int) []error {
+func loadCustomContexts(config *api.Config, source int) ([]kubeconfig.Context, []error) {
 	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, source, false)
-	// Reject before touching the store so a failed reload cannot leave the
-	// cache partially updated.
 	if len(errs) > 0 {
 		logger.Log(logger.LevelError, nil, errors.Join(errs...), "loading contexts from kubeconfig")
 
-		return errs
+		return nil, errs
 	}
 
 	if len(contexts) == 0 {
 		logger.Log(logger.LevelError, nil, errs, "no contexts found in kubeconfig")
 		errs = append(errs, errors.New("no contexts found in kubeconfig"))
 
-		return errs
+		return nil, errs
 	}
 
-	for _, context := range contexts {
-		// Remove the old context from the store
+	return contexts, nil
+}
+
+// updateCustomContextToCache replaces only the renamed context in the cache.
+func (c *HeadlampConfig) updateCustomContextToCache(
+	contexts []kubeconfig.Context,
+	clusterName string,
+	contextName string,
+) []error {
+	for i := range contexts {
+		if contexts[i].KubeConfigContextName != contextName {
+			continue
+		}
+
+		candidate := contexts[i]
+		staged := candidate
+
+		if err := kubeconfig.NewContextStore().AddContext(&staged); err != nil {
+			return []error{err}
+		}
+
+		original, err := c.KubeConfigStore.GetContext(clusterName)
+		if err != nil && !errors.Is(err, cache.ErrNotFound) {
+			return []error{err}
+		}
+
 		if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Removing context from the store")
-			errs = append(errs, err)
+			return []error{err}
 		}
 
-		// Add the new context to the store
-		if err := c.KubeConfigStore.AddContext(&context); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Adding context to the store")
-			errs = append(errs, err)
+		if err := c.KubeConfigStore.AddContext(&candidate); err != nil {
+			var restoreErr error
+			if original != nil {
+				restoreErr = c.KubeConfigStore.AddContext(original)
+			}
+
+			return []error{errors.Join(err, restoreErr)}
 		}
+
+		return nil
 	}
 
-	if len(errs) > 0 {
-		return errs
-	}
-
-	return nil
+	return []error{fmt.Errorf("context %q not found in loaded kubeconfig", contextName)}
 }
 
 // getPathAndLoadKubeconfig gets the path of the kubeconfig file and loads it.
@@ -3276,6 +3456,88 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 	}
 
 	return path, config, nil
+}
+
+func (c *HeadlampConfig) validateClusterRenameOrigin(clusterName, source string) (int, error) {
+	stored, err := c.KubeConfigStore.GetContext(clusterName)
+	if err != nil && !errors.Is(err, cache.ErrNotFound) {
+		return http.StatusInternalServerError, fmt.Errorf("loading cluster rename origin: %w", err)
+	}
+
+	if stored == nil {
+		return 0, nil
+	}
+
+	if !stored.CanRename() {
+		return http.StatusBadRequest, errors.New("cluster has no persistent kubeconfig origin")
+	}
+
+	if source != kubeConfigSource {
+		return 0, nil
+	}
+
+	persistenceDir, err := cfg.MakeKubeConfigsDir(c.KubeConfigDir)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("getting kubeconfig persistence directory: %w", err)
+	}
+
+	overlaps, err := pathOverlapsPersistenceDir(stored.KubeConfigPath, persistenceDir)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("validating cluster kubeconfig origin: %w", err)
+	}
+
+	if overlaps {
+		return http.StatusBadRequest, errors.New("dynamic cluster cannot be renamed as a trusted kubeconfig cluster")
+	}
+
+	return 0, nil
+}
+
+func (c *HeadlampConfig) commitClusterRename(
+	path string,
+	config *api.Config,
+	contexts []kubeconfig.Context,
+	clusterName string,
+	contextName string,
+) error {
+	originalData, err := os.ReadFile(path) //nolint:gosec // Path is the configured kubeconfig origin.
+	if err != nil {
+		return fmt.Errorf("snapshotting kubeconfig before rename: %w", err)
+	}
+
+	originalInfo, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stating kubeconfig before rename: %w", err)
+	}
+
+	if err := clientcmd.WriteToFile(*config, path); err != nil {
+		writeErr := fmt.Errorf("writing renamed kubeconfig: %w", err)
+		if restoreErr := restoreKubeConfig(path, originalData, originalInfo.Mode().Perm()); restoreErr != nil {
+			return errors.Join(writeErr, restoreErr)
+		}
+
+		return writeErr
+	}
+
+	cacheErrs := c.updateCustomContextToCache(contexts, clusterName, contextName)
+	if len(cacheErrs) == 0 {
+		return nil
+	}
+
+	if err := restoreKubeConfig(path, originalData, originalInfo.Mode().Perm()); err != nil {
+		cacheErrs = append(cacheErrs, err)
+	}
+
+	return errors.Join(cacheErrs...)
+}
+
+func restoreKubeConfig(path string, data []byte, mode fs.FileMode) error {
+	//nolint:gosec // Restores trusted bytes to their configured origin.
+	if err := os.WriteFile(path, data, mode); err != nil {
+		return fmt.Errorf("restoring kubeconfig after rename failure: %w", err)
+	}
+
+	return nil
 }
 
 // Handler for renaming a cluster.
@@ -3323,23 +3585,19 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Request,
 	clusterName string, reqBody RenameClusterRequest, ctx context.Context, span trace.Span,
 ) error {
-	stored, err := c.KubeConfigStore.GetContext(clusterName)
-	if err == nil && !stored.CanRename() {
-		renameErr := errors.New("cluster has no persistent kubeconfig origin")
-		c.handleError(w, ctx, span, renameErr, "cluster name is managed by its source", http.StatusBadRequest)
+	if status, err := c.validateClusterRenameOrigin(clusterName, reqBody.Source); err != nil {
+		c.handleError(w, ctx, span, err, "failed to validate cluster rename origin", status)
 
-		return renameErr
+		return err
 	}
 
-	// Load kubeconfig
 	path, config, err := c.getPathAndLoadKubeconfig(reqBody.Source, clusterName)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get kubeconfig file", http.StatusInternalServerError)
 		return err
 	}
 
-	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
-	if !isUnique {
+	if !CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName) {
 		http.Error(w, "custom name already in use", http.StatusBadRequest)
 
 		renameErr := errors.New("cluster name already in use")
@@ -3359,21 +3617,28 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		newClusterName = ""
 	}
 
-	if err := customNameToExtensions(config, contextName, newClusterName, path); err != nil {
-		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
-		return err
-	}
-
 	source := c.dynamicClusterSource()
 	if reqBody.Source == kubeConfigSource {
 		source = kubeconfig.KubeConfig
 	}
 
-	if errs := c.updateCustomContextToCache(config, clusterName, source); len(errs) > 0 {
-		cacheErr := errors.Join(errs...)
-		c.handleError(w, ctx, span, cacheErr, "failed to update context to cache", http.StatusInternalServerError)
+	if err := setCustomNameExtension(config, contextName, newClusterName); err != nil {
+		c.handleError(w, ctx, span, err, "failed to set custom extension", http.StatusInternalServerError)
+		return err
+	}
 
-		return cacheErr
+	contexts, errs := loadCustomContexts(config, source)
+	if len(errs) > 0 {
+		validationErr := errors.Join(errs...)
+		c.handleError(w, ctx, span, validationErr, "failed to validate renamed context", http.StatusInternalServerError)
+
+		return validationErr
+	}
+
+	if err := c.commitClusterRename(path, config, contexts, clusterName, contextName); err != nil {
+		c.handleError(w, ctx, span, err, "failed to commit cluster rename", http.StatusInternalServerError)
+
+		return err
 	}
 
 	w.WriteHeader(http.StatusCreated)

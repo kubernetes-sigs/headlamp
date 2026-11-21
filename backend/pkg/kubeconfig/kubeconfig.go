@@ -1510,6 +1510,7 @@ func LoadContextsFromAPIConfig(config *api.Config, source int, skipProxySetup bo
 			errors = append(errors, err)
 			continue
 		}
+
 		contexts = append(contexts, context)
 	}
 

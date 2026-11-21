@@ -37,7 +37,7 @@ func TestLoadOIDCConfigFromFileAndMemory(t *testing.T) {
 		},
 	}}
 	config.Contexts["team/spoke"] = &api.Context{Cluster: "cluster", AuthInfo: "user", Namespace: "apps"}
-	memory, loadErrors := kubeconfig.LoadContextsFromAPIConfig(config, true)
+	memory, loadErrors := kubeconfig.LoadContextsFromAPIConfig(config, kubeconfig.KubeConfig, true)
 	require.Empty(t, loadErrors)
 	require.Len(t, memory, 1)
 	path := filepath.Join(t.TempDir(), "config")

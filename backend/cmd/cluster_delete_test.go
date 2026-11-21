@@ -366,10 +366,12 @@ func TestDeleteClusterAfterRuntimeChanges(t *testing.T) {
 	}
 }
 
-//nolint:funlen // Verify concurrent runtime handlers block on the same symlink-origin lock.
-func TestDeleteClusterSerializesWithImportThroughSymlink(t *testing.T) {
+//nolint:funlen // Verifies independent runtime file locks under concurrent handlers.
+func TestDeleteClusterAndImportUseDistinctLocksThroughSymlink(t *testing.T) {
 	c, configPath, _, name := newClusterDeletionTestConfig(t, "selected", "", true)
-	c.KubeConfigDir = filepath.Dir(configPath)
+	persistenceDir := t.TempDir()
+	c.KubeConfigDir = persistenceDir
+	persistenceFile := filepath.Join(persistenceDir, "config")
 
 	imported := api.NewConfig()
 	imported.Clusters["cluster"] = &api.Cluster{Server: "https://cluster.example.com"}
@@ -386,13 +388,22 @@ func TestDeleteClusterSerializesWithImportThroughSymlink(t *testing.T) {
 	lock := flock.New(configPath + ".lock")
 	require.NoError(t, lock.Lock())
 
+	type operationResult struct {
+		name string
+		err  error
+	}
+
 	var wg sync.WaitGroup
 
-	results := make(chan error, 2)
+	results := make(chan operationResult, 2)
 	started := make(chan struct{}, 2)
+	locked := true
 
 	t.Cleanup(func() {
-		assert.NoError(t, lock.Unlock())
+		if locked {
+			_ = lock.Unlock()
+		}
+
 		wg.Wait()
 	})
 	wg.Add(2)
@@ -406,11 +417,11 @@ func TestDeleteClusterSerializesWithImportThroughSymlink(t *testing.T) {
 		c.addCluster(w, req)
 
 		if w.Code != http.StatusCreated {
-			results <- fmt.Errorf("import returned %d: %s", w.Code, w.Body.String())
+			results <- operationResult{"import", fmt.Errorf("import returned %d: %s", w.Code, w.Body.String())}
 			return
 		}
 
-		results <- nil
+		results <- operationResult{name: "import"}
 	}()
 
 	go func() {
@@ -421,29 +432,46 @@ func TestDeleteClusterSerializesWithImportThroughSymlink(t *testing.T) {
 		w := deleteClusterTestRequest(c, name, url.Values{"removeKubeConfig": {"true"}})
 
 		if w.Code != http.StatusOK {
-			results <- fmt.Errorf("delete returned %d: %s", w.Code, w.Body.String())
+			results <- operationResult{"delete", fmt.Errorf("delete returned %d: %s", w.Code, w.Body.String())}
 			return
 		}
 
-		results <- nil
+		results <- operationResult{name: "delete"}
 	}()
 
 	<-started
 	<-started
+
+	var first operationResult
+	select {
+	case first = <-results:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "dynamic import did not complete on its independent persistence lock")
+	}
+
+	require.NoError(t, first.err)
+	assert.Equal(t, "import", first.name)
 	assert.Never(t, func() bool { return len(results) > 0 }, 500*time.Millisecond, 10*time.Millisecond,
-		"neither mutation may bypass the persistence-origin lock")
+		"delete must remain blocked on its trusted kubeconfig lock")
+
 	require.NoError(t, lock.Unlock())
+
+	locked = false
+
+	second := <-results
+	require.NoError(t, second.err)
+	assert.Equal(t, "delete", second.name)
 	wg.Wait()
 	close(results)
 
-	for err := range results {
-		require.NoError(t, err)
-	}
-
-	persisted, err := clientcmd.LoadFromFile(configPath)
+	trusted, err := clientcmd.LoadFromFile(configPath)
 	require.NoError(t, err)
-	assert.NotContains(t, persisted.Contexts, "selected")
-	assert.Contains(t, persisted.Contexts, "kept")
+	assert.NotContains(t, trusted.Contexts, "selected")
+	assert.Contains(t, trusted.Contexts, "kept")
+	assert.NotContains(t, trusted.Contexts, "imported")
+
+	persisted, err := clientcmd.LoadFromFile(persistenceFile)
+	require.NoError(t, err)
 	assert.Contains(t, persisted.Contexts, "imported")
 
 	info, err := os.Lstat(configPath)
