@@ -18,10 +18,20 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
-import { assertCurrentDiscoveryConnection } from './discoveryConnection';
+import {
+  assertCurrentDiscoveryConnection,
+  withDiscoveryConnectionPath,
+} from './discoveryConnection';
 import { getBaseWsUrl } from './webSocket';
 
 const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
+
+function subscriptionQuery(query: string, revision?: string) {
+  const params = new URLSearchParams(withDiscoveryConnectionPath(`?${query}`, { revision }));
+  // Keep a separate stream even when the same backend routing revision is restored.
+  if (revision) params.set('__headlamp_connection_epoch', revision);
+  return params.toString();
+}
 
 /**
  * WebSocket manager to handle connections across the application.
@@ -186,8 +196,9 @@ export const WebSocketManager = {
     onMessage: (data: any) => void,
     onError?: (err: Error) => void
   ): Promise<() => void> {
-    const key = this.createKey(clusterId, path, query);
     const revision = getDiscoveredConnectionRevision(clusterId);
+    const wireQuery = subscriptionQuery(query, revision);
+    const key = this.createKey(clusterId, path, wireQuery);
 
     // Register listeners only after the request can be sent. A failed connection
     // must not leave a subscription for a later socket to replay.
@@ -197,13 +208,13 @@ export const WebSocketManager = {
     const requestMsg: WebSocketMessage = {
       clusterId,
       path,
-      query,
+      query: wireQuery,
       userId: userId || '',
       type: 'REQUEST',
     };
     socket.send(JSON.stringify(requestMsg));
 
-    this.activeSubscriptions.set(key, { clusterId, path, query, revision });
+    this.activeSubscriptions.set(key, { clusterId, path, query: wireQuery, revision });
 
     // Add message listener
     const listeners = this.listeners.get(key) || new Set();
@@ -218,7 +229,7 @@ export const WebSocketManager = {
     }
 
     // Return cleanup function
-    return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+    return () => this.unsubscribe(key, clusterId, path, wireQuery, onMessage, onError);
   },
 
   /**

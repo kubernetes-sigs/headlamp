@@ -56,6 +56,10 @@ vi.mock('./makeUrl', () => ({
 const clusterName = 'test-cluster';
 const userId = 'test-user';
 
+function unversionedQuery(query = '') {
+  return [query, '__headlamp_connection_revision=unversioned'].filter(Boolean).join('&');
+}
+
 describe('WebSocket Multiplexer', () => {
   let mockServer: WS;
   let onMessage: Mock<(data: any) => void>;
@@ -172,7 +176,7 @@ describe('WebSocket Multiplexer', () => {
       expect(subscribeMsg).toEqual({
         clusterId: clusterName,
         path,
-        query,
+        query: unversionedQuery(query),
         userId,
         type: 'REQUEST',
       });
@@ -182,7 +186,7 @@ describe('WebSocket Multiplexer', () => {
       const serverMessage = {
         clusterId: clusterName,
         path,
-        query,
+        query: unversionedQuery(query),
         data: JSON.stringify(podData), // Important: data needs to be stringified
         type: 'DATA',
       };
@@ -214,7 +218,7 @@ describe('WebSocket Multiplexer', () => {
         expect(msg).toEqual({
           clusterId: clusterName,
           path: sub.path,
-          query: sub.query,
+          query: unversionedQuery(sub.query),
           userId,
           type: 'REQUEST',
         });
@@ -228,7 +232,7 @@ describe('WebSocket Multiplexer', () => {
         const serverMessage = {
           clusterId: clusterName,
           path: sub.path,
-          query: sub.query,
+          query: unversionedQuery(sub.query),
           data: JSON.stringify(resourceData),
           type: 'DATA',
         };
@@ -256,14 +260,14 @@ describe('WebSocket Multiplexer', () => {
       const completeMessage = {
         clusterId: clusterName,
         path,
-        query,
+        query: unversionedQuery(query),
         type: 'COMPLETE',
       };
 
       await mockServer.send(JSON.stringify(completeMessage));
 
       // Verify the path is marked as completed
-      const key = WebSocketManager.createKey(clusterName, path, query);
+      const key = WebSocketManager.createKey(clusterName, path, unversionedQuery(query));
       expect(WebSocketManager.completedPaths.has(key)).toBe(true);
     });
 
@@ -286,14 +290,14 @@ describe('WebSocket Multiplexer', () => {
         expect(msg).toEqual({
           clusterId: clusterName,
           path,
-          query,
+          query: unversionedQuery(query),
           userId,
           type: 'CLOSE',
         });
       });
 
       // Verify subscription is removed
-      const key = WebSocketManager.createKey(clusterName, path, query);
+      const key = WebSocketManager.createKey(clusterName, path, unversionedQuery(query));
       expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
     });
 
@@ -302,7 +306,7 @@ describe('WebSocket Multiplexer', () => {
       await mockServer.close();
       const path = '/api/v1/pods';
       const query = 'watch=true';
-      const key = WebSocketManager.createKey(clusterName, path, query);
+      const key = WebSocketManager.createKey(clusterName, path, unversionedQuery(query));
 
       // Attempt to subscribe should fail
       await expect(
@@ -349,12 +353,49 @@ describe('WebSocket Multiplexer', () => {
       const send = vi.fn();
 
       mockServer.send(
-        JSON.stringify({ clusterId: clusterName, path, query, type: 'DATA', data: '{}' })
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: unversionedQuery(query),
+          type: 'DATA',
+          data: '{}',
+        })
       );
       WebSocketManager.resubscribeAll({ send } as unknown as WebSocket);
 
       expect(onMessage).not.toHaveBeenCalled();
       expect(send).not.toHaveBeenCalled();
+    });
+
+    it('keeps listeners separate across local revisions of the same routing key', async () => {
+      const revision = vi
+        .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+        .mockReturnValue('same:1');
+      const path = '/api/v1/pods';
+      const query = 'watch=1';
+      const original = vi.fn();
+      const replacement = vi.fn();
+
+      const closeOriginal = await WebSocketManager.subscribe(clusterName, path, query, original);
+      const first = JSON.parse((await mockServer.nextMessage) as string);
+      revision.mockReturnValue('same:2');
+      await WebSocketManager.subscribe(clusterName, path, query, replacement);
+      const second = JSON.parse((await mockServer.nextMessage) as string);
+      expect(first.query).not.toBe(second.query);
+      for (const [request, name] of [
+        [first, 'original'],
+        [second, 'replacement'],
+      ] as const) {
+        mockServer.send(
+          JSON.stringify({ ...request, type: 'DATA', data: JSON.stringify({ name }) })
+        );
+      }
+
+      expect(original).not.toHaveBeenCalled();
+      expect(replacement).toHaveBeenCalledExactlyOnceWith({ name: 'replacement' });
+      closeOriginal();
+      const closed = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closed).toMatchObject({ type: 'CLOSE', query: first.query });
     });
 
     it('should handle duplicate subscriptions', async () => {
@@ -378,7 +419,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
-          query,
+          query: unversionedQuery(query),
           data: JSON.stringify(podData),
           type: 'DATA',
         })
@@ -409,7 +450,7 @@ describe('WebSocket Multiplexer', () => {
 
       // Wait for potential unsubscribe message
       await vi.waitFor(() => {
-        const key = WebSocketManager.createKey(clusterName, path, query);
+        const key = WebSocketManager.createKey(clusterName, path, unversionedQuery(query));
         expect(WebSocketManager.activeSubscriptions.has(key)).toBe(true);
       });
 
@@ -462,6 +503,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path: '/api/v1/pods',
+          query: unversionedQuery(),
           data: JSON.stringify(podData),
           type: 'DATA',
         })
@@ -561,7 +603,7 @@ describe('WebSocket Multiplexer', () => {
 
     it('leaves no subscription when unmounted before connecting fails', async () => {
       const fullUrl = `${BASE_WS_URL}api/v1/pods`;
-      const key = WebSocketManager.createKey(clusterName, '/api/v1/pods', '');
+      const key = WebSocketManager.createKey(clusterName, '/api/v1/pods', unversionedQuery());
       let rejectConnect: (error: Error) => void = () => {};
       const connecting = new Promise<WebSocket>((_, reject) => {
         rejectConnect = reject;
@@ -671,7 +713,7 @@ describe('WebSocket Multiplexer', () => {
       expect(resubMsg).toEqual({
         clusterId: clusterName,
         path,
-        query,
+        query: unversionedQuery(query),
         userId,
         type: 'REQUEST',
       });
@@ -718,7 +760,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
-          query,
+          query: unversionedQuery(query),
           data: JSON.stringify({ kind: 'Pod' }),
           type: 'DATA',
         })
@@ -736,6 +778,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path: '/api/v1/pods',
+          query: unversionedQuery(),
           data: 'invalid json',
         })
       );
@@ -756,7 +799,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
-          query,
+          query: unversionedQuery(query),
           data: JSON.stringify({ error: 'cluster connection failed' }),
           type: 'ERROR',
         })
@@ -773,7 +816,7 @@ describe('WebSocket Multiplexer', () => {
               uid: `${WebSocketManager.createKey(
                 clusterName,
                 path,
-                query
+                unversionedQuery(query)
               )}:ERROR:cluster connection failed`,
               resourceVersion: '0',
             },
@@ -794,7 +837,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
-          query,
+          query: unversionedQuery(query),
           data: 'plain backend error',
           type: 'ERROR',
         })
@@ -811,7 +854,7 @@ describe('WebSocket Multiplexer', () => {
               uid: `${WebSocketManager.createKey(
                 clusterName,
                 path,
-                query
+                unversionedQuery(query)
               )}:ERROR:plain backend error`,
               resourceVersion: '0',
             },
@@ -833,7 +876,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
-          query,
+          query: unversionedQuery(query),
           data: JSON.stringify({ error: 'dedicated error message' }),
           type: 'ERROR',
         })
@@ -870,6 +913,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path: '/api/v1/pods',
+          query: unversionedQuery(),
           data: JSON.stringify({ kind: 'Pod' }),
           type: 'DATA',
         })

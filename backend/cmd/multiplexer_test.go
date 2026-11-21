@@ -454,6 +454,18 @@ func TestMonitorConnection(t *testing.T) {
 	assert.Equal(t, StateClosed, conn.Status.State)
 }
 
+func TestWatchStatusIncludesTheSubscriptionQuery(t *testing.T) {
+	client, server := createTestWebSocketConnection()
+	defer server.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "watch=1&resourceVersion=5", client)
+	conn.updateStatus(StateConnected, nil)
+
+	status := readClientMessageOfType(t, client, "STATUS")
+	require.Equal(t, conn.Query, status.Query)
+	require.Equal(t, conn.UserID, status.UserID)
+}
+
 func TestUpdateStatus(t *testing.T) {
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -534,6 +546,54 @@ func TestCloseConnection(t *testing.T) {
 	m.CloseConnection(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
 	assert.Empty(t, m.connections)
 	assert.True(t, conn.closed)
+}
+
+func TestMultiplexerChecksTheRequestedConnectionBeforeReusingAWatch(t *testing.T) {
+	const cluster, user = "same-name", "test-user"
+
+	server := createMockKubeAPIServer()
+	defer server.Close()
+
+	store := kubeconfig.NewContextStore()
+	initial := &kubeconfig.Context{
+		Name: cluster, Cluster: &api.Cluster{Server: server.URL, InsecureSkipTLSVerify: true},
+		Discovery: &kubeconfig.DiscoveryOrigin{ConnectionRevision: "first"},
+	}
+	require.NoError(t, store.AddContext(initial))
+
+	m := NewMultiplexer(store, false)
+
+	client, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+	defer m.closeClientConnections(client)
+
+	request := Message{
+		Type: "REQUEST", ClusterID: cluster, Path: "/api/v1/pods", UserID: user,
+		Query: "watch=1&" + discoveryConnectionRevisionParam + "=first&" + discoveryConnectionEpochParam + "=1",
+	}
+	connection, err := m.getOrCreateConnection(request, client, nil)
+	require.NoError(t, err)
+	require.Equal(t, request.Query, connection.Query)
+
+	upstreamQuery, err := multiplexerUpstreamQuery(request.Query, initial)
+	require.NoError(t, err)
+	require.Equal(t, "watch=1", upstreamQuery)
+
+	replacement := initial.Copy()
+	replacement.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "second"}
+	require.NoError(t, store.AddContext(replacement))
+
+	queries := []string{
+		request.Query,
+		discoveryConnectionRevisionParam + "=" + unversionedDiscoveryConnection,
+	}
+
+	for _, query := range queries {
+		request.Query = query
+		current, err := m.getOrCreateConnection(request, client, nil)
+		require.ErrorIs(t, err, errClusterConnectionChanged)
+		require.Nil(t, current)
+	}
 }
 
 func TestDelayedCloseOnlyClosesItsWatchQuery(t *testing.T) {
@@ -2482,6 +2542,9 @@ func TestReconnectResumesFromLatestResourceVersion(t *testing.T) {
 
 	assert.Equal(t, "resourceVersion=250&watch=1", <-queries)
 	assert.Equal(t, query, resumed.Query, "messages must keep routing to the subscribed query")
+
+	status := readClientMessageOfType(t, clientConn, "STATUS")
+	require.Equal(t, query, status.Query)
 }
 
 // readClientMessageOfType returns the next message of type msgType the multiplexer wrote to

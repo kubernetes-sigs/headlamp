@@ -374,6 +374,8 @@ func (c *Connection) writeStatusLocked() error {
 	statusMsg := Message{
 		ClusterID: c.ClusterID,
 		Path:      c.Path,
+		Query:     c.Query,
+		UserID:    c.UserID,
 		Data:      string(jsonData),
 		Type:      "STATUS",
 	}
@@ -414,6 +416,29 @@ func (c *Connection) safeClose() {
 	})
 }
 
+const discoveryConnectionEpochParam = "__headlamp_connection_epoch"
+
+func multiplexerUpstreamQuery(query string, connection *kubeconfig.Context) (string, error) {
+	if !strings.Contains(query, discoveryConnectionRevisionParam) &&
+		!strings.Contains(query, discoveryConnectionEpochParam) {
+		return query, nil
+	}
+
+	params, err := url.ParseQuery(query)
+	if err != nil {
+		return "", fmt.Errorf("invalid WebSocket query: %w", err)
+	}
+
+	if !matchesDiscoveryConnection(params.Get(discoveryConnectionRevisionParam), connection) {
+		return "", errClusterConnectionChanged
+	}
+
+	params.Del(discoveryConnectionRevisionParam)
+	params.Del(discoveryConnectionEpochParam)
+
+	return params.Encode(), nil
+}
+
 // dialClusterConnection creates and dials a new WebSocket connection to a Kubernetes cluster without registering it.
 func (m *Multiplexer) dialClusterConnection(
 	clusterID,
@@ -423,6 +448,7 @@ func (m *Multiplexer) dialClusterConnection(
 	clientConn *WSConnLock,
 	token *string,
 	expectedContext *kubeconfig.Context,
+	resourceVersion string,
 ) (*Connection, error) {
 	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
 	if expectedContext != nil && !sameClusterConnection(expectedContext, clusterContext) {
@@ -447,11 +473,15 @@ func (m *Multiplexer) dialClusterConnection(
 	connection := m.createConnection(clusterID, userID, path, query, clientConn, authToken)
 
 	connection.clusterContext = clusterContext
-	if m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken() {
-		connection.usesServiceAccountToken = true
+	connection.usesServiceAccountToken = m.unsafeUseServiceAccountToken &&
+		clusterContext.UsesInClusterServiceAccountToken()
+
+	upstreamQuery, err := multiplexerUpstreamQuery(resumeWatchQuery(query, resourceVersion), clusterContext)
+	if err != nil {
+		return nil, err
 	}
 
-	wsURL := createWebSocketURL(config.Host, path, query)
+	wsURL := createWebSocketURL(config.Host, path, upstreamQuery)
 
 	tlsConfig, err := rest.TLSConfigFor(config)
 	if err != nil {
@@ -482,7 +512,7 @@ func (m *Multiplexer) establishClusterConnection(
 	clientConn *WSConnLock,
 	token *string,
 ) (*Connection, error) {
-	connection, err := m.dialClusterConnection(clusterID, userID, path, query, clientConn, token, nil)
+	connection, err := m.dialClusterConnection(clusterID, userID, path, query, clientConn, token, nil, "")
 	if err != nil {
 		return nil, err
 	}
@@ -779,10 +809,11 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
-		resumeWatchQuery(conn.Query, resourceVersion),
+		conn.Query,
 		client,
 		token,
 		conn.clusterContext,
+		resourceVersion,
 	)
 	if errors.Is(err, errClusterConnectionChanged) {
 		m.removeConnection(conn)
@@ -801,8 +832,6 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		return nil, err
 	}
 
-	// Keep the query the client subscribed with, so its messages still route to it.
-	newConn.Query = conn.Query
 	newConn.resourceVersion = resourceVersion
 
 	if !m.replaceRegistered(conn, newConn) {
@@ -992,11 +1021,13 @@ func (m *Multiplexer) readClientMessage(clientConn *websocket.Conn) (Message, bo
 // getOrCreateConnection gets an existing connection or creates a new one if it doesn't exist.
 // If a connection exists and a new token is provided, it updates the token to ensure it's fresh.
 func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock, token *string) (*Connection, error) {
-	if token == nil || strings.TrimSpace(*token) == "" {
-		clusterContext, err := m.getClusterContextWithFallback(msg.ClusterID, msg.UserID)
-		if err == nil && clusterContext.RequiresUserAuthentication() {
-			return nil, errUserAuthRequired
-		}
+	clusterContext, err := m.getClusterContextWithFallback(msg.ClusterID, msg.UserID)
+	if err == nil && (token == nil || strings.TrimSpace(*token) == "") && clusterContext.RequiresUserAuthentication() {
+		return nil, errUserAuthRequired
+	}
+
+	if _, err := multiplexerUpstreamQuery(msg.Query, clusterContext); err != nil {
+		return nil, err
 	}
 
 	connKey := connectionKey{msg.ClusterID, msg.Path, msg.UserID, msg.Query}
