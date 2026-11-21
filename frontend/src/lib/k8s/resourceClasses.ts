@@ -21,6 +21,9 @@ import ConfigMap from './configMap';
 import ControllerRevision from './controllerRevision';
 import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
+import CSIDriver from './csiDriver';
+import CSINode from './csiNode';
+import CSIStorageCapacity from './csiStorageCapacity';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
 import DeviceClass from './deviceClass';
@@ -65,6 +68,7 @@ import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
 import TCPRoute from './tcpRoute';
 import UDPRoute from './udpRoute';
+import VolumeAttachment from './volumeAttachment';
 import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
@@ -76,6 +80,9 @@ export const ResourceClasses = {
     return CustomResourceDefinition;
   },
   CronJob,
+  CSIDriver,
+  CSINode,
+  CSIStorageCapacity,
   DaemonSet,
   Deployment,
   DeviceClass,
@@ -117,6 +124,7 @@ export const ResourceClasses = {
   ServiceAccount,
   StatefulSet,
   StorageClass,
+  VolumeAttachment,
   VolumeAttributesClass,
   Gateway,
   GatewayClass,

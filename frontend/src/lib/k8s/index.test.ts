@@ -303,6 +303,8 @@ describe('useClustersVersion', () => {
 const notNamespacedClasses = [
   'ClusterRole',
   'ClusterRoleBinding',
+  'CSIDriver',
+  'CSINode',
   'CustomResourceDefinition',
   'DeviceClass',
   'GatewayClass',
@@ -316,6 +318,7 @@ const notNamespacedClasses = [
   'ResourceSlice',
   'RuntimeClass',
   'StorageClass',
+  'VolumeAttachment',
   'VolumeAttributesClass',
 ];
 
@@ -324,6 +327,7 @@ const namespacedClasses = [
   'ConfigMap',
   'ControllerRevision',
   'CronJob',
+  'CSIStorageCapacity',
   'DaemonSet',
   'Deployment',
   'Endpoint',
