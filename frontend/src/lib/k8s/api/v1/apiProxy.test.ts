@@ -27,6 +27,7 @@ import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import * as cluster from '../../../cluster';
 import { encodeClusterPath } from '../../../oidcLogout';
 import * as apiProxy from '../../apiProxy';
+import * as discoveredRevisions from '../v2/discoveredConnectionRevisions';
 
 const baseApiUrl = getAppUrl();
 const wsUrl = baseApiUrl.replace('http', 'ws');
@@ -852,6 +853,27 @@ describe('apiProxy', () => {
       expect(response).toEqual(modifiedConfigMap);
     });
 
+    it('keeps apply and its fallback on the original discovered connection', async () => {
+      vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+        .mockReturnValueOnce('original:1')
+        .mockReturnValue('replacement:2');
+      const query = { dryRun: 'All', __headlamp_connection_revision: 'original' };
+      const scope = nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query(query)
+        .reply(409, errorMessage)
+        .put(
+          `/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps/${mockConfigMap.metadata.name}`
+        )
+        .query(query)
+        .reply(200, modifiedConfigMap);
+
+      await expect(apiProxy.apply(mockConfigMap, undefined, { dryRun: true })).resolves.toEqual(
+        modifiedConfigMap
+      );
+      expect(scope.isDone()).toBe(true);
+    });
+
     it('Successfully handles failing POST and PUT requests', async () => {
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
@@ -1277,6 +1299,21 @@ describe('apiProxy', () => {
           'desktop-token'
         );
         expect(options.body).toEqual(JSON.stringify({ cluster: clusterName, nodeName }));
+      });
+
+      it('pins a drain requested by name to the current discovered connection', async () => {
+        const revision = vi
+          .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+          .mockReturnValue('original:1');
+        try {
+          await expect(apiProxy.drainNode(clusterName, nodeName)).resolves.toEqual(mockResponse);
+          const [path] = (fetch as Mock).mock.lastCall!;
+          expect(path).toBe(
+            `${baseApiUrl}clusters/${clusterName}/drain-node?__headlamp_connection_revision=original`
+          );
+        } finally {
+          revision.mockRestore();
+        }
       });
 
       it('Successfully handles drainNode with error', async () => {

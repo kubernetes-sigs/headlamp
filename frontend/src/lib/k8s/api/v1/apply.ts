@@ -18,6 +18,8 @@ import _ from 'lodash';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface, KubeObjectInterfaceCreate } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
+import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
+import { withDiscoveryConnectionRevision } from '../v2/discoveryConnection';
 import { getClusterDefaultNamespace } from './clusterApi';
 import { resourceDefToApiFactory } from './factories';
 import type { QueryParameters } from './queryParameters';
@@ -51,16 +53,19 @@ export async function apply<T extends KubeObjectInterface>(
   options: ApplyOptions = {}
 ): Promise<T> {
   const bodyToApply = _.cloneDeep(body);
+  const cluster = clusterName || getCluster() || undefined;
+  const queryParams: QueryParameters = withDiscoveryConnectionRevision(
+    options.dryRun ? { dryRun: 'All' } : {},
+    cluster ? getDiscoveredConnectionRevision(cluster) : undefined
+  );
 
   let apiEndpoint;
   try {
-    apiEndpoint = await resourceDefToApiFactory(bodyToApply, clusterName);
+    apiEndpoint = await resourceDefToApiFactory(bodyToApply, cluster);
   } catch (err) {
     console.error(`Error getting api endpoint when applying the resource ${bodyToApply}: ${err}`);
     throw err;
   }
-
-  const cluster = clusterName || getCluster();
 
   // Check if the default namespace is needed. And we need to do this before
   // getting the apiEndpoint because it will affect the endpoint itself.
@@ -77,7 +82,6 @@ export async function apply<T extends KubeObjectInterface>(
   }
 
   const resourceVersion = bodyToApply.metadata.resourceVersion;
-  const queryParams: QueryParameters = options.dryRun ? { dryRun: 'All' } : {};
 
   try {
     delete bodyToApply.metadata.resourceVersion;

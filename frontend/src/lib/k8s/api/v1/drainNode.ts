@@ -17,7 +17,11 @@
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import type Node from '../../node';
-import { getResourceConnectionQuery } from '../v2/discoveryConnection';
+import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
+import {
+  getResourceConnectionQuery,
+  withDiscoveryConnectionRevision,
+} from '../v2/discoveryConnection';
 import { clusterFetch } from '../v2/fetch';
 import { JSON_HEADERS } from './constants';
 import { asQuery } from './formatUrl';
@@ -39,7 +43,8 @@ import type { QueryParameters } from './queryParameters';
  * to get the status of the drain node process.
  */
 export function drainNode(cluster: string, nodeName: string) {
-  return requestNodeDrain(cluster, nodeName);
+  const query = withDiscoveryConnectionRevision({}, getDiscoveredConnectionRevision(cluster));
+  return requestNodeDrain(cluster, nodeName, query);
 }
 
 export async function drainNodeForResource(cluster: string, node: Node) {
