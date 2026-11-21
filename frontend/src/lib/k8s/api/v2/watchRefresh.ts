@@ -37,12 +37,16 @@ export function refreshWatchQuery(
   const pending = event ? eventRefreshes.get(event) : activeRefreshes.get(cacheEntry);
   if (pending) return pending;
 
-  if (event) void client.cancelQueries(filters);
+  // A request already in flight may have started before recovery was marked.
+  void client.cancelQueries(filters);
   beforeRead?.();
 
-  const request = Promise.resolve().then(() =>
-    client.invalidateQueries(filters, { cancelRefetch: false, throwOnError: true })
-  );
+  const request = Promise.resolve().then(async () => {
+    cacheEntry.invalidate();
+    // QueryClient.refetchQueries resolves early for paused queries. The query's
+    // own fetch stays pending until the network returns or the read is canceled.
+    if (cacheEntry.isActive()) await cacheEntry.fetch(undefined, { cancelRefetch: false });
+  });
   activeRefreshes.set(cacheEntry, request);
   if (event) eventRefreshes.set(event, request);
 

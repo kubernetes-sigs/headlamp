@@ -16,7 +16,7 @@
 
 import type { QueryClient, QueryKey, QueryObserverOptions } from '@tanstack/react-query';
 import { hashKey, useQueries, useQueryClient } from '@tanstack/react-query';
-import { partition } from 'lodash';
+import { omit, partition } from 'lodash';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   hasAllowedNamespacesRestriction,
@@ -24,7 +24,7 @@ import {
 } from '../../../../helpers/clusterSettings';
 import type { KubeObject, KubeObjectClass, KubeObjectInterface } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
-import { ApiError } from './ApiError';
+import { ApiError, ListWatchError } from './ApiError';
 import {
   getDiscoveredConnectionRevision,
   useDiscoveredConnectionRevisions,
@@ -53,6 +53,18 @@ export function getWebsocketMultiplexerEnabled(): boolean {
 
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
+const UPGRADE_FAILURE_RELIST_INTERVAL_MS = 30_000;
+const NAMESPACE_SELECTOR_RETRY_INTERVAL_MS = 30_000;
+
+function isAllowedNamespaceSelectorList(
+  kubeObjectClass: KubeObjectClass,
+  cluster: string,
+  queryParams?: QueryParameters
+) {
+  if (kubeObjectClass.kind !== 'Namespace') return false;
+  const selector = loadClusterSettings(cluster).allowedNamespacesSelector?.trim();
+  return !!selector && queryParams?.labelSelector?.trim() === selector;
+}
 
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
@@ -78,11 +90,26 @@ export interface ListResponse<K extends KubeObject> {
   /** Version that started the direct watch, before watch events updated the list. */
   watchStartResourceVersion?: string;
   /** The last failure from the direct watch, retained across snapshot refreshes. */
-  watchError?: ApiError;
+  watchError?: ListWatchError;
   /** Revision of the discovered connection that returned this list. */
   connectionRevision?: string;
   /** Whether this synthesized list must not start a cluster-wide watch */
   skipWatch?: boolean;
+}
+
+/** Instantiates a list item and records the connection that returned it. */
+function toListItem<K extends KubeObject>(
+  kubeObjectClass: KubeObjectClass,
+  item: KubeObjectInterface,
+  cluster: string,
+  connectionRevision?: string
+): K {
+  // managedFields are not shown in list views and can be several KB per object.
+  if (item.metadata?.managedFields) delete item.metadata.managedFields;
+  const resource = new kubeObjectClass(item) as K;
+  resource.cluster = cluster;
+  recordDiscoveryConnection(resource, cluster, connectionRevision);
+  return resource;
 }
 
 /**
@@ -121,6 +148,7 @@ function allowedNamespaceListQuery<K extends KubeObject>(
       cluster,
       '',
       { allowedNamespaces, selector },
+      ...(connectionRevision ? [connectionRevision] : []),
     ],
     queryFn: async () => {
       const [manualItems, selectorList] = await Promise.all([
@@ -134,13 +162,7 @@ function allowedNamespaceListQuery<K extends KubeObject>(
                 ),
                 { cluster }
               ).then(response => response.json());
-              if (item.metadata?.managedFields) {
-                delete item.metadata.managedFields;
-              }
-              const kubeObject = new kubeObjectClass(item) as K;
-              kubeObject.cluster = cluster;
-              recordDiscoveryConnection(kubeObject, cluster, connectionRevision);
-              return kubeObject;
+              return toListItem<K>(kubeObjectClass, item, cluster, connectionRevision);
             } catch (error) {
               if (error instanceof ApiError) {
                 error.cluster = cluster;
@@ -169,15 +191,9 @@ function allowedNamespaceListQuery<K extends KubeObject>(
       ]);
 
       const selectorItems = (selectorList?.items ?? []).map((item: any) => {
-        if (item.metadata?.managedFields) {
-          delete item.metadata.managedFields;
-        }
         item.kind = selectorList.kind.replace(/List$/, '');
         item.apiVersion = selectorList.apiVersion;
-        const kubeObject = new kubeObjectClass(item) as K;
-        kubeObject.cluster = cluster;
-        recordDiscoveryConnection(kubeObject, cluster, connectionRevision);
-        return kubeObject;
+        return toListItem<K>(kubeObjectClass, item, cluster, connectionRevision);
       });
       const items = [...manualItems, ...selectorItems].filter(
         (item, index, allItems) =>
@@ -209,8 +225,11 @@ async function fetchKubeObjectListPage<K extends KubeObject>(
   signal?: AbortSignal,
   fresh = false
 ): Promise<KubeList<K>> {
+  const pageParams = queryParams.continue
+    ? omit(queryParams, 'resourceVersion', 'resourceVersionMatch')
+    : queryParams;
   const page: KubeList<KubeObjectInterface> = await clusterFetch(
-    makeUrl([path], withDiscoveryConnectionRevision(queryParams, connectionRevision)),
+    makeUrl([path], withDiscoveryConnectionRevision(pageParams, connectionRevision)),
     {
       cluster,
       signal,
@@ -219,14 +238,9 @@ async function fetchKubeObjectListPage<K extends KubeObject>(
   ).then(response => response.json());
   const kind = page.kind.replace(/List$/, '');
   const items = page.items.map(item => {
-    // managedFields are not shown in list views and can be several KB per object.
-    if (item.metadata?.managedFields) delete item.metadata.managedFields;
     item.kind = kind;
     item.apiVersion = page.apiVersion;
-    const resource = new kubeObjectClass(item) as K;
-    resource.cluster = cluster;
-    recordDiscoveryConnection(resource, cluster, connectionRevision);
-    return resource;
+    return toListItem<K>(kubeObjectClass, item, cluster, connectionRevision);
   });
   return { ...page, items };
 }
@@ -278,32 +292,39 @@ export function kubeObjectListQuery<K extends KubeObject>(
   refetchInterval?: number,
   connectionRevision: string | null | undefined = getDiscoveredConnectionRevision(cluster)
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
-  const configuredSelector =
-    loadClusterSettings(cluster).allowedNamespacesSelector?.trim() || undefined;
-  const isResolvingAllowedNamespaces =
-    configuredSelector !== undefined && queryParams.labelSelector?.trim() === configuredSelector;
+  const isResolvingAllowedNamespaces = isAllowedNamespaceSelectorList(
+    kubeObjectClass,
+    cluster,
+    queryParams
+  );
 
   if (
     kubeObjectClass.kind === 'Namespace' &&
     !isResolvingAllowedNamespaces &&
     hasAllowedNamespacesRestriction(cluster)
   ) {
-    const query = allowedNamespaceListQuery<K>(
+    return allowedNamespaceListQuery<K>(
       kubeObjectClass,
       cluster,
       queryParams,
       refetchInterval,
       connectionRevision ?? undefined
     );
-    return connectionRevision
-      ? { ...query, queryKey: [...query.queryKey!, connectionRevision] }
-      : query;
   }
 
+  const retryNamespaceSelector = isResolvingAllowedNamespaces && !isExactListVersion(queryParams);
   const retry = kubeRequestRetry;
   return {
     placeholderData: null,
-    refetchInterval,
+    refetchInterval:
+      refetchInterval ??
+      (retryNamespaceSelector
+        ? query =>
+            query.state.data?.watchError &&
+            query.observers.some(observer => observer.options.meta?.watchList === true)
+              ? NAMESPACE_SELECTOR_RETRY_INTERVAL_MS
+              : false
+        : undefined),
     retry:
       isExactListVersion(queryParams) && retry
         ? (failures, error) => error.status !== 410 && retry(failures, error)
@@ -328,6 +349,8 @@ export function kubeObjectListQuery<K extends KubeObject>(
           exact: true,
         });
         const recovering = isWatchRefresh(cacheEntry);
+        const bypassCache =
+          recovering || (retryNamespaceSelector && !!cacheEntry?.state.data?.watchError);
         const path = KubeObjectEndpoint.toUrl(endpoint, namespace);
         const fetchPage = (params: QueryParameters) =>
           fetchKubeObjectListPage<K>(
@@ -337,9 +360,13 @@ export function kubeObjectListQuery<K extends KubeObject>(
             params,
             connectionRevision ?? undefined,
             context?.signal,
-            recovering
+            bypassCache
           );
-        let list = await fetchPage(queryParams);
+        const initialParams =
+          recovering && !isExactListVersion(queryParams)
+            ? omit(queryParams, 'resourceVersion', 'resourceVersionMatch')
+            : queryParams;
+        let list = await fetchPage(initialParams);
 
         // A watch starts after all pages have loaded. Its replacement snapshot must
         // be complete as well, or the first page's continuation token stops the watch.
@@ -384,23 +411,17 @@ export function kubeObjectListQuery<K extends KubeObject>(
   };
 }
 
-function setListWatchError(
+function setListWatchError<K extends KubeObject>(
   client: QueryClient,
   queryKey: QueryKey,
-  update: KubeListUpdateEvent<KubeObjectInterface>,
-  cluster: string,
-  namespace?: string
+  error?: ListWatchError
 ) {
-  const error = new ApiError(update.object?.message ?? 'The resource watch stopped', {
-    status: update.object?.code,
-    cluster,
-    namespace,
-  });
-  client.getQueryCache().find({ queryKey, exact: true })?.setState({
-    error,
-    errorUpdatedAt: Date.now(),
-    status: 'error',
-  });
+  const entry = client.getQueryCache().find<ListResponse<K>>({ queryKey, exact: true });
+  const cached = entry?.state.data;
+  if (entry && cached && cached.watchError !== error) {
+    // A watch state change must not turn a failed LIST into a successful read.
+    entry.setState({ data: { ...cached, watchError: error } });
+  }
 }
 
 interface WatchedList {
@@ -509,6 +530,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     [stableWatchQueryParamsKey]
   );
   /* eslint-enable react-hooks/exhaustive-deps */
+  const pinned = isExactListVersion(stableQueryParams ?? {});
 
   // Create stable connection URLs for each list
   // Updates only when endpoint, lists, or stableQueryParams change
@@ -566,28 +588,34 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       }
 
       if (update.type === 'ERROR') {
-        if (update.object?.code === 410) void client.invalidateQueries({ queryKey, exact: true });
-        else setListWatchError(client, queryKey, update, cluster, namespace);
+        const status = update.object?.code;
+        if (status === 410 && !pinned) {
+          void client.invalidateQueries({ queryKey, exact: true });
+        } else {
+          setListWatchError(
+            client,
+            queryKey,
+            new ListWatchError(update.object?.message ?? 'The resource watch stopped', {
+              status,
+              cluster,
+              namespace,
+            })
+          );
+        }
         return;
       }
 
-      // Update React Query cache with new data
-      client.setQueryData(queryKey, (oldResponse: ListResponse<any> | undefined | null) => {
-        if (!oldResponse) {
-          return oldResponse;
-        }
-
-        const newList = KubeList.applyUpdate(oldResponse.list, update, kubeObjectClass, cluster);
-
-        // Only update if the list actually changed
-        if (newList === oldResponse.list) {
-          return oldResponse;
-        }
-
-        return { ...oldResponse, list: newList };
-      });
+      const entry = client
+        .getQueryCache()
+        .find<ListResponse<KubeObject>>({ queryKey, exact: true });
+      const cached = entry?.state.data;
+      if (!entry || !cached) return;
+      const list = KubeList.applyUpdate(cached.list, update, kubeObjectClass, cluster);
+      if (list !== cached.list || cached.watchError) {
+        entry.setState({ data: { ...cached, list, watchError: undefined } });
+      }
     },
-    [client, kubeObjectClass, endpoint]
+    [client, kubeObjectClass, endpoint, pinned]
   );
 
   // Set up WebSocket subscriptions
@@ -597,11 +625,30 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     }
 
     const cleanups: (() => void)[] = [];
-    let stopped = false;
-
     // Create subscriptions for each connection
     connections.forEach(({ url, cluster, namespace, queryKey }) => {
+      if (pinned && client.getQueryData<ListResponse<K>>(queryKey)?.watchError?.status === 410) {
+        return;
+      }
+      setListWatchError<K>(client, queryKey);
       const parsedUrl = new URL(url, BASE_WS_URL);
+      let stopped = false;
+      let unsubscribe: (() => void) | undefined;
+      const stop = () => {
+        if (stopped) return;
+        stopped = true;
+        unsubscribe?.();
+      };
+      cleanups.push(stop);
+      const reportError = (error: Error) => {
+        if (!stopped) {
+          setListWatchError<K>(
+            client,
+            queryKey,
+            new ListWatchError(error.message, { cluster, namespace })
+          );
+        }
+      };
 
       // Subscribe to WebSocket updates
       WebSocketManager.subscribe(
@@ -609,32 +656,22 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
         update => {
-          if (!stopped) handleUpdate(update, cluster, namespace, queryKey);
+          if (stopped) return;
+          handleUpdate(update, cluster, namespace, queryKey);
+          if (pinned && update?.type === 'ERROR' && update.object?.code === 410) stop();
         },
-        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
-      ).then(
-        cleanup => {
-          if (stopped) cleanup();
-          else cleanups.push(cleanup);
-        },
-        error => {
-          // Track retry count in the URL's searchParams
-          const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
-          if (retryCount < 3) {
-            // Only log and allow retry if under threshold
-            console.error('WebSocket subscription failed:', error);
-            parsedUrl.searchParams.set('retryCount', (retryCount + 1).toString());
-          }
-        }
-      );
+        reportError
+      ).then(cleanup => {
+        if (stopped) cleanup();
+        else unsubscribe = cleanup;
+      }, reportError);
     });
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
-      stopped = true;
       cleanups.forEach(cleanup => cleanup());
     };
-  }, [connections, enabled, endpoint, handleUpdate]);
+  }, [client, connections, enabled, endpoint, handleUpdate, pinned]);
 }
 
 /**
@@ -704,49 +741,69 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         connectionRevision ?? null
       ).queryKey;
       const pinned = isExactListVersion(stableQueryParams ?? {});
-      const rememberWatchError = (error?: ApiError) =>
-        client.setQueryData<ListResponse<K>>(queryKey, cached =>
-          cached && cached.watchError !== error ? { ...cached, watchError: error } : cached
-        );
+      const retryNamespaceSelector =
+        !pinned && isAllowedNamespaceSelectorList(kubeObjectClass, cluster, stableQueryParams);
+      const readWatchError = () => client.getQueryData<ListResponse<K>>(queryKey)?.watchError;
+      const rememberWatchError = (error?: ListWatchError) => {
+        // Repeated failures must leave the selector's pending LIST refresh in place.
+        if (retryNamespaceSelector && error && readWatchError()) return;
+        setListWatchError<K>(client, queryKey, error);
+      };
       let relisting: Promise<void> | undefined;
+      let needsRelist = false;
+      let lastUpgradeRecoveryAt: number | undefined;
 
       return {
         cluster,
         cacheEntry: client.getQueryCache().find({ queryKey, exact: true }),
         url: watchUrl(resourceVersion),
         async getWatchUrl(reconnecting: boolean) {
-          if (
-            pinned &&
-            client.getQueryData<ListResponse<K>>(queryKey)?.watchError?.status === 410
-          ) {
+          if (pinned && readWatchError()?.status === 410) {
             return null;
           }
-          if (reconnecting) {
-            const refresh = relisting ?? refreshWatchQuery(client, queryKey, {});
+          if (reconnecting && needsRelist) {
+            const refresh = relisting ?? refreshWatchQuery(client, queryKey);
             relisting = undefined;
-            try {
-              await refresh;
-            } catch (error) {
-              if (!(pinned && error instanceof ApiError && error.status === 410)) throw error;
-              rememberWatchError(error);
-              return null;
-            }
+            await refresh;
+            needsRelist = false;
           }
           const cached = client.getQueryData<ListResponse<K>>(queryKey);
           if (cached?.list.metadata.continue) return null;
           return watchUrl(cached?.list.metadata.resourceVersion ?? resourceVersion);
         },
         onOpen() {
-          rememberWatchError();
+          lastUpgradeRecoveryAt = undefined;
+          needsRelist = false;
+          relisting = undefined;
+          // An accepted socket can still send a failed WATCH response.
+          if (!retryNamespaceSelector) rememberWatchError();
+        },
+        onOpenFailure() {
+          const now = Date.now();
+          if (
+            !pinned &&
+            (lastUpgradeRecoveryAt === undefined ||
+              now - lastUpgradeRecoveryAt >= UPGRADE_FAILURE_RELIST_INTERVAL_MS)
+          ) {
+            // An upgrade can be rejected before the browser receives a 410 frame.
+            lastUpgradeRecoveryAt = now;
+            needsRelist = true;
+          }
+          if (!readWatchError()) {
+            rememberWatchError(
+              new ListWatchError('Unable to open the resource watch', { cluster, namespace })
+            );
+          }
         },
         onMessage(update: KubeListUpdateEvent<KubeObjectInterface>) {
           if (update.type === 'ERROR') {
             const status = update.object?.code;
             if (status === 410 && !pinned) {
+              needsRelist = true;
               relisting = refreshWatchQuery(client, queryKey, update);
             } else {
               rememberWatchError(
-                new ApiError(update.object?.message ?? 'The resource watch stopped', {
+                new ListWatchError(update.object?.message ?? 'The resource watch stopped', {
                   status,
                   cluster,
                   namespace,
@@ -756,8 +813,11 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             return;
           }
 
-          const cached = client.getQueryData<ListResponse<K>>(queryKey);
-          if (!cached) return;
+          const entry = client
+            .getQueryCache()
+            .find<ListResponse<KubeObject>>({ queryKey, exact: true });
+          const cached = entry?.state.data;
+          if (!entry || !cached) return;
 
           const list = KubeList.applyUpdate(
             cached.list,
@@ -766,20 +826,24 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             cluster,
             connectionRevision
           );
-          if (list === cached.list) return;
-
           const objectChanged =
             update.type === 'ADDED' || update.type === 'MODIFIED' || update.type === 'DELETED';
-          if (objectChanged && client.getQueryState(queryKey)?.fetchStatus !== 'idle') {
+          const watchRecovered = objectChanged && !!cached.watchError;
+          if (list === cached.list && !watchRecovered) return;
+
+          if (objectChanged && entry.state.fetchStatus !== 'idle') {
             // An earlier LIST must not replace a newer update from the same watch.
             void client.cancelQueries({ queryKey, exact: true });
           }
 
-          client.setQueryData(queryKey, {
-            ...cached,
-            watchStartResourceVersion:
-              cached.watchStartResourceVersion ?? cached.list.metadata.resourceVersion,
-            list,
+          entry.setState({
+            data: {
+              ...cached,
+              watchStartResourceVersion:
+                cached.watchStartResourceVersion ?? cached.list.metadata.resourceVersion,
+              list,
+              ...(watchRecovered ? { watchError: undefined } : {}),
+            },
           });
         },
       };

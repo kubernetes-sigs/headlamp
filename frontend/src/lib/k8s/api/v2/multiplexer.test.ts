@@ -91,6 +91,7 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.connecting = false;
     WebSocketManager.isReconnecting = false;
     WebSocketManager.listeners.clear();
+    WebSocketManager.errorListeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
     WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
@@ -295,18 +296,23 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
     });
 
-    it('should handle connection errors', async () => {
+    it('does not register a subscription when connecting fails', async () => {
       // Close the server to simulate connection failure
       await mockServer.close();
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+      const key = WebSocketManager.createKey(clusterName, path, query);
 
       // Attempt to subscribe should fail
       await expect(
-        WebSocketManager.subscribe(clusterName, '/api/v1/pods', 'watch=true', onMessage)
+        WebSocketManager.subscribe(clusterName, path, query, onMessage, vi.fn())
       ).rejects.toThrow('WebSocket connection failed');
 
-      // Verify error was handled
       expect(WebSocketManager.socketMultiplexer).toBeNull();
       expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+      expect(WebSocketManager.listeners.has(key)).toBe(false);
+      expect(WebSocketManager.errorListeners.has(key)).toBe(false);
     });
 
     it('should handle duplicate subscriptions', async () => {
@@ -511,15 +517,14 @@ describe('WebSocket Multiplexer', () => {
       });
     });
 
-    it('should remove subscription state when unmounted before subscription rejects', async () => {
+    it('leaves no subscription when unmounted before connecting fails', async () => {
       const fullUrl = `${BASE_WS_URL}api/v1/pods`;
       const key = WebSocketManager.createKey(clusterName, '/api/v1/pods', '');
       let rejectConnect: (error: Error) => void = () => {};
-      vi.spyOn(WebSocketManager, 'connect').mockReturnValue(
-        new Promise<WebSocket>((_, reject) => {
-          rejectConnect = reject;
-        })
-      );
+      const connecting = new Promise<WebSocket>((_, reject) => {
+        rejectConnect = reject;
+      });
+      const connect = vi.spyOn(WebSocketManager, 'connect').mockReturnValue(connecting);
 
       const { unmount } = renderHook(() =>
         useWebSocket({
@@ -531,19 +536,18 @@ describe('WebSocket Multiplexer', () => {
         })
       );
 
-      await vi.waitFor(() => {
-        expect(WebSocketManager.activeSubscriptions.has(key)).toBe(true);
-        expect(WebSocketManager.listeners.get(key)?.size).toBe(1);
-      });
+      await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(1));
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+      expect(WebSocketManager.listeners.has(key)).toBe(false);
 
       unmount();
       rejectConnect(new Error('WebSocket connection failed'));
 
-      await vi.waitFor(() => {
-        expect(WebSocketManager.listeners.has(key)).toBe(false);
-        expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
-        expect(onError).not.toHaveBeenCalled();
-      });
+      await expect(connecting).rejects.toThrow('WebSocket connection failed');
+      expect(WebSocketManager.listeners.has(key)).toBe(false);
+      expect(WebSocketManager.errorListeners.has(key)).toBe(false);
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+      expect(onError).not.toHaveBeenCalled();
     });
   });
 
