@@ -66,7 +66,7 @@ it.each([
   );
 
   const [{ connectStream }] = vi.mocked(useTerminalStream).mock.lastCall!;
-  await connectStream(vi.fn());
+  await connectStream(vi.fn(), new AbortController().signal);
 
   expect(post).toHaveBeenCalledWith(
     expect.objectContaining({ kind: 'Pod' }),

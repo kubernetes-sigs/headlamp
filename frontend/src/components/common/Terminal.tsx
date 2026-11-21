@@ -35,6 +35,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isElectron } from '../../helpers/isElectron';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
+import { getResourceDiscoveryConnection } from '../../lib/k8s/api/v2/discoveryConnection';
 import Pod from '../../lib/k8s/pod';
 import { Dialog } from './Dialog';
 import { getXtermTheme } from './xtermTheme';
@@ -68,6 +69,19 @@ interface XTerminalConnected {
 type execReturn = ReturnType<Pod['exec']>;
 
 export default function Terminal(props: TerminalProps) {
+  const { item } = props;
+  const origin = getResourceDiscoveryConnection(item);
+  const key = JSON.stringify([
+    origin?.cluster ?? item.cluster,
+    origin?.revision,
+    item.metadata?.namespace,
+    item.metadata?.name,
+    item.metadata?.uid,
+  ]);
+  return <TerminalSession key={key} {...props} />;
+}
+
+function TerminalSession(props: TerminalProps) {
   const { item, onClose, isAttach, noDialog, initialContainer, ...other } = props;
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
   const [container, setContainer] = useState<string | null>(() =>
@@ -301,13 +315,8 @@ export default function Terminal(props: TerminalProps) {
         return;
       }
 
-      if (xtermRef.current) {
-        xtermRef.current.xterm.dispose();
-        execOrAttachRef.current?.cancel();
-      }
-
       const isWindows = ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
-      xtermRef.current = {
+      const terminal = {
         xterm: new XTerminal({
           cursorBlink: true,
           cursorStyle: 'underline',
@@ -321,44 +330,47 @@ export default function Terminal(props: TerminalProps) {
         reconnectOnEnter: false,
       };
 
-      fitAddonRef.current = new FitAddon();
-      xtermRef.current.xterm.loadAddon(fitAddonRef.current);
-
-      (async function () {
-        if (isAttach) {
-          xtermRef?.current?.xterm.writeln(
-            t('Trying to attach to the container {{ container }}…', { container }) + '\n'
-          );
-
-          execOrAttachRef.current = await item.attach(
-            container,
-            items => onData(xtermRef.current!, items),
-            { failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
-        } else {
-          const command = getCurrentShellCommand();
-
-          xtermRef?.current?.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
-
-          execOrAttachRef.current = await item.exec(
-            container,
-            items => onData(xtermRef.current!, items),
-            { command: [command], failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
-        }
-        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
-      })();
-
-      const handler = () => {
-        fitAddonRef.current!.fit();
+      const fitAddon = new FitAddon();
+      terminal.xterm.loadAddon(fitAddon);
+      fitAddonRef.current = fitAddon;
+      xtermRef.current = terminal;
+      let closed = false;
+      const receive = (items: ArrayBuffer) => {
+        if (!closed) onData(terminal, items);
+      };
+      const fail = () => {
+        if (!closed) shellConnectFailed(terminal);
       };
 
-      window.addEventListener('resize', handler);
+      void (async function () {
+        let stream: execReturn;
+        if (isAttach) {
+          terminal.xterm.writeln(
+            t('Trying to attach to the container {{ container }}…', { container }) + '\n'
+          );
+          stream = await item.attach(container, receive, { failCb: fail });
+        } else {
+          const command = getCurrentShellCommand();
+          terminal.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
+          stream = await item.exec(container, receive, { command: [command], failCb: fail });
+        }
+        if (closed) {
+          stream?.cancel();
+          return;
+        }
+        execOrAttachRef.current = stream;
+        setupTerminal(terminalContainerRef, terminal.xterm, fitAddon);
+      })();
 
+      const handler = () => fitAddon.fit();
+      window.addEventListener('resize', handler);
       return function cleanup() {
-        xtermRef.current?.xterm.dispose();
+        closed = true;
+        terminal.xterm.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
+        xtermRef.current = null;
+        fitAddonRef.current = null;
         window.removeEventListener('resize', handler);
       };
     },

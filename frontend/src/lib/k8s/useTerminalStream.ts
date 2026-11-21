@@ -52,7 +52,10 @@ export interface XTerminalConnected {
  */
 export interface TerminalStreamOptions {
   /** Function that establishes stream connection */
-  connectStream: (onData: (data: ArrayBuffer) => void) => Promise<{
+  connectStream: (
+    onData: (data: ArrayBuffer) => void,
+    signal: AbortSignal
+  ) => Promise<{
     stream: any;
     initialMessage?: string;
   }>;
@@ -250,11 +253,6 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       return;
     }
 
-    if (xtermRef.current) {
-      xtermRef.current.xterm.dispose();
-      streamRef.current?.cancel();
-    }
-
     const isWindows =
       detectOS && ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
 
@@ -268,7 +266,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       theme: xtermTheme,
     };
 
-    xtermRef.current = {
+    const terminal = {
       xterm: new XTerminal({
         ...defaultOptions,
         ...xtermOptions,
@@ -277,32 +275,36 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       reconnectOnEnter: false,
     };
 
-    fitAddonRef.current = new FitAddon();
-    xtermRef.current.xterm.loadAddon(fitAddonRef.current);
+    const fitAddon = new FitAddon();
+    terminal.xterm.loadAddon(fitAddon);
+    xtermRef.current = terminal;
+    fitAddonRef.current = fitAddon;
+    const controller = new AbortController();
+    const { signal } = controller;
 
-    (async function () {
-      const { stream, initialMessage } = await connectStream((items: ArrayBuffer) =>
-        onData(xtermRef.current!, items)
-      );
-
-      if (initialMessage) {
-        xtermRef.current?.xterm.writeln(initialMessage);
+    void (async function () {
+      const { stream, initialMessage } = await connectStream(items => {
+        if (!signal.aborted) onData(terminal, items);
+      }, signal);
+      if (signal.aborted) {
+        stream?.cancel();
+        return;
       }
-
+      if (initialMessage) terminal.xterm.writeln(initialMessage);
       streamRef.current = stream;
-
-      setupTerminal(containerRef, xtermRef.current!.xterm, fitAddonRef.current!);
+      setupTerminal(containerRef, terminal.xterm, fitAddon);
     })();
 
-    const resizeHandler = () => {
-      fitAddonRef.current?.fit();
-    };
-
+    const resizeHandler = () => fitAddon.fit();
     window.addEventListener('resize', resizeHandler);
 
     return function cleanup() {
-      xtermRef.current?.xterm.dispose();
+      controller.abort();
+      terminal.xterm.dispose();
       streamRef.current?.cancel();
+      streamRef.current = null;
+      xtermRef.current = null;
+      fitAddonRef.current = null;
       window.removeEventListener('resize', resizeHandler);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

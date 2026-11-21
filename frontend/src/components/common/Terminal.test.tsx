@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import React from 'react';
+import { recordDiscoveryConnection } from '../../lib/k8s/api/v2/discoveryConnection';
+import { useTerminalStream } from '../../lib/k8s/useTerminalStream';
 import { TestContext } from '../../test';
 import Terminal from './Terminal';
 
@@ -85,6 +87,78 @@ describe('Terminal', () => {
     });
 
     expect(true).toBe(true);
+  });
+
+  it('cancels a late exec and ignores its data after replacing a same-named pod', async () => {
+    const staleStream = { cancel: vi.fn(), getSocket: () => null };
+    const currentStream = { cancel: vi.fn(), getSocket: () => null };
+    const stale = Promise.withResolvers<typeof staleStream>();
+    const previousExec = vi
+      .fn<(container: string, onData: (data: ArrayBuffer) => void) => Promise<typeof staleStream>>()
+      .mockReturnValue(stale.promise);
+    const currentExec = vi.fn().mockResolvedValue(currentStream);
+    const original = createMockPod(previousExec);
+    const replacement = createMockPod(currentExec);
+    recordDiscoveryConnection(original, 'discovered', 'original:1');
+    recordDiscoveryConnection(replacement, 'discovered', 'replacement:2');
+    const content = (item: ReturnType<typeof createMockPod>) => (
+      <TestContext>
+        <Terminal item={item as any} open onClose={() => {}} />
+      </TestContext>
+    );
+    const write = vi.spyOn(XTerminal.prototype, 'write');
+    const { rerender, unmount } = render(content(original));
+
+    try {
+      await act(async () => {});
+      expect(previousExec).toHaveBeenCalledTimes(1);
+      rerender(content(replacement));
+      await act(async () => {});
+      expect(currentExec).toHaveBeenCalledTimes(1);
+      const onData = previousExec.mock.calls[0][1];
+      await act(async () => {
+        onData(buildMessage(Channel.StdOut, 'output from the old pod'));
+        stale.resolve(staleStream);
+      });
+      expect(staleStream.cancel).toHaveBeenCalledOnce();
+      expect(write.mock.calls.flat().join(' ')).not.toContain('output from the old pod');
+      expect(currentStream.cancel).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      write.mockRestore();
+    }
+  });
+
+  it('ignores a late debugger connection after starting a replacement terminal stream', async () => {
+    const container = document.createElement('div');
+    const staleStream = { cancel: vi.fn(), getSocket: () => null };
+    const currentStream = { cancel: vi.fn(), getSocket: () => null };
+    const stale = Promise.withResolvers<{ stream: typeof staleStream }>();
+    const previous = vi
+      .fn<(onData: (data: ArrayBuffer) => void) => Promise<{ stream: typeof staleStream }>>()
+      .mockReturnValue(stale.promise);
+    const replacement = vi.fn().mockResolvedValue({ stream: currentStream });
+    const write = vi.spyOn(XTerminal.prototype, 'write');
+    const { result, rerender, unmount } = renderHook(
+      ({ connectStream }) => useTerminalStream({ containerRef: container, connectStream }),
+      { initialProps: { connectStream: previous } }
+    );
+
+    try {
+      rerender({ connectStream: replacement });
+      await act(async () => {});
+      expect(result.current.streamRef.current).toBe(currentStream);
+      await act(async () => {
+        previous.mock.calls[0][0](buildMessage(Channel.StdOut, 'old debugger output'));
+        stale.resolve({ stream: staleStream });
+      });
+      expect(staleStream.cancel).toHaveBeenCalledOnce();
+      expect(result.current.streamRef.current).toBe(currentStream);
+      expect(write.mock.calls.flat().join(' ')).not.toContain('old debugger output');
+    } finally {
+      unmount();
+      write.mockRestore();
+    }
   });
 
   describe('initialContainer', () => {

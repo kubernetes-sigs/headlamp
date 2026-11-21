@@ -185,7 +185,7 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
   }, [defaultPodDebugImage]);
 
   const connectStream = useCallback(
-    async (onDataCallback: (data: ArrayBuffer) => void) => {
+    async (onDataCallback: (data: ArrayBuffer) => void, signal: AbortSignal) => {
       const cluster = getCluster();
       if (!cluster) {
         enqueueSnackbar(t('translation|No cluster selected'), { variant: 'error' });
@@ -227,6 +227,7 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
           containerName,
           debugImage,
           (errorMessage: string) => {
+            if (signal.aborted) return;
             enqueueSnackbar(
               t('translation|Failed to create debug container: {{message}}', {
                 message: errorMessage,
@@ -238,7 +239,7 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
           targetContainer
         );
 
-        if (!readyContainerName) {
+        if (!readyContainerName || signal.aborted) {
           return { stream: null };
         }
 

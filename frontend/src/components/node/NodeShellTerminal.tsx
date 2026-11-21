@@ -119,7 +119,12 @@ function uniqueString() {
  *                  translated fallback
  * @returns Object with the stream if successful, empty object on error
  */
-async function shell(item: Node, onExec: StreamResultsCb, onError: (message?: string) => void) {
+async function shell(
+  item: Node,
+  onExec: StreamResultsCb,
+  onError: (message?: string) => void,
+  signal: AbortSignal
+) {
   const cluster = item.cluster;
   const clusterSettings = loadClusterSettings(cluster);
   const config = clusterSettings.nodeShellTerminal;
@@ -138,10 +143,10 @@ async function shell(item: Node, onExec: StreamResultsCb, onError: (message?: st
     await Pod.apiEndpoint.post(kubePod, query, cluster);
   } catch (e) {
     console.error('Error:DebugNode: creating pod', e);
-    onError(e instanceof Error ? e.message : undefined);
+    if (!signal.aborted) onError(e instanceof Error ? e.message : undefined);
     return {};
   }
-  return { stream: pod.attach('debugger', onExec) };
+  return signal.aborted ? {} : { stream: pod.attach('debugger', onExec) };
 }
 
 export function NodeShellTerminal(props: NodeShellTerminalProps) {
@@ -154,7 +159,7 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
 
   const { xtermRef, streamRef, send } = useTerminalStream({
     containerRef: terminalContainerRef,
-    connectStream: async onDataCallback => {
+    connectStream: async (onDataCallback, signal) => {
       if (!item.cluster) {
         const message = t('translation|No cluster selected');
         enqueueSnackbar(message, { variant: 'error' });
@@ -165,13 +170,18 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       }
 
       xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, onDataCallback, (errorMessage?: string) => {
-        const message = errorMessage || t('translation|Failed to create node shell pod');
-        enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
-          variant: 'error',
-        });
-        xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
-      });
+      const { stream } = await shell(
+        item,
+        onDataCallback,
+        (errorMessage?: string) => {
+          const message = errorMessage || t('translation|Failed to create node shell pod');
+          enqueueSnackbar(t('translation|Failed to open node shell: {{message}}', { message }), {
+            variant: 'error',
+          });
+          xtermRef.current?.xterm.writeln(`\r\n${t('translation|Error')}: ${message}\r\n`);
+        },
+        signal
+      );
       return {
         stream,
       };

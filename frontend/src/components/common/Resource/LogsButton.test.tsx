@@ -406,6 +406,44 @@ describe('LogsButton', () => {
     }
   });
 
+  it('discards the old workload pod lookup when the same name opens on a replacement connection', async () => {
+    const original = new Deployment(deploymentData as any, 'east');
+    const replacement = new Deployment(deploymentData as any, 'east');
+    recordDiscoveryConnection(original, 'east', 'original:1');
+    recordDiscoveryConnection(replacement, 'east', 'replacement:2');
+    const late = Promise.withResolvers<Response>();
+    mockClusterFetch
+      .mockReturnValueOnce(late.promise)
+      .mockResolvedValueOnce(Response.json({ items: [mockPodData] }));
+    const origins: Array<string | undefined> = [];
+    const getLogs = vi.spyOn(Pod.prototype, 'getLogs').mockImplementation(function (this: Pod) {
+      origins.push(getResourceDiscoveryConnection(this)?.revision);
+      return () => {};
+    });
+    const content = (item: Deployment) => (
+      <TestContext>
+        <WorkloadLogs item={item} />
+      </TestContext>
+    );
+    const { rerender } = render(content(original));
+
+    try {
+      await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(1));
+      rerender(content(replacement));
+      await waitFor(() => expect(origins).toContain('replacement:2'));
+      await act(async () => {
+        late.resolve(Response.json({ items: [mockPodData] }));
+      });
+      expect(origins).not.toContain('original:1');
+      expect(mockClusterFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('__headlamp_connection_revision=replacement'),
+        { cluster: 'east' }
+      );
+    } finally {
+      getLogs.mockRestore();
+    }
+  });
+
   it('launches activity with correct metadata on click', () => {
     render(
       <TestContext>

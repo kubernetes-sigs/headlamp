@@ -31,10 +31,12 @@ import { useSnackbar } from 'notistack';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { labelSelectorToQuery } from '../../../lib/k8s';
+import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
   getResourceConnectionQuery,
   getResourceDiscoveryConnection,
   recordDiscoveryConnection,
+  withDiscoveryConnectionRevision,
 } from '../../../lib/k8s/api/v2/discoveryConnection';
 import { clusterFetch } from '../../../lib/k8s/api/v2/fetch';
 import { makeUrl } from '../../../lib/k8s/api/v2/makeUrl';
@@ -104,6 +106,19 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
  * Workload log controls and output for embedding outside the Activity view.
  */
 export function WorkloadLogs({ item }: WorkloadLogsProps) {
+  const origin = getResourceDiscoveryConnection(item);
+  const key = JSON.stringify([
+    item.cluster,
+    origin?.revision,
+    item.kind,
+    item.metadata?.namespace,
+    item.metadata?.name,
+    item.metadata?.uid,
+  ]);
+  return <WorkloadLogsContent key={key} item={item} />;
+}
+
+function WorkloadLogsContent({ item }: WorkloadLogsProps) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [selectedPodIndex, setSelectedPodIndex] = useState<number | 'all'>('all');
   const [selectedContainer, setSelectedContainer] = useState('');
@@ -188,7 +203,12 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
 
         const cluster = item.cluster;
         const origin = getResourceDiscoveryConnection(item);
-        const queryParams = getResourceConnectionQuery(item, cluster, { labelSelector });
+        const revision = origin?.revision ?? getDiscoveredConnectionRevision(cluster);
+        const queryParams = getResourceConnectionQuery(
+          item,
+          cluster,
+          withDiscoveryConnectionRevision({ labelSelector }, revision)
+        );
 
         const response = await clusterFetch(
           makeUrl(`/api/v1/namespaces/${item.metadata.namespace}/pods`, queryParams),
@@ -201,7 +221,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
 
         return response.items.map((podData: any) => {
           const pod = new Pod(podData, cluster);
-          recordDiscoveryConnection(pod, cluster, origin?.revision);
+          recordDiscoveryConnection(pod, cluster, revision);
           return pod;
         });
       } catch (error) {
@@ -237,10 +257,11 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   }
 
   // Handler for initial logs button click
-  async function onMount() {
+  async function onMount(isCurrent: () => boolean) {
     if (isLoggableWorkload(item)) {
       try {
         const fetchedPods = await getRelatedPods();
+        if (!isCurrent()) return;
         if (fetchedPods.length > 0) {
           setPods(fetchedPods);
           setSelectedPodIndex('all');
@@ -252,6 +273,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
           });
         }
       } catch (error) {
+        if (!isCurrent()) return;
         console.error('Error fetching pods:', error);
         enqueueSnackbar(
           t('translation|Failed to fetch pods: {{error}}', {
@@ -267,7 +289,11 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   }
 
   useEffect(() => {
-    onMount();
+    let active = true;
+    void onMount(() => active);
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -339,7 +365,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
 
   // Function to fetch and aggregate logs from all pods
   const fetchAllPodsLogs = React.useCallback(
-    (pods: Pod[], container: string): (() => void) => {
+    (pods: Pod[], container: string, isCurrent: () => boolean): (() => void) => {
       clearLogs();
       setAllPodLogs({});
 
@@ -349,6 +375,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
         const cleanup = pod.getLogs(
           container,
           ({ logs: newLogs }: { logs: string[]; hasJsonLogs?: boolean }) => {
+            if (!isCurrent()) return;
             const podName = pod.getName();
             setAllPodLogs(current => ({
               ...current,
@@ -362,7 +389,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
             showTimestamps,
             follow,
             onReconnectStop: () => {
-              setShowReconnectButton(true);
+              if (isCurrent()) setShowReconnectButton(true);
             },
           }
         );
@@ -389,7 +416,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
     }
 
     if (selectedPodIndex === 'all') {
-      cleanup = fetchAllPodsLogs(pods, selectedContainer);
+      cleanup = fetchAllPodsLogs(pods, selectedContainer, () => isSubscribed);
     } else {
       clearLogs();
       setAllPodLogs({}); // Clear aggregated logs when switching pods
@@ -422,6 +449,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
                 // If there are more logs to process, schedule them for the next frame
                 if (endIdx < newLogs.length) {
                   requestAnimationFrame(() => {
+                    if (!isSubscribed) return;
                     setLogs(current => ({
                       ...current,
                       logs: newLogs, // Keep raw logs for downloads
