@@ -40,7 +40,10 @@ vi.mock('../../lib/k8s/namespace', async importOriginal => {
     },
   };
 });
-vi.mock('../../lib/k8s/api/v1/apply', () => ({ apply }));
+vi.mock('../../lib/k8s/api/v1/apply', () => ({
+  apply,
+  prepareApply: (cluster: string) => (body: unknown) => apply(body, cluster),
+}));
 vi.mock('react-router', async importOriginal => ({
   ...(await importOriginal<typeof import('react-router')>()),
   useHistory: () => ({ push }),

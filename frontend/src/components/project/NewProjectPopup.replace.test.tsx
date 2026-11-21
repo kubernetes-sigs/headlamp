@@ -29,7 +29,7 @@ vi.mock('../../lib/k8s/namespace', () => ({
   __esModule: true,
   default: { useList: vi.fn().mockReturnValue({ items: [] }) },
 }));
-vi.mock('../../lib/k8s/api/v1/apply', () => ({ apply: vi.fn() }));
+vi.mock('../../lib/k8s/api/v1/apply', () => ({ apply: vi.fn(), prepareApply: () => vi.fn() }));
 vi.mock('../../lib/k8s', () => ({ useClustersConf: vi.fn().mockReturnValue({}) }));
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router');

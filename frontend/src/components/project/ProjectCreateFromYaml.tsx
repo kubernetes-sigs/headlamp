@@ -36,7 +36,7 @@ import { useDropzone } from 'react-dropzone';
 import { Trans, useTranslation } from 'react-i18next';
 import { Redirect, useHistory } from 'react-router';
 import { useClustersConf } from '../../lib/k8s';
-import { apply } from '../../lib/k8s/api/v1/apply';
+import { prepareApply } from '../../lib/k8s/api/v1/apply';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import Namespace from '../../lib/k8s/namespace';
@@ -58,6 +58,7 @@ async function createProjectFromYaml({
   cluster: string;
   setCreationState: Dispatch<SetStateAction<CreationState>>;
 }) {
+  const applyToCluster = prepareApply(cluster);
   const itemsToCreate = structuredClone(items);
 
   itemsToCreate.forEach(item => {
@@ -81,7 +82,7 @@ async function createProjectFromYaml({
     creatingResource: namespace,
   });
 
-  await apply(namespace, cluster);
+  await applyToCluster(namespace);
 
   for (const item of itemsToCreate) {
     setCreationState(state => ({
@@ -90,7 +91,7 @@ async function createProjectFromYaml({
         state.stage === 'creating' ? [...state.createdResources, state.creatingResource] : [],
       creatingResource: item,
     }));
-    await apply(item, cluster);
+    await applyToCluster(item);
   }
 
   setCreationState({

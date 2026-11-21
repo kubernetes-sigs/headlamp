@@ -22,6 +22,7 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
+import { withDiscoveryConnectionRevision } from '../v2/discoveryConnection';
 import { clusterRequest, jsonPatch, patch, post, put, remove } from './clusterRequests';
 import type { DeleteParameters } from './deleteParameters';
 import { asQuery, getApiRoot } from './formatUrl';
@@ -507,7 +508,8 @@ function simpleApiFactoryWithNamespace<T extends KubeObjectInterface>(
 
 export async function resourceDefToApiFactory<ResourceType extends KubeObjectInterface>(
   resourceDef: KubeObjectInterface,
-  clusterName?: string
+  clusterName?: string,
+  revision?: string
 ): Promise<ApiClient<ResourceType> | ApiWithNamespaceClient<ResourceType>> {
   interface APIResourceList {
     resources: {
@@ -556,7 +558,8 @@ export async function resourceDefToApiFactory<ResourceType extends KubeObjectInt
     {
       cluster,
       autoLogoutOnAuthError: false,
-    }
+    },
+    withDiscoveryConnectionRevision({}, revision)
   );
   if (!apiResult) {
     throw new Error(`Unkown apiVersion: ${resourceDef.apiVersion}`);

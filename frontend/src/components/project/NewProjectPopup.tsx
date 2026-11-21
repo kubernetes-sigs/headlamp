@@ -33,7 +33,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router';
 import { useClustersConf } from '../../lib/k8s';
-import { apply } from '../../lib/k8s/api/v1/apply';
+import { prepareApply } from '../../lib/k8s/api/v1/apply';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import Namespace from '../../lib/k8s/namespace';
@@ -175,6 +175,9 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
   const handleCreate = async () => {
     if (!isReadyToCreate || isCreating) return;
 
+    const applyByCluster = new Map(
+      selectedClusters.map(cluster => [cluster, prepareApply(cluster)])
+    );
     dispatchCreateProjectEvent({
       project: {
         id: projectName,
@@ -204,10 +207,8 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
       }
 
       // Create new namespace in all selected clusters that don't already have it
-      const clustersWithoutNamespace = selectedClusters.filter(
-        it => !clustersWithExistingNamespace.includes(it)
-      );
-      for (const cluster of clustersWithoutNamespace) {
+      for (const [cluster, applyToCluster] of applyByCluster) {
+        if (clustersWithExistingNamespace.includes(cluster)) continue;
         const namespace = {
           kind: 'Namespace',
           apiVersion: 'v1',
@@ -218,7 +219,7 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
             },
           } as any,
         } as KubeObjectInterface;
-        await apply(namespace, cluster);
+        await applyToCluster(namespace);
       }
 
       history.push(createRouteURL('projectDetails', { name: projectName }));

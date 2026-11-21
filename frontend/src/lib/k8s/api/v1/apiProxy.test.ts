@@ -28,6 +28,9 @@ import * as cluster from '../../../cluster';
 import { encodeClusterPath } from '../../../oidcLogout';
 import * as apiProxy from '../../apiProxy';
 import * as discoveredRevisions from '../v2/discoveredConnectionRevisions';
+import { DISCOVERY_CONNECTION_CHANGED, recordDiscoveryConnection } from '../v2/discoveryConnection';
+import { prepareApply } from './apply';
+import * as clusterApi from './clusterApi';
 
 const baseApiUrl = getAppUrl();
 const wsUrl = baseApiUrl.replace('http', 'ws');
@@ -779,19 +782,14 @@ describe('apiProxy', () => {
   });
 
   describe('apply', () => {
+    const discoveryPath = `/clusters/${clusterName}/api/v1`;
+    const configMapDiscovery = {
+      kind: 'APIResourceList',
+      resources: [{ kind: 'ConfigMap', name: 'configmaps', namespaced: true }],
+    };
+
     beforeEach(() => {
-      nock(baseApiUrl)
-        .get(`/clusters/test-cluster/api/v1`)
-        .reply(200, {
-          kind: 'APIResourceList',
-          resources: [
-            {
-              kind: 'ConfigMap',
-              name: 'configmaps',
-              namespaced: true,
-            },
-          ],
-        });
+      nock(baseApiUrl).get(discoveryPath).reply(200, configMapDiscovery);
 
       vi.spyOn(cluster, 'getCluster').mockReturnValue(clusterName);
       // vi.spyOn(console, 'warn').mockImplementation();
@@ -851,6 +849,98 @@ describe('apiProxy', () => {
 
       const response = await apiProxy.apply(mockConfigMap, undefined, { dryRun: true });
       expect(response).toEqual(modifiedConfigMap);
+    });
+
+    it('keeps apply and its fallback on the original discovered connection', async () => {
+      vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+        .mockReturnValueOnce('original:1')
+        .mockReturnValue('replacement:2');
+      const query = { dryRun: 'All', __headlamp_connection_revision: 'original' };
+      const scope = nock(baseApiUrl)
+        .get(discoveryPath)
+        .query({ __headlamp_connection_revision: 'original' })
+        .reply(200, configMapDiscovery)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query(query)
+        .reply(409, errorMessage)
+        .put(
+          `/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps/${mockConfigMap.metadata.name}`
+        )
+        .query(query)
+        .reply(200, modifiedConfigMap);
+
+      await expect(apiProxy.apply(mockConfigMap, undefined, { dryRun: true })).resolves.toEqual(
+        modifiedConfigMap
+      );
+      expect(scope.isDone()).toBe(true);
+    });
+
+    it.each([false, true])(
+      'rejects a deferred create after the connection changes (retained source: %s)',
+      async retained => {
+        const revision = vi
+          .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+          .mockReturnValue(retained ? 'replacement:2' : 'original:1');
+        const source = {};
+        if (retained) recordDiscoveryConnection(source, clusterName, 'original:1');
+        const submit = prepareApply(clusterName, retained ? source : undefined);
+        revision.mockReturnValue('replacement:2');
+
+        const scope = nock(baseApiUrl)
+          .get(discoveryPath)
+          .query({ __headlamp_connection_revision: 'original' })
+          .reply(200, configMapDiscovery)
+          .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+          .query({ __headlamp_connection_revision: 'original' })
+          .reply(409, { message: DISCOVERY_CONNECTION_CHANGED });
+
+        await expect(submit(mockConfigMap)).rejects.toMatchObject({
+          status: 409,
+          message: expect.stringContaining(DISCOVERY_CONNECTION_CHANGED),
+        });
+        expect(scope.isDone()).toBe(true);
+      }
+    );
+
+    it('rejects apply when API discovery reports a changed connection', async () => {
+      vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue(
+        'original:1'
+      );
+      const submit = prepareApply(clusterName);
+      const discovery = nock(baseApiUrl)
+        .get(discoveryPath)
+        .query({ __headlamp_connection_revision: 'original' })
+        .reply(409, { message: DISCOVERY_CONNECTION_CHANGED });
+      const write = nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ __headlamp_connection_revision: 'original' })
+        .reply(201, mockConfigMap);
+
+      await expect(submit(mockConfigMap)).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining(DISCOVERY_CONNECTION_CHANGED),
+      });
+      expect(discovery.isDone()).toBe(true);
+      expect(write.isDone()).toBe(false);
+    });
+
+    it('uses the default namespace captured when a deferred apply was confirmed', async () => {
+      const defaultNamespace = vi
+        .spyOn(clusterApi, 'getClusterDefaultNamespace')
+        .mockReturnValue('first');
+      const submit = prepareApply(clusterName);
+      defaultNamespace.mockReturnValue('updated');
+      const scope = nock(baseApiUrl)
+        .post(
+          `/clusters/${clusterName}/api/v1/namespaces/first/configmaps`,
+          body => body.metadata.namespace === 'first'
+        )
+        .reply(201, mockConfigMap);
+
+      await expect(
+        submit({ ...mockConfigMap, metadata: { ...mockConfigMap.metadata, namespace: undefined } })
+      ).resolves.toEqual(mockConfigMap);
+      expect(scope.isDone()).toBe(true);
     });
 
     it('Successfully handles failing POST and PUT requests', async () => {

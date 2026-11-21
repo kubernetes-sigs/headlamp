@@ -43,7 +43,10 @@ vi.mock('../../lib/k8s/namespace', () => ({
   __esModule: true,
   default: MockKubeObject,
 }));
-vi.mock('../../lib/k8s/api/v1/apply', () => ({ apply: mockApply }));
+vi.mock('../../lib/k8s/api/v1/apply', () => ({
+  apply: mockApply,
+  prepareApply: (cluster: string) => (body: unknown) => mockApply(body, cluster),
+}));
 vi.mock('../../lib/k8s', () => ({
   useClustersConf: vi.fn().mockReturnValue({ 'cluster-1': { name: 'cluster-1' } }),
 }));

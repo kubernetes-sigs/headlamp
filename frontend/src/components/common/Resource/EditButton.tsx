@@ -21,6 +21,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
+import {
+  getResourceDiscoveryConnection,
+  isDiscoveryConnectionChanged,
+  recordDiscoveryConnection,
+} from '../../../lib/k8s/api/v2/discoveryConnection';
 import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { normalizeBaselineForPatch } from '../../../lib/k8s/patchUtils';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
@@ -45,6 +50,7 @@ interface EditButtonProps {
 }
 
 function makeErrorMessage(err: any, t: TFunction) {
+  if (isDiscoveryConnectionChanged(err)) return err.message;
   const status = err?.status;
   if (status === 409) {
     return t(
@@ -93,6 +99,7 @@ function EditorActivityContent({
     cluster: item.cluster,
     initialData: item,
   });
+  const origin = getResourceDiscoveryConnection(item);
 
   // `item` is the freshest version we explicitly fetched to launch this editor.
   // `initialData` above is only honoured when useGet's cache has no entry yet — a
@@ -103,6 +110,14 @@ function EditorActivityContent({
   const initialVersionRef = React.useRef(item.metadata?.resourceVersion ?? '');
   const watchedIsFresh = React.useMemo(() => {
     if (!watchedItem) {
+      return false;
+    }
+    const watchedConnection = getResourceDiscoveryConnection(watchedItem);
+    if (
+      origin &&
+      (watchedConnection?.cluster !== origin.cluster ||
+        watchedConnection?.revision !== origin.revision)
+    ) {
       return false;
     }
     const watchedVersion = watchedItem.metadata?.resourceVersion ?? '';
@@ -118,18 +133,19 @@ function EditorActivityContent({
     // Non-numeric resourceVersion is opaque per the API contract — can't compare, so
     // trust the watch rather than getting stuck on `item` forever.
     return true;
-  }, [watchedItem]);
+  }, [origin, watchedItem]);
   const watched = watchedIsFresh ? watchedItem! : item;
   const watchedVersion = watched.metadata?.resourceVersion ?? '';
   // Keep the editor item reference stable across renders, recomputing only when the
   // resourceVersion changes or when the watch first resolves (watchedItem null -> set,
   // even at the same version) — so the editor renders the live object and EditorDialog
   // re-evaluates its conflict check on real updates rather than on every watch tick.
-  const editorItem = React.useMemo(
-    () => watched.getEditableObject() as KubeObjectInterface,
+  const editorItem = React.useMemo(() => {
+    const definition = watched.getEditableObject() as KubeObjectInterface;
+    if (origin) recordDiscoveryConnection(definition, origin.cluster, origin.revision);
+    return definition;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [watchedVersion, Boolean(watchedItem)]
-  );
+  }, [origin, watchedVersion, Boolean(watchedItem)]);
 
   // Keep the patch baseline tied to the fetched object the user started editing.
   // Later watch updates must not rebase unsaved edits onto a different server version.
@@ -213,6 +229,7 @@ function EditorActivityContent({
     <EditorDialog
       noDialog
       item={editorItem}
+      cluster={item.cluster}
       open
       onClose={handleClose}
       onSave={handleSave}
