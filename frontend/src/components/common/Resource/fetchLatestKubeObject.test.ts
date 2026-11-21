@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
   getResourceDiscoveryConnection,
   recordDiscoveryConnection,
@@ -21,7 +22,13 @@ import {
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 
+vi.mock('../../../lib/k8s/api/v2/discoveredConnectionRevisions', () => ({
+  getDiscoveredConnectionRevision: vi.fn(),
+}));
+
 describe('fetchLatestKubeObject', () => {
+  beforeEach(() => vi.mocked(getDiscoveredConnectionRevision).mockReset());
+
   it.each([undefined, 'editor-origin:1'])(
     'fetches the resource by name and namespace with its connection (%s)',
     async revision => {
@@ -38,6 +45,7 @@ describe('fetchLatestKubeObject', () => {
         getNamespace: () => 'tinkerbell',
         _class: () => ({ apiGet }),
       } as unknown as KubeObject;
+      vi.mocked(getDiscoveredConnectionRevision).mockReturnValue(revision);
       recordDiscoveryConnection(item, item.cluster, revision);
 
       await expect(fetchLatestKubeObject(item)).resolves.toBe(latestItem);
@@ -49,17 +57,50 @@ describe('fetchLatestKubeObject', () => {
         expect.any(Function),
         {
           cluster: 'cluster-a',
-          ...(revision && { queryParams: { __headlamp_connection_revision: 'editor-origin' } }),
+          queryParams: revision ? { __headlamp_connection_revision: 'editor-origin' } : {},
         }
       );
       expect(latestItem.cluster).toBe('cluster-a');
-      expect(getResourceDiscoveryConnection(latestItem)).toEqual(
-        revision ? { cluster: 'cluster-a', revision } : undefined
-      );
+      expect(getResourceDiscoveryConnection(latestItem)).toEqual({
+        cluster: 'cluster-a',
+        revision,
+      });
       expect(request).toHaveBeenCalledTimes(1);
       // Allow the cancel microtask scheduled by fetchLatestKubeObject() to run.
       await new Promise<void>(resolve => queueMicrotask(resolve));
       expect(cancel).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each([undefined, 'same-route:1'])(
+    'rejects a response from a replaced connection (%s)',
+    async revision => {
+      const current = vi.mocked(getDiscoveredConnectionRevision);
+      current.mockReturnValue(revision);
+      const cancel = vi.fn();
+      let deliver!: (item: KubeObject) => void;
+      const apiGet = vi.fn((onGet: (item: KubeObject) => void) => {
+        deliver = onGet;
+        return async () => cancel;
+      });
+      const item = {
+        cluster: 'cluster-a',
+        getName: () => 'hardware-1',
+        getNamespace: () => 'tinkerbell',
+        _class: () => ({ apiGet }),
+      } as unknown as KubeObject;
+      recordDiscoveryConnection(item, item.cluster, revision);
+
+      const response = fetchLatestKubeObject(item);
+      current.mockReturnValue('same-route:2');
+      const latest = { cluster: '' } as KubeObject;
+      deliver(latest);
+
+      await expect(response).rejects.toMatchObject({ status: 409 });
+      expect(getResourceDiscoveryConnection(latest)).toBeUndefined();
+      expect(cancel).toHaveBeenCalledOnce();
+      await expect(fetchLatestKubeObject(item)).rejects.toMatchObject({ status: 409 });
+      expect(apiGet).toHaveBeenCalledOnce();
     }
   );
 });

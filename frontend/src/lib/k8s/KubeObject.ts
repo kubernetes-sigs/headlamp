@@ -42,12 +42,15 @@ import type { ScaleApi } from './api/v1/scaleApi';
 import type { ApiError } from './api/v2/ApiError';
 import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
 import {
+  assertCurrentDiscoveryConnection,
+  bindDiscoveryConnection,
   createDiscoveryConnectionChangedError,
+  discoveryRequestOptions,
+  getDiscoveryRequestBinding,
   getResourceConnectionQuery,
   getResourceDiscoveryConnection,
   getRoutingRevision,
   recordDiscoveryConnection,
-  withDiscoveryConnectionRevision,
 } from './api/v2/discoveryConnection';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
@@ -58,6 +61,8 @@ import { computePatchOperations, computeRawPatchCount } from './patchUtils';
 function getApiReadConnection(opts?: ApiListSingleNamespaceOptions) {
   const cluster = opts?.cluster || getCluster() || undefined;
   const currentRevision = cluster ? getDiscoveredConnectionRevision(cluster) : undefined;
+  const binding = getDiscoveryRequestBinding(opts?.queryParams);
+  if (binding) return { cluster, revision: binding.revision };
   const routingRevision = opts?.queryParams?.__headlamp_connection_revision;
   // A caller may still require an earlier route after discovery has updated.
   const revision =
@@ -328,7 +333,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       const args: any[] = [
         onResults,
         onError,
-        withDiscoveryConnectionRevision(queryParams, revision),
+        bindDiscoveryConnection(queryParams, revision),
         cluster,
       ];
       // An empty string represents a list across all namespaces.
@@ -514,9 +519,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       const { cluster, revision } = getApiReadConnection(opts);
       const onResult = (item: KubeObjectInterface) =>
         onGet(setResourceReadConnection(this.create(item, cluster), cluster, revision));
-      const queryParams = revision
-        ? withDiscoveryConnectionRevision(opts?.queryParams ?? {}, revision)
-        : opts?.queryParams;
+      const queryParams = bindDiscoveryConnection(opts?.queryParams ?? {}, revision);
       const args: any[] = [name, onResult, onError, queryParams, cluster];
       if (this.apiEndpoint.isNamespaced) args.unshift(namespace);
       return this.apiEndpoint.get.bind(null, ...args)();
@@ -658,7 +661,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       return Promise.reject(error);
     }
     const args: Parameters<ScaleApi['patch']> = [{ spec }, this.metadata, this._clusterName];
-    if (Object.keys(query).length) args.push(query);
+    if (Object.keys(query).length || getDiscoveryRequestBinding(query)) args.push(query);
     return scale.patch(...args);
   }
 
@@ -682,18 +685,16 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
    */
   static async fetchAuthorization(reqResourseAttrs?: AuthRequestResourceAttrs, cluster?: string) {
     const { cluster: requestCluster, revision } = getApiReadConnection({ cluster });
-    const query = asQuery(withDiscoveryConnectionRevision({}, revision));
+    const query = bindDiscoveryConnection({}, revision);
     // @todo: We should get the API info from the API endpoint.
     const authApiVersions = ['v1', 'v1beta1'];
     for (let j = 0; j < authApiVersions.length; j++) {
       const authVersion = authApiVersions[j];
 
-      if (requestCluster && getDiscoveredConnectionRevision(requestCluster) !== revision) {
-        throw createDiscoveryConnectionChangedError();
-      }
+      assertCurrentDiscoveryConnection(requestCluster, revision);
       try {
         const result = await post(
-          `/apis/authorization.k8s.io/${authVersion}/selfsubjectaccessreviews${query}`,
+          `/apis/authorization.k8s.io/${authVersion}/selfsubjectaccessreviews${asQuery(query)}`,
           {
             kind: 'SelfSubjectAccessReview',
             apiVersion: `authorization.k8s.io/${authVersion}`,
@@ -702,11 +703,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
             },
           },
           false,
-          { cluster: requestCluster }
+          discoveryRequestOptions(requestCluster, query)
         );
-        if (requestCluster && getDiscoveredConnectionRevision(requestCluster) !== revision) {
-          throw createDiscoveryConnectionChangedError();
-        }
+        assertCurrentDiscoveryConnection(requestCluster, revision);
         return result;
       } catch (err) {
         // If this is the last attempt or the error is not 404, let it throw.
@@ -724,9 +723,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   ) {
     const { cluster: requestCluster, revision } = getApiReadConnection({ cluster });
     const reviewAccess = (attrs: AuthRequestResourceAttrs) => {
-      if (requestCluster && getDiscoveredConnectionRevision(requestCluster) !== revision) {
-        throw createDiscoveryConnectionChangedError();
-      }
+      assertCurrentDiscoveryConnection(requestCluster, revision);
       return this.fetchAuthorization(attrs, requestCluster);
     };
     const resourceAttrs: AuthRequestResourceAttrs = {

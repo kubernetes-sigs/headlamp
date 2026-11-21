@@ -20,10 +20,11 @@ import type { KubeObjectInterface, KubeObjectInterfaceCreate } from '../../KubeO
 import type { ApiError } from '../v2/ApiError';
 import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
 import {
+  assertCurrentDiscoveryConnection,
+  bindDiscoveryConnection,
   createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
   isDiscoveryConnectionChanged,
-  withDiscoveryConnectionRevision,
 } from '../v2/discoveryConnection';
 import { getClusterDefaultNamespace } from './clusterApi';
 import { resourceDefToApiFactory } from './factories';
@@ -56,8 +57,8 @@ export async function apply<T extends KubeObjectInterfaceCreate>(
 export function prepareApply(clusterName?: string, source?: object) {
   const cluster = clusterName || getCluster() || undefined;
   const origin = source && getResourceDiscoveryConnection(source);
-  const revision =
-    origin?.revision ?? (cluster ? getDiscoveredConnectionRevision(cluster) : undefined);
+  const currentRevision = cluster ? getDiscoveredConnectionRevision(cluster) : undefined;
+  const revision = origin ? origin.revision : currentRevision;
   const defaultNamespace = (cluster && getClusterDefaultNamespace(cluster)) || 'default';
 
   return async <T extends KubeObjectInterfaceCreate>(body: T, options?: ApplyOptions) => {
@@ -84,20 +85,22 @@ async function applyToConnection<T extends KubeObjectInterface>(
   { cluster, revision, defaultNamespace }: ApplyDestination,
   options: ApplyOptions = {}
 ): Promise<T> {
+  assertCurrentDiscoveryConnection(cluster, revision);
   const bodyToApply = _.cloneDeep(body);
-  const queryParams: QueryParameters = withDiscoveryConnectionRevision(
+  const queryParams: QueryParameters = bindDiscoveryConnection(
     options.dryRun ? { dryRun: 'All' } : {},
     revision
   );
 
   let apiEndpoint;
   try {
-    apiEndpoint = await resourceDefToApiFactory(bodyToApply, cluster, revision);
+    apiEndpoint = await resourceDefToApiFactory(bodyToApply, cluster, { revision });
   } catch (err) {
     console.error(`Error getting api endpoint when applying the resource ${bodyToApply}: ${err}`);
     throw err;
   }
 
+  assertCurrentDiscoveryConnection(cluster, revision);
   if (apiEndpoint.isNamespaced && !bodyToApply.metadata.namespace) {
     bodyToApply.metadata.namespace = defaultNamespace;
   }
@@ -116,6 +119,7 @@ async function applyToConnection<T extends KubeObjectInterface>(
     // Preserve the resourceVersion if its an update request
     bodyToApply.metadata.resourceVersion = resourceVersion;
     // We had a conflict. Try a PUT
+    assertCurrentDiscoveryConnection(cluster, revision);
     return apiEndpoint.put(bodyToApply, queryParams, cluster!) as Promise<T>;
   }
 }

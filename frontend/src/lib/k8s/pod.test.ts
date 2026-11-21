@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { patch, post } from './api/v1/clusterRequests';
 import { stream } from './api/v1/streamingApi';
+import * as discoveredRevisions from './api/v2/discoveredConnectionRevisions';
 import { recordDiscoveryConnection } from './api/v2/discoveryConnection';
 import Pod, { LogOptions } from './pod';
 
@@ -134,6 +135,7 @@ describe('Pod class', () => {
 
   it('keeps retained pod mutations on the originating discovered connection', async () => {
     const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)), 'discovered');
+    vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('origin:1');
     recordDiscoveryConnection(pod, 'discovered', 'origin:1');
     vi.mocked(post).mockClear();
     vi.mocked(patch).mockClear();
@@ -143,14 +145,14 @@ describe('Pod class', () => {
       '/api/v1/namespaces/default/pods/test-pod/eviction?__headlamp_connection_revision=origin',
       expect.anything(),
       true,
-      { cluster: 'discovered' }
+      { cluster: 'discovered', expectedDiscoveryConnection: { revision: 'origin:1' } }
     );
     await pod.addEphemeralContainer('debug', 'busybox');
     expect(patch).toHaveBeenCalledWith(
       '/api/v1/namespaces/default/pods/test-pod/ephemeralcontainers?__headlamp_connection_revision=origin',
       expect.anything(),
       true,
-      { cluster: 'discovered' }
+      { cluster: 'discovered', expectedDiscoveryConnection: { revision: 'origin:1' } }
     );
 
     pod.cluster = 'replacement';
@@ -160,10 +162,12 @@ describe('Pod class', () => {
     });
     expect(post).toHaveBeenCalledTimes(1);
     expect(patch).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
   });
 
   it('keeps retained pod streams on their originating discovered connection', () => {
     const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)), 'discovered');
+    vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('origin:1');
     recordDiscoveryConnection(pod, 'discovered', 'origin:1');
     vi.mocked(stream).mockClear();
     const onData = vi.fn();
@@ -193,6 +197,7 @@ describe('Pod class', () => {
       'Discovered cluster connection changed'
     );
     expect(stream).toHaveBeenCalledTimes(3);
+    vi.restoreAllMocks();
   });
 
   it('returns ExitCode when a container terminated with empty reason and no signal', () => {

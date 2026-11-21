@@ -15,6 +15,7 @@
  */
 
 import { ApiError } from './ApiError';
+import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
 
 export const DISCOVERY_CONNECTION_CHANGED = 'Discovered cluster connection changed';
 
@@ -30,10 +31,21 @@ export function createDiscoveryConnectionChangedError() {
   return new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
 }
 
-const resourceConnections = new WeakMap<object, { cluster: string; revision: string }>();
+export interface DiscoveryConnectionRequest {
+  revision?: string;
+}
+
+const connectionRequest = Symbol('discoveryConnectionRequest');
+const resourceConnections = new WeakMap<object, { cluster: string; revision?: string }>();
+
+export function assertCurrentDiscoveryConnection(cluster: string | undefined, revision?: string) {
+  if (cluster && getDiscoveredConnectionRevision(cluster) !== revision) {
+    throw createDiscoveryConnectionChangedError();
+  }
+}
 
 export function recordDiscoveryConnection(resource: object, cluster: string, revision?: string) {
-  if (revision) resourceConnections.set(resource, { cluster, revision });
+  if (cluster) resourceConnections.set(resource, { cluster, revision });
 }
 
 export function getResourceDiscoveryConnection(resource: object) {
@@ -51,14 +63,32 @@ export function withDiscoveryConnectionRevision<T extends object>(params: T, rev
   return routingRevision ? { ...params, __headlamp_connection_revision: routingRevision } : params;
 }
 
+/** Carry the local revision through async request setup without sending it on the wire. */
+export function bindDiscoveryConnection<T extends object>(params: T, revision?: string) {
+  const query = withDiscoveryConnectionRevision({ ...params }, revision);
+  Object.defineProperty(query, connectionRequest, { value: { revision } });
+  return query;
+}
+
+export function getDiscoveryRequestBinding(params?: object) {
+  return (params as { [connectionRequest]?: DiscoveryConnectionRequest } | undefined)?.[
+    connectionRequest
+  ];
+}
+
+export function discoveryRequestOptions(cluster?: string, params?: object) {
+  const expectedDiscoveryConnection = getDiscoveryRequestBinding(params);
+  return expectedDiscoveryConnection ? { cluster, expectedDiscoveryConnection } : { cluster };
+}
+
 export function getResourceConnectionQuery<T extends object>(
   resource: object,
   cluster: string,
   params: T
 ) {
   const connection = getResourceDiscoveryConnection(resource);
-  if (connection && connection.cluster !== cluster) {
-    throw createDiscoveryConnectionChangedError();
-  }
-  return withDiscoveryConnectionRevision(params, connection?.revision);
+  if (!connection) return params;
+  if (connection.cluster !== cluster) throw createDiscoveryConnectionChangedError();
+  assertCurrentDiscoveryConnection(cluster, connection.revision);
+  return bindDiscoveryConnection(params, connection.revision);
 }

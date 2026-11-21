@@ -28,6 +28,11 @@ import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
+import type { DiscoveryConnectionRequest } from '../v2/discoveryConnection';
+import {
+  assertCurrentDiscoveryConnection,
+  getDiscoveryRequestBinding,
+} from '../v2/discoveryConnection';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
@@ -46,6 +51,7 @@ export interface RequestParams extends RequestInit {
   cluster?: string | null;
   /** Whether to automatically log out the user if there is an authentication error. */
   autoLogoutOnAuthError?: boolean;
+  expectedDiscoveryConnection?: DiscoveryConnectionRequest;
 }
 
 export interface ClusterRequest {
@@ -127,6 +133,7 @@ export async function clusterRequest(
     cluster: paramsCluster,
     autoLogoutOnAuthError = true,
     isJSON = true,
+    expectedDiscoveryConnection = getDiscoveryRequestBinding(queryParams),
     ...otherParams
   } = params;
 
@@ -150,6 +157,10 @@ export async function clusterRequest(
     }
 
     fullPath = combinePath(`/${CLUSTERS_PREFIX}/${cluster}`, path);
+  }
+
+  if (expectedDiscoveryConnection) {
+    assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
   }
 
   const controller = new AbortController();
@@ -186,6 +197,14 @@ export async function clusterRequest(
   if (!response.ok) {
     const { status, statusText } = response;
     if (autoLogoutOnAuthError && status === 401 && opts.headers.authorization && cluster) {
+      if (expectedDiscoveryConnection) {
+        try {
+          assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
+        } catch (error) {
+          clearTimeout(id);
+          throw error;
+        }
+      }
       console.error('Logging out due to auth error', { status, statusText, path });
       logout(cluster, true).catch(err => {
         console.error('Auto-logout failed after auth error:', err);

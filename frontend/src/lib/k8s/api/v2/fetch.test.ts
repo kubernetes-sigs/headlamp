@@ -20,6 +20,7 @@ import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getClusterAuthType } from '../../clusterAuthType';
+import * as discoveredRevisions from './discoveredConnectionRevisions';
 import { BASE_HTTP_URL, clusterFetch } from './fetch';
 
 vi.mock('../../../auth', () => ({
@@ -70,6 +71,29 @@ describe('clusterFetch', () => {
     const responseBody = await response.json();
 
     expect(responseBody).toEqual(mockResponse);
+  });
+
+  it('checks the local connection again after looking up kubeconfig', async () => {
+    const revision = vi
+      .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+      .mockReturnValue('same:1');
+    const lookup = Promise.withResolvers<string>();
+    vi.mocked(findKubeconfigByClusterName).mockReturnValueOnce(lookup.promise);
+    const request = nock(BASE_HTTP_URL).post(`/clusters/${clusterName}${testUrl}`).reply(200, {});
+    try {
+      const response = clusterFetch(testUrl, {
+        cluster: clusterName,
+        method: 'POST',
+        expectedDiscoveryConnection: { revision: 'same:1' },
+      });
+      revision.mockReturnValue('same:2');
+      lookup.resolve(kubeconfig);
+
+      await expect(response).rejects.toMatchObject({ status: 409 });
+      expect(request.isDone()).toBe(false);
+    } finally {
+      revision.mockRestore();
+    }
   });
 
   it('does not add backend credentials to non-cluster requests', async () => {

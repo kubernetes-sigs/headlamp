@@ -14,20 +14,24 @@
  * limitations under the License.
  */
 
+import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
+  assertCurrentDiscoveryConnection,
+  bindDiscoveryConnection,
   createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
   recordDiscoveryConnection,
-  withDiscoveryConnectionRevision,
 } from '../../../lib/k8s/api/v2/discoveryConnection';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 
-export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K> {
+export async function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K> {
   const cluster = item.cluster;
   const connection = getResourceDiscoveryConnection(item);
   if (connection && connection.cluster !== cluster) {
-    return Promise.reject(createDiscoveryConnectionChangedError());
+    throw createDiscoveryConnectionChangedError();
   }
+  const revision = connection ? connection.revision : getDiscoveredConnectionRevision(cluster);
+  assertCurrentDiscoveryConnection(cluster, revision);
   return new Promise((resolve, reject) => {
     let cancel: (() => void) | undefined;
     let cancelScheduled = false;
@@ -48,9 +52,16 @@ export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K>
         return;
       }
 
+      try {
+        assertCurrentDiscoveryConnection(cluster, revision);
+      } catch (error) {
+        rejectOnce(error);
+        return;
+      }
+
       settled = true;
       latestItem.cluster = cluster;
-      recordDiscoveryConnection(latestItem, cluster, connection?.revision);
+      recordDiscoveryConnection(latestItem, cluster, revision);
       scheduleCancel();
       resolve(latestItem as K);
     }
@@ -69,9 +80,7 @@ export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K>
       ._class()
       .apiGet(resolveOnce, item.getName(), item.getNamespace(), rejectOnce, {
         cluster,
-        ...(connection && {
-          queryParams: withDiscoveryConnectionRevision({}, connection.revision),
-        }),
+        queryParams: bindDiscoveryConnection({}, revision),
       });
 
     request()

@@ -19,10 +19,8 @@ import { useErrorState } from '../util';
 import { useConnectionRequests } from './api/v1/hooks';
 import { metrics } from './api/v1/metricsApi';
 import type { ApiError } from './api/v2/ApiError';
-import {
-  getDiscoveredConnectionRevision,
-  withDiscoveryConnectionRevision,
-} from './api/v2/discoveredConnectionRevisions';
+import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
+import { withDiscoveryConnectionRevision } from './api/v2/discoveryConnection';
 import { makeUrl } from './api/v2/makeUrl';
 import { KubeNodeSummaryStats, nodeSummaryStats } from './api/v2/nodeSummaryApi';
 import type { KubeCondition, KubeMetrics } from './cluster';

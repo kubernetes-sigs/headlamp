@@ -22,7 +22,8 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
-import { withDiscoveryConnectionRevision } from '../v2/discoveryConnection';
+import type { DiscoveryConnectionRequest } from '../v2/discoveryConnection';
+import { bindDiscoveryConnection, discoveryRequestOptions } from '../v2/discoveryConnection';
 import { clusterRequest, jsonPatch, patch, post, put, remove } from './clusterRequests';
 import type { DeleteParameters } from './deleteParameters';
 import { asQuery, getApiRoot } from './formatUrl';
@@ -385,19 +386,34 @@ export function singleApiFactory<T extends KubeObjectInterface>(
     },
     get: (name, cb, errCb, queryParams, cluster) =>
       streamResult(url, name, cb, errCb, queryParams, cluster),
-    post: (body, queryParams, cluster) => post(url + asQuery(queryParams), body, true, { cluster }),
+    post: (body, queryParams, cluster) =>
+      post(url + asQuery(queryParams), body, true, discoveryRequestOptions(cluster, queryParams)),
     put: (body, queryParams, cluster) =>
-      put(`${url}/${body.metadata.name}` + asQuery(queryParams), body, true, { cluster }),
+      put(
+        `${url}/${body.metadata.name}` + asQuery(queryParams),
+        body,
+        true,
+        discoveryRequestOptions(cluster, queryParams)
+      ),
     patch: (body, name, queryParams, cluster) =>
-      patch(`${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }), body, true, {
-        cluster,
-      }),
+      patch(
+        `${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
+        body,
+        true,
+        discoveryRequestOptions(cluster, queryParams)
+      ),
     jsonPatch: (body, name, queryParams, cluster) =>
-      jsonPatch(`${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }), body, true, {
-        cluster,
-      }),
+      jsonPatch(
+        `${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
+        body,
+        true,
+        discoveryRequestOptions(cluster, queryParams)
+      ),
     delete: (name, deleteParams, cluster) =>
-      remove(`${url}/${name}` + asQuery(deleteParams), { cluster }),
+      remove(
+        `${url}/${name}` + asQuery(deleteParams),
+        discoveryRequestOptions(cluster, deleteParams)
+      ),
     isNamespaced: false,
     apiInfo: [{ group, version, resource }],
   };
@@ -467,30 +483,38 @@ function simpleApiFactoryWithNamespace<T extends KubeObjectInterface>(
     get: (namespace, name, cb, errCb, queryParams, cluster) =>
       streamResult(url(namespace), name, cb, errCb, queryParams, cluster),
     post: (body, queryParams, cluster) =>
-      post(url(body.metadata?.namespace!) + asQuery(queryParams), body, true, { cluster }),
+      post(
+        url(body.metadata?.namespace!) + asQuery(queryParams),
+        body,
+        true,
+        discoveryRequestOptions(cluster, queryParams)
+      ),
     patch: (body, namespace, name, queryParams, cluster) =>
       patch(
         `${url(namespace)}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
         body,
         true,
-        { cluster }
+        discoveryRequestOptions(cluster, queryParams)
       ),
     jsonPatch: (body, namespace, name, queryParams, cluster) =>
       jsonPatch(
         `${url(namespace)}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
         body,
         true,
-        { cluster }
+        discoveryRequestOptions(cluster, queryParams)
       ),
     put: (body, queryParams, cluster) =>
       put(
         `${url(body.metadata.namespace!)}/${body.metadata.name}` + asQuery(queryParams),
         body,
         true,
-        { cluster }
+        discoveryRequestOptions(cluster, queryParams)
       ),
     delete: (namespace, name, deleteParams, cluster) =>
-      remove(`${url(namespace)}/${name}` + asQuery(deleteParams), { cluster }),
+      remove(
+        `${url(namespace)}/${name}` + asQuery(deleteParams),
+        discoveryRequestOptions(cluster, deleteParams)
+      ),
     isNamespaced: true,
     apiInfo: [{ group, version, resource }],
   };
@@ -509,7 +533,7 @@ function simpleApiFactoryWithNamespace<T extends KubeObjectInterface>(
 export async function resourceDefToApiFactory<ResourceType extends KubeObjectInterface>(
   resourceDef: KubeObjectInterface,
   clusterName?: string,
-  revision?: string
+  connection?: DiscoveryConnectionRequest
 ): Promise<ApiClient<ResourceType> | ApiWithNamespaceClient<ResourceType>> {
   interface APIResourceList {
     resources: {
@@ -559,7 +583,7 @@ export async function resourceDefToApiFactory<ResourceType extends KubeObjectInt
       cluster,
       autoLogoutOnAuthError: false,
     },
-    withDiscoveryConnectionRevision({}, revision)
+    connection ? bindDiscoveryConnection({}, connection.revision) : undefined
   );
   if (!apiResult) {
     throw new Error(`Unkown apiVersion: ${resourceDef.apiVersion}`);

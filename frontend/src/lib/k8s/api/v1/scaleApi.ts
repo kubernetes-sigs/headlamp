@@ -16,6 +16,7 @@
 
 import { getCluster } from '../../../cluster';
 import type { KubeMetadata } from '../../KubeMetadata';
+import { discoveryRequestOptions } from '../v2/discoveryConnection';
 import { clusterRequest, patch, put } from './clusterRequests';
 import { asQuery } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
@@ -64,9 +65,12 @@ export function apiScaleFactory(apiRoot: string, resource: string): ScaleApi {
       queryParams?: QueryParameters
     ) => {
       const cluster = clusterName || getCluster() || '';
-      return patch(url(metadata.namespace!, metadata.name) + asQuery(queryParams), body, false, {
-        cluster,
-      });
+      return patch(
+        url(metadata.namespace!, metadata.name) + asQuery(queryParams),
+        body,
+        false,
+        discoveryRequestOptions(cluster, queryParams)
+      );
     },
   };
 

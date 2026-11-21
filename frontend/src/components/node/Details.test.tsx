@@ -22,7 +22,7 @@ import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { drainNodeStatusForResource } from '../../lib/k8s/api/v1/drainNode';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
-import { getDiscoveredConnectionRevision } from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
+import * as discoveredRevisions from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import { recordDiscoveryConnection } from '../../lib/k8s/api/v2/discoveryConnection';
 import * as fetchModule from '../../lib/k8s/api/v2/fetch';
 import Node from '../../lib/k8s/node';
@@ -62,8 +62,11 @@ it('keeps the originally selected connection when confirming a drain', async () 
   const cluster = 'discovered';
   const originalNode = new Node(NODE_DETAILED_DATA, cluster);
   const replacementNode = new Node(NODE_DETAILED_DATA, cluster);
-  recordDiscoveryConnection(originalNode, cluster, 'original');
-  recordDiscoveryConnection(replacementNode, cluster, 'replacement');
+  const revision = vi
+    .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+    .mockReturnValue('original:1');
+  recordDiscoveryConnection(originalNode, cluster, 'original:1');
+  recordDiscoveryConnection(replacementNode, cluster, 'original:2');
 
   const useGet = vi.spyOn(Node, 'useGet').mockReturnValue(nodeResult(originalNode));
   vi.spyOn(Node, 'useMetrics').mockReturnValue([null, null]);
@@ -87,6 +90,7 @@ it('keeps the originally selected connection when confirming a drain', async () 
   const { rerender } = render(page());
   fireEvent.click(screen.getByRole('button', { name: 'Drain' }));
 
+  revision.mockReturnValue('original:2');
   useGet.mockReturnValue(nodeResult(replacementNode));
   rerender(page());
   fireEvent.click(screen.getByTestId('confirm-button'));
@@ -97,11 +101,7 @@ it('keeps the originally selected connection when confirming a drain', async () 
   const drainRequests = clusterFetch.mock.calls.filter(([path]) =>
     path.toString().startsWith('/drain-node?')
   );
-  expect(drainRequests).toHaveLength(1);
-  expect(drainRequests[0]).toEqual([
-    '/drain-node?__headlamp_connection_revision=original',
-    expect.objectContaining({ cluster, method: 'POST' }),
-  ]);
+  expect(drainRequests).toHaveLength(0);
   expect(Object.values(store.getState().clusterAction)).toEqual([
     expect.objectContaining({
       state: 'error',
@@ -113,7 +113,8 @@ it('keeps the originally selected connection when confirming a drain', async () 
 it('polls drain status for the connection that started the drain', async () => {
   const cluster = 'discovered';
   const node = new Node(NODE_DETAILED_DATA, cluster);
-  recordDiscoveryConnection(node, cluster, 'original');
+  vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('original:1');
+  recordDiscoveryConnection(node, cluster, 'original:1');
   const clusterFetch = vi
     .spyOn(fetchModule, 'clusterFetch')
     .mockResolvedValue(Response.json({ id: 'draining', cluster }));
@@ -158,7 +159,11 @@ it('lets the replacement node drain while the original status read is pending', 
       })
     );
     const node = new Node(NODE_DETAILED_DATA, cluster);
-    recordDiscoveryConnection(node, cluster, getDiscoveredConnectionRevision(cluster));
+    recordDiscoveryConnection(
+      node,
+      cluster,
+      discoveredRevisions.getDiscoveredConnectionRevision(cluster)
+    );
     return node;
   };
   const original = selectConnection('original');

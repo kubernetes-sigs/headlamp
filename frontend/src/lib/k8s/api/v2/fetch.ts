@@ -20,6 +20,8 @@ import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { ApiError } from './ApiError';
+import type { DiscoveryConnectionRequest } from './discoveryConnection';
+import { assertCurrentDiscoveryConnection } from './discoveryConnection';
 import { makeUrl } from './makeUrl';
 
 // @deprecated BASE_HTTP_URL is deprecated for Electron apps with custom ports.
@@ -78,23 +80,37 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
  *
  * @returns fetch Response
  */
-export async function clusterFetch(url: string | URL, init: RequestInit & { cluster: string }) {
+export async function clusterFetch(
+  url: string | URL,
+  {
+    cluster,
+    expectedDiscoveryConnection,
+    ...init
+  }: RequestInit & {
+    cluster: string;
+    expectedDiscoveryConnection?: DiscoveryConnectionRequest;
+  }
+) {
   init.headers = new Headers(init.headers);
-  if (init.cluster) {
+  if (cluster) {
     for (const [name, value] of Object.entries(getHeadlampAPIHeaders())) {
       init.headers.set(name, value);
     }
   }
 
   // Set stateless kubeconfig if exists
-  const kubeconfig = await findKubeconfigByClusterName(init.cluster);
+  const kubeconfig = await findKubeconfigByClusterName(cluster);
   if (kubeconfig !== null) {
     const userID = getUserIdFromLocalStorage();
     init.headers.set('KUBECONFIG', kubeconfig);
     init.headers.set('X-HEADLAMP-USER-ID', userID);
   }
 
-  const urlParts = init.cluster ? ['clusters', init.cluster, url] : [url];
+  if (expectedDiscoveryConnection) {
+    assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
+  }
+
+  const urlParts = cluster ? ['clusters', cluster, url] : [url];
 
   try {
     const response = await backendFetch(makeUrl(urlParts), init);
@@ -102,7 +118,7 @@ export async function clusterFetch(url: string | URL, init: RequestInit & { clus
     return response;
   } catch (e) {
     if (e instanceof ApiError) {
-      e.cluster = init.cluster;
+      e.cluster = cluster;
     }
     throw e;
   }

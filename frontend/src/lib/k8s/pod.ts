@@ -19,7 +19,7 @@ import { patch, post } from './api/v1/clusterRequests';
 import { asQuery } from './api/v1/formatUrl';
 import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
 import { stream } from './api/v1/streamingApi';
-import { getResourceConnectionQuery } from './api/v2/discoveryConnection';
+import { discoveryRequestOptions, getResourceConnectionQuery } from './api/v2/discoveryConnection';
 import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -27,7 +27,10 @@ import type { WorkloadHealthCategory } from './Workload';
 
 function withPodStreamConnection(url: string, pod: Pod, cluster: string) {
   const query = getResourceConnectionQuery(pod, cluster, {});
-  return url + asQuery(query).replace(/^\?/, '&');
+  return {
+    url: url + asQuery(query).replace(/^\?/, '&'),
+    options: discoveryRequestOptions(cluster, query),
+  };
 }
 
 /** Container waiting/terminated reasons that represent a genuine failure rather than normal startup. */
@@ -253,7 +256,7 @@ class Pod extends KubeObject<KubePod> {
         },
       },
       true,
-      { cluster }
+      discoveryRequestOptions(cluster, query)
     );
   }
 
@@ -349,8 +352,9 @@ class Pod extends KubeObject<KubePod> {
     }
 
     const cluster = this.cluster;
-    const { cancel } = stream(withPodStreamConnection(url, this, cluster), onResults, {
-      cluster,
+    const connection = withPodStreamConnection(url, this, cluster);
+    const { cancel } = stream(connection.url, onResults, {
+      ...connection.options,
       isJson: false,
       connectCb: () => {
         logs = [];
@@ -392,11 +396,8 @@ class Pod extends KubeObject<KubePod> {
       isJson: false,
       ...options,
     };
-    return stream(
-      withPodStreamConnection(url, this, streamOptions.cluster ?? ''),
-      onAttach,
-      streamOptions
-    );
+    const connection = withPodStreamConnection(url, this, streamOptions.cluster ?? '');
+    return stream(connection.url, onAttach, { ...streamOptions, ...connection.options });
   }
 
   exec(container: string, onExec: StreamResultsCb, options: ExecOptions = {}) {
@@ -419,11 +420,8 @@ class Pod extends KubeObject<KubePod> {
       isJson: false,
       ...streamOpts,
     };
-    return stream(
-      withPodStreamConnection(url, this, streamOptions.cluster ?? ''),
-      onExec,
-      streamOptions
-    );
+    const connection = withPodStreamConnection(url, this, streamOptions.cluster ?? '');
+    return stream(connection.url, onExec, { ...streamOptions, ...connection.options });
   }
 
   /**
@@ -469,7 +467,7 @@ class Pod extends KubeObject<KubePod> {
       `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/ephemeralcontainers` +
       asQuery(query);
 
-    await patch(url, patchBody, true, { cluster });
+    await patch(url, patchBody, true, discoveryRequestOptions(cluster, query));
   }
 
   private getLastRestartDate(container: KubeContainerStatus, lastRestartDate: Date): Date {

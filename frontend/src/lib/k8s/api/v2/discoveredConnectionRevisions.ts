@@ -19,7 +19,6 @@ import { isEqual } from 'lodash';
 import { useSyncExternalStore } from 'react';
 import type { RootState } from '../../../../redux/stores/store';
 import store from '../../../../redux/stores/store';
-export { withDiscoveryConnectionRevision } from './discoveryConnection';
 
 // A removed registration cannot match a backend-generated routing revision.
 const removedDiscoveryRevision = 'removed';

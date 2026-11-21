@@ -22,6 +22,14 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
+import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
+import type { DiscoveryConnectionRequest } from '../v2/discoveryConnection';
+import {
+  assertCurrentDiscoveryConnection,
+  discoveryRequestOptions,
+  getDiscoveryRequestBinding,
+  isDiscoveryConnectionChanged,
+} from '../v2/discoveryConnection';
 import { clusterRequest } from './clusterRequests';
 import { CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
@@ -76,11 +84,12 @@ export function streamResult<T extends KubeObjectInterface>(
 
   async function run() {
     try {
-      const item = await clusterRequest(`${url}/${name}` + asQuery(queryParams), {
-        cluster: clusterName,
-      });
+      const options = discoveryRequestOptions(clusterName, queryParams);
+      const item = await clusterRequest(`${url}/${name}` + asQuery(queryParams), options);
 
       if (isCancelled) return;
+      const binding = getDiscoveryRequestBinding(queryParams);
+      if (binding) assertCurrentDiscoveryConnection(clusterName, binding.revision);
 
       if (isDebugVerbose('k8s/apiProxy@streamResult run cb(item)')) {
         console.debug('k8s/apiProxy@streamResult run cb(item)', { item });
@@ -92,7 +101,7 @@ export function streamResult<T extends KubeObjectInterface>(
         url +
         asQuery({ ...queryParams, ...{ watch: '1', fieldSelector: `metadata.name=${name}` } });
 
-      socket = stream(watchUrl, (x: any) => cb(x.object), { isJson: true, cluster: clusterName });
+      socket = stream(watchUrl, (x: any) => cb(x.object), { isJson: true, ...options });
     } catch (err) {
       console.error('Error in api request', { err, url });
       // @todo: sometimes errCb is {}, the typing for apiProxy needs improving.
@@ -177,18 +186,19 @@ export function streamResultsForCluster(
 
   async function run() {
     try {
-      const { kind, items, metadata } = await clusterRequest(url + asQuery(queryParams), {
-        cluster: clusterName,
-      });
+      const options = discoveryRequestOptions(clusterName, queryParams);
+      const { kind, items, metadata } = await clusterRequest(url + asQuery(queryParams), options);
 
       if (isCancelled) return;
+      const binding = getDiscoveryRequestBinding(queryParams);
+      if (binding) assertCurrentDiscoveryConnection(clusterName, binding.revision);
 
       add(items, kind);
 
       const watchUrl =
         url +
         asQuery({ ...queryParams, ...{ watch: '1', resourceVersion: metadata.resourceVersion } });
-      socket = stream(watchUrl, update, { isJson: true, cluster: clusterName });
+      socket = stream(watchUrl, update, { isJson: true, ...options });
     } catch (err) {
       console.error('Error in api request', { err, url });
       if (errCb && typeof errCb === 'function') {
@@ -304,6 +314,7 @@ export interface StreamArgs {
   stdout?: boolean;
   stderr?: boolean;
   cluster?: string;
+  expectedDiscoveryConnection?: DiscoveryConnectionRequest;
 }
 
 /**
@@ -320,7 +331,8 @@ export interface StreamArgs {
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
   let connection: StreamConnection | null = null;
   let isCancelled = false;
-  const { failCb, cluster = '' } = args;
+  const { failCb, expectedDiscoveryConnection } = args;
+  const cluster = args.cluster || getCluster() || '';
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
   const { isJson = false, additionalProtocols, connectCb, reconnectOnFailure = !failCb } = args;
 
@@ -342,10 +354,26 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   }
 
   async function connect() {
-    if (connectCb) connectCb();
+    if (isCancelled) return;
     try {
-      connection = await connectStream(url, cb, onFail, isJson, additionalProtocols, cluster);
+      if (expectedDiscoveryConnection) {
+        assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
+      }
+      if (connectCb) connectCb();
+      const next = await connectStreamWithParams(url, cb, onFail, {
+        cluster,
+        isJson,
+        additionalProtocols,
+        expectedDiscoveryConnection,
+      });
+      if (isCancelled) next.close();
+      else connection = next;
     } catch (error) {
+      if (isDiscoveryConnectionChanged(error)) {
+        cancel();
+        failCb?.();
+        return;
+      }
       console.error('Error connecting stream:', error);
       onFail();
     }
@@ -411,6 +439,7 @@ interface StreamParams {
   isJson?: boolean;
   /** Additional WebSocket protocols to use when connecting. */
   additionalProtocols?: string[];
+  expectedDiscoveryConnection?: DiscoveryConnectionRequest;
 }
 
 /**
@@ -436,7 +465,12 @@ export async function connectStreamWithParams<T>(
   onFail: () => void,
   params?: StreamParams
 ): Promise<StreamConnection> {
-  const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
+  const {
+    isJson = false,
+    additionalProtocols = [],
+    cluster = '',
+    expectedDiscoveryConnection,
+  } = params || {};
   let isClosing = false;
 
   const userID = getUserIdFromLocalStorage();
@@ -466,6 +500,10 @@ export async function connectStreamWithParams<T>(
     }
   }
 
+  if (expectedDiscoveryConnection) {
+    assertCurrentDiscoveryConnection(cluster, expectedDiscoveryConnection.revision);
+  }
+
   let socket: WebSocket | null = null;
   try {
     socket = new WebSocket(url, protocols);
@@ -490,6 +528,13 @@ export async function connectStreamWithParams<T>(
 
   function onMessage(body: MessageEvent) {
     if (isClosing) return;
+    if (
+      expectedDiscoveryConnection &&
+      getDiscoveredConnectionRevision(cluster) !== expectedDiscoveryConnection.revision
+    ) {
+      close();
+      return;
+    }
 
     const item = isJson ? JSON.parse(body.data) : body.data;
     if (isDebugVerbose('k8s/apiProxy@connectStream onMessage cb(item)')) {

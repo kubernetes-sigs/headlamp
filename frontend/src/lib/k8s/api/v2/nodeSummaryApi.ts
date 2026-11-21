@@ -17,10 +17,8 @@
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import type { ApiError } from './ApiError';
-import {
-  getDiscoveredConnectionRevision,
-  withDiscoveryConnectionRevision,
-} from './discoveredConnectionRevisions';
+import { getDiscoveredConnectionRevision } from './discoveredConnectionRevisions';
+import { withDiscoveryConnectionRevision } from './discoveryConnection';
 import { clusterFetch } from './fetch';
 import { makeUrl } from './makeUrl';
 

@@ -33,6 +33,7 @@ import { useTranslation } from 'react-i18next';
 import { labelSelectorToQuery } from '../../../lib/k8s';
 import { getDiscoveredConnectionRevision } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
+  assertCurrentDiscoveryConnection,
   getResourceConnectionQuery,
   getResourceDiscoveryConnection,
   recordDiscoveryConnection,
@@ -203,7 +204,7 @@ function WorkloadLogsContent({ item }: WorkloadLogsProps) {
 
         const cluster = item.cluster;
         const origin = getResourceDiscoveryConnection(item);
-        const revision = origin?.revision ?? getDiscoveredConnectionRevision(cluster);
+        const revision = origin ? origin.revision : getDiscoveredConnectionRevision(cluster);
         const queryParams = getResourceConnectionQuery(
           item,
           cluster,
@@ -212,8 +213,9 @@ function WorkloadLogsContent({ item }: WorkloadLogsProps) {
 
         const response = await clusterFetch(
           makeUrl(`/api/v1/namespaces/${item.metadata.namespace}/pods`, queryParams),
-          { cluster }
+          { cluster, expectedDiscoveryConnection: { revision } }
         ).then(it => it.json());
+        assertCurrentDiscoveryConnection(cluster, revision);
 
         if (!response?.items) {
           throw new Error(t('translation|Invalid response from server'));

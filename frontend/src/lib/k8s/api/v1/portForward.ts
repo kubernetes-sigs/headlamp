@@ -120,6 +120,7 @@ export async function startPortForwardForConnection(
     headers: headers,
     body: JSON.stringify({ ...request, port }),
     cluster,
+    expectedDiscoveryConnection: { revision },
   }).then(async (response: Response) => {
     const contentType = response.headers.get('content-type');
 

@@ -18,6 +18,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { jsonPatch } from './api/v1/clusterRequests';
 import * as streamingApi from './api/v1/streamingApi';
+import * as discoveredRevisions from './api/v2/discoveredConnectionRevisions';
 import { recordDiscoveryConnection } from './api/v2/discoveryConnection';
 import type { KubeControllerRevision } from './controllerRevision';
 import DaemonSet from './daemonSet';
@@ -52,6 +53,7 @@ it.each([
       namespace: 'default',
       uid: 'workload',
     });
+    vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('origin:1');
     recordDiscoveryConnection(workload, 'discovered', 'origin:1');
 
     const template = workload.spec.template;

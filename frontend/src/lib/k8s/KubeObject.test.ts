@@ -75,6 +75,7 @@ import { computePatchOperations, computeRawPatchCount } from './patchUtils';
 describe('KubeObject', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getDiscoveredConnectionRevision).mockReset();
     vi.mocked(useSelectedClusters).mockReturnValue([]);
     vi.mocked(useKubeObjectList).mockReturnValue({} as any);
   });
@@ -237,12 +238,8 @@ describe('KubeObject', () => {
           cluster: 'east',
           revision: recordedRevision,
         });
-        await item.update(data);
-        expect(endpoint.put).toHaveBeenCalledWith(
-          data,
-          { __headlamp_connection_revision: 'original' },
-          'east'
-        );
+        await expect(item.update(data)).rejects.toMatchObject({ status: 409 });
+        expect(endpoint.put).not.toHaveBeenCalled();
       }
     );
 
@@ -263,7 +260,7 @@ describe('KubeObject', () => {
         'sample',
         expect.any(Function),
         expect.any(Function),
-        undefined,
+        {},
         'east'
       );
       expect(onGet).toHaveBeenCalledWith(expect.objectContaining({ jsonData: data }));
@@ -432,6 +429,7 @@ describe('KubeObject', () => {
 
     it('uses the originating route for mutations of a retained discovered resource', async () => {
       const widget = new Widget(data, 'east');
+      vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('original:2');
       recordDiscoveryConnection(widget, 'east', 'original:2');
       const query = { __headlamp_connection_revision: 'original' };
       const operations = [{ op: 'replace' as const, path: '/spec/replicas', value: 3 }];
@@ -500,6 +498,7 @@ describe('KubeObject', () => {
       const patch = vi.fn<ScaleApi['patch']>().mockResolvedValue(data);
       Widget.apiEndpoint = { ...endpoint, scale: { get: vi.fn(), put: vi.fn(), patch } };
       const widget = new Widget(data, 'east');
+      vi.mocked(getDiscoveredConnectionRevision).mockReturnValue('original:2');
       recordDiscoveryConnection(widget, 'east', 'original:2');
 
       await widget.scale(3);
@@ -553,7 +552,7 @@ describe('KubeObject', () => {
           spec: { resourceAttributes: { verb: 'get', resource: 'widgets' } },
         },
         false,
-        { cluster: 'east' }
+        { cluster: 'east', expectedDiscoveryConnection: { revision: undefined } }
       );
     });
 

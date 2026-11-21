@@ -304,10 +304,11 @@ function NodeDetailsContent({ cluster, name }: { cluster?: string; name: string 
                     icon="mdi:delete-variant"
                     onClick={() => {
                       if (!item || !cluster) return;
+                      const origin = getResourceDiscoveryConnection(item);
                       setNodeToDrain({
                         node: item,
                         cluster,
-                        revision: getResourceDiscoveryConnection(item)?.revision ?? revision,
+                        revision: origin ? origin.revision : revision,
                       });
                     }}
                     iconButtonProps={{
