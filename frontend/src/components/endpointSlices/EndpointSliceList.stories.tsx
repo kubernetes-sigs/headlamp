@@ -40,6 +40,21 @@ const list = [
           apiVersion: 'v1',
         },
       },
+      {
+        addresses: ['127.0.0.2'],
+        nodeName: 'mynode',
+        conditions: {
+          ready: false,
+        },
+        targetRef: {
+          kind: 'Pod',
+          namespace: 'my-namespace',
+          name: 'mypod-1',
+          uid: 'phony-pod-1',
+          resourceVersion: '1',
+          apiVersion: 'v1',
+        },
+      },
     ],
     ports: [
       {
