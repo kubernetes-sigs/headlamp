@@ -2444,6 +2444,88 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     }
   });
 
+  it('refreshes a configured namespace selector after an accepted direct watch fails', async () => {
+    const cluster = 'discovered';
+    const labelSelector = 'team=frontend';
+    const settingsKey = `cluster_settings.${cluster}`;
+    const restoreClusters = registerDiscoveredCluster('namespace-origin');
+    localStorage.setItem(settingsKey, JSON.stringify({ allowedNamespacesSelector: labelSelector }));
+    focusManager.setFocused(true);
+    mockClusterFetch
+      .mockResolvedValueOnce(
+        Response.json(
+          makeListResponse({
+            kind: 'NamespaceList',
+            items: [{ metadata: { name: 'team-a', resourceVersion: '1' } }],
+          })
+        )
+      )
+      .mockResolvedValueOnce(
+        Response.json(makeListResponse({ kind: 'NamespaceList', resourceVersion: '2', items: [] }))
+      );
+    const { result, unmount } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: Namespace,
+          requests: [{ cluster }],
+          queryParams: { labelSelector },
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+    const watch = () => mockUseWebSockets.mock.lastCall?.[0].connections[0];
+    const sendWatchError = () => {
+      watch().onOpen();
+      watch().onMessage({
+        type: 'ERROR',
+        object: { kind: 'Status', code: 403, message: 'Forbidden' },
+      });
+    };
+
+    try {
+      await waitFor(() => expect(watch()).toBeDefined());
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['team-a']);
+      vi.useFakeTimers({
+        toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+      });
+      act(sendWatchError);
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      act(sendWatchError);
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      act(sendWatchError);
+      await act(async () => vi.advanceTimersByTimeAsync(9_950));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+      expect(mockClusterFetch.mock.calls[1]).toEqual([
+        'api/v1/namespaces?labelSelector=team%3Dfrontend&__headlamp_connection_revision=namespace-origin',
+        expect.objectContaining({ cluster, headers: { 'Cache-Control': 'no-cache' } }),
+      ]);
+      expect(result.current.items).toEqual([]);
+      expect(result.current.error?.status).toBe(403);
+
+      act(() =>
+        watch().onMessage({
+          type: 'ADDED',
+          object: {
+            kind: 'Namespace',
+            metadata: { name: 'team-b', uid: 'team-b', resourceVersion: '3' },
+          },
+        })
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(30_100));
+      expect(result.current.error).toBeNull();
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['team-b']);
+      expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+    } finally {
+      unmount();
+      vi.useRealTimers();
+      focusManager.setFocused(undefined);
+      localStorage.removeItem(settingsKey);
+      restoreClusters();
+    }
+  });
+
   it('preserves a background LIST failure when the watch fails and recovers', async () => {
     const restoreClusters = registerDiscoveredCluster();
     const client = new QueryClient();

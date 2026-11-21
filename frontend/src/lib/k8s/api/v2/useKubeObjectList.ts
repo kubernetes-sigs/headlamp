@@ -56,6 +56,16 @@ export const DEFAULT_LIST_LIMIT = 1000;
 const UPGRADE_FAILURE_RELIST_INTERVAL_MS = 30_000;
 const NAMESPACE_SELECTOR_RETRY_INTERVAL_MS = 30_000;
 
+function isAllowedNamespaceSelectorList(
+  kubeObjectClass: KubeObjectClass,
+  cluster: string,
+  queryParams?: QueryParameters
+) {
+  if (kubeObjectClass.kind !== 'Namespace') return false;
+  const selector = loadClusterSettings(cluster).allowedNamespacesSelector?.trim();
+  return !!selector && queryParams?.labelSelector?.trim() === selector;
+}
+
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
     error instanceof ApiError
@@ -280,16 +290,14 @@ export function kubeObjectListQuery<K extends KubeObject>(
   refetchInterval?: number,
   connectionRevision: string | null | undefined = getDiscoveredConnectionRevision(cluster)
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
-  const configuredSelector =
-    loadClusterSettings(cluster).allowedNamespacesSelector?.trim() || undefined;
-  const isNamespaceList = kubeObjectClass.kind === 'Namespace';
-  const isResolvingAllowedNamespaces =
-    isNamespaceList &&
-    configuredSelector !== undefined &&
-    queryParams.labelSelector?.trim() === configuredSelector;
+  const isResolvingAllowedNamespaces = isAllowedNamespaceSelectorList(
+    kubeObjectClass,
+    cluster,
+    queryParams
+  );
 
   if (
-    isNamespaceList &&
+    kubeObjectClass.kind === 'Namespace' &&
     !isResolvingAllowedNamespaces &&
     hasAllowedNamespacesRestriction(cluster)
   ) {
@@ -305,10 +313,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
       : query;
   }
 
-  const retryNamespaceSelector =
-    isResolvingAllowedNamespaces &&
-    (connectionRevision === null || connectionRevision === undefined) &&
-    getWebsocketMultiplexerEnabled();
+  const retryNamespaceSelector = isResolvingAllowedNamespaces && !isExactListVersion(queryParams);
   const retry = kubeRequestRetry;
   return {
     placeholderData: null,
@@ -733,8 +738,14 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         connectionRevision ?? null
       ).queryKey;
       const pinned = isExactListVersion(stableQueryParams ?? {});
-      const rememberWatchError = (error?: ListWatchError) =>
+      const retryNamespaceSelector =
+        !pinned && isAllowedNamespaceSelectorList(kubeObjectClass, cluster, stableQueryParams);
+      const readWatchError = () => client.getQueryData<ListResponse<K>>(queryKey)?.watchError;
+      const rememberWatchError = (error?: ListWatchError) => {
+        // Repeated failures must leave the selector's pending LIST refresh in place.
+        if (retryNamespaceSelector && error && readWatchError()) return;
         setListWatchError<K>(client, queryKey, error);
+      };
       let relisting: Promise<void> | undefined;
       let needsRelist = false;
       let lastUpgradeRecoveryAt: number | undefined;
@@ -764,7 +775,8 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           lastUpgradeRecoveryAt = undefined;
           needsRelist = false;
           relisting = undefined;
-          rememberWatchError();
+          // An accepted socket can still send a failed WATCH response.
+          if (!retryNamespaceSelector) rememberWatchError();
         },
         onOpenFailure() {
           const now = Date.now();
@@ -777,7 +789,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             lastUpgradeRecoveryAt = now;
             needsRelist = true;
           }
-          if (!client.getQueryData<ListResponse<K>>(queryKey)?.watchError) {
+          if (!readWatchError()) {
             rememberWatchError(
               new ListWatchError('Unable to open the resource watch', { cluster, namespace })
             );
@@ -814,10 +826,11 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             cluster,
             connectionRevision
           );
-          if (list === cached.list) return;
-
           const objectChanged =
             update.type === 'ADDED' || update.type === 'MODIFIED' || update.type === 'DELETED';
+          const watchRecovered = objectChanged && !!cached.watchError;
+          if (list === cached.list && !watchRecovered) return;
+
           if (objectChanged && entry.state.fetchStatus !== 'idle') {
             // An earlier LIST must not replace a newer update from the same watch.
             void client.cancelQueries({ queryKey, exact: true });
@@ -829,6 +842,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
               watchStartResourceVersion:
                 cached.watchStartResourceVersion ?? cached.list.metadata.resourceVersion,
               list,
+              ...(watchRecovered ? { watchError: undefined } : {}),
             },
           });
         },
