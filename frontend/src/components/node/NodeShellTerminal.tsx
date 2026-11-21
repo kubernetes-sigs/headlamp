@@ -26,7 +26,9 @@ import {
   loadClusterSettings,
 } from '../../helpers/clusterSettings';
 import type { StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
+import { getDiscoveredConnectionRevision } from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
+  bindDiscoveryConnection,
   getResourceConnectionQuery,
   getResourceDiscoveryConnection,
   recordDiscoveryConnection,
@@ -125,6 +127,7 @@ async function shell(
   onError: (message?: string) => void,
   signal: AbortSignal
 ) {
+  if (signal.aborted) return {};
   const cluster = item.cluster;
   const clusterSettings = loadClusterSettings(cluster);
   const config = clusterSettings.nodeShellTerminal;
@@ -136,17 +139,26 @@ async function shell(
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   const origin = getResourceDiscoveryConnection(item);
   const pod = new Pod(kubePod, cluster);
-  recordDiscoveryConnection(pod, cluster, origin?.revision);
+  const revision = origin ? origin.revision : getDiscoveredConnectionRevision(cluster);
+  recordDiscoveryConnection(pod, cluster, revision);
 
   try {
-    const query = getResourceConnectionQuery(item, cluster, {});
+    const query = getResourceConnectionQuery(item, cluster, bindDiscoveryConnection({}, revision));
     await Pod.apiEndpoint.post(kubePod, query, cluster);
   } catch (e) {
     console.error('Error:DebugNode: creating pod', e);
     if (!signal.aborted) onError(e instanceof Error ? e.message : undefined);
     return {};
   }
-  return signal.aborted ? {} : { stream: pod.attach('debugger', onExec) };
+  if (signal.aborted) {
+    try {
+      await pod.delete();
+    } catch (error) {
+      console.error('Error:DebugNode: deleting unused shell pod', error);
+    }
+    return {};
+  }
+  return { stream: pod.attach('debugger', onExec) };
 }
 
 export function NodeShellTerminal(props: NodeShellTerminalProps) {

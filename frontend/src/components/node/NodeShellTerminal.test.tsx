@@ -18,7 +18,7 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import * as streamingApi from '../../lib/k8s/api/v1/streamingApi';
-import { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import * as discoveredRevisions from '../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import { recordDiscoveryConnection } from '../../lib/k8s/api/v2/discoveryConnection';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
@@ -49,12 +49,10 @@ it.each([
     send: vi.fn(),
   });
 
-  const post = vi.spyOn(Pod.apiEndpoint, 'post');
-  if (conflict) {
-    post.mockRejectedValue(new ApiError('Discovered cluster connection changed', { status: 409 }));
-  } else {
-    post.mockResolvedValue({});
-  }
+  vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue(
+    conflict ? 'original:2' : 'original:1'
+  );
+  const post = vi.spyOn(Pod.apiEndpoint, 'post').mockResolvedValue({});
   const stream = vi
     .spyOn(streamingApi, 'stream')
     .mockReturnValue({ cancel: vi.fn(), getSocket: vi.fn(() => null) });
@@ -68,18 +66,57 @@ it.each([
   const [{ connectStream }] = vi.mocked(useTerminalStream).mock.lastCall!;
   await connectStream(vi.fn(), new AbortController().signal);
 
-  expect(post).toHaveBeenCalledWith(
-    expect.objectContaining({ kind: 'Pod' }),
-    { __headlamp_connection_revision: 'original' },
-    cluster
-  );
   if (conflict) {
+    expect(post).not.toHaveBeenCalled();
     expect(stream).not.toHaveBeenCalled();
   } else {
+    expect(post).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'Pod' }),
+      { __headlamp_connection_revision: 'original' },
+      cluster
+    );
     expect(stream).toHaveBeenCalledWith(
       expect.stringMatching(/\/attach\?.*__headlamp_connection_revision=original/),
       expect.any(Function),
       expect.objectContaining({ cluster })
     );
   }
+});
+
+it('deletes a shell pod created after the terminal has closed', async () => {
+  const cluster = 'discovered';
+  const node = new Node(NODE_DETAILED_DATA, cluster);
+  recordDiscoveryConnection(node, cluster, 'original:1');
+  vi.spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision').mockReturnValue('original:1');
+  vi.mocked(useTerminalStream).mockReturnValue({
+    xtermRef: { current: null },
+    fitAddonRef: { current: null },
+    streamRef: { current: null },
+    send: vi.fn(),
+  });
+  const response = Promise.withResolvers<object>();
+  const post = vi.spyOn(Pod.apiEndpoint, 'post').mockReturnValue(response.promise);
+  const remove = vi.spyOn(Pod.apiEndpoint, 'delete').mockResolvedValue({});
+  const stream = vi.spyOn(streamingApi, 'stream');
+  const controller = new AbortController();
+  render(
+    <TestContext>
+      <NodeShellTerminal item={node} />
+    </TestContext>
+  );
+
+  const [{ connectStream }] = vi.mocked(useTerminalStream).mock.lastCall!;
+  const result = connectStream(vi.fn(), controller.signal);
+  const [pod] = post.mock.calls[0];
+  controller.abort();
+  response.resolve({});
+  await expect(result).resolves.toEqual({});
+
+  expect(remove).toHaveBeenCalledWith(
+    pod.metadata?.namespace,
+    pod.metadata?.name,
+    { __headlamp_connection_revision: 'original' },
+    cluster
+  );
+  expect(stream).not.toHaveBeenCalled();
 });

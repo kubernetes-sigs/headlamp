@@ -283,16 +283,25 @@ export function useTerminalStream(options: TerminalStreamOptions) {
     const { signal } = controller;
 
     void (async function () {
-      const { stream, initialMessage } = await connectStream(items => {
-        if (!signal.aborted) onData(terminal, items);
-      }, signal);
+      let connection: Awaited<ReturnType<typeof connectStream>>;
+      try {
+        connection = await connectStream(items => {
+          if (!signal.aborted) onData(terminal, items);
+        }, signal);
+      } catch (error) {
+        connection = {
+          stream: undefined,
+          initialMessage: error instanceof Error ? error.message : String(error),
+        };
+      }
+      const { stream, initialMessage } = connection;
       if (signal.aborted) {
         stream?.cancel();
         return;
       }
+      setupTerminal(containerRef, terminal.xterm, fitAddon);
       if (initialMessage) terminal.xterm.writeln(initialMessage);
       streamRef.current = stream;
-      setupTerminal(containerRef, terminal.xterm, fitAddon);
     })();
 
     const resizeHandler = () => fitAddon.fit();

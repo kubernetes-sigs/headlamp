@@ -343,23 +343,29 @@ function TerminalSession(props: TerminalProps) {
       };
 
       void (async function () {
-        let stream: execReturn;
-        if (isAttach) {
-          terminal.xterm.writeln(
-            t('Trying to attach to the container {{ container }}…', { container }) + '\n'
-          );
-          stream = await item.attach(container, receive, { failCb: fail });
-        } else {
-          const command = getCurrentShellCommand();
-          terminal.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
-          stream = await item.exec(container, receive, { command: [command], failCb: fail });
+        let stream: execReturn | undefined;
+        let errorMessage: string | undefined;
+        try {
+          if (isAttach) {
+            terminal.xterm.writeln(
+              t('Trying to attach to the container {{ container }}…', { container }) + '\n'
+            );
+            stream = await item.attach(container, receive, { failCb: fail });
+          } else {
+            const command = getCurrentShellCommand();
+            terminal.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
+            stream = await item.exec(container, receive, { command: [command], failCb: fail });
+          }
+        } catch (error) {
+          errorMessage = error instanceof Error ? error.message : String(error);
         }
         if (closed) {
           stream?.cancel();
           return;
         }
-        execOrAttachRef.current = stream;
         setupTerminal(terminalContainerRef, terminal.xterm, fitAddon);
+        if (errorMessage !== undefined) terminal.xterm.writeln(errorMessage);
+        execOrAttachRef.current = stream ?? null;
       })();
 
       const handler = () => fitAddon.fit();

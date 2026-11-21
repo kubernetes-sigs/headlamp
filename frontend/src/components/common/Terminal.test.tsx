@@ -129,6 +129,34 @@ describe('Terminal', () => {
     }
   });
 
+  it('shows a rejected exec in the open terminal', async () => {
+    const pod = createMockPod(vi.fn().mockRejectedValue(new Error('Connection changed')));
+    const write = vi.spyOn(XTerminal.prototype, 'writeln');
+    try {
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={vi.fn()} />
+        </TestContext>
+      );
+      await act(async () => {});
+      expect(write).toHaveBeenCalledWith('Connection changed');
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it('shows an active debugger connection failure', async () => {
+    const connectStream = vi.fn().mockRejectedValue(new Error('Pod failed to start'));
+    const write = vi.spyOn(XTerminal.prototype, 'writeln');
+    try {
+      renderHook(() => useTerminalStream({ containerRef: document.body, connectStream }));
+      await act(async () => {});
+      expect(write).toHaveBeenCalledWith('Pod failed to start');
+    } finally {
+      write.mockRestore();
+    }
+  });
+
   it('ignores a late debugger connection after starting a replacement terminal stream', async () => {
     const container = document.createElement('div');
     const staleStream = { cancel: vi.fn(), getSocket: () => null };
