@@ -47,8 +47,12 @@ export function drainNode(cluster: string, nodeName: string) {
   return requestNodeDrain(cluster, nodeName, query);
 }
 
-export async function drainNodeForResource(cluster: string, node: Node) {
-  const query = getResourceConnectionQuery(node, cluster, {});
+export async function drainNodeForResource(cluster: string, node: Node, revision?: string) {
+  const query = getResourceConnectionQuery(
+    node,
+    cluster,
+    withDiscoveryConnectionRevision({}, revision)
+  );
   return requestNodeDrain(cluster, node.getName(), query);
 }
 
@@ -99,14 +103,16 @@ interface DrainNodeStatus {
  * @throws {Error} if the response is not ok
  */
 export function drainNodeStatus(cluster: string, nodeName: string): Promise<DrainNodeStatus> {
-  return requestNodeDrainStatus(cluster, { nodeName });
+  const query = withDiscoveryConnectionRevision(
+    { nodeName },
+    getDiscoveredConnectionRevision(cluster)
+  );
+  return requestNodeDrainStatus(cluster, query);
 }
 
-export async function drainNodeStatusForResource(cluster: string, node: Node) {
-  return requestNodeDrainStatus(
-    cluster,
-    getResourceConnectionQuery(node, cluster, { nodeName: node.getName() })
-  );
+export async function drainNodeStatusForResource(cluster: string, node: Node, revision?: string) {
+  const params = withDiscoveryConnectionRevision({ nodeName: node.getName() }, revision);
+  return requestNodeDrainStatus(cluster, getResourceConnectionQuery(node, cluster, params));
 }
 
 function requestNodeDrainStatus(cluster: string, query: Record<string, string>) {
