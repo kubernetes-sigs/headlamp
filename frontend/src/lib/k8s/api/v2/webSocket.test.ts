@@ -170,6 +170,93 @@ describe('useWebSockets', () => {
     });
   });
 
+  it('opens separate sockets for the same URL when listeners use different caches', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=1';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const connected = vi.fn();
+    server.on('connection', connected);
+    const scope = {};
+    const onFirst = vi.fn();
+    const onSecond = vi.fn();
+    const onShared = vi.fn();
+    const connections = [
+      { cluster: '', url, cacheEntry: scope, onMessage: onFirst },
+      { cluster: '', url, cacheEntry: {}, onMessage: onSecond },
+      { cluster: '', url, cacheEntry: scope, onMessage: onShared },
+    ];
+
+    renderHook(() => useWebSockets({ connections }));
+
+    await waitFor(() => expect(connected).toHaveBeenCalledTimes(2));
+    const first = connected.mock.calls[0][0];
+    first.send(JSON.stringify({ type: 'DELETED' }));
+    await waitFor(() => {
+      expect(onFirst).toHaveBeenCalledWith({ type: 'DELETED' });
+      expect(onShared).toHaveBeenCalledWith({ type: 'DELETED' });
+    });
+    expect(onSecond).not.toHaveBeenCalled();
+  });
+
+  it('reopens a closed watch at the latest URL and keeps its listeners', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=1';
+    const updatedUrl = 'api/v1/pods?watch=1&resourceVersion=2';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const connected = vi.fn();
+    server.on('connection', connected);
+    const listener = vi.fn();
+    let watchUrl = url;
+    const getWatchUrl = vi.fn(async () => watchUrl);
+    const connections = [{ cluster: '', url, onMessage: listener, getWatchUrl }];
+
+    renderHook(() => useWebSockets({ connections }));
+
+    const original = await server.connected;
+    watchUrl = updatedUrl;
+    original.close();
+    await waitFor(
+      () =>
+        expect(connected).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({
+            url: `${BASE_WS_URL}${updatedUrl}`,
+          })
+        ),
+      { timeout: 4000 }
+    );
+    server.send(JSON.stringify({ type: 'ADDED' }));
+    expect(listener).toHaveBeenCalledWith({ type: 'ADDED' });
+    expect(getWatchUrl.mock.calls).toEqual([[false], [true]]);
+  });
+
+  it('backs off when watch URL generation fails and cancels retries on unmount', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const getWatchUrl = vi.fn().mockRejectedValue(new Error('Unable to prepare watch'));
+    const connections = [
+      { cluster: '', url: 'api/v1/pods?watch=1', onMessage: vi.fn(), getWatchUrl },
+    ];
+    const { unmount } = renderHook(() => useWebSockets({ connections }));
+
+    try {
+      await vi.advanceTimersByTimeAsync(1499);
+      expect(getWatchUrl.mock.calls).toEqual([[false]]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(getWatchUrl.mock.calls).toEqual([[false], [true]]);
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(getWatchUrl).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(getWatchUrl).toHaveBeenCalledTimes(3);
+      unmount();
+      await vi.advanceTimersByTimeAsync(30000);
+      expect(getWatchUrl).toHaveBeenCalledTimes(3);
+    } finally {
+      unmount();
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps a shared websocket alive until the last listener unsubscribes', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=3';
     const server = new WS(`${BASE_WS_URL}${url}`);

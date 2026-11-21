@@ -19,7 +19,13 @@ import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
-import type { ApiError } from './ApiError';
+import { ApiError } from './ApiError';
+import {
+  getDiscoveredConnectionRevision,
+  useDiscoveredConnectionRevisions,
+  withDiscoveryConnectionRevision,
+} from './discoveredConnectionRevisions';
+import { getResourceDiscoveryConnection, recordDiscoveryConnection } from './discoveryConnection';
 import { clusterFetch } from './fetch';
 import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
@@ -28,6 +34,21 @@ import { useWebSocket } from './multiplexer';
 import { kubeRequestRetry } from './retry';
 import { getWebsocketMultiplexerEnabled } from './useKubeObjectList';
 import { useWebSockets } from './webSocket';
+
+const OBJECT_WATCH_RETRY_INTERVAL_MS = 3000;
+
+function isTerminalWatchStatus(status?: number) {
+  return status === 401 || status === 403 || status === 404;
+}
+
+// A name-filtered watch can be authorized independently of GET and LIST.
+class ObjectWatchRequired extends ApiError {
+  constructor(error: ApiError) {
+    super(error.message, { status: 403, namespace: error.namespace, cluster: error.cluster });
+  }
+}
+
+const watchOnlyObjects = new WeakSet<KubeObject>();
 
 export type QueryStatus = 'pending' | 'success' | 'error';
 
@@ -94,13 +115,23 @@ export const kubeObjectQueryKey = ({
   namespace,
   name,
   queryParams,
+  connectionRevision = getDiscoveredConnectionRevision(cluster),
 }: {
   cluster: string;
   endpoint?: KubeObjectEndpoint | null;
   namespace?: string;
   name: string;
   queryParams?: QueryParameters;
-}) => ['object', cluster, endpoint, namespace ?? '', name, queryParams ?? {}];
+  connectionRevision?: string;
+}) => [
+  'object',
+  cluster,
+  endpoint,
+  namespace ?? '',
+  name,
+  queryParams ?? {},
+  ...(connectionRevision ? [connectionRevision] : []),
+];
 
 /**
  * Returns a single KubeObject.
@@ -145,75 +176,231 @@ export function useKubeObject<K extends KubeObject>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryParamsString]);
 
+  const connectionRevision = useDiscoveredConnectionRevisions().get(cluster);
   const queryKey = useMemo(
     () =>
-      kubeObjectQueryKey({ cluster, name, namespace, endpoint, queryParams: cleanedUpQueryParams }),
-    [cluster, name, namespace, endpoint, cleanedUpQueryParams]
+      kubeObjectQueryKey({
+        cluster,
+        name,
+        namespace,
+        endpoint,
+        queryParams: cleanedUpQueryParams,
+        connectionRevision,
+      }),
+    [cluster, name, namespace, endpoint, cleanedUpQueryParams, connectionRevision]
   );
 
   const client = useQueryClient();
+  const multiplexerEnabled = getWebsocketMultiplexerEnabled() && connectionRevision === undefined;
+
+  // Remember where the supplied object came from even while endpoint probing is pending.
+  const [suppliedSeed, setSuppliedSeed] = useState(() => ({ initialData, connectionRevision }));
+  if (initialData !== undefined && suppliedSeed.initialData !== initialData) {
+    setSuppliedSeed({ initialData, connectionRevision });
+  }
+  const seedConnection = initialData && getResourceDiscoveryConnection(initialData);
+  const currentSeed =
+    suppliedSeed.connectionRevision === connectionRevision &&
+    (!seedConnection ||
+      (seedConnection.cluster === cluster && seedConnection.revision === connectionRevision))
+      ? initialData
+      : undefined;
   const [seededInitialData, setSeededInitialData] = useState<K | null>(null);
   const query = useQuery<Instance | null, ApiError>({
     enabled: !!endpoint,
     placeholderData: null,
     staleTime: 5000,
     retry: kubeRequestRetry,
+    refetchInterval: ({ state }) =>
+      !multiplexerEnabled && state.data && state.error && !isTerminalWatchStatus(state.error.status)
+        ? OBJECT_WATCH_RETRY_INTERVAL_MS
+        : false,
     queryKey,
-    queryFn: async () => {
-      const url = makeUrl(
-        [KubeObjectEndpoint.toUrl(endpoint!, namespace), name],
-        cleanedUpQueryParams
-      );
-      const obj: KubeObjectInterface = await clusterFetch(url, {
-        cluster,
-      }).then(it => it.json());
-      return new kubeObjectClass(obj, cluster) as Instance;
+    queryFn: async ({ signal }) => {
+      const path = KubeObjectEndpoint.toUrl(endpoint!, namespace);
+      const params = withDiscoveryConnectionRevision(cleanedUpQueryParams, connectionRevision);
+      let object: KubeObjectInterface;
+      try {
+        object = await clusterFetch(makeUrl([path, name], params), { cluster, signal }).then(
+          response => response.json()
+        );
+      } catch (error) {
+        if (multiplexerEnabled || !(error instanceof ApiError) || error.status !== 403) throw error;
+        const selector = [cleanedUpQueryParams.fieldSelector, `metadata.name=${name}`]
+          .filter(Boolean)
+          .join(',');
+        try {
+          const list: { items: KubeObjectInterface[]; apiVersion: string; kind: string } =
+            await clusterFetch(
+              makeUrl(
+                [path],
+                withDiscoveryConnectionRevision(
+                  {
+                    fieldSelector: selector,
+                    labelSelector: cleanedUpQueryParams.labelSelector,
+                  },
+                  connectionRevision
+                )
+              ),
+              { cluster, signal }
+            ).then(response => response.json());
+          const found = list.items.find(item => item.metadata.name === name);
+          if (!found) throw new ApiError('Resource not found', { status: 404, cluster, namespace });
+          object = {
+            ...found,
+            apiVersion: found.apiVersion || list.apiVersion,
+            kind: found.kind || list.kind?.replace(/List$/, '') || kubeObjectClass.kind,
+          };
+        } catch (listError) {
+          if (listError instanceof ApiError && listError.status === 403) {
+            throw new ObjectWatchRequired(error);
+          }
+          throw listError;
+        }
+      }
+      const resource = new kubeObjectClass(object, cluster) as Instance;
+      recordDiscoveryConnection(resource, cluster, connectionRevision);
+      return resource;
     },
   });
 
   useLayoutEffect(() => {
-    if (!endpoint || !initialData) {
-      return;
-    }
+    if (!endpoint || !currentSeed) return;
 
-    client.setQueryData(queryKey, initialData);
-    setSeededInitialData(initialData);
-  }, [client, endpoint, initialData, queryKey]);
+    client.setQueryData(queryKey, currentSeed);
+    setSeededInitialData(currentSeed);
+  }, [client, endpoint, currentSeed, queryKey]);
 
   const queryData: Instance | null = query.error ? null : query.data ?? null;
-  const data = initialData && seededInitialData !== initialData ? initialData : queryData;
+  const data = currentSeed && seededInitialData !== currentSeed ? currentSeed : queryData;
+
+  const cacheWatchedObject = useCallback(
+    (object: KubeObjectInterface, watchOnly = false) => {
+      // Keep the cluster this hook was asked for, as in the initial fetch.
+      const resource = new kubeObjectClass(object, cluster);
+      recordDiscoveryConnection(resource, cluster, connectionRevision);
+      if (watchOnly) watchOnlyObjects.add(resource);
+      client.setQueryData(queryKey, resource);
+    },
+    [client, queryKey, kubeObjectClass, cluster, connectionRevision]
+  );
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
-      if (update.type !== 'ADDED' && update.object) {
-        // Rebuild with the cluster this hook was asked for, the same as the
-        // initial fetch above. Without it the object falls back to getCluster(),
-        // which reads the URL — wrong whenever the caller passed an explicit
-        // cluster (details panels on the resource map) or the URL holds several
-        // (`/c/a+b` resolves to just the first).
-        client.setQueryData(queryKey, new kubeObjectClass(update.object, cluster));
+      if ((update.type === 'MODIFIED' || update.type === 'DELETED') && update.object) {
+        cacheWatchedObject(update.object);
       }
     },
-    [client, queryKey, kubeObjectClass, cluster]
+    [cacheWatchedObject]
   );
+
+  const watchOnly =
+    query.error instanceof ObjectWatchRequired ||
+    (!!query.data && watchOnlyObjects.has(query.data));
 
   const connectionsRequests = useMemo(() => {
     if (!endpoint) return [];
 
+    const path = KubeObjectEndpoint.toUrl(endpoint, namespace);
+    const watchParams: QueryParameters = {
+      ...withDiscoveryConnectionRevision(cleanedUpQueryParams, connectionRevision),
+      watch: '1',
+      fieldSelector: `metadata.name=${name}`,
+    };
+    const latestWatchParams = { ...watchParams };
+    delete latestWatchParams.resourceVersion;
+    delete latestWatchParams.resourceVersionMatch;
+    delete latestWatchParams.sendInitialEvents;
+    if (watchOnly) latestWatchParams.allowWatchBookmarks = 'true';
+
+    const latestWatchUrl = makeUrl([path], latestWatchParams);
+    const currentVersion = () =>
+      client.getQueryData<Instance>(queryKey)?.metadata?.resourceVersion ??
+      watchParams.resourceVersion;
+    const refreshObject = () =>
+      client.invalidateQueries({ queryKey, exact: true }, { cancelRefetch: false });
+    const cacheEntry = client.getQueryCache().find<Instance | null, ApiError>({
+      queryKey,
+      exact: true,
+    });
+    let refreshing: Promise<void> | undefined;
+    let lastWatchVersion: string | undefined;
+
     return [
       {
-        url: makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
-          ...cleanedUpQueryParams,
-          watch: 1,
-          fieldSelector: `metadata.name=${name}`,
-        }),
         cluster,
-        onMessage: handleMessage,
+        cacheEntry,
+        url: watchOnly ? latestWatchUrl : makeUrl([path], watchParams),
+        async getWatchUrl(reconnecting: boolean) {
+          const expired = refreshing;
+          refreshing = undefined;
+          if (reconnecting) await (expired ?? refreshObject());
+
+          const version = currentVersion();
+          const requiresWatch = cacheEntry?.state.error instanceof ObjectWatchRequired;
+          if (!requiresWatch && !expired && version && version !== lastWatchVersion) {
+            lastWatchVersion = version;
+            return makeUrl([path], { ...watchParams, resourceVersion: version });
+          }
+
+          // An unchanged object can still have an expired version.
+          lastWatchVersion = version;
+          return latestWatchUrl;
+        },
+        onClose() {
+          const resource = cacheEntry?.state.data;
+          if (!cacheEntry || cacheEntry.state.error || !resource || !watchOnlyObjects.has(resource))
+            return;
+          cacheEntry.setState({
+            error: new ObjectWatchRequired(
+              new ApiError('Unable to verify the resource', { cluster, namespace })
+            ),
+            errorUpdatedAt: Date.now(),
+            status: 'error',
+          });
+        },
+        onMessage(update: KubeListUpdateEvent<KubeObjectInterface>) {
+          if (update.type === 'ERROR') {
+            const status = update.object?.code;
+            if (status === 410) {
+              refreshing = refreshObject();
+            } else if (isTerminalWatchStatus(status)) {
+              void client.cancelQueries({ queryKey, exact: true });
+              const error = new ApiError(update.object?.message ?? 'The resource watch stopped', {
+                status,
+              });
+              cacheEntry?.setState({ error, errorUpdatedAt: Date.now(), status: 'error' });
+            }
+            return;
+          }
+          if (update.type === 'DELETED') {
+            void client.cancelQueries({ queryKey, exact: true });
+            client.setQueryData(queryKey, null);
+            void refreshObject();
+            return;
+          }
+          if (update.object && (update.type === 'ADDED' || update.type === 'MODIFIED')) {
+            // Let the stream update win over an older GET still in flight.
+            if (client.getQueryState(queryKey)?.fetchStatus !== 'idle') {
+              void client.cancelQueries({ queryKey, exact: true });
+            }
+            cacheWatchedObject(update.object, watchOnly);
+          }
+        },
       },
     ];
-  }, [endpoint, namespace, name, cleanedUpQueryParams, cluster, handleMessage]);
-
-  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  }, [
+    endpoint,
+    namespace,
+    name,
+    cleanedUpQueryParams,
+    cluster,
+    client,
+    queryKey,
+    connectionRevision,
+    cacheWatchedObject,
+    watchOnly,
+  ]);
 
   useWebSocket<KubeListUpdateEvent<K>>({
     url: useCallback(
@@ -231,7 +418,12 @@ export function useKubeObject<K extends KubeObject>({
   });
 
   useWebSockets({
-    enabled: !multiplexerEnabled && !!endpoint && !!data,
+    enabled:
+      !multiplexerEnabled &&
+      !!endpoint &&
+      (query.error instanceof ObjectWatchRequired ||
+        ((!!(data || query.data) || (query.isSuccess && !query.isPlaceholderData)) &&
+          !isTerminalWatchStatus(query.error?.status))),
     connections: connectionsRequests,
   });
 
@@ -267,13 +459,17 @@ const getWorkingEndpoint = async (
   endpoints: KubeObjectEndpoint[],
   cluster: string,
   namespace?: string,
-  name?: string
+  name?: string,
+  connectionRevision?: string
 ) => {
   const promises = endpoints.map(endpoint => {
     const resourceUrl = KubeObjectEndpoint.toUrl(endpoint, namespace);
     // If a name is provided, we probe for that specific resource.
     // Otherwise we probe for the list of resources.
-    const url = name ? makeUrl([resourceUrl, name]) : resourceUrl;
+    const url = makeUrl(
+      name ? [resourceUrl, name] : resourceUrl,
+      withDiscoveryConnectionRevision({}, connectionRevision)
+    );
 
     return clusterFetch(url, {
       method: 'GET',
@@ -283,7 +479,10 @@ const getWorkingEndpoint = async (
 
   return Promise.any(promises).catch((aggregateError: AggregateError) => {
     // when no endpoint is available, throw an error
-    throw aggregateError.errors[0];
+    const connectionChanged =
+      connectionRevision &&
+      aggregateError.errors.find(error => error instanceof ApiError && error.status === 409);
+    throw connectionChanged || aggregateError.errors[0];
   });
 };
 
@@ -308,11 +507,23 @@ export const useEndpoints = (
     [endpoints]
   );
 
+  const connectionRevision = useDiscoveredConnectionRevisions().get(cluster);
   const { data: endpoint, error } = useQuery<KubeObjectEndpoint, ApiError>({
     enabled: endpoints.length > 1,
-    retry: false,
-    queryKey: ['endpoints', cluster, namespace, name ?? '', endpointsKey],
-    queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace, name),
+    retry: (failureCount, error) =>
+      !!connectionRevision &&
+      error.status === 409 &&
+      typeof kubeRequestRetry === 'function' &&
+      kubeRequestRetry(failureCount, error),
+    queryKey: [
+      'endpoints',
+      cluster,
+      namespace,
+      name ?? '',
+      endpointsKey,
+      ...(connectionRevision ? [connectionRevision] : []),
+    ],
+    queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace, name, connectionRevision),
   });
 
   if (endpoints.length === 1) return { endpoint: endpoints[0], error: null };
