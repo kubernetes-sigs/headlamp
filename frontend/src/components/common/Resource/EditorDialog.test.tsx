@@ -967,6 +967,73 @@ describe('EditorDialog', () => {
     }
   );
 
+  describe('pending editor baseline', () => {
+    const original = {
+      kind: 'ConfigMap',
+      apiVersion: 'v1',
+      metadata: { name: 'settings', resourceVersion: '1' },
+      data: { key: 'original' },
+    };
+    const replacement = { ...original, data: { key: 'replacement' } };
+    const template = { kind: 'ConfigMap', apiVersion: 'v1', data: { key: 'template' } };
+    const content = (item: object, onBaselineAccepted: (item: unknown) => void) => (
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={item}
+          onClose={vi.fn()}
+          onBaselineAccepted={onBaselineAccepted}
+        />
+      </TestContext>
+    );
+
+    beforeEach(() => {
+      recordDiscoveryConnection(original, 'discovered', 'original:1');
+      recordDiscoveryConnection(replacement, 'discovered', 'replacement:2');
+    });
+
+    function edit(code: string) {
+      fireEvent.change(screen.getByRole('textbox', { name: /code/i }), { target: { value: code } });
+      act(() => vi.advanceTimersByTime(500));
+    }
+
+    it('discards a pending connection when accepting a different template', () => {
+      const accepted = vi.fn();
+      const { rerender } = render(content(original, accepted));
+      edit('local edits');
+      rerender(content(replacement, accepted));
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+
+      rerender(content(template, accepted));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      edit('template edits');
+      fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+      expect(accepted).not.toHaveBeenCalled();
+      edit('valid yaml');
+      fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+      expect(vi.mocked(prepareApply).mock.lastCall?.[1]).toBe(template);
+    });
+
+    it('keeps Undo available after dismissing a warning when the text already matches', () => {
+      const accepted = vi.fn();
+      const { rerender } = render(content(original, accepted));
+      const updatedCode = JSON.stringify(replacement);
+      edit(updatedCode);
+      rerender(content(replacement, accepted));
+      const alert = screen.getByRole('alert');
+      fireEvent.click(within(alert).getByRole('button', { name: /close/i }));
+      expect(screen.getByRole('textbox', { name: /code/i })).toHaveValue(updatedCode);
+
+      const undo = screen.getByRole('button', { name: /undo/i });
+      expect(undo).toBeEnabled();
+      expect(accepted).not.toHaveBeenCalled();
+      fireEvent.click(undo);
+      expect(accepted).toHaveBeenCalledWith(replacement);
+    });
+  });
+
   it('uses fallback resource labels and an empty cluster for dry runs', async () => {
     mockLoadAll.mockReturnValueOnce([
       { apiVersion: 'v1', kind: 'Node', metadata: {} },

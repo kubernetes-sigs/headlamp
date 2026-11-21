@@ -305,7 +305,10 @@ export default function EditorDialog(props: EditorDialogProps) {
       setResourceModifiedWarning(false);
     }
 
-    if (!treatItemChangesAsEdits) applySourceRef.current = source;
+    if (!treatItemChangesAsEdits) {
+      applySourceRef.current = source;
+      pendingBaselineRef.current = null;
+    }
 
     // Update the code if the item representation has changed.
     // When treatItemChangesAsEdits is true, originalCodeRef is intentionally
@@ -920,7 +923,7 @@ export default function EditorDialog(props: EditorDialogProps) {
       <DialogActions>
         {!isReadOnly() && (
           <ConfirmButton
-            disabled={originalCodeRef.current.code === code.code && !resourceModifiedWarning}
+            disabled={originalCodeRef.current.code === code.code && !pendingBaselineRef.current}
             color="secondary"
             variant="contained"
             aria-label={t('translation|Undo')}
