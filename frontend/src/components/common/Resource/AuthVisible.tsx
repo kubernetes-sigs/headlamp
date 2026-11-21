@@ -24,11 +24,10 @@ import {
 import {
   createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
-  isDiscoveryConnectionChanged,
 } from '../../../lib/k8s/api/v2/discoveryConnection';
-import { shouldRetryKubeRequest } from '../../../lib/k8s/api/v2/retry';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
+import { shouldRetryQuery } from '../../../lib/queryClient';
 
 /** List of valid request verbs. See https://kubernetes.io/docs/reference/access-authn-authz/authorization/#determine-the-request-verb. */
 const VALID_AUTH_VERBS = [
@@ -88,8 +87,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const { data: authorization, error } = useQuery<any, Error>({
     enabled: !!item && isAuthVerbValid && currentConnection,
-    retry: (failures, error) =>
-      !isDiscoveryConnectionChanged(error) && shouldRetryKubeRequest(failures, error),
+    retry: shouldRetryQuery,
     queryKey: [
       'authVisible',
       itemName,
@@ -126,7 +124,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
   const wasAllowed = useRef(false);
 
   useEffect(() => {
-    if (data || wasAllowed.current) {
+    if (!currentConnection || data || wasAllowed.current) {
       onAuthResult?.({
         allowed: visible,
         reason: data?.status?.reason ?? '',
@@ -134,7 +132,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
     }
     wasAllowed.current = visible;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [currentConnection, data]);
 
   if (!isAuthVerbValid) {
     return null;

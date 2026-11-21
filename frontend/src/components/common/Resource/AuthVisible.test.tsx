@@ -42,6 +42,57 @@ describe('AuthVisible', () => {
     });
   });
 
+  it.each([401, 403])('does not retry an authorization error with status %s', async status => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const getAuthorization = vi
+        .fn()
+        .mockRejectedValue(Object.assign(new Error('Forbidden'), { status }));
+      const onError = vi.fn();
+      render(
+        <QueryClientProvider client={queryClient}>
+          <AuthVisible
+            item={{ apiName: 'pods', apiVersion: 'v1', getAuthorization } as any}
+            authVerb="get"
+            onError={onError}
+          >
+            <div>Authorized Content</div>
+          </AuthVisible>
+        </QueryClientProvider>
+      );
+
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      expect(getAuthorization).toHaveBeenCalledOnce();
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ status }));
+      expect(screen.queryByText('Authorized Content')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports denial immediately for a retained item whose connection is already gone', () => {
+    const item = {
+      _class: () => ({ apiName: 'pods', apiVersion: 'v1' }),
+      cluster: 'inactive-cluster',
+      getName: () => 'retained-pod',
+      getAuthorization: vi.fn(),
+    };
+    recordDiscoveryConnection(item, item.cluster, 'old:1');
+    const onAuthResult = vi.fn();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={item as any} authVerb="delete" onAuthResult={onAuthResult}>
+          <div>Delete retained pod</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    expect(onAuthResult).toHaveBeenCalledWith({ allowed: false, reason: '' });
+    expect(item.getAuthorization).not.toHaveBeenCalled();
+    expect(screen.queryByText('Delete retained pod')).not.toBeInTheDocument();
+  });
+
   it('renders children if authorized', async () => {
     const mockItem = {
       _class: () => ({
