@@ -658,32 +658,32 @@ describe('WebSocket Multiplexer', () => {
       }
     });
 
-    it('should handle polling timeout', async () => {
-      const OriginalWebSocket = window.WebSocket;
-
-      // Mock WebSocket that triggers an error immediately after construction
-      vi.stubGlobal('WebSocket', function (this: any) {
-        const ws = {
-          readyState: WebSocket.CONNECTING,
-          onopen: null as any,
-          onclose: null as any,
-          onerror: null as any,
-          onmessage: null as any,
-          send: vi.fn(),
-          close: vi.fn(),
-        };
-        setTimeout(() => ws.onerror?.(new Event('error')), 0);
-        return ws;
-      });
-
-      const path = '/api/v1/pods';
-      const query = 'watch=true';
-
-      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
-        `Cannot read properties of null (reading 'send')`
+    it('rejects a subscription when its socket fails before opening', async () => {
+      const originalWebSocket = window.WebSocket;
+      const send = vi.fn();
+      const socketConstructor = Object.assign(
+        vi.fn(function () {
+          const socket = {
+            readyState: originalWebSocket.CONNECTING,
+            onerror: null as ((event: Event) => void) | null,
+            send,
+          };
+          setTimeout(() => socket.onerror?.(new Event('error')), 0);
+          return socket;
+        }),
+        { OPEN: originalWebSocket.OPEN }
       );
+      vi.stubGlobal('WebSocket', socketConstructor);
 
-      vi.stubGlobal('WebSocket', OriginalWebSocket);
+      try {
+        await expect(
+          WebSocketManager.subscribe(clusterName, '/api/v1/pods', 'watch=true', onMessage)
+        ).rejects.toThrow('WebSocket connection failed');
+        expect(socketConstructor).toHaveBeenCalledOnce();
+        expect(send).not.toHaveBeenCalled();
+      } finally {
+        vi.stubGlobal('WebSocket', originalWebSocket);
+      }
     });
 
     it('should handle reconnection and resubscribe', async () => {
