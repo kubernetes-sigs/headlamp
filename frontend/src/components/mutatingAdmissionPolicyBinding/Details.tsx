@@ -69,27 +69,27 @@ export default function MutatingAdmissionPolicyBindingDetails(props: {
         item && [
           {
             name: t('API Version'),
-            value: item.jsonData.apiVersion,
+            value: item.jsonData?.apiVersion,
           },
           {
             name: t('translation|Policy Name'),
-            value: item.spec.policyName,
+            value: item.spec?.policyName,
           },
           {
             name: t('translation|Param Ref'),
-            value: item.spec.paramRef?.name || '-',
+            value: item.spec?.paramRef?.name || '-',
           },
           {
             name: t('translation|Param Namespace'),
-            value: item.spec.paramRef?.namespace || '-',
+            value: item.spec?.paramRef?.namespace || '-',
           },
           {
             name: t('translation|Param Selector'),
-            value: formatSelector(item.spec.paramRef?.selector),
+            value: formatSelector(item.spec?.paramRef?.selector),
           },
           {
             name: t('translation|Parameter Not Found Action'),
-            value: item.spec.paramRef?.parameterNotFoundAction || '-',
+            value: item.spec?.paramRef?.parameterNotFoundAction || '-',
           },
         ]
       }
@@ -101,8 +101,8 @@ export default function MutatingAdmissionPolicyBindingDetails(props: {
               <SectionBox title={t('translation|Match Resources')}>
                 <SimpleTable
                   data={ruleRows(
-                    item.spec.matchResources?.resourceRules,
-                    item.spec.matchResources?.excludeResourceRules
+                    item.spec?.matchResources?.resourceRules,
+                    item.spec?.matchResources?.excludeResourceRules
                   )}
                   columns={[
                     {
