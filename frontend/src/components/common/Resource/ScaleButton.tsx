@@ -185,7 +185,10 @@ function ScaleDialog(props: ScaleDialogProps) {
                 type="number"
                 value={numReplicas}
                 sx={{ marginLeft: '6px', marginRight: '6px' }}
-                onChange={e => setNumReplicas(Math.max(0, Number(e.target.value)))}
+                onChange={e => {
+                  const parsed = parseInt(e.target.value, 10);
+                  setNumReplicas(isNaN(parsed) ? 0 : Math.max(0, parsed));
+                }}
                 aria-labelledby={desiredNumReplicasLabel}
                 inputProps={{
                   min: 0,
