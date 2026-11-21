@@ -92,4 +92,20 @@ describe('HpaList', () => {
     expect(getColumn('currentReplicas').getValue(hpa)).toBe(2);
     expect(getColumn('targets').getValue(hpa)).toBe('50%/80%, 10/20');
   });
+
+  it('safely handles an HPA with undefined status, spec, and referenceObject', () => {
+    render(
+      <TestContext>
+        <HpaList />
+      </TestContext>
+    );
+
+    const bareHpa = {} as any;
+    expect(getColumn('reference').getValue(bareHpa)).toBeUndefined();
+    expect(getColumn('reference').render(bareHpa)).toBeNull();
+    expect(getColumn('minReplicas').getValue(bareHpa)).toBe(0);
+    expect(getColumn('maxReplicas').getValue(bareHpa)).toBe(0);
+    expect(getColumn('currentReplicas').getValue(bareHpa)).toBe(0);
+    expect(getColumn('targets').getValue(bareHpa)).toBe('');
+  });
 });

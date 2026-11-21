@@ -39,17 +39,20 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
         item && [
           {
             name: t('translation|Reference'),
-            value: (
+            value: item.referenceObject ? (
               <Link kubeObject={item.referenceObject}>
                 {item.referenceObject?.kind}/{item.referenceObject?.metadata.name}
               </Link>
+            ) : (
+              ''
             ),
+            hide: !item.referenceObject,
           },
           {
             name: t('translation|Metrics'),
             value: (
               <SimpleTable
-                data={item.metrics(t)}
+                data={item.metrics?.(t) ?? []}
                 columns={[
                   { label: t('translation|Name'), getter: item => item.definition },
                   { label: t('translation|(Current/Target)'), getter: item => item.value },
@@ -59,23 +62,23 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
           },
           {
             name: t('translation|MinReplicas'),
-            value: item.spec.minReplicas,
+            value: item.spec?.minReplicas ?? 0,
           },
           {
             name: t('translation|MaxReplicas'),
-            value: item.spec.maxReplicas,
+            value: item.spec?.maxReplicas ?? 0,
           },
           {
             name: t('translation|Deployment pods'),
             value: t(`translation|{{ currentReplicas }} current / {{ desiredReplicas }} desired`, {
-              currentReplicas: item.status.currentReplicas,
-              desiredReplicas: item.status.desiredReplicas,
+              currentReplicas: item.status?.currentReplicas ?? 0,
+              desiredReplicas: item.status?.desiredReplicas ?? 0,
             }),
           },
           {
             name: t('translation|Last Scale Time'),
-            value: item.status.lastScaleTime ? localeDate(item.status.lastScaleTime) : '',
-            hide: !item.status.lastScaleTime,
+            value: item.status?.lastScaleTime ? localeDate(item.status.lastScaleTime) : '',
+            hide: !item.status?.lastScaleTime,
           },
         ]
       }
