@@ -28,6 +28,8 @@ import * as cluster from '../../../cluster';
 import { encodeClusterPath } from '../../../oidcLogout';
 import * as apiProxy from '../../apiProxy';
 import * as discoveredRevisions from '../v2/discoveredConnectionRevisions';
+import { DISCOVERY_CONNECTION_CHANGED, recordDiscoveryConnection } from '../v2/discoveryConnection';
+import { prepareApply } from './apply';
 
 const baseApiUrl = getAppUrl();
 const wsUrl = baseApiUrl.replace('http', 'ws');
@@ -873,6 +875,30 @@ describe('apiProxy', () => {
       );
       expect(scope.isDone()).toBe(true);
     });
+
+    it.each([false, true])(
+      'rejects a deferred create after the connection changes (retained source: %s)',
+      async retained => {
+        const revision = vi
+          .spyOn(discoveredRevisions, 'getDiscoveredConnectionRevision')
+          .mockReturnValue(retained ? 'replacement:2' : 'original:1');
+        const source = {};
+        if (retained) recordDiscoveryConnection(source, clusterName, 'original:1');
+        const submit = prepareApply(clusterName, retained ? source : undefined);
+        revision.mockReturnValue('replacement:2');
+
+        const scope = nock(baseApiUrl)
+          .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+          .query({ __headlamp_connection_revision: 'original' })
+          .reply(409, { message: DISCOVERY_CONNECTION_CHANGED });
+
+        await expect(submit(mockConfigMap)).rejects.toMatchObject({
+          status: 409,
+          message: expect.stringContaining(DISCOVERY_CONNECTION_CHANGED),
+        });
+        expect(scope.isDone()).toBe(true);
+      }
+    );
 
     it('Successfully handles failing POST and PUT requests', async () => {
       nock(baseApiUrl)

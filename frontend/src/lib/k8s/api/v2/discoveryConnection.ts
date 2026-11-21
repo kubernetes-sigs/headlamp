@@ -16,6 +16,16 @@
 
 import { ApiError } from './ApiError';
 
+export const DISCOVERY_CONNECTION_CHANGED = 'Discovered cluster connection changed';
+
+export function isDiscoveryConnectionChanged(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error as ApiError).status === 409 &&
+    error.message.endsWith(DISCOVERY_CONNECTION_CHANGED)
+  );
+}
+
 const resourceConnections = new WeakMap<object, { cluster: string; revision: string }>();
 
 export function recordDiscoveryConnection(resource: object, cluster: string, revision?: string) {
@@ -39,7 +49,7 @@ export function getResourceConnectionQuery<T extends object>(
 ) {
   const connection = getResourceDiscoveryConnection(resource);
   if (connection && connection.cluster !== cluster) {
-    throw new ApiError('Discovered cluster connection changed', { status: 409 });
+    throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
   }
   return withDiscoveryConnectionRevision(params, connection?.revision);
 }
