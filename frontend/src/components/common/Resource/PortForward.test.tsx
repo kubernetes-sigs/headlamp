@@ -391,6 +391,40 @@ describe('PortForward stop handler', () => {
     }
   );
 
+  it.each(['Stop', 'Delete'] as const)(
+    'does not expose the replacement %s control on a retained Pod',
+    async action => {
+      const previous = appStore.getState().config.clusters;
+      const original = selectPortForwardConnection('original');
+      const forward = {
+        ...runningPortForward,
+        cluster: original.cluster,
+        connectionRevision: 'original',
+        status: action === 'Stop' ? runningPortForward.status : PORT_FORWARD_STOP_STATUS,
+      };
+      mockListPortForward
+        .mockResolvedValueOnce([forward])
+        .mockResolvedValue([
+          { ...forward, id: 'replacement-id', connectionRevision: 'replacement' },
+        ]);
+      const { unmount } = render(renderResource(original));
+      try {
+        const control = new RegExp(`${action} port forward`, 'i');
+        await screen.findByLabelText(control);
+        await act(async () => {
+          selectPortForwardConnection('replacement');
+        });
+
+        expect(screen.queryByLabelText(control)).not.toBeInTheDocument();
+        expect(mockListPortForward).toHaveBeenCalledOnce();
+        expect(mockStopOrDeletePortForward).not.toHaveBeenCalled();
+      } finally {
+        unmount();
+        appStore.dispatch(setConfig({ clusters: previous }));
+      }
+    }
+  );
+
   it('does not display original sessions for a same-named replacement pod', async () => {
     const previous = appStore.getState().config.clusters;
     const oldForward = {

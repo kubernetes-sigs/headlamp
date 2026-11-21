@@ -204,8 +204,11 @@ function PortForwardContent(props: PortForwardProps) {
   }, [resource]);
 
   const revision = useDiscoveredConnectionRevisions().get(cluster ?? '');
+  const resourceOrigin = resource && getResourceDiscoveryConnection(resource);
+  const currentResource =
+    !resourceOrigin || (resourceOrigin.cluster === cluster && resourceOrigin.revision === revision);
   const portForward =
-    lastPortForward && isPortForwardOnConnection(lastPortForward, revision)
+    currentResource && lastPortForward && isPortForwardOnConnection(lastPortForward, revision)
       ? lastPortForward
       : null;
   const selectedPod = isPod ? (resource as Pod | undefined) : pods?.[0];
@@ -221,7 +224,7 @@ function PortForwardContent(props: PortForwardProps) {
     !(isPod && (!resource || (resource as Pod).status.phase === 'Failed'));
 
   React.useEffect(() => {
-    if (!cluster || !shouldRender) {
+    if (!cluster || !shouldRender || !currentResource) {
       return;
     }
     let cancelled = false;
@@ -283,7 +286,7 @@ function PortForwardContent(props: PortForwardProps) {
     return () => {
       cancelled = true;
     };
-  }, [cluster, namespace, name, numericContainerPort, revision, shouldRender]);
+  }, [cluster, currentResource, namespace, name, numericContainerPort, revision, shouldRender]);
 
   if (!shouldRender) {
     return null;
@@ -395,7 +398,7 @@ function PortForwardContent(props: PortForwardProps) {
   }
 
   function portForwardStopHandler() {
-    if (!portForward || !cluster) {
+    if (!portForward || !cluster || getDiscoveredConnectionRevision(cluster) !== revision) {
       return;
     }
     setLoading(true);
@@ -417,7 +420,7 @@ function PortForwardContent(props: PortForwardProps) {
 
   function deletePortForwardHandler() {
     const id = portForward?.id;
-    if (!cluster || !id) {
+    if (!cluster || !id || getDiscoveredConnectionRevision(cluster) !== revision) {
       return;
     }
     setLoading(true);
