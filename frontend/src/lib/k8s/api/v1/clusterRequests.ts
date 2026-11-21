@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-// @todo: Params is a confusing name for options, because params are also query params.
-
 import type { OpPatch } from 'json-patch';
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
@@ -37,7 +35,7 @@ export { getClusterAuthType } from '../../clusterAuthType';
 /**
  * Options for the request.
  */
-export interface RequestParams extends RequestInit {
+export interface RequestOptions extends RequestInit {
   /** Number of milliseconds to wait for a response. */
   timeout?: number;
   /** Is the request expected to receive JSON data? */
@@ -64,7 +62,7 @@ export interface ClusterRequest {
 /**
  * The options for `clusterRequest`.
  */
-export interface ClusterRequestParams extends RequestParams {
+export interface ClusterRequestOptions extends RequestOptions {
   cluster?: string | null;
   autoLogoutOnAuthError?: boolean;
 }
@@ -84,7 +82,7 @@ export interface ClusterRequestParams extends RequestParams {
  */
 export async function request(
   path: string,
-  params: RequestParams = {},
+  params: RequestOptions = {},
   autoLogoutOnAuthError: boolean = true,
   useCluster: boolean = true,
   queryParams?: QueryParameters
@@ -112,7 +110,7 @@ export async function request(
  */
 export async function clusterRequest(
   path: string,
-  params: ClusterRequestParams = {},
+  params: ClusterRequestOptions = {},
   queryParams?: QueryParameters
 ): Promise<any> {
   interface RequestHeaders {
@@ -244,7 +242,7 @@ export function post(
   url: string,
   json: JSON | object | KubeObjectInterface,
   autoLogoutOnAuthError: boolean = true,
-  options: ClusterRequestParams = {}
+  options: ClusterRequestOptions = {}
 ) {
   const { cluster: clusterName, ...requestOptions } = options;
   const body = JSON.stringify(json);
@@ -263,7 +261,7 @@ export function patch(
   url: string,
   json: any,
   autoLogoutOnAuthError = true,
-  options: ClusterRequestParams = {}
+  options: ClusterRequestOptions = {}
 ) {
   const { cluster: clusterName, ...requestOptions } = options;
   const body = JSON.stringify(json);
@@ -294,7 +292,7 @@ export function jsonPatch(
   url: string,
   operations: OpPatch[],
   autoLogoutOnAuthError = true,
-  options: ClusterRequestParams = {}
+  options: ClusterRequestOptions = {}
 ) {
   const { cluster: clusterName, ...requestOptions } = options;
   const body = JSON.stringify(operations);
@@ -314,7 +312,7 @@ export function put(
   url: string,
   json: Partial<KubeObjectInterface>,
   autoLogoutOnAuthError = true,
-  requestOptions: ClusterRequestParams = {}
+  requestOptions: ClusterRequestOptions = {}
 ) {
   const body = JSON.stringify(json);
   const { cluster: clusterName, ...restOptions } = requestOptions;
@@ -329,7 +327,7 @@ export function put(
   return clusterRequest(url, opts);
 }
 
-export function remove(url: string, requestOptions: ClusterRequestParams = {}) {
+export function remove(url: string, requestOptions: ClusterRequestOptions = {}) {
   const { cluster: clusterName, ...restOptions } = requestOptions;
   const cluster = clusterName || getCluster() || '';
   const opts = { method: 'DELETE', headers: JSON_HEADERS, cluster, ...restOptions };

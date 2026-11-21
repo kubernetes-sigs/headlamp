@@ -49,8 +49,8 @@ export {
   remove,
   request,
   type ClusterRequest,
-  type ClusterRequestParams,
-  type RequestParams,
+  type ClusterRequestOptions,
+  type RequestOptions,
 } from '../api/v1/clusterRequests';
 
 // Streaming API functions
