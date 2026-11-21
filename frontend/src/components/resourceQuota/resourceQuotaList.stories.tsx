@@ -51,6 +51,69 @@ const items = [
       },
     },
   },
+  {
+    apiVersion: 'v1',
+    kind: 'ResourceQuota',
+    metadata: {
+      creationTimestamp: '2022-10-25T11:48:48Z',
+      name: 'test-object-counts',
+      namespace: 'test',
+      resourceVersion: '6480950',
+      uid: 'c02b62e8-3f30-4d5e-9c02-52d0d8b1a1f4',
+    },
+    spec: {
+      hard: {
+        'count/deployments.apps': '3',
+        persistentvolumeclaims: '4',
+        pods: '10',
+        services: '5',
+      },
+    },
+    status: {
+      hard: {
+        'count/deployments.apps': '3',
+        persistentvolumeclaims: '4',
+        pods: '10',
+        services: '5',
+      },
+      used: {
+        'count/deployments.apps': '1',
+        persistentvolumeclaims: '0',
+        pods: '2',
+        services: '0',
+      },
+    },
+  },
+  {
+    apiVersion: 'v1',
+    kind: 'ResourceQuota',
+    metadata: {
+      creationTimestamp: '2022-10-25T11:48:48Z',
+      name: 'test-mixed-quota',
+      namespace: 'test',
+      resourceVersion: '6480951',
+      uid: 'a9d1c7b4-6e21-4a0f-8f3b-1b9f0e7c25da',
+    },
+    spec: {
+      hard: {
+        'limits.memory': '1Gi',
+        pods: '8',
+        'requests.cpu': '500m',
+      },
+    },
+    status: {
+      hard: {
+        'limits.memory': '1Gi',
+        pods: '8',
+        'requests.cpu': '500m',
+      },
+      used: {
+        'limits.memory': '0',
+        pods: '3',
+        'requests.cpu': '100m',
+      },
+    },
+  },
 ];
 
 export default {
