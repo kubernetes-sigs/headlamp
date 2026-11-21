@@ -162,6 +162,39 @@ describe('Pod class', () => {
     expect(patch).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps retained pod streams on their originating discovered connection', () => {
+    const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)), 'discovered');
+    recordDiscoveryConnection(pod, 'discovered', 'origin:1');
+    vi.mocked(stream).mockClear();
+    const onData = vi.fn();
+
+    pod.getLogs('container-1', onData, {});
+    pod.attach('container-1', onData);
+    pod.exec('container-1', onData);
+
+    const urls = vi.mocked(stream).mock.calls.map(([url, , options]) => {
+      expect(options.cluster).toBe('discovered');
+      return new URL(url, 'https://headlamp.test');
+    });
+    expect(urls.map(url => url.pathname.split('/').pop())).toEqual(['log', 'attach', 'exec']);
+    for (const url of urls) {
+      expect(url.searchParams.get('__headlamp_connection_revision')).toBe('origin');
+      expect(url.searchParams.get('container')).toBe('container-1');
+    }
+
+    expect(() => pod.attach('container-1', onData, { cluster: 'replacement' })).toThrow(
+      'Discovered cluster connection changed'
+    );
+    expect(() => pod.exec('container-1', onData, { cluster: 'replacement' })).toThrow(
+      'Discovered cluster connection changed'
+    );
+    pod.cluster = 'replacement';
+    expect(() => pod.getLogs('container-1', onData, {})).toThrow(
+      'Discovered cluster connection changed'
+    );
+    expect(stream).toHaveBeenCalledTimes(3);
+  });
+
   it('returns ExitCode when a container terminated with empty reason and no signal', () => {
     const data = JSON.parse(JSON.stringify(mockPodData));
     data.status.containerStatuses = [

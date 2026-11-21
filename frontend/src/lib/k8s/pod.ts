@@ -19,11 +19,16 @@ import { patch, post } from './api/v1/clusterRequests';
 import { asQuery } from './api/v1/formatUrl';
 import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
 import { stream } from './api/v1/streamingApi';
-import { getResourceMutationQuery } from './api/v2/discoveryConnection';
+import { getResourceConnectionQuery } from './api/v2/discoveryConnection';
 import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { WorkloadHealthCategory } from './Workload';
+
+function withPodStreamConnection(url: string, pod: Pod, cluster: string) {
+  const query = getResourceConnectionQuery(pod, cluster, {});
+  return url + asQuery(query).replace(/^\?/, '&');
+}
 
 /** Container waiting/terminated reasons that represent a genuine failure rather than normal startup. */
 const POD_FAILED_CONTAINER_REASONS = [
@@ -236,7 +241,7 @@ class Pod extends KubeObject<KubePod> {
 
   async evict() {
     const cluster = this._clusterName;
-    const query = getResourceMutationQuery(this, cluster, {});
+    const query = getResourceConnectionQuery(this, cluster, {});
     const url =
       `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction` + asQuery(query);
     return post(
@@ -343,8 +348,9 @@ class Pod extends KubeObject<KubePod> {
       onLogs({ logs, hasJsonLogs });
     }
 
-    const { cancel } = stream(url, onResults, {
-      cluster: this.cluster,
+    const cluster = this.cluster;
+    const { cancel } = stream(withPodStreamConnection(url, this, cluster), onResults, {
+      cluster,
       isJson: false,
       connectCb: () => {
         logs = [];
@@ -380,12 +386,17 @@ class Pod extends KubeObject<KubePod> {
       'channel.k8s.io',
     ];
 
-    return stream(url, onAttach, {
+    const streamOptions = {
       cluster: this.cluster,
       additionalProtocols,
       isJson: false,
       ...options,
-    });
+    };
+    return stream(
+      withPodStreamConnection(url, this, streamOptions.cluster ?? ''),
+      onAttach,
+      streamOptions
+    );
   }
 
   exec(container: string, onExec: StreamResultsCb, options: ExecOptions = {}) {
@@ -402,12 +413,17 @@ class Pod extends KubeObject<KubePod> {
       'channel.k8s.io',
     ];
 
-    return stream(url, onExec, {
+    const streamOptions = {
       cluster: this.cluster,
       additionalProtocols,
       isJson: false,
       ...streamOpts,
-    });
+    };
+    return stream(
+      withPodStreamConnection(url, this, streamOptions.cluster ?? ''),
+      onExec,
+      streamOptions
+    );
   }
 
   /**
@@ -448,7 +464,7 @@ class Pod extends KubeObject<KubePod> {
     };
 
     const cluster = this.cluster;
-    const query = getResourceMutationQuery(this, cluster, {});
+    const query = getResourceConnectionQuery(this, cluster, {});
     const url =
       `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/ephemeralcontainers` +
       asQuery(query);

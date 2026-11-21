@@ -32,7 +32,7 @@ export function withDiscoveryConnectionRevision<T extends object>(params: T, rev
   return routingRevision ? { ...params, __headlamp_connection_revision: routingRevision } : params;
 }
 
-export function getResourceMutationQuery<T extends object>(
+export function getResourceConnectionQuery<T extends object>(
   resource: object,
   cluster: string,
   params: T

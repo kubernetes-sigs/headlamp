@@ -39,7 +39,7 @@ import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ScaleApi } from './api/v1/scaleApi';
 import { ApiError } from './api/v2/ApiError';
-import { getResourceMutationQuery } from './api/v2/discoveryConnection';
+import { getResourceConnectionQuery } from './api/v2/discoveryConnection';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
@@ -557,13 +557,13 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       params.gracePeriodSeconds = 0;
     }
 
-    const query = getResourceMutationQuery(this, this._clusterName, params);
+    const query = getResourceConnectionQuery(this, this._clusterName, params);
     // @ts-ignore
     return this._class().apiEndpoint.delete(...args, query, this._clusterName);
   }
 
   async update(data: KubeObjectInterface) {
-    const query = getResourceMutationQuery(this, this._clusterName, {});
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     return this._class().apiEndpoint.put(data, query, this._clusterName);
   }
 
@@ -598,7 +598,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
 
     const endpoint = this._class().apiEndpoint;
-    const query = getResourceMutationQuery(this, this._clusterName, {});
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     if (this.isNamespaced) {
       return (endpoint as ApiWithNamespaceClient<KubeObjectInterface>).jsonPatch(
         filteredOps,
@@ -631,9 +631,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     };
 
     const { scale } = this._class().apiEndpoint as { scale: ScaleApi };
-    let query: ReturnType<typeof getResourceMutationQuery>;
+    let query: ReturnType<typeof getResourceConnectionQuery>;
     try {
-      query = getResourceMutationQuery(this, this._clusterName, {});
+      query = getResourceConnectionQuery(this, this._clusterName, {});
     } catch (error) {
       return Promise.reject(error);
     }
@@ -651,7 +651,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     args.push(this.getName());
 
-    const query = getResourceMutationQuery(this, this._clusterName, {});
+    const query = getResourceConnectionQuery(this, this._clusterName, {});
     // @ts-ignore
     return this._class().apiEndpoint.patch(...args, query, this._clusterName);
   }
