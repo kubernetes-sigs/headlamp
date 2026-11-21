@@ -33,6 +33,7 @@ import {
   setRuntimeBackstageOrigins,
   setupBackstageMessageReceiver,
 } from '../../helpers/backstageMessageReceiver';
+import { hasConfiguredClusterSources } from '../../helpers/clusterPresentation';
 import { isBackstage } from '../../helpers/isBackstage';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
@@ -278,7 +279,7 @@ export default function Layout({}: LayoutProps) {
   });
 
   const discoveryEnabled = useTypedSelector(state =>
-    state.config.clusterSources?.some(source => source.configured)
+    hasConfiguredClusterSources(state.config.clusterSources)
   );
   useEffect(() => {
     if (discoveryEnabled) return watchClusterConfig(refetch);

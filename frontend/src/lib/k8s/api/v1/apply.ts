@@ -17,10 +17,10 @@
 import _ from 'lodash';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface, KubeObjectInterfaceCreate } from '../../KubeObject';
-import { ApiError } from '../v2/ApiError';
+import type { ApiError } from '../v2/ApiError';
 import { getDiscoveredConnectionRevision } from '../v2/discoveredConnectionRevisions';
 import {
-  DISCOVERY_CONNECTION_CHANGED,
+  createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
   isDiscoveryConnectionChanged,
   withDiscoveryConnectionRevision,
@@ -62,7 +62,7 @@ export function prepareApply(clusterName?: string, source?: object) {
 
   return async <T extends KubeObjectInterfaceCreate>(body: T, options?: ApplyOptions) => {
     if (origin && origin.cluster !== cluster) {
-      throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
+      throw createDiscoveryConnectionChangedError();
     }
     return applyToConnection(body, { cluster, revision, defaultNamespace }, options);
   };

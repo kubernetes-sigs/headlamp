@@ -17,13 +17,12 @@
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
 import { getCluster } from '../../../lib/cluster';
-import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import {
   getDiscoveredConnectionRevision,
   useDiscoveredConnectionRevisions,
 } from '../../../lib/k8s/api/v2/discoveredConnectionRevisions';
 import {
-  DISCOVERY_CONNECTION_CHANGED,
+  createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
   isDiscoveryConnectionChanged,
 } from '../../../lib/k8s/api/v2/discoveryConnection';
@@ -104,7 +103,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
     ],
     queryFn: async ({ signal }) => {
       if (cluster && getDiscoveredConnectionRevision(cluster) !== revision) {
-        throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
+        throw createDiscoveryConnectionChangedError();
       }
       signal.throwIfAborted();
       const result = await item!.getAuthorization(

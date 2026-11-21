@@ -39,11 +39,12 @@ import { asQuery } from './api/v1/formatUrl';
 import { useConnectionRequests, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ScaleApi } from './api/v1/scaleApi';
-import { ApiError } from './api/v2/ApiError';
+import type { ApiError } from './api/v2/ApiError';
 import { getDiscoveredConnectionRevision } from './api/v2/discoveredConnectionRevisions';
 import {
-  DISCOVERY_CONNECTION_CHANGED,
+  createDiscoveryConnectionChangedError,
   getResourceConnectionQuery,
+  getRoutingRevision,
   recordDiscoveryConnection,
   withDiscoveryConnectionRevision,
 } from './api/v2/discoveryConnection';
@@ -59,7 +60,7 @@ function getApiReadConnection(opts?: ApiListSingleNamespaceOptions) {
   const routingRevision = opts?.queryParams?.__headlamp_connection_revision;
   // A caller may still require an earlier route after discovery has updated.
   const revision =
-    routingRevision && currentRevision?.split(':', 1)[0] !== routingRevision
+    routingRevision && getRoutingRevision(currentRevision) !== routingRevision
       ? routingRevision
       : currentRevision;
   return { cluster, revision };
@@ -716,7 +717,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     const { cluster: requestCluster, revision } = getApiReadConnection({ cluster });
     const reviewAccess = (attrs: AuthRequestResourceAttrs) => {
       if (requestCluster && getDiscoveredConnectionRevision(requestCluster) !== revision) {
-        throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
+        throw createDiscoveryConnectionChangedError();
       }
       return this.fetchAuthorization(attrs, requestCluster);
     };

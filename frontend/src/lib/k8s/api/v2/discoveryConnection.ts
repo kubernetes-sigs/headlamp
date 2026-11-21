@@ -26,6 +26,10 @@ export function isDiscoveryConnectionChanged(error: unknown) {
   );
 }
 
+export function createDiscoveryConnectionChangedError() {
+  return new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
+}
+
 const resourceConnections = new WeakMap<object, { cluster: string; revision: string }>();
 
 export function recordDiscoveryConnection(resource: object, cluster: string, revision?: string) {
@@ -36,9 +40,14 @@ export function getResourceDiscoveryConnection(resource: object) {
   return resourceConnections.get(resource);
 }
 
+/** The part of a local revision (`<routing>:<epoch>`) that the backend checks. */
+export function getRoutingRevision(revision?: string) {
+  return revision?.split(':', 1)[0];
+}
+
 /** Attach the revision of the route that owns this request. */
 export function withDiscoveryConnectionRevision<T extends object>(params: T, revision?: string) {
-  const routingRevision = revision?.split(':', 1)[0];
+  const routingRevision = getRoutingRevision(revision);
   return routingRevision ? { ...params, __headlamp_connection_revision: routingRevision } : params;
 }
 
@@ -49,7 +58,7 @@ export function getResourceConnectionQuery<T extends object>(
 ) {
   const connection = getResourceDiscoveryConnection(resource);
   if (connection && connection.cluster !== cluster) {
-    throw new ApiError(DISCOVERY_CONNECTION_CHANGED, { status: 409 });
+    throw createDiscoveryConnectionChangedError();
   }
   return withDiscoveryConnectionRevision(params, connection?.revision);
 }

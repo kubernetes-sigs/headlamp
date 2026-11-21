@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import {
+  createDiscoveryConnectionChangedError,
   getResourceDiscoveryConnection,
   recordDiscoveryConnection,
   withDiscoveryConnectionRevision,
@@ -26,7 +26,7 @@ export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K>
   const cluster = item.cluster;
   const connection = getResourceDiscoveryConnection(item);
   if (connection && connection.cluster !== cluster) {
-    return Promise.reject(new ApiError('Discovered cluster connection changed', { status: 409 }));
+    return Promise.reject(createDiscoveryConnectionChangedError());
   }
   return new Promise((resolve, reject) => {
     let cancel: (() => void) | undefined;
