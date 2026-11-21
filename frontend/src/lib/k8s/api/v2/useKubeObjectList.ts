@@ -645,7 +645,9 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       };
       const relist = () => {
         void refreshWatchQuery(client, queryKey).catch(error => {
-          if (!stopped && shouldRetryQuery(0, error)) {
+          // An expired continuation requires restarting the unpinned list from its first page.
+          const expired = error instanceof ApiError && error.status === 410;
+          if (!stopped && (expired || shouldRetryQuery(0, error))) {
             retryRelist = setTimeout(relist, UPGRADE_FAILURE_RELIST_INTERVAL_MS);
           }
         });

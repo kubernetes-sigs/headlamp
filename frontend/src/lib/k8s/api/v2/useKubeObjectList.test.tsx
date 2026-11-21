@@ -2965,6 +2965,42 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     }
   );
 
+  it('restarts an unpinned relist from page one when its continuation expires', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      mockClusterFetch
+        .mockResolvedValueOnce(podListPage('old-pod', '1'))
+        .mockResolvedValueOnce(podListPage('partial-pod', '5', 'expired-token'))
+        .mockRejectedValueOnce(new ApiError('Continuation expired', { status: 410 }))
+        .mockResolvedValueOnce(podListPage('fresh-pod', '10'));
+      const requests = [{ cluster: 'ordinary' }];
+      const { result, unmount } = renderHook(
+        () => useKubeObjectList({ kubeObjectClass: mockClass, requests }),
+        { wrapper: queryClientWrapper(new QueryClient()) }
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        mockSubscribe.mock.calls[0][3]({ type: 'ERROR', object: { code: 410 } });
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(mockClusterFetch).toHaveBeenCalledTimes(3);
+      expect(String(mockClusterFetch.mock.calls[2][0])).toContain('continue=expired-token');
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['old-pod']);
+
+      await act(async () => vi.advanceTimersByTimeAsync(30_001));
+      expect(mockClusterFetch).toHaveBeenCalledTimes(4);
+      expect(String(mockClusterFetch.mock.calls[3][0])).not.toContain('continue=');
+      expect(mockSubscribe).toHaveBeenCalledTimes(2);
+      expect(mockSubscribe.mock.lastCall?.[2]).toContain('resourceVersion=10');
+      expect(result.current.items?.map(item => item.metadata.name)).toEqual(['fresh-pod']);
+      unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('should omit pagination query params after loading all pages', async () => {
     const queryClient = new QueryClient();
     mockClusterFetch
