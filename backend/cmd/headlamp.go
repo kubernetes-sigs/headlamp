@@ -1723,8 +1723,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.Handle("/", r)
 	}
 
-	var handler http.Handler = r
+	return securityHeadersMiddleware(r)
+}
 
+func developmentCORS(config *HeadlampConfig, next http.Handler) http.Handler {
 	// On dev mode we're loose about where connections come from
 	if config.DevMode {
 		headers := handlers.AllowedHeaders([]string{
@@ -1734,15 +1736,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		})
 		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
 
-		handler = handlers.CORS(
+		return handlers.CORS(
 			headers,
 			methods,
 			handlers.AllowCredentials(),
 			handlers.AllowedOriginValidator(func(s string) bool { return true }),
-		)(r)
+		)(next)
 	}
 
-	return securityHeadersMiddleware(handler)
+	return next
 }
 
 // securityHeadersMiddleware sets security headers to prevent MIME-type sniffing attacks.
@@ -1999,6 +2001,7 @@ func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, e
 	}
 
 	handler = config.OIDCTokenRefreshMiddleware(handler)
+	handler = developmentCORS(config, handler)
 
 	// Only validate the Host header when listening on a loopback address.
 	// When bound to a non-loopback address (e.g. behind a reverse proxy),
