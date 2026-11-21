@@ -149,6 +149,63 @@ func cacheConnectionRequest(t *testing.T, router http.Handler, method, token str
 	return response
 }
 
+func TestDiscoveredRequestsUseTheExpectedConnection(t *testing.T) {
+	first, _ := newCacheConnectionServer(t, "first-pod", "user", func(r *http.Request) {
+		assert.False(t, r.URL.Query().Has(discoveryConnectionRevisionParam))
+	})
+	second, secondRequests := newCacheConnectionServer(t, "second-pod", "user", nil)
+	firstContext := cacheConnectionContext(t, first, kubeconfig.ClusterInventory)
+	firstContext.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "first"}
+	secondContext := cacheConnectionContext(t, second, kubeconfig.ClusterInventory)
+	secondContext.Discovery = &kubeconfig.DiscoveryOrigin{ConnectionRevision: "second"}
+	cfg, router := cacheConnectionRouter(t, firstContext)
+
+	request := func(method string, upgrade bool) *httptest.ResponseRecorder {
+		url := "/clusters/cache-switch/api/v1/pods?" + discoveryConnectionRevisionParam + "=first&limit=1"
+		req := httptest.NewRequestWithContext(t.Context(), method, url, nil)
+		req.Header.Set("Authorization", "Bearer user")
+
+		if upgrade {
+			req.Header.Set("Upgrade", "websocket")
+		}
+
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+
+		return response
+	}
+
+	before := request(http.MethodGet, false)
+	require.Equal(t, http.StatusOK, before.Code, before.Body.String())
+	require.Contains(t, before.Body.String(), "first-pod")
+
+	// The browser keeps using its first configuration snapshot while the route changes.
+	require.NoError(t, cfg.KubeConfigStore.AddContext(secondContext))
+
+	conflict := request(http.MethodGet, false)
+	require.Equal(t, http.StatusConflict, conflict.Code)
+	require.Equal(t, "application/json", conflict.Header().Get("Content-Type"))
+	require.JSONEq(t, `{"message":"Discovered cluster connection changed"}`, conflict.Body.String())
+	require.Equal(t, http.StatusConflict, request(http.MethodGet, true).Code)
+
+	for _, method := range []string{http.MethodPatch, http.MethodPut, http.MethodDelete} {
+		require.Equal(t, http.StatusConflict, request(method, false).Code)
+	}
+
+	require.Zero(t, secondRequests.Load())
+
+	// Clients that omit the revision still see the current upstream.
+	unguarded := cacheConnectionRequest(t, router, http.MethodGet, "user")
+	require.Equal(t, http.StatusOK, unguarded.Code, unguarded.Body.String())
+	require.Contains(t, unguarded.Body.String(), "second-pod")
+
+	require.NoError(t, cfg.KubeConfigStore.AddContext(firstContext))
+
+	after := request(http.MethodGet, false)
+	require.Equal(t, http.StatusOK, after.Code, after.Body.String())
+	require.Contains(t, after.Body.String(), "first-pod")
+}
+
 func TestCacheConnectionReplacement(t *testing.T) {
 	for _, source := range []int{kubeconfig.ClusterInventory, kubeconfig.DiscoveredCluster, kubeconfig.KubeConfig} {
 		t.Run(fmt.Sprint(source), func(t *testing.T) {

@@ -63,6 +63,7 @@ func (*sampleFleetSource) Descriptor() Descriptor {
 		ID:          sampleFleetID,
 		DisplayName: "Sample Fleet",
 		Resource:    sampleFleetResource,
+		Kind:        "FleetMember",
 		View: SourceView{
 			NameLabel:     "Member",
 			Columns:       []SourceColumn{{Key: "region", Label: "Region"}},
@@ -137,7 +138,7 @@ func sampleFleetMember(name, server, region string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]interface{}{
 		"apiVersion": "example.com/v1",
 		"kind":       "FleetMember",
-		"metadata":   map[string]interface{}{"name": name, "namespace": "default"},
+		"metadata":   map[string]interface{}{"name": name, "namespace": "default", "uid": "uid-" + name},
 		"spec":       map[string]interface{}{"server": server, "region": region},
 	}}
 }
@@ -163,7 +164,10 @@ func sampleFleetRunner(
 	}
 
 	runner, err := NewRunner(
-		Options{Store: store, OIDC: testOIDCOptions(), HubConfig: &rest.Config{Host: "https://hub.example.com"}},
+		Options{
+			Store: store, OIDC: testOIDCOptions(), HubConfig: &rest.Config{Host: "https://hub.example.com"},
+			HubCluster: "management",
+		},
 		source,
 	)
 	require.NoError(t, err)
@@ -228,9 +232,12 @@ func TestSampleSourceUsesSharedOIDCLifecycle(t *testing.T) {
 	require.True(t, connection.RequiresUserAuthentication())
 	require.Equal(t, testOIDCOptions().ClientID, connection.OidcConf.ClientID)
 	require.Equal(t, "https://edge-1.example.com", connection.Cluster.Server)
+	require.NotEmpty(t, connection.Discovery.ConnectionRevision)
 	require.Equal(t, &kubeconfig.DiscoveryOrigin{
-		Source: sampleFleetID, DisplayName: "Sample Fleet", Root: inClusterRootID,
+		ConnectionRevision: connection.Discovery.ConnectionRevision,
+		Source:             sampleFleetID, DisplayName: "Sample Fleet", Root: inClusterRootID,
 		Namespace: "default", Name: "edge-1", Entry: "default",
+		Cluster: "management", ResourceAPIVersion: "example.com/v1", ResourceKind: "FleetMember", ResourceUID: "uid-edge-1",
 	}, connection.Discovery)
 	require.Equal(t, "sample-fleet/in-cluster/default/edge-1", connection.ClusterID)
 	require.JSONEq(t, `{"region":"eu"}`, string(connection.DiscoveryMetadata["sampleFleet"]))

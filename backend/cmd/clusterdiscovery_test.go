@@ -33,7 +33,9 @@ func TestConfigPublishesRegisteredSourceMetadata(t *testing.T) {
 			connection := clusterInventoryConfigContext()
 			connection.Source = kubeconfig.DiscoveredCluster
 			connection.ClusterInventory = nil
-			connection.Discovery = &kubeconfig.DiscoveryOrigin{Source: source, DisplayName: "Example discovery source"}
+			connection.Discovery = &kubeconfig.DiscoveryOrigin{
+				Source: source, DisplayName: "Example discovery source", ConnectionRevision: "example-revision",
+			}
 			require.NoError(t, connection.SetDiscoveryMetadata(map[string]json.RawMessage{
 				"example": json.RawMessage(`{"name":"spoke"}`),
 			}))
@@ -52,6 +54,7 @@ func TestConfigPublishesRegisteredSourceMetadata(t *testing.T) {
 			metadata := config.Clusters[0].Metadata
 			require.Equal(t, source, metadata["source"])
 			require.Equal(t, "Example discovery source", metadata["sourceLabel"])
+			require.Equal(t, "example-revision", metadata["discoveryConnectionRevision"])
 			require.Equal(t, false, metadata["canRename"])
 			require.Equal(t, map[string]interface{}{"name": "spoke"}, metadata["example"])
 		})

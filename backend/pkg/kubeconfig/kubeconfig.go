@@ -118,12 +118,18 @@ const (
 
 // DiscoveryOrigin identifies a generated connection without imposing source-specific types.
 type DiscoveryOrigin struct {
-	Source      string
-	DisplayName string
-	Root        string
-	Namespace   string
-	Name        string
-	Entry       string
+	// ConnectionRevision identifies the current upstream connection settings.
+	ConnectionRevision string
+	Source             string
+	DisplayName        string
+	Root               string
+	Namespace          string
+	Name               string
+	Entry              string
+	Cluster            string
+	ResourceAPIVersion string
+	ResourceKind       string
+	ResourceUID        string
 }
 
 // Context contains all information related to a kubernetes context.

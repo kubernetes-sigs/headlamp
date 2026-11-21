@@ -89,10 +89,12 @@ const (
 
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
-	proxyURLMu        sync.Mutex
-	statelessCacheMu  sync.Mutex
-	compiledProxyURLs []glob.Glob
-	oidcStateReader   io.Reader
+	proxyURLMu          sync.Mutex
+	statelessCacheMu    sync.Mutex
+	compiledProxyURLs   []glob.Glob
+	oidcStateReader     io.Reader
+	configEvents        *configEvents
+	discoveryHubCluster string
 	// activeDrains holds the cache keys of the drains that are running, so that a node is drained
 	// by one goroutine at a time.
 	activeDrains sync.Map
@@ -756,15 +758,20 @@ func validateServiceAccountNamespace(data []byte) (string, error) {
 	return namespace, nil
 }
 
+func (c *HeadlampConfig) discoveryEnabled() bool {
+	for _, settings := range c.DiscoverySources {
+		if settings.Enabled {
+			return true
+		}
+	}
+
+	return false
+}
+
 // startClusterDiscovery starts the enabled discovery sources. In-cluster, the pod's
 // service account and namespace serve as the discovery root.
 func startClusterDiscovery(ctx context.Context, config *HeadlampConfig) error {
-	enabled := false
-	for _, settings := range config.DiscoverySources {
-		enabled = enabled || settings.Enabled
-	}
-
-	if !enabled {
+	if !config.discoveryEnabled() {
 		return nil
 	}
 
@@ -811,7 +818,7 @@ func globalOidcConfig(config *HeadlampConfig) *kubeconfig.OidcConfig {
 	}
 }
 
-func setupInClusterContext(config *HeadlampConfig) {
+func setupInClusterContext(config *HeadlampConfig) string {
 	if config.UnsafeUseServiceAccountToken {
 		logger.Log(
 			logger.LevelWarn,
@@ -838,18 +845,22 @@ func setupInClusterContext(config *HeadlampConfig) {
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 
-		return
+		return ""
 	}
 
 	if err := inClusterContext.SetupProxy(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
 
-		return
+		return ""
 	}
 
 	if err := config.KubeConfigStore.AddContext(inClusterContext); err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+
+		return ""
 	}
+
+	return inClusterContext.Name
 }
 
 // loadKubeConfigClusters loads clusters from the user-configured kubeconfig file.
@@ -966,7 +977,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// In-cluster
 	if config.UseInCluster {
-		setupInClusterContext(config)
+		config.discoveryHubCluster = setupInClusterContext(config)
 	}
 
 	if config.StaticDir != "" {
@@ -1357,6 +1368,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Configuration
 	r.Handle("/config", config.authenticatedHandler(
 		http.HandlerFunc(config.getConfig))).Methods("GET")
+
+	if config.discoveryEnabled() {
+		events := newConfigEvents(ctx, config.discoveredConfigSnapshot)
+		config.configEvents = events
+		desktopLoopback := !config.UseInCluster && isLoopbackAddr(config.ListenAddr) &&
+			os.Getenv("HEADLAMP_BACKEND_TOKEN") != ""
+		upgrader := configEventUpgrader(config.DevMode, desktopLoopback)
+		r.Handle("/config/events", config.authenticatedHandler(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				events.serve(ctx, upgrader, w, r)
+			}))).Methods("GET")
+	}
 
 	// Auth token management
 	r.Handle("/auth/set-token", config.authenticatedHandler(
@@ -2547,7 +2570,34 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 		handler = CacheMiddleWare(c)(handler)
 	}
 
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(c.authenticatedHandler(handler))
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		c.authenticatedHandler(requireMatchingDiscoveryConnection(handler)))
+}
+
+const discoveryConnectionRevisionParam = "__headlamp_connection_revision"
+
+// Require the route revision that the frontend used to key its query or watch.
+// Authentication already resolved the request's connection for the cache and proxy.
+func requireMatchingDiscoveryConnection(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		params := r.URL.Query()
+		if expected := params.Get(discoveryConnectionRevisionParam); expected != "" {
+			resolved, _ := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext)
+			if resolved.context == nil || resolved.context.Discovery == nil ||
+				resolved.context.Discovery.ConnectionRevision != expected {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				_, _ = io.WriteString(w, `{"message":"Discovered cluster connection changed"}`)
+
+				return
+			}
+
+			params.Del(discoveryConnectionRevisionParam)
+			r.URL.RawQuery = params.Encode()
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request) {
@@ -2655,16 +2705,32 @@ func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
 }
 
 func (c *HeadlampConfig) getClusters() []Cluster {
+	clusters, err := c.configClusters(false)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to get contexts")
+		return []Cluster{}
+	}
+
+	return clusters
+}
+
+func (c *HeadlampConfig) discoveredConfigSnapshot() ([]Cluster, error) {
+	return c.configClusters(true)
+}
+
+func (c *HeadlampConfig) configClusters(discoveredOnly bool) ([]Cluster, error) {
 	clusters := []Cluster{}
 
 	contexts, err := c.KubeConfigStore.GetContexts()
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to get contexts")
-
-		return clusters
+		return nil, err
 	}
 
 	for _, context := range contexts {
+		if discoveredOnly && context.Discovery == nil {
+			continue
+		}
+
 		if context.Error != "" {
 			clusters = append(clusters, Cluster{
 				Name:  context.Name,
@@ -2681,23 +2747,19 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 
 		// This should not happen, but it's a defensive check.
 		if context.KubeContext == nil {
-			logger.Log(logger.LevelError, map[string]string{"context": context.Name},
-				errors.New("context.KubeContext is nil"), "error adding context")
-
+			logger.Log(logger.LevelError, map[string]string{"context": context.Name}, nil, "error adding context")
 			continue
 		}
-
-		metadata := clusterMetadata(context)
 
 		clusters = append(clusters, Cluster{
 			Name:     context.Name,
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
-			Metadata: metadata,
+			Metadata: clusterMetadata(context),
 		})
 	}
 
-	return clusters
+	return clusters, nil
 }
 
 // parseCustomNameClusters parses the custom name clusters from the kubeconfig.
@@ -4139,12 +4201,27 @@ func clusterMetadata(context *kubeconfig.Context) map[string]interface{} {
 		logFieldClusterID: context.ClusterID,
 	}
 
-	if context.Discovery != nil {
-		metadata["sourceLabel"] = context.Discovery.DisplayName
+	origin := context.Discovery
+	if origin != nil {
+		metadata["sourceLabel"] = origin.DisplayName
 	}
 
 	for key, value := range context.DiscoveryMetadata {
 		metadata[key] = value
+	}
+
+	if origin != nil {
+		metadata["discoveryConnectionRevision"] = origin.ConnectionRevision
+		metadata["discoveryOrigin"] = map[string]interface{}{
+			"cluster": origin.Cluster,
+			"resource": map[string]string{
+				"apiVersion": origin.ResourceAPIVersion,
+				"kind":       origin.ResourceKind,
+				"namespace":  origin.Namespace,
+				"name":       origin.Name,
+				"uid":        origin.ResourceUID,
+			},
+		}
 	}
 
 	if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
@@ -4173,7 +4250,12 @@ func startDiscoverySources(ctx context.Context, config *HeadlampConfig, defaults
 		options.OIDC = globalOidcConfig(config)
 		options.HubConfig = defaults.HubConfig
 		options.HubNamespace = defaults.HubNamespace
+		options.HubCluster = config.discoveryHubCluster
 		options.DiscoverFromStore = !config.UseInCluster
+
+		if config.configEvents != nil {
+			options.OnConnectionsChanged = config.configEvents.notify
+		}
 
 		runner, err := clusterdiscovery.NewRunner(options, source)
 		if err != nil {

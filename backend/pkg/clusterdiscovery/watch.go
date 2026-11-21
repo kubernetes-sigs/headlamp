@@ -21,6 +21,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -183,14 +184,26 @@ func (r *Runner) reconcileOwner(state *rootState, watch rootWatch, owner types.N
 			continue
 		}
 
-		if err = r.store.AddContext(context); err != nil {
-			logger.Log(logger.LevelWarn, map[string]string{"owner": key}, err, "discovery: failed to store connection")
-		}
-
+		context.Discovery.ResourceUID = string(accessor.GetUID())
+		r.storeConnection(context, key)
 		names = append(names, context.Name)
 	}
 
 	r.removeContexts(r.recordSyncedOwner(state, key, names))
+}
+
+func (r *Runner) storeConnection(context *kubeconfig.Context, ownerKey string) {
+	context.Discovery.ConnectionRevision = discoveredConnectionRevision(context)
+
+	if err := r.store.AddContext(context); err != nil {
+		logger.Log(logger.LevelWarn, map[string]string{"owner": ownerKey}, err, "discovery: failed to store connection")
+
+		return
+	}
+
+	if r.onConnectionsChanged != nil {
+		r.onConnectionsChanged()
+	}
 }
 
 // handleOwnerDelete removes the connections of the owner that a deleted object represents.

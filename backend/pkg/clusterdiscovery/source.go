@@ -17,8 +17,12 @@ limitations under the License.
 package clusterdiscovery
 
 import (
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/url"
@@ -42,6 +46,8 @@ type Descriptor struct {
 	DisplayName string
 	// Resource is the owner resource. Each of its objects produces connections.
 	Resource schema.GroupVersionResource
+	// Kind is the Kubernetes kind of the owner resource.
+	Kind string
 	// ContextSource preserves existing source values. New sources use DiscoveredCluster.
 	ContextSource int
 	// View describes how clients present the connections of the source.
@@ -133,7 +139,7 @@ func (r *Registry) Register(source Source) error {
 	}
 
 	d := source.Descriptor()
-	if d.ID == "" || d.DisplayName == "" || d.Resource.Empty() {
+	if d.ID == "" || d.DisplayName == "" || d.Resource.Empty() || d.Kind == "" {
 		return errors.New("discovery source descriptor is incomplete")
 	}
 
@@ -191,6 +197,44 @@ func ConnectionCluster(cluster *api.Cluster) (*api.Cluster, error) {
 	}, nil
 }
 
+// discoveredConnectionRevision fingerprints the public routing settings of a
+// connection. Replicas observing the same resource produce the same revision.
+func discoveredConnectionRevision(connection *kubeconfig.Context) string {
+	fingerprint := sha256.New()
+	cluster := connection.Cluster
+	writeHashString(fingerprint, connection.Discovery.ResourceUID)
+	writeHashString(fingerprint, cluster.Server)
+	writeHashString(fingerprint, cluster.TLSServerName)
+	writeHashString(fingerprint, fmt.Sprintf("%t", cluster.InsecureSkipTLSVerify))
+	writeHashString(fingerprint, fmt.Sprintf("%t", cluster.DisableCompression))
+
+	// Proxy user information and other private URL fields stay out of the revision.
+	proxy, err := url.Parse(cluster.ProxyURL)
+	if err == nil {
+		writeHashString(fingerprint, proxy.Scheme)
+		writeHashString(fingerprint, proxy.Host)
+	}
+
+	for remaining := cluster.CertificateAuthorityData; len(remaining) > 0; {
+		block, rest := pem.Decode(remaining)
+		if block == nil {
+			break
+		}
+
+		remaining = rest
+
+		if block.Type != "CERTIFICATE" || len(block.Headers) != 0 {
+			continue
+		}
+
+		if _, err := x509.ParseCertificate(block.Bytes); err == nil {
+			writeHashBytes(fingerprint, block.Bytes)
+		}
+	}
+
+	return hex.EncodeToString(fingerprint.Sum(nil))
+}
+
 // loadGenerated uses the same loader and OIDC settings for every registered source.
 func (r *Runner) loadGenerated(
 	root string,
@@ -223,12 +267,15 @@ func (r *Runner) loadGenerated(
 	context.ClusterID = g.ClusterID
 	context.OidcConf = r.oidcConfig.Copy()
 	context.Discovery = &kubeconfig.DiscoveryOrigin{
-		Source:      d.ID,
-		DisplayName: d.DisplayName,
-		Root:        root,
-		Namespace:   owner.Namespace,
-		Name:        owner.Name,
-		Entry:       g.Key,
+		Source:             d.ID,
+		DisplayName:        d.DisplayName,
+		Root:               root,
+		Namespace:          owner.Namespace,
+		Name:               owner.Name,
+		Entry:              g.Key,
+		Cluster:            r.originCluster(root),
+		ResourceAPIVersion: d.Resource.GroupVersion().String(),
+		ResourceKind:       d.Kind,
 	}
 
 	if err := context.SetDiscoveryMetadata(g.Metadata); err != nil {

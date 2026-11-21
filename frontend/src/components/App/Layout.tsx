@@ -59,6 +59,7 @@ import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import AllowedNamespacesSelectorGate from './AllowedNamespacesSelectorGate';
+import { watchClusterConfig } from './clusterConfigEvents';
 import ResourceShortcuts from './ResourceShortcuts';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
@@ -150,12 +151,11 @@ declare global {
  * Fetches the cluster config from the backend and updates the redux store
  * if the present stored config is different from the fetched one.
  */
-const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
-  const clusters = store.getState().config.clusters;
-  const statelessClusters = store.getState().config.statelessClusters;
-  const currentBackstageOrigin = store.getState().config.backstageOrigin ?? '';
-
+const fetchConfig = (dispatch: Dispatch<UnknownAction>, signal: AbortSignal) => {
   return request('/config', { timeout: CONFIG_FETCH_TIMEOUT_MS }, false, false).then(config => {
+    // A new notification can supersede a still-running poll.
+    signal.throwIfAborted();
+    const { clusters, statelessClusters, backstageOrigin } = store.getState().config;
     const clustersToConfig: ConfigState['clusters'] = {};
     config?.clusters.forEach((cluster: Cluster) => {
       clustersToConfig[cluster.name] = cluster;
@@ -178,7 +178,7 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       // Check if the config is different
       const configDifferent =
         isEqualClusterConfigs(clusters, clustersToConfig) ||
-        currentBackstageOrigin !== nextBackstageOrigin ||
+        (backstageOrigin ?? '') !== nextBackstageOrigin ||
         !isEqual(store.getState().config.clusterSources, configToStore.clusterSources);
 
       if (configDifferent) {
@@ -267,14 +267,22 @@ export default function Layout({}: LayoutProps) {
     data: config,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ['cluster-fetch'],
-    queryFn: () => fetchConfig(dispatch),
+    queryFn: ({ signal }) => fetchConfig(dispatch, signal),
     retry: false,
     refetchInterval: disableBackendLoader
       ? CLUSTER_FETCH_INTERVAL
       : query => (query.state.status === 'error' ? false : CLUSTER_FETCH_INTERVAL),
   });
+
+  const discoveryEnabled = useTypedSelector(state =>
+    state.config.clusterSources?.some(source => source.configured)
+  );
+  useEffect(() => {
+    if (discoveryEnabled) return watchClusterConfig(refetch);
+  }, [discoveryEnabled, refetch]);
 
   // Remove splash screen styles from the body
   // that are added in frontend/index.html
