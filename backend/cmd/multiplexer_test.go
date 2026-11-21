@@ -563,6 +563,17 @@ func TestDelayedCloseOnlyClosesItsWatchQuery(t *testing.T) {
 	current, err := m.getOrCreateConnection(relist, client, nil)
 	require.NoError(t, err)
 	require.Same(t, relisted, current)
+
+	// The fake Kubernetes socket echoes the update so the replacement runs the real forwarder.
+	update := `{"type":"MODIFIED","object":{"metadata":{"name":"relisted-pod","resourceVersion":"6"}}}`
+	require.NoError(t, current.WSConn.WriteMessage(websocket.TextMessage, []byte(update)))
+
+	complete := readClientMessageOfType(t, client, "COMPLETE")
+	require.Equal(t, relist.Query, complete.Query)
+
+	forwarded := readClientMessageOfType(t, client, "DATA")
+	require.Equal(t, relist.Query, forwarded.Query)
+	require.JSONEq(t, update, forwarded.Data)
 }
 
 func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
