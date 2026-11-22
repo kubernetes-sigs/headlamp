@@ -16,7 +16,10 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import GatewayClass, { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
+import GatewayClass, {
+  formatGatewayClassParametersRef,
+  KubeGatewayClass,
+} from '../../lib/k8s/gatewayClass';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 
@@ -35,6 +38,18 @@ export default function GatewayClassDetails(props: { name?: string }) {
           {
             name: t('Controller Name'),
             value: gatewayClass.controllerName,
+          },
+          {
+            name: t('translation|Description'),
+            value: gatewayClass.spec?.description,
+            hide: !gatewayClass.spec?.description,
+          },
+          {
+            name: t('Parameters'),
+            value:
+              gatewayClass.spec?.parametersRef &&
+              formatGatewayClassParametersRef(gatewayClass.spec.parametersRef),
+            hide: !gatewayClass.spec?.parametersRef,
           },
         ]
       }
