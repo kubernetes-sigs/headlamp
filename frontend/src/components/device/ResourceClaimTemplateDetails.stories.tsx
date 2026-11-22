@@ -44,8 +44,14 @@ const emptyEvents = http.get(`${API_BASE}/api/v1/namespaces/${namespace}/events`
   })
 );
 
+const podsUrl = `${API_BASE}/api/v1/namespaces/${namespace}/pods`;
+
+const podList = http.get(podsUrl, () =>
+  HttpResponse.json({ kind: 'PodList', items: TEMPLATE_POD_DUMMY_DATA, metadata: {} })
+);
+
 /** The base mocks answer the Pod list with no Pods, so these go ahead of them. */
-const storyFor = (template: KubeResourceClaimTemplate) => ({
+const storyFor = (template: KubeResourceClaimTemplate, pods = podList) => ({
   msw: {
     handlers: {
       base: null,
@@ -53,9 +59,7 @@ const storyFor = (template: KubeResourceClaimTemplate) => ({
         http.get(detailsUrl(template.metadata.name), () => HttpResponse.json(template)),
         collectionWatch,
         emptyEvents,
-        http.get(`${API_BASE}/api/v1/namespaces/${namespace}/pods`, () =>
-          HttpResponse.json({ kind: 'PodList', items: TEMPLATE_POD_DUMMY_DATA, metadata: {} })
-        ),
+        pods,
         http.get(`${API_BASE}/apis/resource.k8s.io/v1/namespaces/${namespace}/resourceclaims`, () =>
           HttpResponse.json({
             kind: 'ResourceClaimList',
@@ -94,6 +98,23 @@ MultipleRequests.parameters = storyFor(multipleRequests);
 export const PrioritizedRequest = Template.bind({});
 PrioritizedRequest.args = { name: PRIORITIZED_RESOURCE_CLAIM_TEMPLATE.metadata.name };
 PrioritizedRequest.parameters = storyFor(PRIORITIZED_RESOURCE_CLAIM_TEMPLATE);
+
+export const ClaimsLoading = Template.bind({});
+ClaimsLoading.args = { name: singleRequest.metadata.name };
+ClaimsLoading.parameters = {
+  ...storyFor(
+    singleRequest,
+    http.get(podsUrl, () => new Promise(() => {}))
+  ),
+  storyshots: { disable: true },
+};
+
+export const ClaimsError = Template.bind({});
+ClaimsError.args = { name: singleRequest.metadata.name };
+ClaimsError.parameters = storyFor(
+  singleRequest,
+  http.get(podsUrl, () => HttpResponse.error())
+);
 
 export const Loading = Template.bind({});
 Loading.args = { name: singleRequest.metadata.name };
