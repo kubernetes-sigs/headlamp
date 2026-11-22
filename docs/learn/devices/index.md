@@ -63,7 +63,7 @@ The **Resource Slices** list shows each slice's driver, pool, number of devices,
 
 ![The Resource Slices list. Each row shows a slice's driver, pool, where its devices can be used, and how many devices it has.](./resource-slices.png)
 
-A slice's **Devices** table shows each device's attributes, such as model, and capacity, such as memory. For a **Set per device** slice, a **Node** column shows where each device is. If a driver marks a device with a taint, a **Taints** column appears. A device with a taint is not given to new claims, and a `NoExecute` taint also removes the Pods already using it.
+A slice's **Devices** table shows each device's attributes, such as model, and capacity, such as memory. For a **Set per device** slice, a **Node** column shows where each device is. If a driver marks a device with a taint, a **Taints** column appears. `NoSchedule` and `NoExecute` taints prevent allocation to claims that do not tolerate them. A `NoExecute` taint also evicts Pods whose claims do not tolerate it. A taint with effect `None` is informational.
 
 ## A Pod's claims
 
@@ -83,12 +83,12 @@ A claim made from a template has a generated name that is only in the Pod's stat
 
 It needs:
 
-- Kubernetes v1.36 or later with the `DRAResourcePoolStatus` feature gate, which serves the `resource.k8s.io/v1alpha3` API.
-- Permission to create ResourcePoolStatusRequests. By default, only cluster admins have it.
+- Kubernetes v1.36 or later with the `DRAResourcePoolStatus` feature gate enabled for the API server and controller manager, and the `resource.k8s.io/v1alpha3` API explicitly enabled on the API server (for example, with `--runtime-config=resource.k8s.io/v1alpha3=true`).
+- Permission to list ResourceSlices and to create and get ResourcePoolStatusRequests. Delete permission lets Headlamp clean up requests immediately; by default, only cluster admins can create them.
 
 Headlamp shows **Pool Availability** in the sidebar only for clusters that serve this API.
 
-To open it, select **Pool Availability** and pick a driver, or click a pool name in the **Resource Slices** list to open it for that pool. Select **Show all pools** to see every pool of the driver, and **Refresh** to count again.
+To open it, select **Pool Availability** and pick a driver, or click a pool name in the **Resource Slices** list to open it for that pool. Select **Show all pools** to remove the pool filter, and **Refresh** to count again. Results are limited to 100 pools; if they are truncated, open a specific pool from the **Resource Slices** list.
 
 ![Pool Availability for driver gpu.example.com and pool dra-pool-status-control-plane: 1 available, 7 allocated, and 0 unavailable devices out of 8.](./pool-availability.png)
 
@@ -102,12 +102,12 @@ Open the **Map** and turn on the **Devices (alpha)** group. The Map then shows e
 
 ## Troubleshooting
 
-**The Devices (alpha) section is missing.** The cluster does not serve `resource.k8s.io/v1`. Check that it runs Kubernetes v1.34 or later.
+**The Devices (alpha) section is missing.** Check that the cluster runs Kubernetes v1.34 or later and serves `deviceclasses` in `resource.k8s.io/v1`. Also check that Headlamp can reach the cluster and access API discovery; a failed discovery request hides the section.
 
 **A list is empty.** Each empty list says why. For example, no device classes usually means no DRA driver is installed.
 
-**Health shows Unknown.** The driver does not report device health to the kubelet.
+**Health shows Unknown.** Headlamp has no known health report from the Pods using the claim. Check that a Pod uses the claim, that you can read it, and that the driver reports health to the kubelet. Also check that `ResourceHealthStatus` is enabled on the API server and kubelets; it is disabled by default on Kubernetes v1.34–v1.35.
 
-**Pool Availability is missing from the sidebar.** The cluster does not serve `resource.k8s.io/v1alpha3`. Turn on the `DRAResourcePoolStatus` feature gate.
+**Pool Availability is missing from the sidebar.** The cluster does not serve `resource.k8s.io/v1alpha3`. Enable the `DRAResourcePoolStatus` feature gate for the API server and controller manager, and enable the API with `--runtime-config=resource.k8s.io/v1alpha3=true`.
 
-**Pool Availability says you are not allowed.** By default, only cluster admins can create ResourcePoolStatusRequests.
+**Pool Availability says you are not allowed.** By default, only cluster admins can create ResourcePoolStatusRequests. A role also needs to list ResourceSlices and get the requests it creates.
