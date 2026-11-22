@@ -23,6 +23,78 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { WorkloadHealthCategory } from './Workload';
 
+/** The securityContext fields that the Pod Security Standards check on a debug container. */
+interface DebugContainerSecurityContext {
+  allowPrivilegeEscalation?: boolean;
+  capabilities?: { add?: string[]; drop?: string[] };
+  runAsNonRoot?: boolean;
+  runAsUser?: number;
+  runAsGroup?: number;
+  seccompProfile?: { type: string; localhostProfile?: string };
+}
+
+type ContainerWithSecurityContext = KubeContainer & {
+  securityContext?: DebugContainerSecurityContext;
+};
+
+/**
+ * Builds the securityContext for a debug (ephemeral) container from the container it debugs.
+ *
+ * Without it, adding a debug container is rejected in namespaces that enforce the
+ * "restricted" Pod Security Standard. A pod admitted there already has containers that
+ * disallow privilege escalation, drop all capabilities and run as non-root, so the debug
+ * container copies those restrictions. Containers that don't set them (e.g. in namespaces
+ * without that policy) produce no securityContext, keeping the debug container unchanged.
+ *
+ * @param spec - The spec of the pod being debugged.
+ * @param targetContainerName - The container being debugged. Falls back to the first container.
+ * @returns The securityContext to set, or undefined if there is nothing to copy.
+ */
+function getDebugContainerSecurityContext(
+  spec: KubePodSpec | undefined,
+  targetContainerName?: string
+): DebugContainerSecurityContext | undefined {
+  const containers: ContainerWithSecurityContext[] = [
+    ...(spec?.containers || []),
+    ...(spec?.initContainers || []),
+  ];
+  const source =
+    containers.find(container => container.name === targetContainerName) ?? containers[0];
+  const sourceContext = source?.securityContext;
+  if (!sourceContext) {
+    return undefined;
+  }
+
+  const securityContext: DebugContainerSecurityContext = {};
+  if (sourceContext.allowPrivilegeEscalation === false) {
+    securityContext.allowPrivilegeEscalation = false;
+  }
+  if (sourceContext.capabilities?.drop?.some(capability => capability.toUpperCase() === 'ALL')) {
+    securityContext.capabilities = { drop: ['ALL'] };
+  }
+  // An Unconfined profile is never required by the restricted policy, and copying it would
+  // override a RuntimeDefault profile the debug container otherwise inherits from the pod.
+  if (sourceContext.seccompProfile && sourceContext.seccompProfile.type !== 'Unconfined') {
+    securityContext.seccompProfile = sourceContext.seccompProfile;
+  }
+
+  const podContext = (spec as { securityContext?: DebugContainerSecurityContext } | undefined)
+    ?.securityContext;
+  if (sourceContext.runAsNonRoot ?? podContext?.runAsNonRoot) {
+    securityContext.runAsNonRoot = true;
+    // Debug images such as busybox run as root by default, which runAsNonRoot rejects,
+    // so run as the same user as the debugged container when it sets one.
+    if (sourceContext.runAsUser !== undefined) {
+      securityContext.runAsUser = sourceContext.runAsUser;
+    }
+    if (sourceContext.runAsGroup !== undefined) {
+      securityContext.runAsGroup = sourceContext.runAsGroup;
+    }
+  }
+
+  return Object.keys(securityContext).length > 0 ? securityContext : undefined;
+}
+
 /** Container waiting/terminated reasons that represent a genuine failure rather than normal startup. */
 const POD_FAILED_CONTAINER_REASONS = [
   'CrashLoopBackOff',
@@ -421,7 +493,8 @@ class Pod extends KubeObject<KubePod> {
     command: string[] = ['sh'],
     targetContainerName?: string
   ): Promise<void> {
-    const ephemeralContainer: KubeContainer = {
+    const securityContext = getDebugContainerSecurityContext(this.spec, targetContainerName);
+    const ephemeralContainer: ContainerWithSecurityContext = {
       name: containerName,
       image,
       tty: true,
@@ -430,6 +503,7 @@ class Pod extends KubeObject<KubePod> {
       command,
       imagePullPolicy: 'IfNotPresent',
       ...(targetContainerName ? { targetContainerName } : {}),
+      ...(securityContext ? { securityContext } : {}),
     };
 
     // Get current ephemeral containers

@@ -264,6 +264,124 @@ describe('Pod.addEphemeralContainer targetContainerName', () => {
   });
 });
 
+describe('Pod.addEphemeralContainer securityContext', () => {
+  const restrictedContext = {
+    allowPrivilegeEscalation: false,
+    capabilities: { drop: ['ALL'] },
+    runAsNonRoot: true,
+    runAsUser: 1000,
+    runAsGroup: 3000,
+    seccompProfile: { type: 'RuntimeDefault' },
+  };
+
+  function makePod(spec: any) {
+    return new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'test-pod', namespace: 'default', uid: 'uid-sc' },
+      spec: { ephemeralContainers: [], ...spec },
+      status: {},
+    } as any);
+  }
+
+  async function addedDebugContainer(pod: Pod, targetContainerName?: string) {
+    await pod.addEphemeralContainer('headlamp-debug', 'busybox', ['sh'], targetContainerName);
+    return capturedPatchBodies[0]?.spec?.ephemeralContainers[0];
+  }
+
+  beforeEach(() => {
+    capturedPatchBodies.length = 0;
+  });
+
+  it('copies the restricted securityContext of the target container', async () => {
+    const pod = makePod({
+      containers: [
+        { name: 'sidecar', image: 'envoy' },
+        { name: 'main', image: 'nginx', securityContext: restrictedContext },
+      ],
+    });
+
+    const debugContainer = await addedDebugContainer(pod, 'main');
+
+    expect(debugContainer.securityContext).toEqual(restrictedContext);
+  });
+
+  it('uses the first container when no target container is given', async () => {
+    const pod = makePod({
+      containers: [{ name: 'main', image: 'nginx', securityContext: restrictedContext }],
+    });
+
+    const debugContainer = await addedDebugContainer(pod);
+
+    expect(debugContainer.securityContext).toEqual(restrictedContext);
+  });
+
+  it('runs as non-root when the pod sets runAsNonRoot at the pod level', async () => {
+    const pod = makePod({
+      securityContext: { runAsNonRoot: true },
+      containers: [
+        {
+          name: 'main',
+          image: 'nginx',
+          securityContext: { allowPrivilegeEscalation: false, runAsUser: 1000 },
+        },
+      ],
+    });
+
+    const debugContainer = await addedDebugContainer(pod, 'main');
+
+    expect(debugContainer.securityContext).toEqual({
+      allowPrivilegeEscalation: false,
+      runAsNonRoot: true,
+      runAsUser: 1000,
+    });
+  });
+
+  it('does not copy the user when the container may run as root', async () => {
+    const pod = makePod({
+      containers: [
+        {
+          name: 'main',
+          image: 'nginx',
+          securityContext: { runAsUser: 1000, capabilities: { add: ['NET_ADMIN'] } },
+        },
+      ],
+    });
+
+    const debugContainer = await addedDebugContainer(pod, 'main');
+
+    expect(debugContainer.securityContext).toBeUndefined();
+  });
+
+  it('does not copy an Unconfined seccomp profile over the pod RuntimeDefault', async () => {
+    const pod = makePod({
+      securityContext: { seccompProfile: { type: 'RuntimeDefault' } },
+      containers: [
+        {
+          name: 'main',
+          image: 'nginx',
+          securityContext: {
+            allowPrivilegeEscalation: false,
+            seccompProfile: { type: 'Unconfined' },
+          },
+        },
+      ],
+    });
+
+    const debugContainer = await addedDebugContainer(pod, 'main');
+
+    expect(debugContainer.securityContext).toEqual({ allowPrivilegeEscalation: false });
+  });
+
+  it('omits securityContext when the target container has none', async () => {
+    const pod = makePod({ containers: [{ name: 'main', image: 'nginx' }] });
+
+    const debugContainer = await addedDebugContainer(pod, 'main');
+
+    expect(debugContainer).not.toHaveProperty('securityContext');
+  });
+});
+
 describe('Pod.getLogs sinceSeconds', () => {
   const getStreamUrl = (logOptions: LogOptions) => {
     vi.mocked(stream).mockClear();
