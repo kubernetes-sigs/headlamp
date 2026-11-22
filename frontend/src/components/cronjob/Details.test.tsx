@@ -260,4 +260,25 @@ describe('CronJobDetails: Spawn Job', () => {
     expect(mockApply).toHaveBeenCalledTimes(1);
     expect(mockApply.mock.calls[0][0].metadata.name).toBe('nightly.report-2');
   });
+
+  it('spawns the Job when pressing Enter with a valid name', async () => {
+    openSpawnDialogWithName('nightly.report-2');
+    const input = screen.getByLabelText('translation|Job Name');
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(capturedAction.current).not.toBeNull();
+    await capturedAction.current!();
+
+    expect(mockApply).toHaveBeenCalledTimes(1);
+    expect(mockApply.mock.calls[0][0].metadata.name).toBe('nightly.report-2');
+  });
+
+  it('does not spawn the Job when pressing Enter with an invalid name', () => {
+    openSpawnDialogWithName('Nightly Report');
+    const input = screen.getByLabelText('translation|Job Name');
+
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(capturedAction.current).toBeNull();
+    expect(mockApply).not.toHaveBeenCalled();
+  });
 });
