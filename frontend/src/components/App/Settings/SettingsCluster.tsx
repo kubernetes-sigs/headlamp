@@ -192,6 +192,9 @@ export default function SettingsCluster() {
   }
 
   function storeNewAllowedNamespace(namespace: string) {
+    if (!namespace || !isValidNamespaceFormat(namespace)) {
+      return;
+    }
     setNewAllowedNamespace('');
     setClusterSettings(settings => {
       const newSettings = { ...settings };
@@ -450,7 +453,7 @@ export default function SettingsCluster() {
                           onClick={() => {
                             storeNewAllowedNamespace(newAllowedNamespace);
                           }}
-                          disabled={!newAllowedNamespace}
+                          disabled={!newAllowedNamespace || !isValidNewAllowedNamespace}
                           size="medium"
                           aria-label={t('translation|Add namespace')}
                         >
@@ -459,7 +462,10 @@ export default function SettingsCluster() {
                       ),
                       onKeyDown: event => {
                         if (event.key === 'Enter') {
-                          storeNewAllowedNamespace(newAllowedNamespace);
+                          event.preventDefault();
+                          if (newAllowedNamespace && isValidNewAllowedNamespace) {
+                            storeNewAllowedNamespace(newAllowedNamespace);
+                          }
                         }
                       },
                       autoComplete: 'off',
