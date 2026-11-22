@@ -124,46 +124,26 @@ beforeEach(() => {
 describe('TopBar sidebar toggle', () => {
   it.each([
     {
-      name: 'opens by default on medium screens without a user selection',
-      isMedium: true,
+      name: 'opens by default on small screens without a user selection',
       isSidebarOpen: true,
       isSidebarOpenUserSelected: undefined,
       expectedOpen: true,
     },
     {
-      name: 'closes an open sidebar on large screens',
-      isMedium: false,
-      isSidebarOpen: true,
-      isSidebarOpenUserSelected: undefined,
-      expectedOpen: false,
-    },
-    {
-      name: 'closes a user-selected open sidebar on medium screens',
-      isMedium: true,
+      name: 'closes a user-selected open sidebar on small screens',
       isSidebarOpen: true,
       isSidebarOpenUserSelected: true,
       expectedOpen: false,
     },
     {
-      name: 'opens a user-selected closed sidebar on medium screens',
-      isMedium: true,
+      name: 'opens a user-selected closed sidebar on small screens',
       isSidebarOpen: false,
       isSidebarOpenUserSelected: false,
       expectedOpen: true,
     },
-    {
-      name: 'opens a closed sidebar on large screens',
-      isMedium: false,
-      isSidebarOpen: false,
-      isSidebarOpenUserSelected: undefined,
-      expectedOpen: true,
-    },
-  ])('$name', ({ isMedium, isSidebarOpen, isSidebarOpenUserSelected, expectedOpen }) => {
+  ])('$name', ({ isSidebarOpen, isSidebarOpenUserSelected, expectedOpen }) => {
     sidebarState = { isSidebarOpen, isSidebarOpenUserSelected };
-    vi.mocked(useMediaQuery).mockImplementation(
-      query =>
-        typeof query === 'string' && (query.includes('960') ? isMedium : query.includes('599'))
-    );
+    vi.mocked(useMediaQuery).mockReturnValue(true);
 
     render(
       <ThemeProvider theme={theme}>
@@ -174,6 +154,18 @@ describe('TopBar sidebar toggle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle sidebar' }));
 
     expect(mockDispatch).toHaveBeenCalledWith(setWhetherSidebarOpen(expectedOpen));
+  });
+
+  it('does not render a sidebar toggle on large screens', () => {
+    vi.mocked(useMediaQuery).mockReturnValue(false);
+
+    render(
+      <ThemeProvider theme={theme}>
+        <TopBar />
+      </ThemeProvider>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Toggle sidebar' })).not.toBeInTheDocument();
   });
 });
 
