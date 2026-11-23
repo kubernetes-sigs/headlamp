@@ -18,7 +18,9 @@ package helm
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,14 +34,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/getter"
 	kubefake "helm.sh/helm/v3/pkg/kube/fake"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/repo"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	helmtime "helm.sh/helm/v3/pkg/time"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -625,6 +634,480 @@ func TestGetReleaseHistory_Validation(t *testing.T) {
 			h.GetReleaseHistory(nil, rr, req)
 
 			assert.Equal(t, tt.wantStatus, rr.Code)
+		})
+	}
+}
+
+func writeK8sError(w http.ResponseWriter, err error) {
+	var statusErr apierrors.APIStatus
+	if errors.As(err, &statusErr) {
+		st := statusErr.Status()
+		if st.APIVersion == "" {
+			st.APIVersion = "v1"
+		}
+
+		if st.Kind == "" {
+			st.Kind = "Status"
+		}
+
+		code := int(st.Code)
+		if code == 0 {
+			code = http.StatusInternalServerError
+		}
+
+		w.WriteHeader(code)
+		_ = json.NewEncoder(w).Encode(&st)
+
+		return
+	}
+
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+}
+
+func writeJSONOrK8sError(w http.ResponseWriter, statusCode int, val any, err error) {
+	if err != nil {
+		writeK8sError(w, err)
+		return
+	}
+
+	if statusCode != http.StatusOK {
+		w.WriteHeader(statusCode)
+	}
+
+	_ = json.NewEncoder(w).Encode(val)
+}
+
+func decodeSecretBody(w http.ResponseWriter, r *http.Request) (*corev1.Secret, bool) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil, false
+	}
+
+	var sec corev1.Secret
+	if _, _, err := scheme.Codecs.UniversalDeserializer().Decode(body, nil, &sec); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return nil, false
+	}
+
+	return &sec, true
+}
+
+func handleFakeSecretRequest(w http.ResponseWriter, r *http.Request, client *k8sfake.Clientset) {
+	secrets := client.CoreV1().Secrets("default")
+	name := strings.TrimPrefix(r.URL.Path, "/api/v1/namespaces/default/secrets/")
+
+	switch r.Method {
+	case http.MethodGet:
+		if r.URL.Path == "/api/v1/secrets" || r.URL.Path == "/api/v1/namespaces/default/secrets" {
+			filtered, err := secrets.List(r.Context(),
+				metav1.ListOptions{LabelSelector: r.URL.Query().Get("labelSelector")})
+			writeJSONOrK8sError(w, http.StatusOK, filtered, err)
+
+			return
+		}
+
+		got, err := secrets.Get(r.Context(), name, metav1.GetOptions{})
+		writeJSONOrK8sError(w, http.StatusOK, got, err)
+	case http.MethodPost:
+		sec, ok := decodeSecretBody(w, r)
+		if !ok {
+			return
+		}
+
+		created, err := secrets.Create(r.Context(), sec, metav1.CreateOptions{})
+		writeJSONOrK8sError(w, http.StatusCreated, created, err)
+	case http.MethodPut:
+		sec, ok := decodeSecretBody(w, r)
+		if !ok {
+			return
+		}
+
+		if sec.Name == "" {
+			sec.Name = name
+		}
+
+		updated, err := secrets.Update(r.Context(), sec, metav1.UpdateOptions{})
+		writeJSONOrK8sError(w, http.StatusOK, updated, err)
+	case http.MethodDelete:
+		err := secrets.Delete(r.Context(), name, metav1.DeleteOptions{})
+		writeJSONOrK8sError(w, http.StatusOK,
+			map[string]string{"kind": "Status", "apiVersion": "v1", "status": "Success"}, err)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func newFakeHelmSecretsServer(
+	t *testing.T,
+	rel *release.Release,
+	authUser string,
+) (*httptest.Server, *k8sfake.Clientset) {
+	t.Helper()
+
+	client := k8sfake.NewClientset()
+
+	if rel != nil {
+		releases := storage.Init(driver.NewSecrets(client.CoreV1().Secrets(rel.Namespace)))
+		require.NoError(t, releases.Create(rel))
+	}
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.URL.Path == "/version":
+			_, _ = w.Write([]byte(`{"gitVersion":"v1.34.0"}`))
+		case r.URL.Path == "/api":
+			_, _ = w.Write([]byte(`{"kind":"APIVersions","versions":["v1"]}`))
+		case r.URL.Path == "/api/v1":
+			_, _ = w.Write([]byte(`{"kind":"APIResourceList","groupVersion":"v1","resources":[]}`))
+		case r.URL.Path == "/apis":
+			_, _ = w.Write([]byte(`{"kind":"APIGroupList","groups":[]}`))
+		case r.URL.Path == "/apis/authentication.k8s.io/v1/selfsubjectreviews" && r.Method == http.MethodPost:
+			_, _ = w.Write([]byte(
+				`{"apiVersion":"authentication.k8s.io/v1","kind":"SelfSubjectReview",` +
+					`"status":{"userInfo":{"username":"` + authUser + `"}}}`))
+		case r.URL.Path == "/api/v1/secrets",
+			r.URL.Path == "/api/v1/namespaces/default/secrets",
+			strings.HasPrefix(r.URL.Path, "/api/v1/namespaces/default/secrets/"):
+			handleFakeSecretRequest(w, r, client)
+		default:
+			http.NotFound(w, r)
+		}
+	})), client
+}
+
+func newTestChartRepoHandler(t *testing.T) *Handler {
+	t.Helper()
+
+	repoDir := t.TempDir()
+	ch := &chart.Chart{
+		Metadata: &chart.Metadata{
+			APIVersion: chart.APIVersionV2,
+			Name:       "demo",
+			Version:    "1.0.0",
+			Type:       "application",
+		},
+	}
+
+	_, err := chartutil.Save(ch, repoDir)
+	require.NoError(t, err)
+
+	repoSrv := httptest.NewServer(http.FileServer(http.Dir(repoDir)))
+	t.Cleanup(repoSrv.Close)
+
+	index, err := repo.IndexDirectory(repoDir, repoSrv.URL)
+	require.NoError(t, err)
+	index.SortEntries()
+	require.NoError(t, index.WriteFile(filepath.Join(repoDir, "index.yaml"), 0o600))
+
+	settings := cli.New()
+	settings.RepositoryConfig = filepath.Join(t.TempDir(), "repositories.yaml")
+	settings.RepositoryCache = t.TempDir()
+
+	file := repo.NewFile()
+	file.Update(&repo.Entry{Name: "myrepo", URL: repoSrv.URL})
+	require.NoError(t, file.WriteFile(settings.RepositoryConfig, 0o600))
+
+	chartRepo, err := repo.NewChartRepository(&repo.Entry{Name: "myrepo", URL: repoSrv.URL}, getter.All(settings))
+	require.NoError(t, err)
+
+	chartRepo.CachePath = settings.RepositoryCache
+	_, err = chartRepo.DownloadIndexFile()
+	require.NoError(t, err)
+
+	return &Handler{
+		EnvSettings: settings,
+		Cache:       cache.New[interface{}](),
+	}
+}
+
+func TestListRelease(t *testing.T) {
+	rel := &release.Release{
+		Name:      "my-release",
+		Namespace: "default",
+		Version:   1,
+		Info:      &release.Info{Status: release.StatusDeployed},
+	}
+
+	srv, _ := newFakeHelmSecretsServer(t, rel, "dev")
+	defer srv.Close()
+
+	h := &Handler{}
+
+	t.Run("invalid query returns 400", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/releases?bad=1", nil)
+		rr := httptest.NewRecorder()
+		h.ListRelease(clientConfigFor(srv.URL), rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("lists releases on 200", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/releases?namespace=default", nil)
+		rr := httptest.NewRecorder()
+		h.ListRelease(clientConfigFor(srv.URL), rr, req)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		var resp ListReleaseResponse
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		require.Len(t, resp.Releases, 1)
+		assert.Equal(t, "my-release", resp.Releases[0].Name)
+	})
+
+	t.Run("api server error returns 500", func(t *testing.T) {
+		errCfg := apiServerConfig(t, http.StatusInternalServerError, `{"kind":"Status","code":500}`)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/releases?namespace=default", nil)
+		rr := httptest.NewRecorder()
+		h.ListRelease(errCfg, rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+}
+
+func TestGetReleaseHandler(t *testing.T) {
+	rel := &release.Release{
+		Name:      "my-release",
+		Namespace: "default",
+		Version:   1,
+		Info:      &release.Info{Status: release.StatusDeployed},
+	}
+
+	srv, _ := newFakeHelmSecretsServer(t, rel, "dev")
+	defer srv.Close()
+
+	h := &Handler{}
+
+	t.Run("missing params returns 400", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/releases?name=my-release", nil)
+		rr := httptest.NewRecorder()
+		h.GetRelease(clientConfigFor(srv.URL), rr, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+	})
+
+	t.Run("returns release on 200", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/helm/releases?name=my-release&namespace=default", nil)
+		rr := httptest.NewRecorder()
+		h.GetRelease(clientConfigFor(srv.URL), rr, req)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		var got release.Release
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+		assert.Equal(t, "my-release", got.Name)
+	})
+}
+
+func TestUninstallReleaseHandler(t *testing.T) {
+	rel := &release.Release{
+		Name:      "my-release",
+		Namespace: "default",
+		Version:   1,
+		Chart:     &chart.Chart{Metadata: &chart.Metadata{Name: "demo", Version: "1.0.0"}},
+		Info:      &release.Info{Status: release.StatusDeployed},
+	}
+
+	srv, client := newFakeHelmSecretsServer(t, rel, "dev")
+	defer srv.Close()
+
+	h := &Handler{Cache: cache.New[interface{}]()}
+
+	badReq := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/helm/releases/uninstall", nil)
+	badRR := httptest.NewRecorder()
+	h.UninstallRelease(clientConfigFor(srv.URL), badRR, badReq)
+	assert.Equal(t, http.StatusBadRequest, badRR.Code)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+		"/helm/releases/uninstall?name=my-release&namespace=default", nil)
+	rr := httptest.NewRecorder()
+	h.UninstallRelease(clientConfigFor(srv.URL), rr, req)
+	require.Equal(t, http.StatusAccepted, rr.Code)
+
+	require.Eventually(t, func() bool {
+		st, err := h.getReleaseStatus("uninstall", "my-release")
+		return err == nil && st.Status == success
+	}, 2*time.Second, 20*time.Millisecond)
+
+	releases := storage.Init(driver.NewSecrets(client.CoreV1().Secrets("default")))
+	_, err := releases.Last("my-release")
+	require.ErrorIs(t, err, driver.ErrReleaseNotFound)
+}
+
+func TestRollbackReleaseHandler(t *testing.T) {
+	rel := &release.Release{
+		Name:      "my-release",
+		Namespace: "default",
+		Version:   1,
+		Chart:     &chart.Chart{Metadata: &chart.Metadata{Name: "demo", Version: "1.0.0"}},
+		Info:      &release.Info{Status: release.StatusDeployed},
+	}
+
+	srv, client := newFakeHelmSecretsServer(t, rel, "dev")
+	defer srv.Close()
+
+	h := &Handler{Cache: cache.New[interface{}]()}
+
+	badReq := httptest.NewRequestWithContext(context.Background(), http.MethodPut,
+		"/helm/releases/rollback", strings.NewReader("{"))
+	badRR := httptest.NewRecorder()
+	h.RollbackRelease(clientConfigFor(srv.URL), badRR, badReq)
+	assert.Equal(t, http.StatusBadRequest, badRR.Code)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPut,
+		"/helm/releases/rollback", strings.NewReader(`{"name":"my-release","namespace":"default","revision":1}`))
+	rr := httptest.NewRecorder()
+	h.RollbackRelease(clientConfigFor(srv.URL), rr, req)
+	require.Equal(t, http.StatusAccepted, rr.Code)
+
+	require.Eventually(t, func() bool {
+		st, err := h.getReleaseStatus("rollback", "my-release")
+		return err == nil && st.Status == success
+	}, 2*time.Second, 20*time.Millisecond)
+
+	releases := storage.Init(driver.NewSecrets(client.CoreV1().Secrets("default")))
+	rolled, err := releases.Last("my-release")
+	require.NoError(t, err)
+	assert.Equal(t, 2, rolled.Version)
+	assert.Equal(t, release.StatusDeployed, rolled.Info.Status)
+}
+
+func TestReleaseWorkerFailures(t *testing.T) {
+	srv, _ := newFakeHelmSecretsServer(t, nil, "alice")
+	defer srv.Close()
+
+	h := &Handler{Cache: cache.New[interface{}]()}
+
+	cfg, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+	require.NoError(t, err)
+
+	h.uninstallRelease(UninstallReleaseRequest{Name: "missing", Namespace: "default"}, cfg)
+	st, err := h.getReleaseStatus("uninstall", "missing")
+	require.NoError(t, err)
+	assert.Equal(t, failed, st.Status)
+
+	h.rollbackRelease(RollbackReleaseRequest{Name: "missing", Namespace: "default", Revision: 1}, cfg)
+	st, err = h.getReleaseStatus("rollback", "missing")
+	require.NoError(t, err)
+	assert.Equal(t, failed, st.Status)
+}
+
+func TestVerifyUser(t *testing.T) {
+	t.Run("authenticated user returns true", func(t *testing.T) {
+		srv, _ := newFakeHelmSecretsServer(t, nil, "alice")
+		defer srv.Close()
+
+		cfg, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+		require.NoError(t, err)
+		assert.True(t, VerifyUser(cfg, InstallRequest{}))
+	})
+
+	t.Run("anonymous user returns false", func(t *testing.T) {
+		srv, _ := newFakeHelmSecretsServer(t, nil, "system:anonymous")
+		defer srv.Close()
+
+		cfg, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+		require.NoError(t, err)
+		assert.False(t, VerifyUser(cfg, InstallRequest{}))
+	})
+}
+
+func TestInstallAndUpgradeReleaseFlows(t *testing.T) {
+	rel := &release.Release{
+		Name:      "demo-rel",
+		Namespace: "default",
+		Version:   1,
+		Chart:     &chart.Chart{Metadata: &chart.Metadata{Name: "demo", Version: "1.0.0"}},
+		Info:      &release.Info{Status: release.StatusDeployed},
+	}
+
+	srv, client := newFakeHelmSecretsServer(t, rel, "alice")
+	defer srv.Close()
+
+	h := newTestChartRepoHandler(t)
+	h.Debug = false
+
+	installBody := `{"name":"demo-new","namespace":"default","description":"d","chart":"myrepo/demo","version":"1.0.0"}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+		"/helm/releases", strings.NewReader(installBody))
+	rr := httptest.NewRecorder()
+	h.InstallRelease(clientConfigFor(srv.URL), rr, req)
+	require.Equal(t, http.StatusAccepted, rr.Code)
+
+	require.Eventually(t, func() bool {
+		st, err := h.getReleaseStatus("install", "demo-new")
+		return err == nil && st.Status == success
+	}, 2*time.Second, 20*time.Millisecond)
+
+	releases := storage.Init(driver.NewSecrets(client.CoreV1().Secrets("default")))
+	installed, err := releases.Last("demo-new")
+	require.NoError(t, err)
+	assert.Equal(t, 1, installed.Version)
+	assert.Equal(t, release.StatusDeployed, installed.Info.Status)
+
+	upBody := `{"name":"demo-rel","namespace":"default","description":"d","chart":"myrepo/demo","version":"1.0.0"}`
+	upReq := httptest.NewRequestWithContext(context.Background(), http.MethodPut,
+		"/helm/releases", strings.NewReader(upBody))
+	upRR := httptest.NewRecorder()
+	h.UpgradeRelease(clientConfigFor(srv.URL), upRR, upReq)
+	require.Equal(t, http.StatusAccepted, upRR.Code)
+
+	require.Eventually(t, func() bool {
+		st, err := h.getReleaseStatus("upgrade", "demo-rel")
+		return err == nil && st.Status == success
+	}, 2*time.Second, 20*time.Millisecond)
+
+	upgraded, err := releases.Last("demo-rel")
+	require.NoError(t, err)
+	assert.Equal(t, 2, upgraded.Version)
+	assert.Equal(t, release.StatusDeployed, upgraded.Info.Status)
+}
+
+func TestInstallAndUpgradeInvalidValues(t *testing.T) {
+	srv, _ := newFakeHelmSecretsServer(t, nil, "alice")
+	defer srv.Close()
+
+	h := newTestChartRepoHandler(t)
+	h.Debug = false
+
+	cfg, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name      string
+		values    string
+		errSubstr string
+	}{
+		{
+			name:      "invalid base64",
+			values:    "!!!",
+			errSubstr: "illegal base64 data",
+		},
+		{
+			name:      "invalid yaml",
+			values:    base64.StdEncoding.EncodeToString([]byte("key: [unclosed")),
+			errSubstr: "yaml:",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			common := CommonInstallUpdateRequest{
+				Name: "bad-val", Namespace: "default", Description: "d",
+				Chart: "myrepo/demo", Version: "1.0.0", Values: tc.values,
+			}
+
+			require.NoError(t, h.setReleaseStatus("install", "bad-val", "", nil))
+			h.installRelease(InstallRequest{CommonInstallUpdateRequest: common}, cfg)
+			st, err := h.getReleaseStatus("install", "bad-val")
+			require.NoError(t, err)
+			assert.Equal(t, failed, st.Status)
+			require.NotNil(t, st.Err)
+			assert.Contains(t, *st.Err, tc.errSubstr)
+
+			require.NoError(t, h.setReleaseStatus("upgrade", "bad-val", "", nil))
+			h.upgradeRelease(UpgradeReleaseRequest{CommonInstallUpdateRequest: common}, cfg)
+			st, err = h.getReleaseStatus("upgrade", "bad-val")
+			require.NoError(t, err)
+			assert.Equal(t, failed, st.Status)
+			require.NotNil(t, st.Err)
+			assert.Contains(t, *st.Err, tc.errSubstr)
 		})
 	}
 }
