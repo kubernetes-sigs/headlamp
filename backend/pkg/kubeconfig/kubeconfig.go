@@ -1181,11 +1181,16 @@ func extractClusterAndUserNames(contextMap map[interface{}]interface{}, contextN
 		}
 	}
 
-	userName, ok := contextData["user"].(string)
-	if !ok {
-		return "", "", ContextError{
-			ContextName: contextName,
-			Reason:      fmt.Sprintf("missing or invalid user name: %v", contextData["user"]),
+	// The user is optional, like in kubectl: a context can point at a cluster that needs no
+	// credentials, for example one behind `kubectl proxy`.
+	var userName string
+	if rawUser := contextData["user"]; rawUser != nil {
+		userName, ok = rawUser.(string)
+		if !ok {
+			return "", "", ContextError{
+				ContextName: contextName,
+				Reason:      fmt.Sprintf("invalid user name: %v", rawUser),
+			}
 		}
 	}
 
@@ -1205,9 +1210,14 @@ func getClusterAndUser(
 		errs = append(errs, err)
 	}
 
-	user, err := getUser(kubeconfig, userName)
-	if err != nil {
-		errs = append(errs, err)
+	// A context without a user has no credentials to look up.
+	var user map[interface{}]interface{}
+
+	if userName != "" {
+		user, err = getUser(kubeconfig, userName)
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	return cluster, user, errors.Join(errs...)
@@ -1357,7 +1367,12 @@ func checkClusterBase64Fields(clusterMap map[interface{}]interface{}, clusterNam
 }
 
 // toStringKeyMap converts the map with interface keys to a map with string keys.
+// A nil map stays nil so callers can tell an absent entry from an empty one.
 func toStringKeyMap(m map[interface{}]interface{}) map[interface{}]interface{} {
+	if m == nil {
+		return nil
+	}
+
 	result := make(map[interface{}]interface{})
 
 	for k, v := range m {
@@ -1424,7 +1439,11 @@ func createKubeConfig(
 	kubeconfig := make(map[string]interface{})
 	kubeconfig["contexts"] = []interface{}{context}
 	kubeconfig["clusters"] = []interface{}{cluster}
-	kubeconfig["users"] = []interface{}{user}
+
+	if user != nil {
+		kubeconfig["users"] = []interface{}{user}
+	}
+
 	kubeconfig["apiVersion"] = "v1"
 	kubeconfig["kind"] = "Config"
 	kubeconfig["current-context"] = contextName

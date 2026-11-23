@@ -1136,14 +1136,16 @@ users:
 		})
 	})
 
-	t.Run("missing_user_field_in_context", func(t *testing.T) {
-		// Verify handling of a context where the "user" field is missing.
+	t.Run("unknown_user_in_context", func(t *testing.T) {
+		// Verify handling of a context whose "user" names a user that does not exist. A context
+		// with no "user" at all is valid, see TestLoadContextsFromFileContextWithoutUser.
 		tempFile := createTempKubeconfig(t, `apiVersion: v1
 kind: Config
 contexts:
 - name: bad-context
   context:
     cluster: some-cluster
+    user: unknown-user
 clusters:
 - name: some-cluster
   cluster:
@@ -1379,6 +1381,60 @@ func TestLoadContextsFromFileAcceptsNullCollections(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, contexts)
 	assert.Empty(t, contextErrors)
+}
+
+// TestLoadContextsFromFileContextWithoutUser checks that a context with no user loads, like in
+// kubectl, for example a kubeconfig that points at `kubectl proxy`. A context that names a user
+// which does not exist is still an error.
+func TestLoadContextsFromFileContextWithoutUser(t *testing.T) {
+	const head = "apiVersion: v1\nkind: Config\ncurrent-context: proxy\n" +
+		"clusters:\n- name: proxy\n  cluster:\n    server: http://127.0.0.1:8001\n"
+
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name: "no users section",
+			yaml: head + "contexts:\n- name: proxy\n  context:\n    cluster: proxy\n",
+		},
+		{
+			name: "users section but the context has no user",
+			yaml: head + "contexts:\n- name: proxy\n  context:\n    cluster: proxy\n" +
+				"users:\n- name: other\n  user:\n    token: abc\n",
+		},
+		{
+			name:    "context names a user that does not exist",
+			yaml:    head + "contexts:\n- name: proxy\n  context:\n    cluster: proxy\n    user: missing\n",
+			wantErr: "missing",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config")
+			require.NoError(t, os.WriteFile(path, []byte(tc.yaml), 0o600))
+
+			contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(path, kubeconfig.KubeConfig)
+			require.NoError(t, err)
+
+			if tc.wantErr != "" {
+				require.Len(t, contextErrors, 1)
+				assert.ErrorContains(t, contextErrors[0].Error, tc.wantErr)
+
+				return
+			}
+
+			assert.Empty(t, contextErrors)
+			require.Len(t, contexts, 1)
+			assert.Equal(t, "proxy", contexts[0].Name)
+			assert.Empty(t, contexts[0].Error)
+			// An empty `users: [{}]` entry would be loaded and stamped with the file path.
+			require.NotNil(t, contexts[0].AuthInfo)
+			assert.Empty(t, contexts[0].AuthInfo.LocationOfOrigin)
+		})
+	}
 }
 
 func TestLoadContextsFromFileResolvesRelativePKIPaths(t *testing.T) {
