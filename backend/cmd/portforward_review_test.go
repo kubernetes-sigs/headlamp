@@ -1,14 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +27,254 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+func TestPortForwardExecCredentialHelper(t *testing.T) {
+	if os.Getenv("HEADLAMP_TEST_PORTFORWARD_EXEC") != "1" {
+		t.Skip("exec credential subprocess")
+	}
+	//nolint:gosec // The parent test supplies this marker inside its private temporary directory.
+	if err := os.WriteFile(os.Getenv("HEADLAMP_TEST_PORTFORWARD_MARKER"), []byte("called"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := fmt.Fprintln(os.Stdout,
+		`{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential","status":{"token":"alice"}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	os.Exit(0)
+}
+
+//nolint:funlen // Verifies local credential methods and backend-token rejection through the desktop routes.
+func TestPortForwardDesktopUploadedCredentials(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "desktop-token")
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	provider := newSigningOIDCTestServer(t)
+	idToken := provider.signToken(t, nil)
+
+	var (
+		identityCalls, permissionCalls atomic.Int32
+		clientCertificate              []byte
+	)
+
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header := r.Header.Get("Authorization")
+
+		clientAuthenticated := len(r.TLS.PeerCertificates) != 0 &&
+			bytes.Equal(r.TLS.PeerCertificates[0].Raw, clientCertificate)
+		if header != "Bearer alice" && header != "Bearer "+idToken && !clientAuthenticated {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/apis/authentication.k8s.io/v1/selfsubjectreviews" {
+			identityCalls.Add(1)
+
+			_, err := w.Write([]byte(`{"apiVersion":"authentication.k8s.io/v1","kind":"SelfSubjectReview",` +
+				`"status":{"userInfo":{"username":"alice","uid":"alice-id"}}}`))
+			require.NoError(t, err)
+
+			return
+		}
+
+		permissionCalls.Add(1)
+
+		_, err := w.Write([]byte(`{"apiVersion":"authorization.k8s.io/v1","kind":"SelfSubjectAccessReview",` +
+			`"status":{"allowed":false,"reason":"desktop credential permission check reached"}}`))
+		require.NoError(t, err)
+	}))
+	upstream.TLS = &tls.Config{MinVersion: tls.VersionTLS12, ClientAuth: tls.RequestClientCert}
+	upstream.StartTLS()
+	t.Cleanup(upstream.Close)
+	clientCertificate = upstream.Certificate().Raw
+	caFile := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(caFile,
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: clientCertificate}), 0o600))
+
+	key, err := x509.MarshalPKCS8PrivateKey(upstream.TLS.Certificates[0].PrivateKey)
+	require.NoError(t, err)
+	keyFile := filepath.Join(t.TempDir(), "client.key")
+	require.NoError(t, os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: key}), 0o600))
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("alice"), 0o600))
+
+	executable, err := os.Executable()
+	require.NoError(t, err)
+
+	marker := filepath.Join(t.TempDir(), "exec-called")
+	for _, test := range []struct {
+		name   string
+		info   *api.AuthInfo
+		header string
+	}{
+		{name: "token-file", info: &api.AuthInfo{TokenFile: tokenFile}},
+		{name: "client-files", info: &api.AuthInfo{ClientCertificate: caFile, ClientKey: keyFile}},
+		{name: "oidc-provider", info: &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{
+			Name: "oidc", Config: map[string]string{
+				"client-id": "test-client-id", "idp-issuer-url": provider.URL(), "id-token": idToken,
+			},
+		}}},
+		{name: "exec-provider", info: &api.AuthInfo{Exec: &api.ExecConfig{
+			Command: executable, Args: []string{"-test.run=^TestPortForwardExecCredentialHelper$"},
+			APIVersion: "client.authentication.k8s.io/v1", InteractiveMode: api.NeverExecInteractiveMode,
+			Env: []api.ExecEnvVar{
+				{Name: "HEADLAMP_TEST_PORTFORWARD_EXEC", Value: "1"},
+				{Name: "HEADLAMP_TEST_PORTFORWARD_MARKER", Value: marker},
+			},
+		}}},
+		{name: "ca-file-with-request-token", info: &api.AuthInfo{}, header: "Bearer alice"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			sessions := cache.New[interface{}]()
+
+			t.Cleanup(func() { _ = sessions.Close() })
+			handler := createHeadlampHandler(t.Context(), &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeconfig.NewContextStore(), EnableDynamicClusters: true,
+						KubeConfigPath: filepath.Join(t.TempDir(), "missing"), KubeConfigDir: t.TempDir(),
+					},
+					Cache: sessions,
+				},
+			})
+			data, err := clientcmd.Write(api.Config{
+				Clusters:       map[string]*api.Cluster{"api": {Server: upstream.URL, CertificateAuthority: caFile}},
+				AuthInfos:      map[string]*api.AuthInfo{"user": test.info},
+				Contexts:       map[string]*api.Context{"shared": {Cluster: "api", AuthInfo: "user"}},
+				CurrentContext: "shared",
+			})
+			require.NoError(t, err)
+
+			for _, operation := range []struct{ backendToken, method string }{
+				{"", http.MethodGet},
+				{"wrong", http.MethodPost},
+				{"desktop-token", http.MethodGet},
+				{"desktop-token", http.MethodPost},
+			} {
+				request := httptest.NewRequestWithContext(t.Context(), operation.method, "/clusters/shared/portforward",
+					strings.NewReader(`{"id":"probe","pod":"p","namespace":"default","port":"8080","targetPort":"80"}`))
+				if operation.method == http.MethodGet {
+					request.URL.Path += "/list"
+				}
+
+				request.Header.Set("KUBECONFIG", base64.StdEncoding.EncodeToString(data))
+				request.Header.Set("X-HEADLAMP-USER-ID", "desktop")
+				request.Header.Set("X-HEADLAMP_BACKEND-TOKEN", operation.backendToken)
+
+				if test.header != "" {
+					request.Header.Set("Authorization", test.header)
+				}
+
+				before := identityCalls.Load() + permissionCalls.Load()
+				response := httptest.NewRecorder()
+				handler.ServeHTTP(response, request)
+
+				switch {
+				case operation.backendToken != "desktop-token":
+					require.Equal(t, http.StatusForbidden, response.Code)
+					require.Equal(t, before, identityCalls.Load()+permissionCalls.Load())
+
+					if test.name == "exec-provider" {
+						_, err := os.Stat(marker)
+						require.ErrorIs(t, err, os.ErrNotExist)
+					}
+				case operation.method == http.MethodGet:
+					require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+					require.Equal(t, before+1, identityCalls.Load()+permissionCalls.Load())
+				default:
+					require.Equal(t, http.StatusInternalServerError, response.Code)
+					require.Contains(t, response.Body.String(), "desktop credential permission check reached")
+					require.Equal(t, before+2, identityCalls.Load()+permissionCalls.Load())
+				}
+			}
+		})
+	}
+}
+
+func TestPortForwardUploadedOIDCWithoutCredentialsIsUnauthorized(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "desktop-token")
+
+	for _, inCluster := range []bool{false, true} {
+		sessions := cache.New[interface{}]()
+
+		t.Cleanup(func() { _ = sessions.Close() })
+		handler := createHeadlampHandler(t.Context(), &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster: inCluster, KubeConfigStore: kubeconfig.NewContextStore(), EnableDynamicClusters: true,
+					KubeConfigPath: filepath.Join(t.TempDir(), "missing"), KubeConfigDir: t.TempDir(),
+				},
+				Cache: sessions,
+			},
+		})
+		data, err := clientcmd.Write(api.Config{
+			Clusters:       map[string]*api.Cluster{"api": {Server: "https://unused.example"}},
+			AuthInfos:      map[string]*api.AuthInfo{"user": {AuthProvider: &api.AuthProviderConfig{Name: "oidc"}}},
+			Contexts:       map[string]*api.Context{"shared": {Cluster: "api", AuthInfo: "user"}},
+			CurrentContext: "shared",
+		})
+		require.NoError(t, err)
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/clusters/shared/portforward/list", nil)
+		request.Header.Set("KUBECONFIG", base64.StdEncoding.EncodeToString(data))
+		request.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "desktop-token")
+
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		require.Equal(t, http.StatusUnauthorized, response.Code, response.Body.String())
+		require.Contains(t, response.Body.String(), "user authentication is required for this OIDC connection")
+	}
+}
+
+func TestPortForwardOIDCProxyAuthorizationHeader(t *testing.T) {
+	upstream, seen := portForwardReviewIdentityAPI(t)
+	for _, header := range []string{"Authorization", "authorization", "AUTHORIZATION", "X-Forwarded-Token"} {
+		t.Run(header, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			kContext := portForwardReviewContext(upstream.URL, "")
+			kContext.OidcConf = &kubeconfig.OidcConfig{ClientID: "headlamp"}
+			require.NoError(t, store.AddContext(kContext))
+
+			server := portForwardReviewServer(t, store, header, false)
+			for _, values := range [][]string{{"alice"}, {"Bearer alice", "Bearer alice"}} {
+				request, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+					server.URL+"/clusters/shared/portforward/list", nil)
+				require.NoError(t, err)
+
+				request.Header[http.CanonicalHeaderKey(header)] = values
+				response, err := http.DefaultClient.Do(request)
+				require.NoError(t, err)
+
+				_ = response.Body.Close()
+				if len(values) != 1 {
+					require.Equal(t, http.StatusUnauthorized, response.StatusCode)
+
+					select {
+					case got := <-seen:
+						t.Fatalf("duplicate proxy credentials reached Kubernetes: %q", got)
+					default:
+					}
+
+					continue
+				}
+
+				require.Equal(t, http.StatusOK, response.StatusCode)
+
+				select {
+				case got := <-seen:
+					require.Equal(t, "Bearer alice", got)
+				case <-time.After(time.Second):
+					t.Fatal("proxy credential was not authenticated")
+				}
+			}
+		})
+	}
+}
 
 func portForwardReviewIdentityAPI(t *testing.T) (*httptest.Server, chan string) {
 	t.Helper()

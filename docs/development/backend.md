@@ -195,8 +195,8 @@ An Authorization bearer token takes precedence over the cluster cookie. Supplied
 user tokens replace stored authentication methods for the request, so invalid
 tokens cannot fall back to a configured certificate or token file. Static
 kubeconfig credentials still work when no user token is supplied.
-Cluster URLs containing credentials are rejected when a request token is
-supplied: HTTP URL Basic authentication must not replace the caller's bearer
+Cluster and effective API-proxy URLs containing credentials are rejected when a
+request token is supplied: HTTP URL Basic authentication must not replace the caller's bearer
 identity. Trusted configured URL credentials still work without a request token.
 This check uses client-go's server normalization, including scheme-less
 `user:password@host:port` credentials, while preserving valid `IP:port` servers.
@@ -211,8 +211,9 @@ The outer cluster OIDC middleware validates supplied Authorization before
 refresh: an expiring cookie cannot replace an invalid header or collapse multiple
 headers into an accepted credential. Legitimate cookie-only refresh still works.
 
-Sessions are scoped by the exact context key, API server/TLS/proxy authority, and
-the Kubernetes-returned username and UID. Another user cannot list, inspect,
+Sessions are scoped by the exact context key, effective API server or
+gateway/TLS/proxy authority, and the Kubernetes-returned username and UID.
+Another user cannot list, inspect,
 stop, delete, or overwrite them by
 supplying the same forwarding ID. Refreshed tokens for the same principal retain
 access; a different UID does not. Public cluster names and response shapes remain
@@ -224,16 +225,23 @@ context snapshot for authentication and forward creation. A cached routing key
 cannot supply another caller's credentials. `X-HEADLAMP-USER-ID` is a routing
 label, not authentication. Requests addressing a cached internal context without
 their own token or request kubeconfig cannot borrow its stored credentials.
-Request-supplied and cached internal contexts cannot read backend-local CA
+Cached internal contexts and in-cluster request-supplied contexts cannot read backend-local CA
 files, even with an independent request token. They must embed the CA data or
 use default system trust. An embedded CA takes precedence over a filename
 without reading it. Trusted server-configured contexts retain file-backed CAs.
-Request-supplied kubeconfigs cannot read backend-local token/certificate/key
+In-cluster request-supplied kubeconfigs cannot read backend-local token/certificate/key
 files or run exec/auth-provider credential plugins. These methods require an
 independent request token that replaces the configured credentials; otherwise
 the request is rejected before authentication. Embedded credentials remain
 supported, and trusted server-configured kubeconfigs keep their existing
 credential methods.
+Desktop/development uploads retain local exec/OIDC providers, token and
+certificate/key files, and file-backed CAs after the backend-token middleware.
+Configure a nonempty `HEADLAMP_BACKEND_TOKEN` to protect that local trust boundary.
+OIDC contexts without stored credentials return HTTP 401 before provider lookup.
+API-proxy settings are resolved before credentials are replaced and retained for
+identity verification and forwarding. Gateway CA data and skip-verification
+settings replace the API server's TLS trust; unused API-server CA files are not read.
 Recreating a context with a different endpoint or TLS/proxy trust configuration
 does not grant access to existing sessions even if that endpoint claims the same
 username and UID. Restoring the original authority with valid credentials retains

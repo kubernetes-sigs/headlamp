@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,7 +35,8 @@ func portForwardTestAuthority(t *testing.T) (tls.Certificate, []byte) {
 
 	certificate := &x509.Certificate{
 		SerialNumber: big.NewInt(1), DNSNames: []string{"ca-review.example"},
-		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
+		IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+		NotBefore:   time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour),
 		IsCA: true, BasicConstraintsValid: true,
 		KeyUsage:    x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -304,7 +306,7 @@ func TestPortForwardRequestCAFilesRequireEmbeddedData(t *testing.T) {
 			if test.cached {
 				RequestHandler(store, sessions, false, "shared", response, request)
 			} else {
-				RequestHandlerWithContext(kContext, sessions, false, "shared", response, request)
+				RequestHandlerWithContext(kContext, sessions, false, false, "shared", response, request)
 			}
 
 			require.Equal(t, test.status, response.Code)

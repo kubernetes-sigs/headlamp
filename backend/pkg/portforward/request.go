@@ -72,26 +72,13 @@ func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interfac
 
 // RequestHandlerWithContext uses a context freshly resolved from this request's
 // kubeconfig, never credentials inherited from a cached stateless routing key.
+// Local credentials are allowed only for trusted desktop/development requests
+// after the backend-token middleware.
 func RequestHandlerWithContext(kContext *kubeconfig.Context, sessions cache.Cache[interface{}],
-	unsafeUseServiceAccountToken bool, contextKey string, w http.ResponseWriter, r *http.Request,
+	unsafeUseServiceAccountToken, allowLocalCredentials bool, contextKey string, w http.ResponseWriter, r *http.Request,
 ) {
-	token, err := requestToken(r)
-	if err != nil {
-		logger.Log(logger.LevelWarn, nil, err, "reading stateless portforward credentials")
-		http.Error(w, "invalid credentials", http.StatusUnauthorized)
-
-		return
-	}
-
-	if token == "" && requestContextUsesLocalCredentials(kContext.AuthInfo) {
-		logger.Log(logger.LevelWarn, nil, nil, "stateless portforward requires embedded or independent credentials")
-		http.Error(w, "request kubeconfig credential files and providers require an independent request token",
-			http.StatusBadRequest)
-
-		return
-	}
-
-	handleRequestContext(kContext, sessions, unsafeUseServiceAccountToken, contextKey, true, false, w, r)
+	handleRequestContext(kContext, sessions, unsafeUseServiceAccountToken, contextKey,
+		true, allowLocalCredentials, w, r)
 }
 
 func requestContextUsesLocalCredentials(info *api.AuthInfo) bool {
@@ -99,9 +86,103 @@ func requestContextUsesLocalCredentials(info *api.AuthInfo) bool {
 		info.Exec != nil || info.AuthProvider != nil)
 }
 
+func pinPortForwardAuthority(kContext *kubeconfig.Context) (*api.Cluster, error) {
+	apiProxy, err := kContext.APIProxy()
+	if err != nil {
+		return nil, err
+	}
+
+	if apiProxy == nil {
+		return kContext.Cluster, nil
+	}
+
+	pinnedProxy := *apiProxy
+
+	if kContext.OidcConf == nil {
+		kContext.OidcConf = &kubeconfig.OidcConfig{}
+	}
+
+	kContext.OidcConf.APIProxy = &pinnedProxy
+
+	authority := kContext.Cluster.DeepCopy()
+	authority.Server = pinnedProxy.URL
+	authority.TLSServerName = ""
+	authority.InsecureSkipTLSVerify = pinnedProxy.SkipTLSVerify
+	authority.CertificateAuthority = ""
+
+	authority.CertificateAuthorityData = nil
+	if !pinnedProxy.SkipTLSVerify {
+		authority.CertificateAuthorityData = []byte(pinnedProxy.CACert)
+	}
+
+	// The gateway replaces the API server's CA; do not read an unused local file.
+	kContext.Cluster.CertificateAuthority = ""
+	kContext.Cluster.CertificateAuthorityData = nil
+
+	return authority, nil
+}
+
+// preparePortForwardTrust pins the effective gateway and CA before credentials
+// are replaced. Failure writes an HTTP error and prevents authentication.
+func preparePortForwardTrust(kContext *kubeconfig.Context, token string, allowFileCA bool,
+	w http.ResponseWriter,
+) (*api.Cluster, bool) {
+	authority, err := pinPortForwardAuthority(kContext)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "resolving portforward API proxy")
+		http.Error(w, "could not authenticate portforward request", http.StatusServiceUnavailable)
+
+		return nil, false
+	}
+
+	if token != "" {
+		for _, endpoint := range []string{kContext.Cluster.Server, authority.Server} {
+			serverURL, _, err := rest.DefaultServerURL(endpoint, "", schema.GroupVersion{}, false)
+			if err != nil || serverURL.User != nil {
+				logger.Log(logger.LevelWarn, nil, nil, "rejecting invalid or credentialed portforward endpoint")
+				http.Error(w, "cluster URL must not contain credentials when using a request token", http.StatusBadRequest)
+
+				return nil, false
+			}
+		}
+	}
+
+	if !allowFileCA && authority.CertificateAuthority != "" && len(authority.CertificateAuthorityData) == 0 {
+		logger.Log(logger.LevelWarn, nil, nil, "request portforward context requires embedded certificate authority")
+		http.Error(w, "request kubeconfig CA files require embedded certificate authority data", http.StatusBadRequest)
+
+		return nil, false
+	}
+
+	tlsConfig := &rest.Config{TLSClientConfig: rest.TLSClientConfig{
+		CAFile: authority.CertificateAuthority, CAData: authority.CertificateAuthorityData,
+	}}
+
+	err = rest.LoadTLSFiles(tlsConfig)
+	if err == nil && authority.CertificateAuthority != "" && len(tlsConfig.CAData) == 0 {
+		err = errors.New("configured certificate authority is empty")
+	}
+
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "pinning portforward certificate authority")
+		http.Error(w, "could not authenticate portforward request", http.StatusServiceUnavailable)
+
+		return nil, false
+	}
+
+	authority.CertificateAuthorityData = tlsConfig.CAData
+	authority.CertificateAuthority = ""
+
+	if kContext.OidcConf != nil && kContext.OidcConf.APIProxy != nil {
+		kContext.OidcConf.APIProxy.CACert = string(tlsConfig.CAData)
+	}
+
+	return authority, true
+}
+
 //nolint:funlen // Authentication must complete before dispatching any local session operation.
 func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[interface{}],
-	unsafeUseServiceAccountToken bool, contextKey string, allowContextCredentials, allowFileCA bool,
+	unsafeUseServiceAccountToken bool, contextKey string, allowContextCredentials, allowLocalCredentials bool,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	kContext = kContext.Copy()
@@ -121,20 +202,16 @@ func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[int
 		return
 	}
 
-	if token != "" {
-		serverURL, _, err := rest.DefaultServerURL(kContext.Cluster.Server, "", schema.GroupVersion{}, false)
-		if err != nil || serverURL.User != nil {
-			logger.Log(logger.LevelWarn, nil, nil, "rejecting invalid or credentialed cluster URL with request token")
-			http.Error(w, "cluster URL must not contain credentials when using a request token", http.StatusBadRequest)
+	if !allowLocalCredentials && token == "" && requestContextUsesLocalCredentials(kContext.AuthInfo) {
+		logger.Log(logger.LevelWarn, nil, nil, "stateless portforward requires embedded or independent credentials")
+		http.Error(w, "request kubeconfig credential files and providers require an independent request token",
+			http.StatusBadRequest)
 
-			return
-		}
+		return
 	}
 
-	if !allowFileCA && kContext.Cluster.CertificateAuthority != "" && len(kContext.Cluster.CertificateAuthorityData) == 0 {
-		logger.Log(logger.LevelWarn, nil, nil, "request portforward context requires embedded certificate authority")
-		http.Error(w, "request kubeconfig CA files require embedded certificate authority data", http.StatusBadRequest)
-
+	authority, ok := preparePortForwardTrust(kContext, token, allowLocalCredentials, w)
+	if !ok {
 		return
 	}
 
@@ -152,26 +229,6 @@ func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[int
 		// A user token must never authenticate through a stored certificate or token file instead.
 		kContext.AuthInfo = &api.AuthInfo{Token: token}
 	}
-
-	// Pin effective trust once for authentication, ownership, and forward creation.
-	tlsConfig := &rest.Config{TLSClientConfig: rest.TLSClientConfig{
-		CAFile: kContext.Cluster.CertificateAuthority, CAData: kContext.Cluster.CertificateAuthorityData,
-	}}
-
-	err = rest.LoadTLSFiles(tlsConfig)
-	if err == nil && kContext.Cluster.CertificateAuthority != "" && len(tlsConfig.CAData) == 0 {
-		err = errors.New("configured certificate authority is empty")
-	}
-
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "pinning portforward certificate authority")
-		http.Error(w, "could not authenticate portforward request", http.StatusServiceUnavailable)
-
-		return
-	}
-
-	kContext.Cluster.CertificateAuthorityData = tlsConfig.CAData
-	kContext.Cluster.CertificateAuthority = ""
 
 	client, err := kContext.ClientSetWithToken(token)
 	if err != nil {
@@ -208,7 +265,7 @@ func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[int
 		return
 	}
 
-	cacheKey := portForwardOwnerKey(contextKey, kContext.Cluster, user)
+	cacheKey := portForwardOwnerKey(contextKey, authority, user)
 
 	switch r.Method {
 	case http.MethodPost:

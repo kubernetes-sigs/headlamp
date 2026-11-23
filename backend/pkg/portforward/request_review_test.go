@@ -2,21 +2,307 @@
 package portforward
 
 import (
+	"crypto/tls"
+	"encoding/base64"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+func portForwardProxyReviewContext(server, gateway string, ca []byte, provider bool) *kubeconfig.Context {
+	kContext := &kubeconfig.Context{
+		Name: "shared", Cluster: &api.Cluster{Server: server, InsecureSkipTLSVerify: true},
+		KubeContext: &api.Context{Cluster: "api", AuthInfo: "user"}, AuthInfo: &api.AuthInfo{Token: "alice"},
+	}
+	if provider {
+		kContext.AuthInfo = &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{
+			Name: "oidc", Config: map[string]string{
+				"api-proxy": gateway, "api-proxy-ca-data": base64.StdEncoding.EncodeToString(ca),
+			},
+		}}
+	} else {
+		kContext.OidcConf = &kubeconfig.OidcConfig{APIProxy: &kubeconfig.APIProxySettings{
+			URL: gateway, CACert: string(ca),
+		}}
+	}
+
+	return kContext
+}
+
+//nolint:funlen // Verifies both proxy configuration sources and both request-token sources through creation.
+func TestPortForwardRequestTokensPreserveAPIProxy(t *testing.T) {
+	direct := newPortForwardTestAPI(t)
+
+	var identityCalls, permissionCalls atomic.Int32
+
+	gateway := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "Bearer alice", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/gateway/apis/authentication.k8s.io/v1/selfsubjectreviews":
+			identityCalls.Add(1)
+
+			_, err := w.Write([]byte(`{"apiVersion":"authentication.k8s.io/v1","kind":"SelfSubjectReview",` +
+				`"status":{"userInfo":{"username":"alice","uid":"alice-id"}}}`))
+			require.NoError(t, err)
+		case "/gateway/apis/authorization.k8s.io/v1/selfsubjectaccessreviews":
+			permissionCalls.Add(1)
+
+			_, err := w.Write([]byte(`{"apiVersion":"authorization.k8s.io/v1","kind":"SelfSubjectAccessReview",` +
+				`"status":{"allowed":false,"reason":"gateway permission check reached"}}`))
+			require.NoError(t, err)
+		default:
+			t.Errorf("unexpected gateway path %q", r.URL.Path)
+			http.Error(w, "unexpected path", http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(gateway.Close)
+	ca := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: gateway.Certificate().Raw})
+
+	for _, test := range []struct{ provider, cookie bool }{
+		{false, false}, {false, true}, {true, false}, {true, true},
+	} {
+		kContext := portForwardProxyReviewContext(direct.server.URL, gateway.URL+"/gateway", ca, test.provider)
+		kContext.Cluster.CertificateAuthority = filepath.Join(t.TempDir(), "unused-api-server-ca.pem")
+		store := kubeconfig.NewContextStore()
+		require.NoError(t, store.AddContext(kContext))
+
+		sessions := cache.New[interface{}]()
+
+		t.Cleanup(func() { _ = sessions.Close() })
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			request := httptest.NewRequestWithContext(t.Context(), method, "/clusters/shared/portforward",
+				strings.NewReader(`{"id":"probe","pod":"p","namespace":"default","port":"8080","targetPort":"80"}`))
+			if method == http.MethodGet {
+				request.URL.Path += "/list"
+			}
+
+			request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
+
+			if test.cookie {
+				cookies := httptest.NewRecorder()
+				require.NoError(t, auth.SetTokenCookie(cookies, request, "shared", "alice", "", 3600))
+
+				for _, value := range cookies.Result().Cookies() {
+					if value.MaxAge > 0 {
+						request.AddCookie(value)
+					}
+				}
+			} else {
+				request.Header.Set("Authorization", "Bearer alice")
+			}
+
+			before := identityCalls.Load()
+			response := httptest.NewRecorder()
+			RequestHandler(store, sessions, false, "shared", response, request)
+
+			if method == http.MethodGet {
+				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			} else {
+				require.Equal(t, http.StatusInternalServerError, response.Code)
+				require.Contains(t, response.Body.String(), "gateway permission check reached")
+			}
+
+			require.Equal(t, before+1, identityCalls.Load())
+			require.Zero(t, direct.calls.Load(), "the direct API endpoint must not be used")
+		}
+
+		resolved, err := kContext.APIProxy()
+		require.NoError(t, err)
+		require.Equal(t, gateway.URL+"/gateway", resolved.URL, "the stored context must not be changed")
+	}
+
+	require.EqualValues(t, 4, permissionCalls.Load())
+}
+
+func TestPortForwardRejectsAPIProxyURLCredentials(t *testing.T) {
+	direct := newPortForwardTestAPI(t)
+
+	var calls atomic.Int32
+
+	gateway := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"apiVersion":"authentication.k8s.io/v1","kind":"SelfSubjectReview",` +
+			`"status":{"userInfo":{"username":"alice","uid":"alice-id"}}}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(gateway.Close)
+	ca := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: gateway.Certificate().Raw})
+	credentialed, err := url.Parse(gateway.URL)
+	require.NoError(t, err)
+
+	credentialed.User = url.UserPassword("configured-user", "configured-password")
+
+	for _, provider := range []bool{false, true} {
+		kContext := portForwardProxyReviewContext(direct.server.URL, credentialed.String(), ca, provider)
+		store := kubeconfig.NewContextStore()
+		require.NoError(t, store.AddContext(kContext))
+
+		sessions := cache.New[interface{}]()
+
+		t.Cleanup(func() { _ = sessions.Close() })
+
+		for _, operation := range []struct{ method, path, body string }{
+			{http.MethodGet, "/portforward/list", ""},
+			{http.MethodGet, "/portforward?id=victim", ""},
+			{http.MethodDelete, "/portforward", `{"id":"victim","stopOrDelete":true}`},
+			{http.MethodPost, "/portforward", `{"pod":"p","namespace":"default","targetPort":"80"}`},
+		} {
+			request := httptest.NewRequestWithContext(t.Context(), operation.method, operation.path,
+				strings.NewReader(operation.body))
+			request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
+			request.Header.Set("Authorization", "Bearer forged")
+
+			response := httptest.NewRecorder()
+			RequestHandler(store, sessions, false, "shared", response, request)
+			require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+			require.Zero(t, calls.Load(), "URL credentials must be rejected before contacting the gateway")
+			require.Zero(t, direct.calls.Load())
+		}
+	}
+}
+
+//nolint:funlen // Exercises gateway, CA, and verification changes against surviving owner-scoped sessions.
+func TestPortForwardAPIProxyReplacementIsolatesSessions(t *testing.T) {
+	for _, change := range []string{"gateway", "ca", "skip-verification"} {
+		t.Run(change, func(t *testing.T) {
+			first, firstCA := portForwardTestAuthority(t)
+			second, secondCA := portForwardTestAuthority(t)
+
+			var certificate atomic.Pointer[tls.Certificate]
+			certificate.Store(&first)
+
+			var calls atomic.Int32
+
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+
+				if r.URL.Path == "/apis/authentication.k8s.io/v1/selfsubjectreviews" {
+					_, err := w.Write([]byte(`{"apiVersion":"authentication.k8s.io/v1","kind":"SelfSubjectReview",` +
+						`"status":{"userInfo":{"username":"alice","uid":"alice-id"}}}`))
+					require.NoError(t, err)
+
+					return
+				}
+
+				_, err := w.Write([]byte(`{"apiVersion":"authorization.k8s.io/v1","kind":"SelfSubjectAccessReview",` +
+					`"status":{"allowed":false,"reason":"replacement gateway permission check reached"}}`))
+				require.NoError(t, err)
+			})
+			gateway := httptest.NewUnstartedServer(handler)
+			gateway.TLS = &tls.Config{
+				MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{first},
+				GetConfigForClient: func(*tls.ClientHelloInfo) (*tls.Config, error) {
+					return &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{*certificate.Load()}}, nil
+				},
+			}
+			gateway.StartTLS()
+			t.Cleanup(gateway.Close)
+
+			other := httptest.NewUnstartedServer(handler)
+			other.TLS = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{first}}
+			other.StartTLS()
+			t.Cleanup(other.Close)
+
+			kContext := portForwardProxyReviewContext("https://unused.example", gateway.URL, firstCA, false)
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, store.AddContext(kContext))
+
+			sessions := cache.New[interface{}]()
+
+			t.Cleanup(func() { _ = sessions.Close() })
+
+			key := portForwardOwnerKey("shared", &api.Cluster{
+				Server: gateway.URL, CertificateAuthorityData: firstCA,
+			}, authenticationv1.UserInfo{Username: "alice", UID: "alice-id"})
+			closed := make(chan struct{})
+			portforwardstore(sessions, portForward{
+				ID: "victim", Cluster: "shared", cacheKey: key, Pod: "private-pod", Status: RUNNING, closeChan: closed,
+			})
+
+			router := mux.NewRouter()
+			router.PathPrefix("/clusters/{clusterName}/portforward").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				RequestHandler(store, sessions, false, "shared", w, r)
+			})
+			server := httptest.NewServer(router)
+			t.Cleanup(server.Close)
+			status, body := portForwardTestRequest(t, server.URL, http.MethodGet,
+				"/clusters/shared/portforward/list", "alice", "")
+			require.Equal(t, http.StatusOK, status)
+			require.Contains(t, body, "private-pod")
+
+			original := *kContext.OidcConf.APIProxy
+
+			switch change {
+			case "gateway":
+				kContext.OidcConf.APIProxy.URL = other.URL
+			case "ca":
+				certificate.Store(&second)
+
+				kContext.OidcConf.APIProxy.CACert = string(secondCA)
+			case "skip-verification":
+				kContext.OidcConf.APIProxy.SkipTLSVerify = true
+			}
+
+			gateway.CloseClientConnections()
+
+			before := calls.Load()
+			status, body = portForwardTestRequest(t, server.URL, http.MethodGet,
+				"/clusters/shared/portforward/list", "alice", "")
+			require.Equal(t, http.StatusOK, status, body)
+			require.JSONEq(t, "[]", body)
+			require.Greater(t, calls.Load(), before, "the replacement must authenticate successfully")
+
+			for _, operation := range []struct{ method, path, body string }{
+				{http.MethodGet, "/clusters/shared/portforward?id=victim", ""},
+				{http.MethodDelete, "/clusters/shared/portforward", `{"id":"victim","stopOrDelete":true}`},
+				{http.MethodDelete, "/clusters/shared/portforward", `{"id":"victim","stopOrDelete":false}`},
+			} {
+				status, _ = portForwardTestRequest(t, server.URL, operation.method, operation.path, "alice", operation.body)
+				require.Equal(t, http.StatusNotFound, status)
+			}
+
+			status, body = portForwardTestRequest(t, server.URL, http.MethodPost, "/clusters/shared/portforward",
+				"alice", `{"id":"victim","pod":"p","namespace":"default","port":"8080","targetPort":"80"}`)
+			require.Equal(t, http.StatusInternalServerError, status, body)
+			require.Contains(t, body, "replacement gateway permission check reached")
+
+			select {
+			case <-closed:
+				t.Fatal("replacement gateway stopped the original session")
+			default:
+			}
+
+			*kContext.OidcConf.APIProxy = original
+
+			certificate.Store(&first)
+			gateway.CloseClientConnections()
+
+			status, body = portForwardTestRequest(t, server.URL, http.MethodGet,
+				"/clusters/shared/portforward/list", "alice-refreshed", "")
+			require.Equal(t, http.StatusOK, status)
+			require.Contains(t, body, "private-pod")
+		})
+	}
+}
 
 //nolint:funlen // Covers URL Basic-auth compatibility and request-token rejection on every operation.
 func TestPortForwardRejectsURLCredentialsWithRequestToken(t *testing.T) {
@@ -93,7 +379,7 @@ func TestPortForwardRejectsURLCredentialsWithRequestToken(t *testing.T) {
 				before := calls.Load()
 
 				if stateless {
-					RequestHandlerWithContext(kContext, sessions, false, "shared", response, request)
+					RequestHandlerWithContext(kContext, sessions, false, false, "shared", response, request)
 				} else {
 					RequestHandler(store, sessions, false, "shared", response, request)
 				}
@@ -181,7 +467,7 @@ func TestPortForwardNormalizesSchemeLessServerCredentials(t *testing.T) {
 				before := calls.Load()
 
 				if fresh {
-					RequestHandlerWithContext(kContext, sessions, false, "shared", response, request)
+					RequestHandlerWithContext(kContext, sessions, false, false, "shared", response, request)
 				} else {
 					RequestHandler(store, sessions, false, "shared", response, request)
 				}
@@ -365,12 +651,13 @@ func TestRequestContextRejectsLocalCredentialProviders(t *testing.T) {
 	for _, test := range []struct {
 		name string
 		info *api.AuthInfo
+		want int
 	}{
-		{"token-file", &api.AuthInfo{TokenFile: "/backend/token"}},
-		{"certificate-file", &api.AuthInfo{ClientCertificate: "/backend/client.crt"}},
-		{"key-file", &api.AuthInfo{ClientKey: "/backend/client.key"}},
-		{"exec", &api.AuthInfo{Exec: &api.ExecConfig{Command: "/backend/provider"}}},
-		{"auth-provider", &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{Name: "oidc"}}},
+		{"token-file", &api.AuthInfo{TokenFile: "/backend/token"}, http.StatusBadRequest},
+		{"certificate-file", &api.AuthInfo{ClientCertificate: "/backend/client.crt"}, http.StatusBadRequest},
+		{"key-file", &api.AuthInfo{ClientKey: "/backend/client.key"}, http.StatusBadRequest},
+		{"exec", &api.AuthInfo{Exec: &api.ExecConfig{Command: "/backend/provider"}}, http.StatusBadRequest},
+		{"auth-provider", &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{Name: "oidc"}}, http.StatusUnauthorized},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			kContext := &kubeconfig.Context{
@@ -382,13 +669,13 @@ func TestRequestContextRejectsLocalCredentialProviders(t *testing.T) {
 			response := httptest.NewRecorder()
 			before := upstream.calls.Load()
 
-			RequestHandlerWithContext(kContext, sessions, true, "shared", response, request)
-			require.Equal(t, http.StatusBadRequest, response.Code)
+			RequestHandlerWithContext(kContext, sessions, true, false, "shared", response, request)
+			require.Equal(t, test.want, response.Code)
 			require.Equal(t, before, upstream.calls.Load(), "provider must not be resolved before rejection")
 			request.Header.Set("Authorization", "Bearer bob")
 
 			response = httptest.NewRecorder()
-			RequestHandlerWithContext(kContext, sessions, true, "shared", response, request)
+			RequestHandlerWithContext(kContext, sessions, true, false, "shared", response, request)
 			require.Equal(t, http.StatusOK, response.Code)
 			require.Equal(t, test.info, kContext.AuthInfo, "request authentication must not modify the original context")
 		})

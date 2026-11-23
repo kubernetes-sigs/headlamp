@@ -1722,7 +1722,7 @@ func clearRequestAuthorization(r *http.Request) {
 
 func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader string) {
 	proxyAuthTokenHeader = strings.TrimSpace(proxyAuthTokenHeader)
-	if proxyAuthTokenHeader != "" {
+	if proxyAuthTokenHeader != "" && !strings.EqualFold(proxyAuthTokenHeader, "Authorization") {
 		r.Header.Del(proxyAuthTokenHeader)
 	}
 }
@@ -1734,6 +1734,37 @@ func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
 	}
 
 	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+}
+
+// Keep the shared user-authentication gate without letting credential
+// normalization hide empty or duplicate credentials from the verified-owner handler.
+func (c *HeadlampConfig) authenticatePortForwardRequest(w http.ResponseWriter, r *http.Request, next http.Handler) {
+	authorization, supplied := r.Header["Authorization"]
+	authorization = append([]string(nil), authorization...)
+	cookies := append([]string(nil), r.Header.Values("Cookie")...)
+	request := r.Clone(r.Context())
+
+	if len(authorization) == 1 {
+		if token := auth.BearerTokenValue(authorization[0]); token != "" {
+			request.Header.Set("Authorization", "Bearer "+token)
+		}
+	}
+
+	c.requireUserAuthentication(http.HandlerFunc(func(w http.ResponseWriter, authenticated *http.Request) {
+		authenticated = authenticated.Clone(authenticated.Context())
+		authenticated.Header.Del("Authorization")
+		authenticated.Header.Del("Cookie")
+
+		if supplied {
+			authenticated.Header["Authorization"] = authorization
+		}
+
+		if len(cookies) != 0 {
+			authenticated.Header["Cookie"] = cookies
+		}
+
+		next.ServeHTTP(w, authenticated)
+	})).ServeHTTP(w, request)
 }
 
 func (c *HeadlampConfig) portForwardRequestHandler(w http.ResponseWriter, r *http.Request) {
@@ -1759,8 +1790,12 @@ func (c *HeadlampConfig) portForwardRequestHandler(w http.ResponseWriter, r *htt
 			return
 		}
 
-		portforward.RequestHandlerWithContext(kContext, c.Cache,
-			c.shouldUseUnsafeServiceAccountToken(), key, w, r)
+		resolved := resolvedClusterContext{key: key, context: kContext}
+		r = r.WithContext(context.WithValue(r.Context(), resolvedClusterContextKey{}, resolved))
+		c.authenticatePortForwardRequest(w, r, http.HandlerFunc(func(w http.ResponseWriter, authenticated *http.Request) {
+			portforward.RequestHandlerWithContext(kContext, c.Cache,
+				c.shouldUseUnsafeServiceAccountToken(), !c.UseInCluster, key, w, authenticated)
+		}))
 
 		return
 	}
@@ -1773,8 +1808,10 @@ func (c *HeadlampConfig) portForwardRequestHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	portforward.RequestHandler(c.KubeConfigStore, c.Cache,
-		c.shouldUseUnsafeServiceAccountToken(), contextKey, w, r)
+	c.authenticatePortForwardRequest(w, r, http.HandlerFunc(func(w http.ResponseWriter, authenticated *http.Request) {
+		portforward.RequestHandler(c.KubeConfigStore, c.Cache,
+			c.shouldUseUnsafeServiceAccountToken(), contextKey, w, authenticated)
+	}))
 }
 
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {
