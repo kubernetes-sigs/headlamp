@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type ResourcePoolStatusRequest from '../../lib/k8s/resourcePoolStatusRequest';
@@ -24,17 +25,21 @@ import SimpleTable from '../common/SimpleTable';
 
 const NO_VALUE = '-';
 
-function PoolNotCounted({ pool }: { pool: PoolStatus }) {
+function PoolProblem({ pool }: { pool: PoolStatus }) {
   const { t } = useTranslation(['translation']);
-  const incomplete = isPoolIncomplete(pool);
+
+  // Counts stay valid when only a summary of the pool's partitions or sharing has a problem.
+  let status: 'warning' | 'error' = 'warning';
+  let label = t('translation|Validation error');
+  if (pool.availableDevices === undefined) {
+    const incomplete = isPoolIncomplete(pool);
+    status = incomplete ? 'warning' : 'error';
+    label = incomplete ? t('translation|Incomplete') : t('translation|Not counted');
+  }
 
   return (
-    <StatusLabel
-      status={incomplete ? 'warning' : 'error'}
-      title={pool.validationError}
-      tabIndex={0}
-    >
-      {incomplete ? t('translation|Incomplete') : t('translation|Not counted')}
+    <StatusLabel status={status} title={pool.validationError} tabIndex={0}>
+      {label}
     </StatusLabel>
   );
 }
@@ -52,8 +57,6 @@ export default function PoolAvailabilityTable({ answer, poolName }: PoolAvailabi
     () => answer.pools.filter(pool => !poolName || pool.poolName === poolName),
     [answer, poolName]
   );
-
-  const count = (pool: PoolStatus, value?: number) => (pool.validationError ? NO_VALUE : value);
 
   return (
     <SimpleTable
@@ -80,19 +83,26 @@ export default function PoolAvailabilityTable({ answer, poolName }: PoolAvailabi
         {
           label: t('translation|Available'),
           getter: (pool: PoolStatus) =>
-            pool.validationError ? <PoolNotCounted pool={pool} /> : pool.availableDevices,
+            pool.validationError ? (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+                {pool.availableDevices}
+                <PoolProblem pool={pool} />
+              </Box>
+            ) : (
+              pool.availableDevices ?? NO_VALUE
+            ),
         },
         {
           label: t('translation|Allocated'),
-          getter: (pool: PoolStatus) => count(pool, pool.allocatedDevices),
+          getter: (pool: PoolStatus) => pool.allocatedDevices ?? NO_VALUE,
         },
         {
           label: t('translation|Unavailable'),
-          getter: (pool: PoolStatus) => count(pool, pool.unavailableDevices),
+          getter: (pool: PoolStatus) => pool.unavailableDevices ?? NO_VALUE,
         },
         {
           label: t('translation|Total'),
-          getter: (pool: PoolStatus) => count(pool, pool.totalDevices),
+          getter: (pool: PoolStatus) => pool.totalDevices ?? NO_VALUE,
         },
       ]}
       data={pools}

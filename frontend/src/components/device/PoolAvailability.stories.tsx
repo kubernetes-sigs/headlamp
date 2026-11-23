@@ -144,6 +144,23 @@ IncompletePool.parameters = {
   },
 };
 
+export const ValidationError = Template.bind({});
+ValidationError.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        discovery(true),
+        slices,
+        ...answers({
+          poolCount: 1,
+          pools: [pool('gpu-worker-0', { validationError: 'PartitionTypeMissing: gpu-0' })],
+          conditions: [condition('Complete')],
+        }),
+      ],
+    },
+  },
+};
+
 export const Truncated = Template.bind({});
 Truncated.parameters = {
   msw: {

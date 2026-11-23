@@ -201,6 +201,47 @@ describe('PoolAvailability', () => {
     ]);
   });
 
+  it('shows the counts of a pool that has another validation error', async () => {
+    mockPost.mockResolvedValue(
+      complete([
+        pool('worker-0', { availableDevices: 0, validationError: 'PartitionTypeMissing: gpu-0' }),
+      ])
+    );
+
+    renderPage();
+
+    const label = await screen.findByText('Validation error');
+    expect(label).toHaveAttribute('tabindex', '0');
+    expect(screen.getByLabelText('PartitionTypeMissing: gpu-0')).toBeVisible();
+    expect([...label.closest('tr')!.querySelectorAll('td')].map(cell => cell.textContent)).toEqual([
+      'worker-0',
+      'worker-0',
+      '0Validation error',
+      '1',
+      '0',
+      '4',
+    ]);
+  });
+
+  it('says a pool is not counted when it has no counts for another reason', async () => {
+    mockPost.mockResolvedValue(
+      complete([
+        pool('worker-0', {
+          totalDevices: undefined,
+          allocatedDevices: undefined,
+          availableDevices: undefined,
+          unavailableDevices: undefined,
+          validationError: 'Some other problem',
+        }),
+      ])
+    );
+
+    renderPage();
+
+    expect(await screen.findByText('Not counted')).toBeVisible();
+    expect(screen.queryByText('Incomplete')).not.toBeInTheDocument();
+  });
+
   it.each([
     ['all pools', { driver }],
     ['one pool', { driver, pool: 'worker-0' }],
