@@ -251,6 +251,47 @@ describe('useSidebarItems', () => {
       );
     });
 
+    it('adds Pool Availability when its probe answers after the Devices section is shown', async () => {
+      let answerProbe: (served: boolean) => void = () => {};
+      vi.spyOn(ResourcePoolStatusRequest, 'isEnabled').mockReturnValue(
+        new Promise(resolve => {
+          answerProbe = resolve;
+        })
+      );
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(deviceItems(result.current)).toBeDefined());
+      expect(deviceItems(result.current)).not.toContain('poolAvailability');
+
+      answerProbe(true);
+
+      await waitFor(() => expect(deviceItems(result.current)).toContain('poolAvailability'));
+    });
+
+    it('adds the Devices section when its probe answers last', async () => {
+      let answerProbe: (served: boolean) => void = () => {};
+      vi.spyOn(DeviceClass, 'isEnabled').mockReturnValue(
+        new Promise(resolve => {
+          answerProbe = resolve;
+        })
+      );
+      const poolStatusProbe = vi
+        .spyOn(ResourcePoolStatusRequest, 'isEnabled')
+        .mockResolvedValue(true);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(poolStatusProbe).toHaveBeenCalled());
+      expect(deviceItems(result.current)).toBeUndefined();
+
+      answerProbe(true);
+
+      await waitFor(() => expect(deviceItems(result.current)).toContain('poolAvailability'));
+    });
+
     it('leaves out Pool Availability when the cluster does not serve them', async () => {
       const { result } = renderHook(() => useSidebarItems(), {
         wrapper: wrapper(mockStore({}, [])),
