@@ -133,7 +133,7 @@ func TestStartPortForward(t *testing.T) {
 	req.Body = io.NopCloser(bytes.NewReader(jsonReq))
 	req.Header.Set("Content-Type", "application/json")
 
-	portforward.StartPortForward(kubeConfigStore, ch, false, minikubeName, resp, req)
+	portforward.StartPortForward(kubeConfigStore, ch, false, nil, minikubeName, resp, req)
 
 	res := resp.Result()
 
@@ -214,7 +214,7 @@ func TestStartPortForward(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(stopRespBody), "stopped")
 
-	cacheKey := "PORT_FORWARD_" + minikubeName + id
+	cacheKey := "PORT_FORWARD_" + minikubeName + "\x00" + id
 	chState, err := ch.Get(context.Background(), cacheKey)
 	require.NoError(t, err, "failed to get port-forward state from cache with key %s", cacheKey)
 
@@ -230,7 +230,7 @@ func TestStartPortForward(t *testing.T) {
 	listReq.URL = &url.URL{}
 	listReq = mux.SetURLVars(listReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.GetPortForwards(ch, minikubeName, listResp, listReq)
+	portforward.GetPortForwards(ch, minikubeName, nil, listResp, listReq)
 
 	listRes := listResp.Result()
 
@@ -280,7 +280,7 @@ func TestStartPortForward(t *testing.T) {
 	getReq.URL.RawQuery = "id=" + id
 	getReq = mux.SetURLVars(getReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.GetPortForwardByID(ch, minikubeName, getResp, getReq)
+	portforward.GetPortForwardByID(ch, minikubeName, nil, getResp, getReq)
 
 	getRes := getResp.Result()
 
@@ -361,7 +361,7 @@ func TestGetPortForwardsClusterNameNotExposingUserID(t *testing.T) {
 	listReq.Header.Set("X-HEADLAMP-USER-ID", userID)
 	listReq = mux.SetURLVars(listReq, map[string]string{"clusterName": clusterName})
 
-	portforward.GetPortForwards(ch, contextKey, listResp, listReq)
+	portforward.GetPortForwards(ch, contextKey, nil, listResp, listReq)
 
 	listRes := listResp.Result()
 	defer func() { _ = listRes.Body.Close() }()

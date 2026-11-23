@@ -105,7 +105,19 @@ func (c *HeadlampConfig) requireUserAuthentication(next http.Handler) http.Handl
 			processWebSocketProtocolHeader(r)
 		}
 
-		c.normalizeClusterCredentials(r, clusterName, kContext)
+		// An impersonation-eligible context defers all credential handling -- including
+		// which header or cookie is authoritative -- to the impersonation-aware handler
+		// further down the chain (see HeadlampConfig.impersonationForRequest). That handler
+		// distinguishes a cookie-sourced token from an already-provided header to decide
+		// whether to migrate the session's cookie to the wider, deployment-scoped path; this
+		// normalization would collapse that distinction by promoting the cookie into
+		// Authorization and deleting the Cookie header before it ever gets there. Skipping it
+		// here is safe: RequiresUserAuthentication() below never applies to an in-cluster,
+		// service-account-backed context in the first place (see its own doc comment), which
+		// is exactly what impersonation requires.
+		if !c.shouldUseImpersonationForContext(kContext) {
+			c.normalizeClusterCredentials(r, clusterName, kContext)
+		}
 
 		if kContext.RequiresUserAuthentication() && requestBearerToken(r) == "" {
 			http.Error(w, errUserAuthRequired.Error(), http.StatusUnauthorized)

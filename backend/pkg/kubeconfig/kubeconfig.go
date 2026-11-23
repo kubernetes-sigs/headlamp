@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +99,58 @@ func isSafeRetryRequest(req *http.Request) bool {
 	default:
 		return false
 	}
+}
+
+// impersonationContextKey is unexported so it cannot collide with context keys from other packages.
+type impersonationContextKey struct{}
+
+// ContextWithImpersonation returns a copy of ctx carrying imp for impersonatingRoundTripper to
+// apply at RoundTrip time. The identity travels through the request's context rather than as an
+// HTTP header set on the inbound request: httputil.ReverseProxy removes any header a client names
+// in its own Connection header before the Transport is ever invoked, so a header set earlier (for
+// example directly on the request handed to ProxyRequest) could be stripped by a client sending
+// Connection: Impersonate-User, Impersonate-Group -- silently reverting the proxied call to
+// Headlamp's own service account identity instead of the verified user's.
+func ContextWithImpersonation(ctx context.Context, imp Impersonation) context.Context {
+	return context.WithValue(ctx, impersonationContextKey{}, imp)
+}
+
+// ImpersonationFromContext returns the identity ContextWithImpersonation attached to ctx, if
+// any. It is exported so a package that starts a long-lived background job for a request --
+// one that will keep running after the request itself returns, such as pkg/helm's install,
+// upgrade, uninstall and rollback actions -- can read the expiry out synchronously, before
+// starting that job, without needing req.Context() to still be live for the job's own lifetime
+// (it is not: net/http cancels a request's context once its handler returns).
+func ImpersonationFromContext(ctx context.Context) (Impersonation, bool) {
+	imp, ok := ctx.Value(impersonationContextKey{}).(Impersonation)
+	return imp, ok
+}
+
+// impersonatingRoundTripper sets Impersonate-User/Impersonate-Group from the identity carried on
+// each request's context. It must wrap as close to the wire as possible: httputil.ReverseProxy
+// strips headers a client names in its own Connection header before calling Transport.RoundTrip,
+// so setting these headers here -- after that has already happened -- is what keeps a client from
+// being able to strip them by naming them as hop-by-hop.
+type impersonatingRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (rt *impersonatingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	imp, ok := ImpersonationFromContext(req.Context())
+	if !ok {
+		return rt.base.RoundTrip(req)
+	}
+
+	newReq := req.Clone(req.Context())
+	newReq.Header.Del("Impersonate-User")
+	newReq.Header.Del("Impersonate-Group")
+	newReq.Header.Set("Impersonate-User", imp.Username)
+
+	for _, group := range imp.Groups {
+		newReq.Header.Add("Impersonate-Group", group)
+	}
+
+	return rt.base.RoundTrip(newReq)
 }
 
 // buildUserAgent creates a User-Agent string for Headlamp.
@@ -238,6 +291,54 @@ func (c *Context) RequiresUserAuthentication() bool {
 
 	return a.AuthProvider == nil ||
 		(a.AuthProvider.Config["id-token"] == "" && a.AuthProvider.Config["refresh-token"] == "")
+}
+
+// Impersonation is the identity a request acts as, sent as Impersonate-User and
+// Impersonate-Group. It must only be built from verified OIDC claims.
+type Impersonation struct {
+	Username string
+	Groups   []string
+	// Expiry is the verified ID token's expiry, when known. A connection must not be reused
+	// past this time by an automatic reconnect, since that reuses this stored identity without
+	// re-verifying a token for it.
+	Expiry time.Time
+}
+
+// Expired reports whether imp's verified token has expired. A zero Expiry means it is unknown --
+// which should not happen for a token the verifier accepted -- and is treated as not expired
+// rather than refusing silently.
+func (imp Impersonation) Expired() bool {
+	return !imp.Expiry.IsZero() && time.Now().After(imp.Expiry)
+}
+
+// SameGroupSet reports whether a and b contain the same group membership, ignoring order and
+// duplicates: group membership is a set, not a sequence, and a refreshed token's claims are not
+// guaranteed to repeat the same order (or dedupe identically) as the token it replaces, even for
+// the identical identity. Comparing them as ordered slices would otherwise reject a refreshed
+// token's connection as "a different identity" purely because of reordering, or treat a
+// duplicate entry (for example a refresh that changes ["dev", "dev"] to ["dev"]) as a change in
+// authorization when it carries the same semantics either way.
+func SameGroupSet(a, b []string) bool {
+	sortedA := slices.Clone(a)
+	sortedB := slices.Clone(b)
+
+	slices.Sort(sortedA)
+	slices.Sort(sortedB)
+
+	return slices.Equal(slices.Compact(sortedA), slices.Compact(sortedB))
+}
+
+// WithImpersonation returns a copy of the context whose client configs act as imp.
+func (c *Context) WithImpersonation(imp Impersonation) *Context {
+	copied := c.Copy()
+	if copied.AuthInfo == nil {
+		copied.AuthInfo = &api.AuthInfo{}
+	}
+
+	copied.AuthInfo.Impersonate = imp.Username
+	copied.AuthInfo.ImpersonateGroups = imp.Groups
+
+	return copied
 }
 
 type OidcConfig struct {
@@ -784,12 +885,25 @@ func (c *Context) SourceStr() string {
 // transport serves both cases.
 func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 	// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
-	// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
+	// as it can indicate the API server does not trust the same OIDC provider as Headlamp. This
+	// does not apply to an impersonated request: its actual credential is the service account
+	// token, not the user's OIDC bearer token, so a 401 there means something else entirely (for
+	// example a missing RBAC grant for impersonation), and the hint would be actively misleading.
+	//
+	// Kubeconfig-native impersonation (c.AuthInfo.Impersonate) is static per context, so it could
+	// be checked once here. --oidc-use-impersonation's identity is not: it travels on each
+	// request's own context (see ContextWithImpersonation), set by the caller per request, not
+	// by this Context. So both are checked together inside ModifyResponse, per response, rather
+	// than only once when the proxy is set up.
 	if c.AuthType() == "oidc" {
 		// Log at most once per proxy to avoid flooding the logs on repeated 401s.
 		var warnOnce sync.Once
 
 		proxy.ModifyResponse = func(resp *http.Response) error {
+			if isImpersonatedRequest(c, resp.Request) {
+				return nil
+			}
+
 			authHeader := ""
 			if resp.Request != nil {
 				authHeader = resp.Request.Header.Get("Authorization")
@@ -824,9 +938,11 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 		roundTripper = &execCredentialRetryRoundTripper{base: roundTripper}
 	}
 
+	// impersonatingRoundTripper must wrap closest to the underlying transport: see its
+	// doc comment for why that is what keeps a client from stripping its own headers.
 	// Wrap the round tripper to add Headlamp User-Agent
 	proxy.Transport = &userAgentRoundTripper{
-		base:      roundTripper,
+		base:      &impersonatingRoundTripper{base: roundTripper},
 		userAgent: buildUserAgent(),
 	}
 
@@ -856,6 +972,24 @@ func (c *Context) SetupProxy() error {
 	c.proxy = proxy
 
 	return nil
+}
+
+// isImpersonatedRequest reports whether req is proxied under an impersonated identity for c,
+// checking both kubeconfig-native impersonation (c.AuthInfo.Impersonate, static per context) and
+// --oidc-use-impersonation's (carried on req's own context -- see ContextWithImpersonation --
+// since that identity is set by the caller per request, not by c).
+func isImpersonatedRequest(c *Context, req *http.Request) bool {
+	if c.AuthInfo != nil && c.AuthInfo.Impersonate != "" {
+		return true
+	}
+
+	if req == nil {
+		return false
+	}
+
+	_, ok := ImpersonationFromContext(req.Context())
+
+	return ok
 }
 
 // AuthType returns the authentication type for the context.
@@ -1589,6 +1723,7 @@ func GetInClusterContext(
 	oidcAPIProxySkipTLSVerify bool,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
+	oidcUseImpersonation bool,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -1613,7 +1748,27 @@ func GetInClusterContext(
 		oidcAPIProxySkipTLSVerify,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
+		oidcUseImpersonation,
 	), nil
+}
+
+// newInClusterAuthInfo returns the AuthInfo for an in-cluster context, loading Headlamp's own
+// service account token file when either mode needs it: unsafe mode uses it to authenticate
+// every user's request directly, and impersonation mode uses it as the trusted credential it
+// impersonates OIDC users through (see UsesInClusterServiceAccountToken and
+// shouldUseImpersonationForContext).
+func newInClusterAuthInfo(
+	clusterConfig *rest.Config,
+	unsafeUseServiceAccountToken, oidcUseImpersonation bool,
+	serviceAccountTokenPath string,
+) *api.AuthInfo {
+	authInfo := &api.AuthInfo{}
+
+	if unsafeUseServiceAccountToken || oidcUseImpersonation {
+		authInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
+	}
+
+	return authInfo
 }
 
 func newInClusterContextFromConfig(
@@ -1630,6 +1785,7 @@ func newInClusterContextFromConfig(
 	oidcAPIProxySkipTLSVerify bool,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
+	oidcUseImpersonation bool,
 ) *Context {
 	cluster := &api.Cluster{
 		Server:                   clusterConfig.Host,
@@ -1647,11 +1803,9 @@ func newInClusterContextFromConfig(
 	}
 	contextName = MakeDNSFriendly(contextName)
 
-	inClusterAuthInfo := &api.AuthInfo{}
-
-	if unsafeUseServiceAccountToken {
-		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
-	}
+	inClusterAuthInfo := newInClusterAuthInfo(
+		clusterConfig, unsafeUseServiceAccountToken, oidcUseImpersonation, serviceAccountTokenPath,
+	)
 
 	var oidcConf *OidcConfig
 

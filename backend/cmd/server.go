@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/cli/browser"
+	"github.com/gobwas/glob"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -132,6 +133,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		ForceTheme:                   conf.ForceTheme,
 		UnsafeUseServiceAccountToken: conf.UnsafeUseServiceAccountToken,
 		ServiceAccountTokenPath:      conf.ServiceAccountTokenPath,
+		OidcUseImpersonation:         conf.OidcUseImpersonation,
 	}
 }
 
@@ -231,6 +233,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	setupKubeConfigStoreWatcher(kubeConfigStore)
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
+	multiplexer.oidcUseImpersonationEnabled = conf.OidcUseImpersonation
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
@@ -259,28 +262,66 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcAPIProxyCACert:        loadOidcCACert(conf.OidcAPIProxyCAFile),
 	}
 
+	applyProxyAuthSettings(cfg, conf)
+
+	compiledProxyURLs := compileProxyURLPatternsOrExit(cfg.ProxyURLs)
+
+	cfg.AdminSettings = loadAdminSettingsOrExit(conf.SettingsPath)
+
+	headlampConfig := &HeadlampConfig{
+		HeadlampConfig:    cfg,
+		compiledProxyURLs: compiledProxyURLs,
+	}
+
+	wireMultiplexerImpersonation(headlampConfig, multiplexer)
+
+	return headlampConfig
+}
+
+// wireMultiplexerImpersonation lets the multiplexer resolve a WebSocket message's identity
+// through the same verified-impersonation path cluster API requests use.
+func wireMultiplexerImpersonation(headlampConfig *HeadlampConfig, multiplexer *Multiplexer) {
+	// The multiplexer calls this once per client message with no per-message response of its
+	// own (see impersonationForRequest's doc comment), so w is always nil here.
+	multiplexer.resolveImpersonation = func(
+		r *http.Request, clusterName string, kContext *kubeconfig.Context,
+	) (*kubeconfig.Impersonation, error) {
+		return headlampConfig.impersonationForRequest(nil, r, clusterName, kContext)
+	}
+}
+
+// applyProxyAuthSettings copies the trusted-header proxy-auth configuration onto cfg.
+func applyProxyAuthSettings(cfg *headlampconfig.HeadlampConfig, conf *config.Config) {
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
 	cfg.ProxyAuthUsernameHeader = conf.ProxyAuthUsernameHeader
 	cfg.ProxyAuthGroupHeader = conf.ProxyAuthGroupHeader
 	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
 	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
+}
 
-	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
+// compileProxyURLPatternsOrExit compiles the configured --proxy-urls patterns, exiting the
+// process on an invalid pattern: a malformed glob here is a configuration error the operator
+// must fix before the server can safely know which URLs it is allowed to proxy to.
+func compileProxyURLPatternsOrExit(patterns []string) []glob.Glob {
+	compiledProxyURLs, err := compileProxyURLPatterns(patterns)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
 		os.Exit(1)
 	}
 
-	cfg.AdminSettings, err = loadAdminSettings(conf.SettingsPath)
+	return compiledProxyURLs
+}
+
+// loadAdminSettingsOrExit reads and validates the admin settings JSON file, exiting the
+// process if the configured path cannot be read or does not contain valid JSON.
+func loadAdminSettingsOrExit(path string) json.RawMessage {
+	adminSettings, err := loadAdminSettings(path)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading admin settings")
 		os.Exit(1)
 	}
 
-	return &HeadlampConfig{
-		HeadlampConfig:    cfg,
-		compiledProxyURLs: compiledProxyURLs,
-	}
+	return adminSettings
 }
 
 // loadAdminSettings reads and validates the admin settings JSON file.
@@ -374,6 +415,13 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 	r = r.WithContext(context.WithValue(r.Context(), resolvedClusterContextKey{}, resolved))
 	c.normalizeClusterCredentials(r, mux.Vars(r)["clusterName"], kContext)
 
+	// Cache entries are keyed by cluster and URL, not by identity. A request that acts as a
+	// verified user must neither read another identity's response nor store its own.
+	if c.shouldUseImpersonationForContext(kContext) {
+		next.ServeHTTP(w, r)
+		return
+	}
+
 	connection, err := k8cache.ContextCacheKey(contextKey, kContext)
 	if err != nil {
 		next.ServeHTTP(w, r)
@@ -384,24 +432,39 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return // The mutation was forwarded exactly once.
 	}
 
+	key, ok := cacheRequestKey(c, next, w, r, contextKey, kContext, connection)
+	if !ok {
+		return
+	}
+
+	serveCachedResource(c, next, w, r, span, key, kContext)
+}
+
+// cacheRequestKey resolves the cache key a cacheable, authorized request should read or write
+// under. ok is false whenever the request was already forwarded to next and the caller must
+// not do anything further with it -- for a request this cache does not apply to, or one this
+// caller is not authorized to make, in which case a response has already been written too.
+func cacheRequestKey(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request,
+	contextKey string, kContext *kubeconfig.Context, connection string,
+) (key string, ok bool) {
 	missingUserToken := kContext.UsesInClusterServiceAccountToken() &&
 		!c.shouldUseUnsafeServiceAccountTokenForContext(kContext) &&
 		requestBearerToken(r) == ""
 	if missingUserToken || !k8cache.CacheableRequest(r) {
 		next.ServeHTTP(w, r)
-		return
+		return "", false
 	}
 
 	key, err := k8cache.GenerateRequestKey(r, connection)
 	if err != nil {
 		next.ServeHTTP(w, r)
-		return
+		return "", false
 	}
 
 	allowed, err := k8cache.IsAllowed(contextKey, kContext, r)
 	if err != nil {
 		next.ServeHTTP(w, r)
-		return
+		return "", false
 	}
 
 	if !allowed {
@@ -409,10 +472,10 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 			logger.Log(logger.LevelError, nil, err, "failed to return authorization response")
 		}
 
-		return
+		return "", false
 	}
 
-	serveCachedResource(c, next, w, r, span, key, kContext)
+	return key, true
 }
 
 // serveCachedResource forwards the request while the shared watch of its resource is not
