@@ -418,6 +418,83 @@ describe('PortForward stop handler', () => {
     });
   });
 
+  it('resolves a service digit-prefixed named target port from its selected pod when starting', async () => {
+    const pod = makePod();
+    pod.spec.containers = [
+      {
+        name: 'web',
+        image: 'nginx',
+        imagePullPolicy: 'IfNotPresent',
+        ports: [{ name: '123-abc', containerPort: 8080, protocol: 'TCP' }],
+      },
+    ];
+    mockUsePodList.mockReturnValue([[pod], null]);
+    mockListPortForward.mockResolvedValue([]);
+    mockStartPortForward.mockResolvedValue({ ...runningPortForward, targetPort: '8080' });
+    const service = {
+      kind: 'Service',
+      cluster: 'service-cluster',
+      metadata: { ...pod.metadata, name: 'web-service' },
+      jsonData: { spec: { selector: { app: 'web', tier: 'frontend' } } },
+    };
+    render(
+      <TestContext>
+        <PortForward containerPort="123-abc" resource={service} />
+      </TestContext>
+    );
+    await waitFor(() => expect(mockListPortForward).toHaveBeenCalledWith('service-cluster'));
+    fireEvent.click(screen.getByLabelText(/Start port forward/i));
+    expect(screen.getByRole('dialog')).toHaveTextContent('8080');
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+    await waitFor(() =>
+      expect(mockStartPortForward).toHaveBeenCalledWith(
+        'service-cluster',
+        'default',
+        'my-pod',
+        8080,
+        'web-service',
+        'default',
+        undefined,
+        'localhost',
+        undefined
+      )
+    );
+  });
+
+  it('handles purely numeric string targetPort without attempting named-port lookup', async () => {
+    const pod = makePod();
+    mockUsePodList.mockReturnValue([[pod], null]);
+    mockListPortForward.mockResolvedValue([]);
+    mockStartPortForward.mockResolvedValue({ ...runningPortForward, targetPort: '9090' });
+    const service = {
+      kind: 'Service',
+      cluster: 'service-cluster',
+      metadata: { ...pod.metadata, name: 'web-service' },
+      jsonData: { spec: { selector: { app: 'web', tier: 'frontend' } } },
+    };
+    render(
+      <TestContext>
+        <PortForward containerPort="9090" resource={service} />
+      </TestContext>
+    );
+    await waitFor(() => expect(mockListPortForward).toHaveBeenCalledWith('service-cluster'));
+    fireEvent.click(screen.getByLabelText(/Start port forward/i));
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+    await waitFor(() =>
+      expect(mockStartPortForward).toHaveBeenCalledWith(
+        'service-cluster',
+        'default',
+        'my-pod',
+        9090,
+        'web-service',
+        'default',
+        undefined,
+        'localhost',
+        undefined
+      )
+    );
+  });
+
   it('chooses a free Docker Desktop port after a collision and binds all interfaces', async () => {
     mockIsDockerDesktop.mockReturnValue(true);
     mockListPortForward.mockResolvedValue([]);
