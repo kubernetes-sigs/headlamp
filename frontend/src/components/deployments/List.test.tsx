@@ -76,4 +76,32 @@ describe('DeploymentsList column definitions and renderers', () => {
     const imagesCol = props.columns.find((c: any) => c.id === 'images');
     expect(imagesCol.getValue(bareDeployment)).toBe('');
   });
+
+  it.each([
+    ['True', 'error'],
+    ['False', 'success'],
+    ['Unknown', 'error'],
+  ])('colors ReplicaFailure=%s as %s', (status, expected) => {
+    render(<DeploymentsList />);
+
+    const props = mockResourceListView.mock.calls[0][0];
+    const conditionsCol = props.columns.find((c: any) => c.id === 'conditions');
+    const deployment = new Deployment({
+      apiVersion: 'apps/v1',
+      kind: 'Deployment',
+      metadata: { name: 'test-deployment', namespace: 'default' },
+      status: {
+        conditions: [
+          { type: 'Available', status: 'True' },
+          { type: 'ReplicaFailure', status },
+        ],
+      },
+    } as any);
+
+    const labels = conditionsCol.render(deployment);
+    const colors = Object.fromEntries(
+      labels.map((label: any) => [label.key, label.props.children.props.status])
+    );
+    expect(colors).toEqual({ Available: 'success', ReplicaFailure: expected });
+  });
 });
