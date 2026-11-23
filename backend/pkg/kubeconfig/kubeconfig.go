@@ -696,15 +696,15 @@ func retainLastClientCertificateForTransport(t *http.Transport, certFile, keyFil
 	}
 }
 
-// makeTransportFor creates an HTTP transport configuration with special handling for
-// Windows systems to prevent terminal window flashing during exec-based authentication.
+// makeTransportFor creates an HTTP transport configuration. Exec-based authentication uses
+// Headlamp's authenticator, which also prevents terminal window flashing on Windows.
 func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
 	if conf == nil {
 		return nil, fmt.Errorf("configuration cannot be nil")
 	}
 
-	// Use standard transport for non-Windows systems or when ExecProvider is not configured
-	if conf.ExecProvider == nil || runtime.GOOS != "windows" {
+	// Use standard transport when ExecProvider is not configured
+	if conf.ExecProvider == nil {
 		return rest.TransportFor(conf)
 	}
 

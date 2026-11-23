@@ -19,7 +19,13 @@ limitations under the License.
 package exec
 
 import (
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"syscall"
+	"time"
 )
 
 func GetSysProcAttr() *syscall.SysProcAttr {
@@ -27,5 +33,25 @@ func GetSysProcAttr() *syscall.SysProcAttr {
 	// since we do not want it flashing when the exec plugin is running.
 	return &syscall.SysProcAttr{
 		HideWindow: true,
+	}
+}
+
+// killProcessTreeOnCancel makes a timeout also stop the processes the plugin
+// started, like the real binary behind a .cmd wrapper.
+func killProcessTreeOnCancel(cmd *exec.Cmd) {
+	cmd.Cancel = func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		taskkill := filepath.Join(os.Getenv("SystemRoot"), "System32", "taskkill.exe")
+		kill := exec.CommandContext(ctx, taskkill, //nolint:gosec // Fixed system binary and our own child's pid.
+			"/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid))
+		kill.SysProcAttr = GetSysProcAttr()
+
+		if err := kill.Run(); err != nil {
+			return cmd.Process.Kill()
+		}
+
+		return nil
 	}
 }

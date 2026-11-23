@@ -19,6 +19,7 @@ limitations under the License.
 package exec
 
 import (
+	"os/exec"
 	"syscall"
 )
 
@@ -26,4 +27,17 @@ func GetSysProcAttr() *syscall.SysProcAttr {
 	// Nothing here since it's not needed. It's just for keeping the
 	// multi-platform code working.
 	return nil
+}
+
+// killProcessTreeOnCancel runs the plugin in its own process group, so a timeout
+// also stops the processes it started.
+func killProcessTreeOnCancel(cmd *exec.Cmd) {
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+
+	cmd.SysProcAttr.Setpgid = true
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 }

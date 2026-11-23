@@ -15,5 +15,13 @@
 # limitations under the License.
 
 >&2 echo "$KUBERNETES_EXEC_INFO"
+if [ -n "$TEST_CALLS_FILE" ]; then echo x >> "$TEST_CALLS_FILE"; fi
+if [ -n "$TEST_STDERR" ]; then >&2 echo "$TEST_STDERR"; fi
+if [ -n "$TEST_SLEEP_SECONDS" ]; then
+  sleep "$TEST_SLEEP_SECONDS" &
+  if [ -n "$TEST_CHILD_PID_FILE" ]; then echo $! > "$TEST_CHILD_PID_FILE"; fi
+  wait $!
+fi
+if [ -n "$TEST_STDERR_HELPER_SECONDS" ]; then sleep "$TEST_STDERR_HELPER_SECONDS" > /dev/null & fi
 echo "$TEST_OUTPUT"
 exit "${TEST_EXIT_CODE:-0}"
