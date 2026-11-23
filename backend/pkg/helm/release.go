@@ -732,14 +732,14 @@ var verifyUserTimeout = 10 * time.Second
 
 // Verify the user has minimal privileges by performing a whoami check.
 // This prevents spurious downloads by ensuring basic authentication before proceeding.
-func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
+func VerifyUser(actionConfig *action.Configuration, req InstallRequest) error {
 	restConfig, err := actionConfig.RESTClientGetter.ToRESTConfig()
 	if err != nil {
 		logger.Log(logger.LevelError,
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "getting REST config to verify user")
 
-		return false
+		return err
 	}
 
 	cs, err := kubernetes.NewForConfig(restConfig)
@@ -748,7 +748,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "creating client to verify user")
 
-		return false
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), verifyUserTimeout)
@@ -761,17 +761,18 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "checking user identity")
 
-		return false
+		return err
 	}
 
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
+		privErr := errors.New("insufficient privileges: user is not authorized to perform this operation")
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			errors.New("insufficient privileges"), "user is not authorized to perform this operation")
+			privErr, "checking user identity")
 
-		return false
+		return privErr
 	}
 
-	return true
+	return nil
 }
 
 func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration) {
@@ -782,7 +783,8 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.CreateNamespace = req.CreateNamespace
 	installClient.Version = req.Version
 
-	if !VerifyUser(actionConfig, req) {
+	if err := VerifyUser(actionConfig, req); err != nil {
+		h.setReleaseStatusSilent("install", req.Name, failed, err)
 		return
 	}
 
