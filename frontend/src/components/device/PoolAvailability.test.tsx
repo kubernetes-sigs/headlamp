@@ -156,6 +156,23 @@ describe('PoolAvailability', () => {
     expect(mockPost).toHaveBeenCalledTimes(1);
   });
 
+  it('says when the driver has no pools', async () => {
+    mockPost.mockResolvedValue(complete([]));
+
+    renderPage();
+
+    expect(await screen.findByText('This driver has no pools.', { selector: 'p' })).toBeVisible();
+  });
+
+  it('does not say the driver has no pools when only the chosen one is missing', async () => {
+    mockPost.mockResolvedValue(complete([pool('worker-0')]));
+
+    renderPage({ driver, pool: 'gone' });
+
+    expect(await screen.findByText('No results found', { selector: 'p' })).toBeVisible();
+    expect(screen.queryByText('This driver has no pools.')).not.toBeInTheDocument();
+  });
+
   it('says a pool is incomplete instead of showing zero devices', async () => {
     mockPost.mockResolvedValue(
       complete([

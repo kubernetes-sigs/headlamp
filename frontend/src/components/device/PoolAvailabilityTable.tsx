@@ -96,7 +96,9 @@ export default function PoolAvailabilityTable({ answer, poolName }: PoolAvailabi
         },
       ]}
       data={pools}
-      emptyMessage={t('translation|This driver has no pools.')}
+      emptyMessage={
+        poolName ? t('translation|No results found') : t('translation|This driver has no pools.')
+      }
     />
   );
 }
