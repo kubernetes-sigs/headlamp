@@ -2898,6 +2898,12 @@ func decodeClusterRequest(w http.ResponseWriter, r *http.Request) (ClusterReq, e
 		return ClusterReq{}, errors.New("please provide a 'name' and 'server' fields at least")
 	}
 
+	// A blank name would add a cluster that cannot be opened or deleted by name.
+	if clusterReq.KubeConfig == nil &&
+		(strings.TrimSpace(*clusterReq.Name) == "" || strings.TrimSpace(*clusterReq.Server) == "") {
+		return ClusterReq{}, errors.New("'name' and 'server' must not be blank")
+	}
+
 	return clusterReq, nil
 }
 

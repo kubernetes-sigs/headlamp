@@ -772,6 +772,48 @@ func TestDynamicClusters(t *testing.T) {
 	}
 }
 
+// TestDynamicClusterRejectsBlankNameOrServer checks that adding a cluster by name and server
+// fails when either is blank, instead of adding a cluster that cannot be opened by name.
+func TestDynamicClusterRejectsBlankNameOrServer(t *testing.T) {
+	tests := []struct {
+		name   string
+		server string
+	}{
+		{"", "https://1.2.3.4"},
+		{"   ", "https://1.2.3.4"},
+		{"blank-server", "   "},
+	}
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("name %q server %q", tc.name, tc.server), func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("APPDATA", t.TempDir())
+
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						EnableDynamicClusters: true,
+						KubeConfigStore:       kubeconfig.NewContextStore(),
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
+			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
+
+			r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster",
+				ClusterReq{Name: &tc.name, Server: &tc.server})
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, r.Code, r.Body.String())
+			assert.Contains(t, r.Body.String(), "must not be blank")
+			assert.Empty(t, c.getClusters())
+		})
+	}
+}
+
 func TestDynamicClustersKubeConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
