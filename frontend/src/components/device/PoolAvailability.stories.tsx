@@ -40,7 +40,9 @@ const discovery = (served: boolean) =>
     })
   );
 
-const slices = http.get(`${API_BASE}/apis/resource.k8s.io/v1/resourceslices`, () =>
+const slicesUrl = `${API_BASE}/apis/resource.k8s.io/v1/resourceslices`;
+
+const slices = http.get(slicesUrl, () =>
   HttpResponse.json({ kind: 'ResourceSliceList', items: RESOURCE_SLICE_DUMMY_DATA, metadata: {} })
 );
 
@@ -223,6 +225,50 @@ export const PickADriver = Template.bind({});
 PickADriver.args = { search: {} };
 PickADriver.parameters = {
   msw: { handlers: { story: [discovery(true), slices] } },
+};
+
+export const NoDrivers = Template.bind({});
+NoDrivers.args = { search: {} };
+NoDrivers.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        discovery(true),
+        http.get(slicesUrl, () =>
+          HttpResponse.json({ kind: 'ResourceSliceList', items: [], metadata: {} })
+        ),
+      ],
+    },
+  },
+};
+
+export const LoadingDrivers = Template.bind({});
+LoadingDrivers.args = { search: {} };
+LoadingDrivers.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [discovery(true), http.get(slicesUrl, () => new Promise(() => {}))],
+    },
+  },
+};
+
+export const DriversError = Template.bind({});
+DriversError.args = { search: {} };
+DriversError.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        discovery(true),
+        http.get(slicesUrl, () =>
+          HttpResponse.json(
+            { kind: 'Status', reason: 'Forbidden', code: 403, message: 'forbidden' },
+            { status: 403 }
+          )
+        ),
+      ],
+    },
+  },
 };
 
 export const NotServed = Template.bind({});

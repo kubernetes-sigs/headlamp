@@ -31,6 +31,7 @@ import ResourcePoolStatusRequest, {
   usePoolStatusRequest,
 } from '../../lib/k8s/resourcePoolStatusRequest';
 import ResourceSlice from '../../lib/k8s/resourceSlice';
+import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import Loader from '../common/Loader';
 import SectionBox from '../common/SectionBox';
 import PoolAvailabilityTable from './PoolAvailabilityTable';
@@ -119,7 +120,7 @@ export default function PoolAvailability() {
     queryKey: ['poolStatusServed', cluster],
     queryFn: () => ResourcePoolStatusRequest.isEnabled(cluster),
   });
-  const { items: slices } = ResourceSlice.useList({ cluster });
+  const { items: slices, errors: slicesErrors } = ResourceSlice.useList({ cluster });
   const drivers = useMemo(
     () =>
       [
@@ -148,16 +149,25 @@ export default function PoolAvailability() {
         )}
       </Alert>
     );
-  } else if (!driver) {
+  } else if (driver) {
+    body = <PoolStatusResult status={status} poolName={pool} />;
+  } else if (drivers.length > 0) {
     body = (
       <Typography color="text.secondary">
-        {slices && drivers.length === 0
-          ? t('translation|No driver publishes devices in this cluster.')
-          : t('translation|Pick a driver to see how many of its devices are free.')}
+        {t('translation|Pick a driver to see how many of its devices are free.')}
       </Typography>
     );
+  } else if (slicesErrors) {
+    // The error shown above the body says why there is no driver to pick.
+    body = null;
+  } else if (!slices) {
+    body = <Loader title={t('translation|Loading')} />;
   } else {
-    body = <PoolStatusResult status={status} poolName={pool} />;
+    body = (
+      <Typography color="text.secondary">
+        {t('translation|No driver publishes devices in this cluster.')}
+      </Typography>
+    );
   }
 
   return (
@@ -194,6 +204,7 @@ export default function PoolAvailability() {
           </Button>
         </Box>
       )}
+      {isServed && <ClusterGroupErrorMessage errors={slicesErrors} />}
       {body}
     </SectionBox>
   );

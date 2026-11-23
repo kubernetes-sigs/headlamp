@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type {
   KubeResourcePoolStatusRequest,
   PoolStatus,
@@ -95,15 +96,19 @@ const renderPage = (search: Record<string, string> = { driver }) =>
     </QueryClientProvider>
   );
 
+const mockSlices = (result: { items: ResourceSlice[] | null; errors: ApiError[] | null }) =>
+  vi.spyOn(ResourceSlice, 'useList').mockReturnValue(result as any);
+
 describe('PoolAvailability', () => {
   beforeEach(() => {
     mockPost.mockReset();
     mockRequest.mockReset();
     mockRemove.mockReset().mockResolvedValue({});
     vi.spyOn(ResourcePoolStatusRequest, 'isEnabled').mockResolvedValue(true);
-    vi.spyOn(ResourceSlice, 'useList').mockReturnValue({
+    mockSlices({
       items: RESOURCE_SLICE_DUMMY_DATA.map(slice => new ResourceSlice(slice, 'gpu-cluster')),
-    } as any);
+      errors: null,
+    });
   });
 
   afterEach(() => {
@@ -322,5 +327,44 @@ describe('PoolAvailability', () => {
       await screen.findByText('Pick a driver to see how many of its devices are free.')
     ).toBeVisible();
     expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('says no driver publishes devices only once the slices are listed', async () => {
+    mockSlices({ items: [], errors: null });
+
+    renderPage({});
+
+    expect(await screen.findByText('No driver publishes devices in this cluster.')).toBeVisible();
+  });
+
+  it('waits for the slices before saying what there is to pick', async () => {
+    mockSlices({ items: null, errors: null });
+
+    renderPage({});
+
+    expect(await screen.findByLabelText('Driver')).toBeVisible();
+    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeVisible();
+    expect(screen.queryByText(/No driver publishes devices/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pick a driver/)).not.toBeInTheDocument();
+  });
+
+  it.each([null, []])('says when the slices cannot be listed, with %s items', async items => {
+    mockSlices({ items, errors: [new ApiError('Bad gateway', { status: 502 })] });
+
+    renderPage({});
+
+    expect(await screen.findByText('Failed to load resources')).toBeVisible();
+    expect(screen.queryByText(/No driver publishes devices/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pick a driver/)).not.toBeInTheDocument();
+  });
+
+  it('still answers for the driver it was opened for when the slices cannot be listed', async () => {
+    mockSlices({ items: null, errors: [new ApiError('Forbidden', { status: 403 })] });
+    mockPost.mockResolvedValue(complete([pool('worker-0')]));
+
+    renderPage();
+
+    expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
+    expect(screen.getByText("You don't have permissions to view this resource")).toBeVisible();
   });
 });
