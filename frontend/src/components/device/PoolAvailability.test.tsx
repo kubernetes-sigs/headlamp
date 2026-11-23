@@ -135,29 +135,25 @@ describe('PoolAvailability', () => {
     );
   });
 
-  it('asks only about the pool it was opened for, and can show all pools', async () => {
-    mockPost.mockResolvedValue(complete([pool('worker-0')]));
+  it('shows only the pool it was opened for, and all pools without asking again', async () => {
+    mockPost.mockResolvedValue(complete([pool('worker-0'), pool('worker-1')]));
 
     renderPage({ driver, pool: 'worker-0' });
 
-    await screen.findByText('Pool: worker-0');
-    expect(mockPost).toHaveBeenLastCalledWith(
+    expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
+    expect(screen.queryByText('worker-1', { selector: 'td' })).not.toBeInTheDocument();
+    expect(mockPost).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ spec: { driver, poolName: 'worker-0' } }),
+      expect.objectContaining({ spec: { driver } }),
       true,
       { cluster: 'gpu-cluster' }
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'Show all pools' }));
 
-    await waitFor(() =>
-      expect(mockPost).toHaveBeenLastCalledWith(
-        expect.any(String),
-        expect.objectContaining({ spec: { driver } }),
-        true,
-        { cluster: 'gpu-cluster' }
-      )
-    );
+    expect(await screen.findByText('worker-1', { selector: 'td' })).toBeVisible();
+    expect(screen.getByText('worker-0', { selector: 'td' })).toBeVisible();
+    expect(mockPost).toHaveBeenCalledTimes(1);
   });
 
   it('says a pool is incomplete instead of showing zero devices', async () => {
@@ -188,12 +184,15 @@ describe('PoolAvailability', () => {
     ]);
   });
 
-  it('says when only some of the pools are shown', async () => {
-    mockPost.mockResolvedValue(complete([pool('worker-0')], 150));
+  it.each([
+    ['all pools', { driver }],
+    ['one pool', { driver, pool: 'worker-0' }],
+  ])('says when the cluster left out some pools, showing %s', async (_shown, search) => {
+    mockPost.mockResolvedValue(complete([pool('worker-0'), pool('worker-1')], 150));
 
-    renderPage();
+    renderPage(search as Record<string, string>);
 
-    expect(await screen.findByText('Showing 1 of 150 pools.')).toBeVisible();
+    expect(await screen.findByText('The cluster returned 2 of 150 pools.')).toBeVisible();
   });
 
   it('shows why the cluster could not calculate availability', async () => {

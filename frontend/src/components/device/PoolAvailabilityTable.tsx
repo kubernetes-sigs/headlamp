@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type ResourcePoolStatusRequest from '../../lib/k8s/resourcePoolStatusRequest';
 import { isPoolIncomplete, type PoolStatus } from '../../lib/k8s/resourcePoolStatusRequest';
@@ -38,8 +39,19 @@ function PoolNotCounted({ pool }: { pool: PoolStatus }) {
   );
 }
 
-export default function PoolAvailabilityTable({ answer }: { answer: ResourcePoolStatusRequest }) {
+export interface PoolAvailabilityTableProps {
+  /** The answered request. */
+  answer: ResourcePoolStatusRequest;
+  /** Show only this pool of the answer. */
+  poolName?: string;
+}
+
+export default function PoolAvailabilityTable({ answer, poolName }: PoolAvailabilityTableProps) {
   const { t } = useTranslation(['glossary', 'translation']);
+  const pools = useMemo(
+    () => answer.pools.filter(pool => !poolName || pool.poolName === poolName),
+    [answer, poolName]
+  );
 
   const count = (pool: PoolStatus, value?: number) => (pool.validationError ? NO_VALUE : value);
 
@@ -83,7 +95,7 @@ export default function PoolAvailabilityTable({ answer }: { answer: ResourcePool
           getter: (pool: PoolStatus) => count(pool, pool.totalDevices),
         },
       ]}
-      data={answer.pools}
+      data={pools}
       emptyMessage={t('translation|This driver has no pools.')}
     />
   );

@@ -35,7 +35,13 @@ import Loader from '../common/Loader';
 import SectionBox from '../common/SectionBox';
 import PoolAvailabilityTable from './PoolAvailabilityTable';
 
-function PoolStatusResult({ status }: { status: ReturnType<typeof usePoolStatusRequest> }) {
+function PoolStatusResult({
+  status,
+  poolName,
+}: {
+  status: ReturnType<typeof usePoolStatusRequest>;
+  poolName: string;
+}) {
   const { t } = useTranslation(['glossary', 'translation']);
 
   if (status.isPending) {
@@ -89,13 +95,13 @@ function PoolStatusResult({ status }: { status: ReturnType<typeof usePoolStatusR
     <>
       {answer.isTruncated && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          {t('translation|Showing {{shown}} of {{total}} pools.', {
-            shown: answer.pools.length,
+          {t('translation|The cluster returned {{returned}} of {{total}} pools.', {
+            returned: answer.pools.length,
             total: answer.poolCount,
           })}
         </Alert>
       )}
-      <PoolAvailabilityTable answer={answer} />
+      <PoolAvailabilityTable key={poolName} answer={answer} poolName={poolName} />
     </>
   );
 }
@@ -122,10 +128,7 @@ export default function PoolAvailability() {
     [slices, driver]
   );
 
-  const status = usePoolStatusRequest(
-    cluster,
-    isServed && driver ? { driver, poolName: pool || undefined } : undefined
-  );
+  const status = usePoolStatusRequest(cluster, isServed && driver ? { driver } : undefined);
 
   const show = (next: { driver: string; pool?: string }) =>
     history.push({
@@ -154,7 +157,7 @@ export default function PoolAvailability() {
       </Typography>
     );
   } else {
-    body = <PoolStatusResult status={status} />;
+    body = <PoolStatusResult status={status} poolName={pool} />;
   }
 
   return (

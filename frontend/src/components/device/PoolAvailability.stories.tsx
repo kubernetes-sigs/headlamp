@@ -116,21 +116,7 @@ Pools.parameters = {
 
 export const OnePool = Template.bind({});
 OnePool.args = { search: { driver, pool: 'gpu-worker-0' } };
-OnePool.parameters = {
-  msw: {
-    handlers: {
-      story: [
-        discovery(true),
-        slices,
-        ...answers({
-          poolCount: 1,
-          pools: [pool('gpu-worker-0')],
-          conditions: [condition('Complete')],
-        }),
-      ],
-    },
-  },
-};
+OnePool.parameters = Pools.parameters;
 
 export const IncompletePool = Template.bind({});
 IncompletePool.parameters = {
