@@ -21,7 +21,7 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory, useLocation } from 'react-router-dom';
 import { useCluster } from '../../lib/k8s/api/v1/hooks';
@@ -35,17 +35,11 @@ import Loader from '../common/Loader';
 import SectionBox from '../common/SectionBox';
 import PoolAvailabilityTable from './PoolAvailabilityTable';
 
-function PoolStatusResult({
-  status,
-  waitingForPools,
-}: {
-  status: ReturnType<typeof usePoolStatusRequest>;
-  waitingForPools: boolean;
-}) {
+function PoolStatusResult({ status }: { status: ReturnType<typeof usePoolStatusRequest> }) {
   const { t } = useTranslation(['glossary', 'translation']);
 
   if (status.isPending) {
-    const message = waitingForPools
+    const message = status.isWaitingForPools
       ? t(
           'translation|The driver is still publishing a pool. The cluster waits up to 15 seconds for it.'
         )
@@ -78,7 +72,7 @@ function PoolStatusResult({
     return <Alert severity="error">{status.error.message}</Alert>;
   }
 
-  const answer = status.data;
+  const { answer } = status;
   if (!answer) {
     return null;
   }
@@ -128,30 +122,10 @@ export default function PoolAvailability() {
     [slices, driver]
   );
 
-  const [progress, setProgress] = useState<ResourcePoolStatusRequest>();
-  const status = usePoolStatusRequest(cluster, setProgress);
-  const { mutate, reset } = status;
-
-  const run = useCallback(() => {
-    mutate({ driver, poolName: pool || undefined });
-  }, [mutate, driver, pool]);
-
-  useEffect(() => {
-    if (isServed && driver) {
-      run();
-    } else {
-      reset();
-    }
-  }, [isServed, driver, run, reset]);
-
-  const refresh = () => {
-    setProgress(undefined);
-    run();
-  };
-
-  const isCurrentProgress =
-    progress?.spec.driver === driver && (progress.spec.poolName ?? '') === pool;
-  const waitingForPools = isCurrentProgress && !!progress?.isWaitingForPools;
+  const status = usePoolStatusRequest(
+    cluster,
+    isServed && driver ? { driver, poolName: pool || undefined } : undefined
+  );
 
   const show = (next: { driver: string; pool?: string }) =>
     history.push({
@@ -180,7 +154,7 @@ export default function PoolAvailability() {
       </Typography>
     );
   } else {
-    body = <PoolStatusResult status={status} waitingForPools={waitingForPools} />;
+    body = <PoolStatusResult status={status} />;
   }
 
   return (
@@ -208,7 +182,11 @@ export default function PoolAvailability() {
               <Button onClick={() => show({ driver })}>{t('translation|Show all pools')}</Button>
             </>
           )}
-          <Button variant="contained" disabled={!driver || status.isPending} onClick={refresh}>
+          <Button
+            variant="contained"
+            disabled={!driver || status.isPending}
+            onClick={() => status.refetch()}
+          >
             {t('translation|Refresh')}
           </Button>
         </Box>

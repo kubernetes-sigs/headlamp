@@ -15,7 +15,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
@@ -251,7 +251,7 @@ describe('requestPoolStatus', () => {
     mockRequest.mockResolvedValueOnce(waiting).mockResolvedValueOnce(complete);
     const onProgress = vi.fn();
 
-    const result = requestPoolStatus(spec, cluster, onProgress);
+    const result = requestPoolStatus(spec, cluster, { onProgress });
     await vi.advanceTimersByTimeAsync(2_000);
 
     expect((await result).isComplete).toBe(true);
@@ -259,6 +259,68 @@ describe('requestPoolStatus', () => {
       false,
       true,
     ]);
+  });
+
+  it('asks nothing when cancelled before it starts', async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      requestPoolStatus(spec, cluster, { signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('removes a request cancelled while it was being created', async () => {
+    const controller = new AbortController();
+    let answerPost: (created: KubeResourcePoolStatusRequest) => void = () => {};
+    mockPost.mockReturnValue(
+      new Promise(resolve => {
+        answerPost = resolve;
+      })
+    );
+    const onProgress = vi.fn();
+
+    const result = requestPoolStatus(spec, cluster, { onProgress, signal: controller.signal });
+    const rejection = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    answerPost(makeRequest());
+
+    await rejection;
+    expect(onProgress).not.toHaveBeenCalled();
+    expect(mockRequest).not.toHaveBeenCalled();
+    expect(mockRemove).toHaveBeenCalledWith(`${url}/${name}`, { cluster });
+  });
+
+  it('stops polling and removes the request when cancelled between reads', async () => {
+    const controller = new AbortController();
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockResolvedValue(makeRequest());
+
+    const result = requestPoolStatus(spec, cluster, { signal: controller.signal });
+    const rejection = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(1_500);
+    controller.abort();
+
+    await rejection;
+    expect(mockRemove).toHaveBeenCalledWith(`${url}/${name}`, { cluster });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not wait for a read that is slow to arrive when cancelled', async () => {
+    const controller = new AbortController();
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockReturnValue(new Promise(() => {}));
+
+    const result = requestPoolStatus(spec, cluster, { signal: controller.signal });
+    const rejection = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    controller.abort();
+
+    await rejection;
+    expect(mockRemove).toHaveBeenCalledTimes(1);
   });
 
   it('returns a failed request, and removes it', async () => {
@@ -377,35 +439,151 @@ describe('requestPoolStatus', () => {
 });
 
 describe('usePoolStatusRequest', () => {
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
-  );
+  const makeWrapper = () => {
+    const client = new QueryClient();
+    return ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  };
+
+  const waiting = (driver: string, requestName: string): KubeResourcePoolStatusRequest => {
+    const json = makeRequest({ conditions: [condition('WaitingForPools', 'Waiting')] });
+    return { ...json, metadata: { ...json.metadata, name: requestName }, spec: { driver } };
+  };
 
   beforeEach(() => {
     mockPost.mockReset();
+    mockRequest.mockReset();
     mockRemove.mockReset();
     mockRemove.mockResolvedValue({});
   });
 
-  it('asks only when told to, and gives the answer', async () => {
-    mockPost.mockResolvedValue(complete);
-    const { result } = renderHook(() => usePoolStatusRequest(cluster), { wrapper });
-
-    expect(mockPost).not.toHaveBeenCalled();
-
-    result.current.mutate({ driver: 'gpu.example.com' });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.pools).toEqual([pool]);
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it('gives the error when the request cannot be created', async () => {
+  it('asks nothing without a spec', () => {
+    const { result } = renderHook(() => usePoolStatusRequest(cluster), { wrapper: makeWrapper() });
+
+    expect(mockPost).not.toHaveBeenCalled();
+    expect(result.current.isPending).toBe(false);
+  });
+
+  it('asks once and gives the answer', async () => {
+    mockPost.mockResolvedValue(complete);
+    const { result, rerender } = renderHook(
+      () => usePoolStatusRequest(cluster, { driver: 'gpu.example.com' }),
+      { wrapper: makeWrapper() }
+    );
+
+    expect(result.current.isPending).toBe(true);
+    await waitFor(() => expect(result.current.answer?.pools).toEqual([pool]));
+    expect(result.current.isPending).toBe(false);
+
+    rerender();
+    expect(mockPost).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks again when told to', async () => {
+    mockPost.mockResolvedValue(complete);
+    const { result } = renderHook(
+      () => usePoolStatusRequest(cluster, { driver: 'gpu.example.com' }),
+      { wrapper: makeWrapper() }
+    );
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+
+    result.current.refetch();
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(2));
+  });
+
+  it('gives the error when the request cannot be created, without trying again', async () => {
     mockPost.mockRejectedValue(new Error('Forbidden'));
-    const { result } = renderHook(() => usePoolStatusRequest(cluster), { wrapper });
+    const { result } = renderHook(
+      () => usePoolStatusRequest(cluster, { driver: 'gpu.example.com' }),
+      { wrapper: makeWrapper() }
+    );
 
-    result.current.mutate({ driver: 'gpu.example.com' });
+    await waitFor(() => expect(result.current.error?.message).toBe('Forbidden'));
+    expect(result.current.isPending).toBe(false);
+    expect(mockPost).toHaveBeenCalledTimes(1);
+  });
 
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error?.message).toBe('Forbidden');
+  it('cancels the request for another driver and ignores its progress', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const first = waiting('a.example.com', 'request-a');
+    const second = { ...waiting('b.example.com', 'request-b'), status: undefined };
+    mockPost.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    let answerRead: (current: KubeResourcePoolStatusRequest) => void = () => {};
+    mockRequest.mockImplementation((requestUrl: string) =>
+      requestUrl.endsWith('request-a')
+        ? new Promise(resolve => {
+            answerRead = resolve;
+          })
+        : Promise.resolve(second)
+    );
+
+    const { result, rerender } = renderHook(
+      ({ driver }) => usePoolStatusRequest(cluster, { driver }),
+      { wrapper: makeWrapper(), initialProps: { driver: 'a.example.com' } }
+    );
+    await waitFor(() => expect(result.current.isWaitingForPools).toBe(true));
+    await act(() => vi.advanceTimersByTimeAsync(1_000));
+
+    rerender({ driver: 'b.example.com' });
+    expect(result.current.isWaitingForPools).toBe(false);
+    await waitFor(() => expect(mockRemove).toHaveBeenCalledWith(`${url}/request-a`, { cluster }));
+
+    await act(async () => {
+      answerRead(first);
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.isWaitingForPools).toBe(false);
+    const readsOfFirst = mockRequest.mock.calls.filter(([requestUrl]) =>
+      requestUrl.endsWith('request-a')
+    );
+    expect(readsOfFirst).toHaveLength(1);
+    expect(mockRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts over when asked about the first driver again', async () => {
+    mockPost
+      .mockResolvedValueOnce(waiting('a.example.com', 'request-0'))
+      .mockResolvedValueOnce(waiting('b.example.com', 'request-1'))
+      .mockReturnValueOnce(new Promise(() => {}));
+
+    const { result, rerender } = renderHook(
+      ({ driver }) => usePoolStatusRequest(cluster, { driver }),
+      { wrapper: makeWrapper(), initialProps: { driver: 'a.example.com' } }
+    );
+    await waitFor(() => expect(result.current.isWaitingForPools).toBe(true));
+
+    rerender({ driver: 'b.example.com' });
+    await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(2));
+    rerender({ driver: 'a.example.com' });
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(3));
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.isWaitingForPools).toBe(false);
+  });
+
+  it('removes the request when unmounted, and stops reading it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockPost.mockResolvedValue(makeRequest());
+    mockRequest.mockResolvedValue(makeRequest());
+    const { unmount } = renderHook(
+      () => usePoolStatusRequest(cluster, { driver: 'gpu.example.com' }),
+      { wrapper: makeWrapper() }
+    );
+    await waitFor(() => expect(mockPost).toHaveBeenCalled());
+
+    unmount();
+
+    await waitFor(() => expect(mockRemove).toHaveBeenCalledWith(`${url}/${name}`, { cluster }));
+    const reads = mockRequest.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(mockRequest).toHaveBeenCalledTimes(reads);
   });
 });
