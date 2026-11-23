@@ -138,8 +138,7 @@ func TestHTTPGetStreamSandboxesUpstreamDocument(t *testing.T) {
 		t.Errorf("HTTPGetStream() response = %s, want %s", w.Body.String(), body)
 	}
 
-	if got := w.Header().Get("Content-Security-Policy"); got !=
-		"sandbox; default-src 'none'; base-uri 'none'; form-action 'none'" {
+	if got := w.Header().Get("Content-Security-Policy"); got != "sandbox" {
 		t.Errorf("Content-Security-Policy = %q, want sandbox policy", got)
 	}
 

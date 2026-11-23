@@ -10,7 +10,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
-const proxyContentSecurityPolicy = "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'"
+const proxyContentSecurityPolicy = "sandbox"
 
 // HTTPGetStream sends an HTTP GET request to the specified URI and forwards the
 // upstream status code, Content-Type, and response body into w. The body is
