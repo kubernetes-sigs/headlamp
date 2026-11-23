@@ -46,11 +46,6 @@ vi.mock('../../lib/k8s/api/v1/clusterRequests', async importOriginal => ({
   request: mockRequest,
 }));
 
-vi.mock('../../lib/k8s/api/v1/hooks', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../lib/k8s/api/v1/hooks')>()),
-  useCluster: () => 'gpu-cluster',
-}));
-
 const driver = 'gpu.example.com';
 const theme = createMuiTheme({ base: 'light', name: 'light' });
 
@@ -85,10 +80,10 @@ const condition = (type: string, message = type) => ({
 const complete = (pools: PoolStatus[], poolCount = pools.length) =>
   answer({ poolCount, pools, conditions: [condition('Complete')] });
 
-const renderPage = (search: Record<string, string> = { driver }) =>
+const renderPage = (search: Record<string, string> = { driver }, cluster = 'gpu-cluster') =>
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <TestContext urlSearchParams={search}>
+      <TestContext routerMap={{ cluster }} urlPrefix="/c" urlSearchParams={search}>
         <ThemeProvider theme={theme}>
           <PoolAvailability />
         </ThemeProvider>
@@ -348,7 +343,10 @@ describe('PoolAvailability', () => {
     expect(screen.queryByText(/Pick a driver/)).not.toBeInTheDocument();
   });
 
-  it.each([null, []])('says when the slices cannot be listed, with %s items', async items => {
+  it.each([
+    ['no items', null],
+    ['an empty list', []],
+  ])('says when the slices cannot be listed, given %s', async (_given, items) => {
     mockSlices({ items, errors: [new ApiError('Bad gateway', { status: 502 })] });
 
     renderPage({});
@@ -366,5 +364,78 @@ describe('PoolAvailability', () => {
 
     expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
     expect(screen.getByText("You don't have permissions to view this resource")).toBeVisible();
+  });
+
+  describe('with several clusters selected', () => {
+    const clusters = 'cpu-cluster+gpu-cluster+tpu-cluster';
+
+    beforeEach(() => {
+      vi.spyOn(ResourcePoolStatusRequest, 'isEnabled').mockImplementation(
+        async name => name !== 'cpu-cluster'
+      );
+      mockPost.mockResolvedValue(complete([pool('worker-0')]));
+    });
+
+    it('asks a cluster that serves the API, and names it', async () => {
+      renderPage({ driver }, clusters);
+
+      expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
+      expect(screen.getByRole('combobox', { name: 'Cluster' })).toHaveTextContent('gpu-cluster');
+      expect(ResourceSlice.useList).toHaveBeenLastCalledWith({ cluster: 'gpu-cluster' });
+      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockPost.mock.calls[0][3]).toEqual({ cluster: 'gpu-cluster' });
+    });
+
+    it('offers only the clusters that serve the API, and opens the one picked', async () => {
+      renderPage({ driver }, clusters);
+      await screen.findByText('worker-0', { selector: 'td' });
+
+      await userEvent.click(screen.getByRole('combobox', { name: 'Cluster' }));
+      expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual([
+        'gpu-cluster',
+        'tpu-cluster',
+      ]);
+      await userEvent.click(screen.getByRole('option', { name: 'tpu-cluster' }));
+
+      // The drivers of the other cluster may differ, so one has to be picked again.
+      expect(
+        await screen.findByText('Pick a driver to see how many of its devices are free.')
+      ).toBeVisible();
+      expect(ResourceSlice.useList).toHaveBeenLastCalledWith({ cluster: 'tpu-cluster' });
+    });
+
+    it('asks the picked cluster about the driver picked next', async () => {
+      renderPage({ cluster: 'tpu-cluster' }, clusters);
+
+      await userEvent.click(await screen.findByRole('combobox', { name: 'Driver' }));
+      await userEvent.click(screen.getByRole('option', { name: driver }));
+
+      expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
+      expect(screen.getByRole('combobox', { name: 'Cluster' })).toHaveTextContent('tpu-cluster');
+      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockPost.mock.calls[0][3]).toEqual({ cluster: 'tpu-cluster' });
+    });
+
+    it('opens the cluster it is linked to', async () => {
+      renderPage({ cluster: 'tpu-cluster', driver }, clusters);
+
+      expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
+      expect(mockPost.mock.calls[0][3]).toEqual({ cluster: 'tpu-cluster' });
+    });
+
+    it('does not ask a linked cluster that does not serve the API', async () => {
+      renderPage({ cluster: 'cpu-cluster', driver }, clusters);
+
+      expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
+      expect(screen.getByRole('combobox', { name: 'Cluster' })).toHaveTextContent('gpu-cluster');
+      expect(mockPost.mock.calls[0][3]).toEqual({ cluster: 'gpu-cluster' });
+    });
+  });
+
+  it('has no cluster to pick with one cluster selected', async () => {
+    renderPage({});
+
+    expect(await screen.findByRole('combobox', { name: 'Driver' })).toBeVisible();
+    expect(screen.queryByRole('combobox', { name: 'Cluster' })).not.toBeInTheDocument();
   });
 });

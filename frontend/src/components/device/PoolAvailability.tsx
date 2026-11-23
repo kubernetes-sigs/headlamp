@@ -20,12 +20,12 @@ import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory, useLocation } from 'react-router-dom';
-import { useCluster } from '../../lib/k8s/api/v1/hooks';
+import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import { useClustersServing } from '../../lib/k8s/resourceAvailability';
 import ResourcePoolStatusRequest, {
   PoolStatusRequestTimeoutError,
   usePoolStatusRequest,
@@ -107,19 +107,21 @@ function PoolStatusResult({
   );
 }
 
-export default function PoolAvailability() {
+interface ClusterPoolAvailabilityProps {
+  /** The cluster to ask, which serves pool status requests. */
+  cluster: string;
+  /** The clusters to pick from, empty when only one cluster is selected. */
+  clusters: string[];
+}
+
+function ClusterPoolAvailability({ cluster, clusters }: ClusterPoolAvailabilityProps) {
   const { t } = useTranslation(['glossary', 'translation']);
-  const cluster = useCluster() ?? '';
   const location = useLocation();
   const history = useHistory();
   const searchParams = new URLSearchParams(location.search);
   const driver = searchParams.get('driver') ?? '';
   const pool = searchParams.get('pool') ?? '';
 
-  const { data: isServed } = useQuery({
-    queryKey: ['poolStatusServed', cluster],
-    queryFn: () => ResourcePoolStatusRequest.isEnabled(cluster),
-  });
   const { items: slices, errors: slicesErrors } = ResourceSlice.useList({ cluster });
   const drivers = useMemo(
     () =>
@@ -129,27 +131,18 @@ export default function PoolAvailability() {
     [slices, driver]
   );
 
-  const status = usePoolStatusRequest(cluster, isServed && driver ? { driver } : undefined);
+  const status = usePoolStatusRequest(cluster, driver ? { driver } : undefined);
 
-  const show = (next: { driver: string; pool?: string }) =>
+  const show = (next: { cluster: string; driver?: string }) =>
     history.push({
-      search: new URLSearchParams(
-        next.pool ? { driver: next.driver, pool: next.pool } : { driver: next.driver }
-      ).toString(),
+      search: new URLSearchParams({
+        ...(clusters.length > 0 ? { cluster: next.cluster } : {}),
+        ...(next.driver ? { driver: next.driver } : {}),
+      }).toString(),
     });
 
   let body;
-  if (isServed === undefined) {
-    body = <Loader title={t('translation|Loading')} />;
-  } else if (!isServed) {
-    body = (
-      <Alert severity="info">
-        {t(
-          'translation|Pool availability needs the DRAResourcePoolStatus feature gate and the resource.k8s.io/v1alpha3 API.'
-        )}
-      </Alert>
-    );
-  } else if (driver) {
+  if (driver) {
     body = <PoolStatusResult status={status} poolName={pool} />;
   } else if (drivers.length > 0) {
     body = (
@@ -171,41 +164,90 @@ export default function PoolAvailability() {
   }
 
   return (
-    <SectionBox title={t('glossary|Pool Availability')}>
-      {isServed && (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 2 }}>
+    <>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 2 }}>
+        {clusters.length > 0 && (
           <TextField
             select
             size="small"
-            label={t('glossary|Driver')}
-            value={driver}
-            onChange={event => show({ driver: event.target.value })}
-            InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 240 }}
+            label={t('glossary|Cluster')}
+            value={cluster}
+            onChange={event => show({ cluster: event.target.value })}
+            sx={{ minWidth: 160 }}
           >
-            {drivers.map(name => (
+            {clusters.map(name => (
               <MenuItem key={name} value={name}>
                 {name}
               </MenuItem>
             ))}
           </TextField>
-          {pool && (
-            <>
-              <Typography>{t('translation|Pool: {{pool}}', { pool })}</Typography>
-              <Button onClick={() => show({ driver })}>{t('translation|Show all pools')}</Button>
-            </>
-          )}
-          <Button
-            variant="contained"
-            disabled={!driver || status.isPending}
-            onClick={() => status.refetch()}
-          >
-            {t('translation|Refresh')}
-          </Button>
-        </Box>
-      )}
-      {isServed && <ClusterGroupErrorMessage errors={slicesErrors} />}
+        )}
+        <TextField
+          select
+          size="small"
+          label={t('glossary|Driver')}
+          value={driver}
+          onChange={event => show({ cluster, driver: event.target.value })}
+          InputLabelProps={{ shrink: true }}
+          sx={{ minWidth: 240 }}
+        >
+          {drivers.map(name => (
+            <MenuItem key={name} value={name}>
+              {name}
+            </MenuItem>
+          ))}
+        </TextField>
+        {pool && (
+          <>
+            <Typography>{t('translation|Pool: {{pool}}', { pool })}</Typography>
+            <Button onClick={() => show({ cluster, driver })}>
+              {t('translation|Show all pools')}
+            </Button>
+          </>
+        )}
+        <Button
+          variant="contained"
+          disabled={!driver || status.isPending}
+          onClick={() => status.refetch()}
+        >
+          {t('translation|Refresh')}
+        </Button>
+      </Box>
+      <ClusterGroupErrorMessage errors={slicesErrors} />
       {body}
-    </SectionBox>
+    </>
   );
+}
+
+export default function PoolAvailability() {
+  const { t } = useTranslation(['glossary', 'translation']);
+  const location = useLocation();
+  const selectedClusters = useSelectedClusters();
+  const servingClusters = useClustersServing(ResourcePoolStatusRequest);
+
+  // A request is answered by one cluster, so with several selected, one that serves it is asked.
+  const chosenCluster = new URLSearchParams(location.search).get('cluster');
+  const cluster = servingClusters?.find(name => name === chosenCluster) ?? servingClusters?.[0];
+
+  let body;
+  if (servingClusters === undefined) {
+    body = <Loader title={t('translation|Loading')} />;
+  } else if (cluster === undefined) {
+    body = (
+      <Alert severity="info">
+        {t(
+          'translation|Pool availability needs the DRAResourcePoolStatus feature gate and the resource.k8s.io/v1alpha3 API.'
+        )}
+      </Alert>
+    );
+  } else {
+    body = (
+      <ClusterPoolAvailability
+        cluster={cluster}
+        clusters={selectedClusters.length > 1 ? servingClusters : []}
+      />
+    );
+  }
+
+  return <SectionBox title={t('glossary|Pool Availability')}>{body}</SectionBox>;
 }

@@ -162,7 +162,7 @@
                   >
                     <a
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                      href="/c/gpu-cluster/nodes/gpu-worker-0"
                     >
                       gpu-worker-0
                     </a>
@@ -201,7 +201,7 @@
                   >
                     <a
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                      href="/c/gpu-cluster/nodes/gpu-worker-1"
                     >
                       gpu-worker-1
                     </a>
@@ -209,14 +209,18 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                   >
-                    <span
-                      aria-label="PoolIncomplete: 1 of 2 slices published"
-                      class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
-                      data-mui-internal-clone-element="true"
-                      tabindex="0"
+                    <div
+                      class="MuiBox-root css-5vm3uw"
                     >
-                      Incomplete
-                    </span>
+                      <span
+                        aria-label="PoolIncomplete: 1 of 2 slices published"
+                        class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
+                        data-mui-internal-clone-element="true"
+                        tabindex="0"
+                      >
+                        Incomplete
+                      </span>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"

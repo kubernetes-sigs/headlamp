@@ -27,10 +27,12 @@ import PoolAvailability from './PoolAvailability';
 import { RESOURCE_SLICE_DUMMY_DATA } from './storyHelper';
 
 const driver = 'gpu.example.com';
-const requestsUrl = `${API_BASE}/apis/resource.k8s.io/v1alpha3/resourcepoolstatusrequests`;
+const cluster = 'gpu-cluster';
+const clusterUrl = `${API_BASE}/clusters/${cluster}`;
+const requestsUrl = `${clusterUrl}/apis/resource.k8s.io/v1alpha3/resourcepoolstatusrequests`;
 
-const discovery = (served: boolean) =>
-  http.get(`${API_BASE}/apis/resource.k8s.io/v1alpha3`, () =>
+const discovery = (served: boolean, base = clusterUrl) =>
+  http.get(`${base}/apis/resource.k8s.io/v1alpha3`, () =>
     HttpResponse.json({
       kind: 'APIResourceList',
       groupVersion: 'resource.k8s.io/v1alpha3',
@@ -40,7 +42,7 @@ const discovery = (served: boolean) =>
     })
   );
 
-const slicesUrl = `${API_BASE}/apis/resource.k8s.io/v1/resourceslices`;
+const slicesUrl = `${clusterUrl}/apis/resource.k8s.io/v1/resourceslices`;
 
 const slices = http.get(slicesUrl, () =>
   HttpResponse.json({ kind: 'ResourceSliceList', items: RESOURCE_SLICE_DUMMY_DATA, metadata: {} })
@@ -88,8 +90,13 @@ export default {
   argTypes: {},
 } as Meta;
 
-const Template: StoryFn<{ search?: Record<string, string> }> = ({ search = { driver } }) => (
-  <TestContext urlSearchParams={search}>
+interface StoryArgs {
+  search?: Record<string, string>;
+  clusters?: string;
+}
+
+const Template: StoryFn<StoryArgs> = ({ search = { driver }, clusters = cluster }) => (
+  <TestContext routerMap={{ cluster: clusters }} urlPrefix="/c" urlSearchParams={search}>
     <Container maxWidth="xl">
       <PoolAvailability />
     </Container>
@@ -119,6 +126,19 @@ Pools.parameters = {
 export const OnePool = Template.bind({});
 OnePool.args = { search: { driver, pool: 'gpu-worker-0' } };
 OnePool.parameters = Pools.parameters;
+
+export const SeveralClusters = Template.bind({});
+SeveralClusters.args = { clusters: `cpu-cluster+${cluster}` };
+SeveralClusters.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        discovery(false, `${API_BASE}/clusters/cpu-cluster`),
+        ...Pools.parameters.msw.handlers.story,
+      ],
+    },
+  },
+};
 
 export const IncompletePool = Template.bind({});
 IncompletePool.parameters = {

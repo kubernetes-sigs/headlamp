@@ -111,7 +111,7 @@
             <div
               class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
             >
-              Showing 1 of 150 pools.
+              The cluster returned 1 of 150 pools.
             </div>
           </div>
           <div
@@ -187,7 +187,7 @@
                   >
                     <a
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                      href="/c/gpu-cluster/nodes/gpu-worker-0"
                     >
                       gpu-worker-0
                     </a>
