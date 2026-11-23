@@ -208,3 +208,27 @@ npm run backend:test
 ```
 
 Tests will run as part of the CI after a Pull Request is open.
+
+## Code review standards
+
+Pull requests are merged through Prow/Tide only after receiving both `lgtm`
+from a `reviewers` member (`headlamp-reviewers` or `headlamp-maintainers` in
+[OWNERS](https://github.com/kubernetes-sigs/headlamp/blob/main/OWNERS)) and
+`approved` from an `approvers` member (`headlamp-maintainers` in `OWNERS`).
+Because a PR author cannot apply `lgtm` to their own PR, every merged change
+requires review by at least one other person in addition to the author.
+
+Before applying `lgtm` or `approve`, reviewers verify that:
+
+- **Correctness and regressions:** The change solves the stated problem, handles
+  edge cases, and does not introduce regressions.
+- **Security and sensitive paths:** Untrusted inputs, authentication/RBAC,
+  credentials, and manual-review-only files (such as `.github/workflows/*`,
+  `Dockerfile*`, `charts/`, `kubernetes-*.yaml`, `SECURITY.md`,
+  `SECURITY_CONTACTS`, `OWNERS`, `OWNERS_ALIASES`, `LICENSE`, `NOTICE`, and
+  `code-of-conduct.md`) are reviewed carefully.
+- **Tests and CI:** Major new behavior and bug fixes include automated tests
+  (see [Testing](#testing)), and required CI, lint, and formatting checks pass.
+- **Scope and commit hygiene:** Changes stay focused on a single purpose without
+  unrelated refactors, and commits follow the [commit guidelines](#2-follow-commit-guidelines)
+  with a linear history.
