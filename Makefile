@@ -540,15 +540,28 @@ run-jaeger:
 
 .PHONY: run-prometheus
 run-prometheus:
+	@command -v curl >/dev/null 2>&1 || { \
+        echo "Error: curl is required to check that Prometheus is ready. Install curl and try again." >&2; \
+        exit 1; \
+    }
 	@echo "Starting Prometheus container..."
 	@docker rm -f prometheus 2>/dev/null || true
 	@docker run -d \
         --name prometheus \
         --network host \
-        -p 9090:9090 \
-        -v $(PWD)/backend/pkg/telemetry/prometheus.yaml:/etc/prometheus.yaml \
+        -v "$(PWD)/backend/pkg/telemetry/prometheus.yaml:/etc/prometheus.yaml" \
         prom/prometheus:latest --config.file=/etc/prometheus.yaml
-	@echo "Prometheus UI will be available at http://localhost:9090"
+	@for i in $$(seq 1 20); do \
+        curl -sf --max-time 1 http://localhost:9090/-/ready >/dev/null 2>&1 && exit 0; \
+        sleep 1; \
+    done; \
+    docker rm -f prometheus >/dev/null 2>&1; \
+    echo "Error: Prometheus is not reachable at http://localhost:9090, so the container was removed." >&2; \
+    echo "The container uses Docker host networking, which works on Linux but usually not with Docker Desktop on macOS or Windows." >&2; \
+    echo "Jaeger is still running if it was started; stop it with 'make stop-monitoring'." >&2; \
+    echo "See docs/development/telemetry.md for running Prometheus on macOS and Windows." >&2; \
+    exit 1
+	@echo "Prometheus UI is available at http://localhost:9090"
 
 .PHONY: run-monitoring
 run-monitoring: run-jaeger run-prometheus
