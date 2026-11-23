@@ -46,6 +46,11 @@ export default function DeploymentsList() {
         return '';
       }
 
+      // ReplicaFailure is True when the controller cannot create pods.
+      if (type === 'replicafailure') {
+        return status === 'false' ? 'success' : 'error';
+      }
+
       return status === 'true' ? 'success' : status === 'false' ? 'warning' : 'error';
     }
 
