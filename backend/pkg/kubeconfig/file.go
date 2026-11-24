@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -36,10 +37,6 @@ const timeoutForLock = 30 * time.Second
 // blocking up to the deadline in ctx. It returns whether the lock was acquired,
 // the flock handle (so the caller can unlock), and any error.
 func lockKubeConfigFile(ctx context.Context, configPath string) (bool, *flock.Flock, error) {
-	if configPath == "" {
-		return false, nil, fmt.Errorf("kubeconfig path is empty")
-	}
-
 	lockPath := configPath + ".lock"
 	fileLock := flock.New(lockPath)
 	locked, err := fileLock.TryLockContext(ctx, time.Second)
@@ -140,18 +137,33 @@ func mergeWithExisting(config clientcmdapi.Config, dir, configFile string) (*cli
 
 // RemoveContextFromFile removes the given context and its related
 // cluster and user from the kubeconfig file.
-func RemoveContextFromFile(contextName string, path string) error {
+func RemoveContextFromFile(contextName string, path string) (err error) {
+	if path == "" {
+		return errors.New("kubeconfig path is empty")
+	}
+
+	// Pin the kubeconfig before waiting for the lock. Keep using the original
+	// path for the lock so imports and deletions share it for configured symlinks.
+	//nolint:gosec // The server supplies the kubeconfig origin.
+	file, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("opening kubeconfig file: %w", err)
+	}
+
 	lockCtx, cancel := context.WithTimeout(context.Background(), timeoutForLock)
 	defer cancel()
 
 	locked, fileLock, err := lockKubeConfigFile(lockCtx, path)
-	if err == nil && locked {
-		defer func() {
+
+	defer func() {
+		err = errors.Join(err, file.Close())
+
+		if locked {
 			if unlockErr := fileLock.Unlock(); unlockErr != nil {
 				logger.Log(logger.LevelError, nil, unlockErr, "unlocking kubeconfig file")
 			}
-		}()
-	}
+		}
+	}()
 
 	if err != nil || !locked {
 		if err == nil {
@@ -161,33 +173,58 @@ func RemoveContextFromFile(contextName string, path string) error {
 		return fmt.Errorf("locking kubeconfig file %q: %w", path, err)
 	}
 
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("kubeconfig file %q does not exist: %w", path, err)
-		}
+	return removeContextFromLockedFile(contextName, file)
+}
 
-		return fmt.Errorf("stat kubeconfig file %q: %w", path, err)
+func removeContextFromLockedFile(contextName string, file *os.File) error {
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("stat open kubeconfig file: %w", err)
 	}
 
-	config, err := clientcmd.LoadFromFile(path)
+	if !info.Mode().IsRegular() {
+		return errors.New("kubeconfig is not a regular file")
+	}
+
+	// A lock wait can outlast a file replacement or a symlink change. Abort if
+	// the origin moved and use the open file for all reads and writes.
+	current, err := os.Stat(file.Name())
+	if err != nil {
+		return fmt.Errorf("stat kubeconfig origin: %w", err)
+	}
+
+	if !os.SameFile(info, current) {
+		return errors.New("kubeconfig changed while waiting for its file lock")
+	}
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return fmt.Errorf("failed to read kubeconfig file: %w", err)
+	}
+
+	config, err := clientcmd.Load(data)
 	if err != nil {
 		return fmt.Errorf("failed to load kubeconfig file: %w", err)
 	}
 
-	// remove the context from the config
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
 		return errors.New("context not found in kubeconfig")
 	}
 
-	clusterToRemove := contextConfig.Cluster
-	userToRemove := contextConfig.AuthInfo
-
 	delete(config.Contexts, contextName)
+	removeOrphanedClusterAndUser(config, contextConfig.Cluster, contextConfig.AuthInfo)
 
-	removeOrphanedClusterAndUser(config, clusterToRemove, userToRemove)
+	updated, err := clientcmd.Write(*config)
+	if err != nil {
+		return fmt.Errorf("failed to serialize kubeconfig file: %w", err)
+	}
 
-	return clientcmd.WriteToFile(*config, path)
+	if _, err := file.WriteAt(updated, 0); err != nil {
+		return fmt.Errorf("failed to write kubeconfig file: %w", err)
+	}
+
+	return file.Truncate(int64(len(updated)))
 }
 
 // removeOrphanedClusterAndUser deletes the named cluster and user entries
