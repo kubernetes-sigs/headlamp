@@ -153,6 +153,7 @@ describe('environment variable resolution', () => {
         key: 'mode',
         optional: true,
       },
+      { name: 'EMPTY', type: 'value', value: '' },
       {
         name: 'credentials',
         type: 'secretRef',

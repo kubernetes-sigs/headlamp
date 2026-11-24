@@ -155,6 +155,7 @@ const mockPod = {
     podIP: '10.0.0.2',
   },
   cluster: 'main',
+  resourceClaims: [],
 };
 
 function simulatePodLoad() {

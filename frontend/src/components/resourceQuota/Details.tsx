@@ -148,7 +148,9 @@ export function ResourceQuotaTable({
  * Formats a quota's scope selector as one entry per expression,
  * e.g. "PriorityClass In (high, critical)" or "CrossNamespacePodAffinity Exists".
  */
-export function formatScopeSelector(scopeSelector: KubeResourceQuota['spec']['scopeSelector']) {
+export function formatScopeSelector(
+  scopeSelector: NonNullable<KubeResourceQuota['spec']>['scopeSelector']
+) {
   return (scopeSelector?.matchExpressions ?? []).map(({ scopeName, operator, values }) =>
     values?.length ? `${scopeName} ${operator} (${values.join(', ')})` : `${scopeName} ${operator}`
   );
