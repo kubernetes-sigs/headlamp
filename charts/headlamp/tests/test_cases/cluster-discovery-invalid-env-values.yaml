@@ -1,0 +1,11 @@
+env:
+  - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_API
+    value: "yes"
+  - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY
+    value: "true "
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --oidc-idp-issuer-url=

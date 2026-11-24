@@ -1,6 +1,8 @@
 env:
-  - name: DISCOVERY_ENABLED
+  - name: DISCOVERY_DEFAULT
     value: "true"
+  - name: DISCOVERY_ENABLED
+    value: $(DISCOVERY_DEFAULT)
   - name: RUNTIME_INVENTORY_ENABLED
     valueFrom:
       configMapKeyRef:

@@ -1,0 +1,20 @@
+env:
+  - name: CLIENT_ID
+    valueFrom:
+      configMapKeyRef:
+        name: oidc-settings
+        key: client-id
+  - name: ISSUER
+    valueFrom:
+      configMapKeyRef:
+        name: oidc-settings
+        key: issuer
+config:
+  oidc:
+    secret:
+      create: false
+  clusterAPI:
+    enabled: true
+  extraArgs:
+    - --oidc-client-id=$(CLIENT_ID)
+    - --oidc-idp-issuer-url=$(ISSUER)

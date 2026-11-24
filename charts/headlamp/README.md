@@ -65,8 +65,14 @@ Literal `HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY` and
 `HEADLAMP_CONFIG_ENABLE_CLUSTER_API` environment values seed discovery validation;
 generated chart flags and final `extraArgs` take precedence. References such as
 `$(DISCOVERY_ENABLED)` are resolved when their environment value is literal.
-If pod-only values leave discovery undecidable, the chart defers the dependent
-OIDC checks to Headlamp's startup validation rather than guessing a boolean.
+Invalid discovery environment strings behave as false, matching the backend;
+explicit discovery argument values still require a valid boolean.
+
+Environment references in discovery and OIDC arguments are expanded once for
+validation, including references to earlier literal environment entries and
+escaped dollars. Known empty client IDs, issuer URLs, and credential-file paths
+are checked after expansion. Pod-only values defer only the checks that depend
+on them to Headlamp's startup validation rather than guessing their values.
 
 When migrating from a chart-created OIDC Secret, first create a separately managed
 Secret with a different name, such as `headlamp-oidc-files`, containing the credential

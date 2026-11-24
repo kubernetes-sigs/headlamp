@@ -52,7 +52,7 @@
   {{- if hasKey . "value" }}
     {{- $value = .value | toString }}
   {{- end }}
-  {{- $entry := dict "known" (and (hasKey . "value") (not (contains "$(" $value))) "value" $value }}
+  {{- $entry := include "headlamp.literalEnvValue" (dict "state" (dict "known" (hasKey . "value") "value" $value) "environment" $environment) | fromJson }}
   {{- $_ := set $environment .name $entry }}
   {{- if or (not $entry.known) (ne $entry.value "") }}
     {{- if eq .name "HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY" }}
@@ -107,6 +107,11 @@
 {{- end }}
 
 {{- $extraArgs := .Values.config.extraArgs }}
+{{- $argumentStates := list }}
+{{- range $extraArgs }}
+  {{- $state := include "headlamp.literalEnvValue" (dict "state" (dict "known" true "value" .) "environment" $environment) | fromJson }}
+  {{- $argumentStates = append $argumentStates $state }}
+{{- end }}
 {{- if $clusterInventoryEnabled }}
   {{- $_ := set $discoveryFlags "enable-cluster-inventory" (dict "known" true "value" "true") }}
 {{- end }}
@@ -126,10 +131,15 @@
     "use-otlp-http" "stdout-trace-enabled" "enable-cluster-inventory" "enable-cluster-api" }}
 {{- $skipNext := false }}
 {{- $parseArgs := true }}
-{{- range $index, $arg := $extraArgs }}
+{{- $argumentScanKnown := true }}
+{{- range $index, $argument := $argumentStates }}
+  {{- $arg := $argument.value }}
   {{- if $parseArgs }}
     {{- if $skipNext }}
       {{- $skipNext = false }}
+    {{- else if and (not $argument.known) (or (not (hasPrefix "-" $arg)) (contains "$(" (first (splitList "=" $arg)))) }}
+      {{- $argumentScanKnown = false }}
+      {{- $parseArgs = false }}
     {{- else if or (eq $arg "--") (eq $arg "-") (not (hasPrefix "-" $arg)) }}
       {{- $parseArgs = false }}
     {{- else }}
@@ -139,22 +149,25 @@
         {{- $value := "" }}
         {{- $hasValue := false }}
         {{- $flagLikeValue := false }}
+        {{- $known := $argument.known }}
         {{- if contains "=" $arg }}
           {{- $value = trimPrefix (printf "%s=" $flag) $arg }}
           {{- $hasValue = true }}
-        {{- else if lt (add1 $index) (len $extraArgs) }}
-          {{- $value = index $extraArgs (add1 $index) }}
+        {{- else if lt (add1 $index) (len $argumentStates) }}
+          {{- $next := index $argumentStates (add1 $index) }}
+          {{- $value = $next.value }}
+          {{- $known = $next.known }}
           {{- $hasValue = true }}
           {{- $flagLikeValue = hasPrefix "-" $value }}
         {{- end }}
-        {{- $_ := set $oidcArgs $flagName (dict "value" $value "hasValue" $hasValue "flagLikeValue" $flagLikeValue) }}
+        {{- $_ := set $oidcArgs $flagName (dict "value" $value "known" $known "hasValue" $hasValue "flagLikeValue" $flagLikeValue) }}
       {{- end }}
       {{- if has $flagName (list "enable-cluster-inventory" "enable-cluster-api") }}
         {{- $value := "true" }}
         {{- if contains "=" $arg }}
           {{- $value = trimPrefix (printf "%s=" (first (splitList "=" $arg))) $arg }}
         {{- end }}
-        {{- $state := include "headlamp.discoveryFlagState" (dict "state" (dict "known" true "value" $value) "environment" $environment) | fromJson }}
+        {{- $state := include "headlamp.discoveryFlagState" (dict "state" (dict "known" $argument.known "value" $value "expanded" true) "environment" $environment) | fromJson }}
         {{- if and $state.known (not $state.valid) }}
           {{- fail (printf "%s has an invalid boolean value in config.extraArgs" $flagName) }}
         {{- end }}
@@ -167,14 +180,13 @@
 
 {{- range $name, $option := $discoveryFlags }}
   {{- $state := include "headlamp.discoveryFlagState" (dict "state" $option "environment" $environment) | fromJson }}
-  {{- if and $state.known (not $state.valid) }}
-    {{- fail (printf "%s has an invalid boolean environment value" $name) }}
-  {{- end }}
+  {{- /* k.Bool treats invalid environment strings as false. Explicit CLI
+         argument values were validated during the scan above. */}}
   {{- $_ := set $discoveryFlags $name $state }}
 {{- end }}
 {{- $inventoryState := get $discoveryFlags "enable-cluster-inventory" }}
 {{- $apiState := get $discoveryFlags "enable-cluster-api" }}
-{{- $discoveryEnabled := or (and $inventoryState.known $inventoryState.enabled) (and $apiState.known $apiState.enabled) }}
+{{- $discoveryEnabled := and $argumentScanKnown (or (and $inventoryState.known $inventoryState.enabled) (and $apiState.known $apiState.enabled)) }}
 {{- if $discoveryEnabled }}
   {{- $directClientID := or $oidc.externalSecret.enabled (ne $oidc.clientID "") (ne $clientID "") (hasKey $oidcArgs "oidc-client-id") }}
   {{- $directClientSecret := or $oidc.externalSecret.enabled (ne $oidc.clientSecret "") (ne $clientSecret "") (hasKey $oidcArgs "oidc-client-secret") }}
@@ -183,7 +195,7 @@
       {{- fail (printf "%s requires a value in config.extraArgs" $name) }}
     {{- end }}
     {{- $used := or (eq $name "oidc-idp-issuer-url") (and (eq $name "oidc-client-id-file") (not $directClientID)) (and (eq $name "oidc-client-secret-file") (not $directClientSecret)) }}
-    {{- if and $used (or (empty $option.value) $option.flagLikeValue (and (eq $name "oidc-idp-issuer-url") (empty (trim $option.value)))) }}
+    {{- if and $used $option.known (or (empty $option.value) $option.flagLikeValue (and (eq $name "oidc-idp-issuer-url") (empty (trim $option.value)))) }}
       {{- fail (printf "%s requires a non-empty value in config.extraArgs" $name) }}
     {{- end }}
   {{- end }}
@@ -193,17 +205,24 @@
   {{- $option := get $oidcArgs "oidc-client-id-file" }}
   {{- $oidcClientFileConfigured = not (empty $option.value) }}
 {{- end }}
+{{- $oidcClientKnown := true }}
 {{- $oidcClientConfigured := or $oidc.externalSecret.enabled (ne $oidc.clientID "") (ne $clientID "") (ne $backendEnvClientID "") $oidcClientFileConfigured }}
 {{- if hasKey $oidcArgs "oidc-client-id" }}
   {{- $option := get $oidcArgs "oidc-client-id" }}
+  {{- $oidcClientKnown = $option.known }}
   {{- $oidcClientConfigured = not (empty (trim $option.value)) }}
+{{- else if and (hasKey $oidcArgs "oidc-client-id-file") (not (or $oidc.externalSecret.enabled (ne $oidc.clientID "") (ne $clientID ""))) }}
+  {{- $option := get $oidcArgs "oidc-client-id-file" }}
+  {{- $oidcClientKnown = $option.known }}
 {{- end }}
+{{- $oidcIssuerKnown := true }}
 {{- $oidcIssuerConfigured := or $oidc.externalSecret.enabled (ne $oidc.issuerURL "") (ne $issuerURL "") (ne $backendEnvIssuerURL "") }}
 {{- if hasKey $oidcArgs "oidc-idp-issuer-url" }}
   {{- $option := get $oidcArgs "oidc-idp-issuer-url" }}
+  {{- $oidcIssuerKnown = $option.known }}
   {{- $oidcIssuerConfigured = not (empty (trim $option.value)) }}
 {{- end }}
-{{- if and $discoveryEnabled (not (and $oidcClientConfigured $oidcIssuerConfigured)) }}
+{{- if and $discoveryEnabled (or (and $oidcClientKnown (not $oidcClientConfigured)) (and $oidcIssuerKnown (not $oidcIssuerConfigured))) }}
 {{-   fail "Cluster discovery requires the OIDC client ID and issuer URL; set config.oidc (or OIDC / HEADLAMP_CONFIG_OIDC env vars / externalSecret)" }}
 {{- end }}
 

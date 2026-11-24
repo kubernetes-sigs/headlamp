@@ -1,0 +1,11 @@
+env:
+  - name: DISCOVERY_ENABLED
+    value: "false"
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --enable-cluster-api=$$(DISCOVERY_ENABLED)
+    - --oidc-client-id-file=/etc/oidc/client-id
+    - --oidc-idp-issuer-url=https://idp.example.com

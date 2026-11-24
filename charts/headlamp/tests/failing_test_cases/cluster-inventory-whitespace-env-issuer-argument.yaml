@@ -1,0 +1,12 @@
+env:
+  - name: ISSUER
+    value: " \t "
+config:
+  oidc:
+    secret:
+      create: false
+  clusterInventory:
+    enabled: true
+  extraArgs:
+    - --oidc-client-id-file=/etc/oidc/client-id
+    - --oidc-idp-issuer-url=$(ISSUER)
