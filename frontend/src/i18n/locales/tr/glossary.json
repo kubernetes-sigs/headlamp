@@ -245,6 +245,7 @@
   "Groups": "Gruplar",
   "Service Accounts": "Hizmet Hesapları",
   "Non Resources": "Kaynak Olmayanlar",
+  "Resource Names": "",
   "Verbs": "Fiiller",
   "RuntimeClass": "RuntimeClass",
   "Workloads (scheduling)": "",
