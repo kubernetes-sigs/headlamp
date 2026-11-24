@@ -262,6 +262,19 @@ export default function SimpleTable(props: SimpleTableProps) {
       const value1 = getterFunc(item1);
       const value2 = getterFunc(item2);
 
+      const isNullish1 = value1 === null || value1 === undefined;
+      const isNullish2 = value2 === null || value2 === undefined;
+
+      if (isNullish1 && isNullish2) {
+        return 0;
+      }
+      if (isNullish1) {
+        return 1;
+      }
+      if (isNullish2) {
+        return -1;
+      }
+
       let compareValue = 0;
       if (value1 < value2) {
         compareValue = -1;
