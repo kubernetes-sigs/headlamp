@@ -103,6 +103,12 @@ spec:
               value: "headlamp"
             - name: OIDC_ISSUER_URL
               value: "https://idp.example.com"
+            - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY
+              value: "true"
+            - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_API
+              value: "true"
+            - name: DISCOVERY_ENABLED
+              value: "false"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
@@ -117,8 +123,8 @@ spec:
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
             # Check if issuerURL is non empty either from env or oidc.config
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
-            - --enable-cluster-inventory=false
-            - --enable-cluster-api=false
+            - --enable-cluster-inventory=$(DISCOVERY_ENABLED)
+            - --enable-cluster-api=$(DISCOVERY_ENABLED)
             - --oidc-idp-issuer-url=
           ports:
             - name: http
