@@ -58,7 +58,7 @@ export interface SettingsSource {
 export interface AdminSettingsState {
   /** Plain values with $value/$display/$clusterDefined unwrapped. */
   defaults: Record<string, any> | null;
-  /** Maps dotted paths to their display mode (only non-normal entries). */
+  /** Maps dotted paths to their explicitly configured display mode. */
   display: Record<string, DisplayMode>;
   /** Global cluster allow-list and sources config. */
   clusterDefinedSettings: any;

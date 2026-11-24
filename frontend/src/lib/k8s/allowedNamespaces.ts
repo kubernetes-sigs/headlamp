@@ -15,14 +15,16 @@
  */
 
 import React from 'react';
+import { ReactReduxContext } from 'react-redux';
 import {
   clearResolvedAllowedNamespaces,
   isResolvedAllowedNamespacesStale,
-  loadClusterSettings,
   loadResolvedAllowedNamespaces,
+  resolveClusterSetting,
   storeResolvedAllowedNamespaces,
   subscribeToClusterSettings,
 } from '../../helpers/clusterSettings';
+import type { AdminSettingsState } from '../../settings/adminSettingsSlice';
 import type { ApiError } from './api/v2/ApiError';
 import Namespace from './namespace';
 
@@ -37,8 +39,16 @@ function sameNamespaces(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-function isConfiguredSelector(cluster: string, selector: string): boolean {
-  return (loadClusterSettings(cluster).allowedNamespacesSelector || '').trim() === selector;
+function isConfiguredSelector(
+  cluster: string,
+  selector: string,
+  adminSettings: AdminSettingsState | null
+): boolean {
+  const effectiveSelector = (
+    resolveClusterSetting<string>('clusters.*.allowedNamespacesSelector', cluster, adminSettings)
+      .value || ''
+  ).trim();
+  return effectiveSelector === selector;
 }
 
 /**
@@ -76,6 +86,16 @@ export function useAllowedNamespacesFromSelector(
     labelSelector: enabled ? trimmedSelector : undefined,
   });
 
+  const reduxCtx = React.useContext(ReactReduxContext);
+  const adminSettings = React.useSyncExternalStore<AdminSettingsState | null>(
+    React.useCallback(
+      onStoreChange => (reduxCtx?.store ? reduxCtx.store.subscribe(onStoreChange) : () => {}),
+      [reduxCtx?.store]
+    ),
+    () => (reduxCtx?.store?.getState()?.adminSettings as AdminSettingsState | undefined) ?? null,
+    () => null
+  );
+
   const namespaces = React.useMemo(() => sortedNamespaceNames(items), [items]);
   const getCacheSnapshot = () =>
     loadResolvedAllowedNamespaces(cluster)?.selector === trimmedSelector;
@@ -86,7 +106,7 @@ export function useAllowedNamespacesFromSelector(
   );
 
   React.useEffect(() => {
-    if (!cluster || !isConfiguredSelector(cluster, trimmedSelector)) {
+    if (!cluster || !isConfiguredSelector(cluster, trimmedSelector, adminSettings)) {
       return;
     }
     // No selector: drop any list left over from a previously configured one.
@@ -114,10 +134,10 @@ export function useAllowedNamespacesFromSelector(
     const changed =
       !cache || cache.selector !== trimmedSelector || !sameNamespaces(cache.namespaces, namespaces);
     // Rewrite when the data changed or the cache went stale (refreshes the timestamp).
-    if (changed || isResolvedAllowedNamespacesStale(cluster)) {
+    if (changed || isResolvedAllowedNamespacesStale(cluster, undefined, adminSettings)) {
       storeResolvedAllowedNamespaces(cluster, trimmedSelector, namespaces);
     }
-  }, [cluster, trimmedSelector, isError, items, namespaces, dataUpdatedAt]);
+  }, [cluster, trimmedSelector, isError, items, namespaces, dataUpdatedAt, adminSettings]);
 
   React.useEffect(() => {
     if (
@@ -126,7 +146,7 @@ export function useAllowedNamespacesFromSelector(
       !trimmedSelector ||
       isError ||
       items === null ||
-      !isConfiguredSelector(cluster, trimmedSelector)
+      !isConfiguredSelector(cluster, trimmedSelector, adminSettings)
     ) {
       return;
     }
@@ -135,7 +155,7 @@ export function useAllowedNamespacesFromSelector(
     if (!cache || cache.selector !== trimmedSelector) {
       storeResolvedAllowedNamespaces(cluster, trimmedSelector, namespaces);
     }
-  }, [cacheIsCurrent, cluster, trimmedSelector, isError, items, namespaces]);
+  }, [cacheIsCurrent, cluster, trimmedSelector, isError, items, namespaces, adminSettings]);
 
   return {
     namespaces: enabled ? namespaces : [],

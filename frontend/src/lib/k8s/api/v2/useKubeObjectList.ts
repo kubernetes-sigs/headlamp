@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getDiscoveredNamespaces,
   hasAllowedNamespacesRestriction,
-  loadClusterSettings,
+  resolveClusterSetting,
 } from '../../../../helpers/clusterSettings';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
@@ -286,9 +286,12 @@ function allowedNamespaceListQuery<K extends KubeObject>(
   queryParams: QueryParameters,
   refetchInterval?: number
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
-  const settings = loadClusterSettings(cluster);
-  const allowedNamespaces = settings.allowedNamespaces ?? [];
-  const configuredSelector = settings.allowedNamespacesSelector?.trim();
+  const allowedNamespaces =
+    resolveClusterSetting<string[]>('clusters.*.allowedNamespaces', cluster).value ?? [];
+  const configuredSelector = resolveClusterSetting<string>(
+    'clusters.*.allowedNamespacesSelector',
+    cluster
+  ).value?.trim();
   const requestedSelector = queryParams.labelSelector?.trim();
   const selector = [configuredSelector, requestedSelector].filter(Boolean).join(',');
   // Discovered namespaces only apply when nothing is configured (settings win).
@@ -409,7 +412,8 @@ export function kubeObjectListQuery<K extends KubeObject>(
   asTable = false
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
   const configuredSelector =
-    loadClusterSettings(cluster).allowedNamespacesSelector?.trim() || undefined;
+    resolveClusterSetting<string>('clusters.*.allowedNamespacesSelector', cluster).value?.trim() ||
+    undefined;
   const isResolvingAllowedNamespaces =
     configuredSelector !== undefined && queryParams.labelSelector?.trim() === configuredSelector;
 

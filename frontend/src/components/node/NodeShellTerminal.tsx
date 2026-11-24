@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import {
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
   DEFAULT_NODE_SHELL_NAMESPACE,
-  loadClusterSettings,
+  resolveClusterSetting,
 } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import { apply } from '../../lib/k8s/api/v1/apply';
@@ -123,12 +123,18 @@ async function shell(
   onExec: StreamResultsCb,
   onError: (message?: string) => void
 ) {
-  const clusterSettings = loadClusterSettings(cluster);
-  const config = clusterSettings.nodeShellTerminal;
+  const linuxImageSetting = resolveClusterSetting<string>(
+    'clusters.*.nodeShellTerminal.linuxImage',
+    cluster
+  ).value;
+  const namespaceSetting = resolveClusterSetting<string>(
+    'clusters.*.nodeShellTerminal.namespace',
+    cluster
+  ).value;
   const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
   const defaultImage = store.getState().config.defaultNodeShellImage;
-  const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
-  const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
+  const linuxImage = linuxImageSetting || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
+  const namespace = namespaceSetting || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
   const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   try {

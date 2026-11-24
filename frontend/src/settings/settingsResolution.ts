@@ -16,6 +16,13 @@
 
 import type { AdminSettingsState, DisplayMode, SettingSource } from './adminSettingsSlice';
 
+function getOwn<T>(obj: Record<string, T> | null | undefined, key: string): T | undefined {
+  if (!obj || typeof obj !== 'object') {
+    return undefined;
+  }
+  return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
+}
+
 /**
  * Retrieves a value from a nested object using a dotted path.
  */
@@ -31,7 +38,7 @@ export function getNestedValue(obj: Record<string, any> | null | undefined, path
     if (current === null || current === undefined || typeof current !== 'object') {
       return undefined;
     }
-    current = current[part];
+    current = getOwn(current, part);
   }
 
   return current;
@@ -40,15 +47,24 @@ export function getNestedValue(obj: Record<string, any> | null | undefined, path
 /**
  * Checks if a cluster is allowed to define a given setting path.
  */
-function isSettingClusterDefined(
+export function isSettingClusterDefined(
   adminSettings: AdminSettingsState,
   path: string,
   clusterName: string
 ): boolean {
-  // Check per-setting override first
-  const perSetting = adminSettings.clusterDefined[path];
-  if (perSetting !== undefined) {
-    return matchesClusterList(perSetting, clusterName);
+  const clusterPath = stripClusterPrefix(path, clusterName);
+  const candidates = [
+    `clusters.${clusterName}.${clusterPath}`,
+    `clusters.*.${clusterPath}`,
+    clusterPath,
+    path,
+  ];
+
+  for (const candidate of candidates) {
+    const perSetting = adminSettings.clusterDefined[candidate];
+    if (perSetting !== undefined) {
+      return matchesClusterList(perSetting, clusterName);
+    }
   }
 
   // Fall back to global clusterDefinedSettings
@@ -84,7 +100,7 @@ function isClusterInGlobalAllowList(clusterDefinedSettings: any, clusterName: st
  * Strips "clusters.*." or "clusters.<clusterName>." prefix from a path.
  * ConfigMap data is already per-cluster, so it doesn't have this prefix.
  */
-function stripClusterPrefix(path: string, clusterName: string): string {
+export function stripClusterPrefix(path: string, clusterName: string): string {
   const wildcardPrefix = 'clusters.*.';
   if (path.startsWith(wildcardPrefix)) {
     return path.slice(wildcardPrefix.length);
@@ -103,12 +119,24 @@ function stripClusterPrefix(path: string, clusterName: string): string {
  */
 export function getDisplayMode(
   adminSettings: AdminSettingsState | null,
-  path: string
+  path: string,
+  clusterName?: string
 ): DisplayMode | undefined {
   if (!adminSettings) {
     return undefined;
   }
-  return adminSettings.display[path];
+  if (clusterName) {
+    const clusterPath = stripClusterPrefix(path, clusterName);
+    const specificMode = getOwn(adminSettings.display, `clusters.${clusterName}.${clusterPath}`);
+    if (specificMode) {
+      return specificMode;
+    }
+    const wildcardMode = getOwn(adminSettings.display, `clusters.*.${clusterPath}`);
+    if (wildcardMode) {
+      return wildcardMode;
+    }
+  }
+  return getOwn(adminSettings.display, path);
 }
 
 /**
@@ -133,8 +161,19 @@ export function resolveSettingValue<T>(
     return { value: builtInDefault, source: 'built-in' };
   }
 
-  const displayMode = adminSettings.display[path];
-  const adminDefault = getNestedValue(adminSettings.defaults, path);
+  const displayMode = getDisplayMode(adminSettings, path, clusterName);
+  let adminDefault: any;
+  if (clusterName) {
+    const clusterPath = stripClusterPrefix(path, clusterName);
+    const clusterDefaults = adminSettings.defaults?.clusters;
+    adminDefault = getNestedValue(getOwn(clusterDefaults, clusterName), clusterPath);
+    if (adminDefault === undefined) {
+      adminDefault = getNestedValue(getOwn(clusterDefaults, '*'), clusterPath);
+    }
+  }
+  if (adminDefault === undefined) {
+    adminDefault = getNestedValue(adminSettings.defaults, path);
+  }
   const isHiddenOrDisabled = displayMode === 'hidden' || displayMode === 'disabled';
 
   // Try to get cluster value if a cluster is specified.
@@ -142,7 +181,7 @@ export function resolveSettingValue<T>(
   // in admin defaults, but ConfigMap data is already per-cluster, so we strip that prefix.
   let clusterValue: T | undefined;
   if (clusterName && isSettingClusterDefined(adminSettings, path, clusterName)) {
-    const clusterData = adminSettings.clusterSettings[clusterName];
+    const clusterData = getOwn(adminSettings.clusterSettings, clusterName);
     if (clusterData) {
       const clusterPath = stripClusterPrefix(path, clusterName);
       const val = getNestedValue(clusterData, clusterPath);

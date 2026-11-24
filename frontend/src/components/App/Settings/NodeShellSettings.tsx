@@ -50,15 +50,19 @@ export default function NodeShellSettings(props: SettingsProps) {
 
   const adminLinuxImage = useSetting<string>('clusters.*.nodeShellTerminal.linuxImage', cluster);
   const adminIsEnabled = useSetting<boolean>('clusters.*.nodeShellTerminal.isEnabled', cluster);
+  const adminNamespace = useSetting<string>('clusters.*.nodeShellTerminal.namespace', cluster);
 
-  const namespace = clusterSettings.nodeShellTerminal?.namespace ?? '';
   // When a setting is admin-managed (disabled or hidden) the admin value is
   // forced; otherwise the user's cluster setting wins, falling back to the
   // admin-provided default.
+  const namespace =
+    adminNamespace.disabled || adminNamespace.hidden
+      ? adminNamespace.value ?? ''
+      : clusterSettings.nodeShellTerminal?.namespace || adminNamespace.value || '';
   const image =
     adminLinuxImage.disabled || adminLinuxImage.hidden
       ? adminLinuxImage.value ?? ''
-      : clusterSettings.nodeShellTerminal?.linuxImage ?? adminLinuxImage.value ?? '';
+      : clusterSettings.nodeShellTerminal?.linuxImage || adminLinuxImage.value || '';
   const isEnabled =
     adminIsEnabled.disabled || adminIsEnabled.hidden
       ? adminIsEnabled.value ?? true
@@ -127,6 +131,7 @@ export default function NodeShellSettings(props: SettingsProps) {
           },
           {
             name: 'Namespace',
+            hide: adminNamespace.hidden,
             value: (
               <TextField
                 onChange={event => {
@@ -137,6 +142,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                   }
                 }}
                 value={namespaceInput}
+                disabled={adminNamespace.disabled}
                 placeholder={defaultNodeShellNamespace}
                 error={!isValidNamespace}
                 helperText={

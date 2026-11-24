@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { AdminSettingsState } from '../settings/adminSettingsSlice';
 import {
   ALLOWED_NAMESPACES_SELECTOR_MAX_AGE_MS,
   clearResolvedAllowedNamespaces,
@@ -27,6 +28,7 @@ import {
   loadClusterSettings,
   loadResolvedAllowedNamespaces,
   resetDiscoveredNamespaces,
+  resolveClusterSetting,
   setDiscoveredNamespaces,
   storeClusterSettings,
   storeResolvedAllowedNamespaces,
@@ -404,6 +406,167 @@ describe('clusterSettings', () => {
           resolvedAt + ALLOWED_NAMESPACES_SELECTOR_MAX_AGE_MS + 1
         )
       ).toBe(true);
+    });
+  });
+
+  describe('resolveClusterSetting', () => {
+    const makeAdmin = (overrides: Partial<AdminSettingsState> = {}): AdminSettingsState => ({
+      defaults: {},
+      display: {},
+      clusterDefinedSettings: {},
+      clusterDefined: {},
+      sources: {},
+      clusterSettings: {},
+      ...overrides,
+    });
+
+    it('returns user value from localStorage when no admin settings exist', () => {
+      storeClusterSettings('prod', { nodeShellTerminal: { namespace: 'my-ns' } });
+      const result = resolveClusterSetting('clusters.*.nodeShellTerminal.namespace', 'prod', null);
+      expect(result).toEqual({
+        value: 'my-ns',
+        source: 'user',
+        disabled: false,
+        hidden: false,
+      });
+    });
+
+    it('falls back to admin default when user has no stored value', () => {
+      const admin = makeAdmin({
+        defaults: {
+          clusters: {
+            '*': { nodeShellTerminal: { namespace: 'admin-ns' } },
+          },
+        },
+      });
+      const result = resolveClusterSetting('clusters.*.nodeShellTerminal.namespace', 'prod', admin);
+      expect(result).toEqual({
+        value: 'admin-ns',
+        source: 'default',
+        disabled: false,
+        hidden: false,
+      });
+    });
+
+    it('treats empty string and empty array as unconfigured, falling back to admin defaults', () => {
+      storeClusterSettings('prod', {
+        nodeShellTerminal: { namespace: '' },
+        allowedNamespaces: [],
+      });
+      const admin = makeAdmin({
+        defaults: {
+          clusters: {
+            '*': {
+              nodeShellTerminal: { namespace: 'fallback-ns' },
+              allowedNamespaces: ['team-a', 'team-b'],
+            },
+          },
+        },
+      });
+      const nsResult = resolveClusterSetting(
+        'clusters.*.nodeShellTerminal.namespace',
+        'prod',
+        admin
+      );
+      expect(nsResult.value).toBe('fallback-ns');
+      expect(nsResult.source).toBe('default');
+
+      const allowedResult = resolveClusterSetting('clusters.*.allowedNamespaces', 'prod', admin);
+      expect(allowedResult.value).toEqual(['team-a', 'team-b']);
+      expect(allowedResult.source).toBe('default');
+    });
+
+    it('lets user value override admin default in normal mode', () => {
+      storeClusterSettings('prod', { nodeShellTerminal: { namespace: 'custom-ns' } });
+      const admin = makeAdmin({
+        defaults: {
+          clusters: {
+            '*': { nodeShellTerminal: { namespace: 'admin-ns' } },
+          },
+        },
+      });
+      const result = resolveClusterSetting('clusters.*.nodeShellTerminal.namespace', 'prod', admin);
+      expect(result).toEqual({
+        value: 'custom-ns',
+        source: 'user',
+        disabled: false,
+        hidden: false,
+      });
+    });
+
+    it('ignores user value and enforces admin default when setting is disabled', () => {
+      storeClusterSettings('prod', { nodeShellTerminal: { namespace: 'custom-ns' } });
+      const admin = makeAdmin({
+        defaults: {
+          clusters: {
+            '*': { nodeShellTerminal: { namespace: 'admin-ns' } },
+          },
+        },
+        display: {
+          'clusters.*.nodeShellTerminal.namespace': 'disabled',
+        },
+      });
+      const result = resolveClusterSetting('clusters.*.nodeShellTerminal.namespace', 'prod', admin);
+      expect(result).toEqual({
+        value: 'admin-ns',
+        source: 'disabled',
+        disabled: true,
+        hidden: false,
+      });
+    });
+
+    it('resolves cluster-defined setting over admin default', () => {
+      const admin = makeAdmin({
+        defaults: {
+          clusters: {
+            '*': { nodeShellTerminal: { namespace: 'admin-ns' } },
+          },
+        },
+        clusterDefinedSettings: ['*'],
+        clusterSettings: {
+          prod: { nodeShellTerminal: { namespace: 'cluster-defined-ns' } },
+        },
+      });
+      const result = resolveClusterSetting('clusters.*.nodeShellTerminal.namespace', 'prod', admin);
+      expect(result.value).toBe('cluster-defined-ns');
+      expect(result.source).toBe('cluster');
+    });
+  });
+
+  describe('getCombinedAllowedNamespaces with distributed settings', () => {
+    it('uses admin default allowedNamespaces when user has no stored value', () => {
+      const admin = {
+        defaults: {
+          clusters: {
+            '*': { allowedNamespaces: ['kube-system', 'monitoring'] },
+          },
+        },
+        display: {},
+        clusterDefinedSettings: {},
+        clusterDefined: {},
+        sources: {},
+        clusterSettings: {},
+      } as AdminSettingsState;
+
+      expect(getCombinedAllowedNamespaces('prod', admin)).toEqual(['kube-system', 'monitoring']);
+    });
+
+    it('uses admin default allowedNamespacesSelector to match cached namespaces', () => {
+      storeResolvedAllowedNamespaces('prod', 'team=infra', ['monitoring', 'logging']);
+      const admin = {
+        defaults: {
+          clusters: {
+            '*': { allowedNamespacesSelector: 'team=infra' },
+          },
+        },
+        display: {},
+        clusterDefinedSettings: {},
+        clusterDefined: {},
+        sources: {},
+        clusterSettings: {},
+      } as AdminSettingsState;
+
+      expect(getCombinedAllowedNamespaces('prod', admin)).toEqual(['logging', 'monitoring']);
     });
   });
 });

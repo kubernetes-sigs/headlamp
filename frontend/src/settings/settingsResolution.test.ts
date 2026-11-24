@@ -15,7 +15,14 @@
  */
 
 import { AdminSettingsState } from './adminSettingsSlice';
-import { getNestedValue, resolveSettingValue } from './settingsResolution';
+import { applyAdminSettings, parseAdminSettings } from './parseAdminSettings';
+import {
+  getDisplayMode,
+  getNestedValue,
+  isSettingClusterDefined,
+  resolveSettingValue,
+  stripClusterPrefix,
+} from './settingsResolution';
 
 describe('getNestedValue', () => {
   it('returns value at a simple path', () => {
@@ -164,5 +171,189 @@ describe('resolveSettingValue', () => {
     });
     const result = resolveSettingValue('timezone', undefined, 'UTC', admin, 'prod');
     expect(result).toEqual({ value: 'America/Chicago', source: 'cluster' });
+  });
+
+  it('resolves cluster-scoped setting with wildcard default', () => {
+    const admin = makeAdminSettings({
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespaces: ['default', 'kube-system'],
+          },
+        },
+      },
+    });
+    const result = resolveSettingValue(
+      'clusters.*.allowedNamespaces',
+      undefined,
+      undefined,
+      admin,
+      'prod'
+    );
+    expect(result).toEqual({ value: ['default', 'kube-system'], source: 'default' });
+  });
+
+  it('prefers cluster-specific default over wildcard default for cluster-scoped paths', () => {
+    const admin = makeAdminSettings({
+      defaults: {
+        clusters: {
+          '*': {
+            nodeShellTerminal: { namespace: 'default-ns' },
+          },
+          prod: {
+            nodeShellTerminal: { namespace: 'prod-ns' },
+          },
+        },
+      },
+    });
+    const result = resolveSettingValue(
+      'clusters.*.nodeShellTerminal.namespace',
+      undefined,
+      undefined,
+      admin,
+      'prod'
+    );
+    expect(result).toEqual({ value: 'prod-ns', source: 'default' });
+  });
+
+  it('resolves cluster-specific defaults when cluster name contains dots', () => {
+    const admin = makeAdminSettings({
+      defaults: {
+        clusters: {
+          '*': {
+            nodeShellTerminal: { namespace: 'wildcard-ns' },
+          },
+          'prod.example.com': {
+            nodeShellTerminal: { namespace: 'dotted-prod-ns' },
+          },
+        },
+      },
+    });
+    const result = resolveSettingValue(
+      'clusters.*.nodeShellTerminal.namespace',
+      undefined,
+      undefined,
+      admin,
+      'prod.example.com'
+    );
+    expect(result).toEqual({ value: 'dotted-prod-ns', source: 'default' });
+  });
+
+  it('ignores prototype keys on defaults.clusters for prototype-named clusters', () => {
+    const admin = makeAdminSettings({
+      defaults: {
+        clusters: {},
+      },
+    });
+    const result = resolveSettingValue(
+      'clusters.*.nodeShellTerminal.namespace',
+      undefined,
+      'fallback-ns',
+      admin,
+      'constructor'
+    );
+    expect(result).toEqual({ value: 'fallback-ns', source: 'built-in' });
+  });
+});
+
+describe('stripClusterPrefix', () => {
+  it('strips clusters.*. prefix', () => {
+    expect(stripClusterPrefix('clusters.*.allowedNamespaces', 'prod')).toBe('allowedNamespaces');
+  });
+
+  it('strips cluster-specific prefix', () => {
+    expect(stripClusterPrefix('clusters.prod.allowedNamespaces', 'prod')).toBe('allowedNamespaces');
+  });
+
+  it('leaves path unchanged if no cluster prefix', () => {
+    expect(stripClusterPrefix('timezone', 'prod')).toBe('timezone');
+  });
+});
+
+describe('getDisplayMode and isSettingClusterDefined for cluster-scoped settings', () => {
+  const makeAdminSettings = (overrides: Partial<AdminSettingsState> = {}): AdminSettingsState => ({
+    defaults: {},
+    display: {},
+    clusterDefinedSettings: {},
+    clusterDefined: {},
+    sources: {},
+    clusterSettings: {},
+    ...overrides,
+  });
+
+  it('checks display mode with cluster-specific override falling back to wildcard', () => {
+    const admin = makeAdminSettings({
+      display: {
+        'clusters.*.allowedNamespaces': 'disabled',
+        'clusters.prod.allowedNamespaces': 'hidden',
+      },
+    });
+    expect(getDisplayMode(admin, 'clusters.*.allowedNamespaces', 'prod')).toBe('hidden');
+    expect(getDisplayMode(admin, 'clusters.*.allowedNamespaces', 'staging')).toBe('disabled');
+  });
+
+  it('preserves parsed explicit normal cluster override over wildcard disabled/hidden modes', () => {
+    const admin = applyAdminSettings(
+      parseAdminSettings({
+        defaults: {
+          clusters: {
+            '*': {
+              allowedNamespaces: { $display: 'disabled', $value: ['default'] },
+              nodeShellTerminal: {
+                namespace: { $display: 'hidden', $value: 'ops' },
+              },
+            },
+            prod: {
+              allowedNamespaces: { $display: 'normal', $value: ['prod-default'] },
+              nodeShellTerminal: {
+                namespace: { $display: 'normal', $value: 'prod-ops' },
+              },
+            },
+          },
+        },
+      })
+    );
+
+    expect(getDisplayMode(admin, 'clusters.*.allowedNamespaces', 'prod')).toBe('normal');
+    expect(getDisplayMode(admin, 'clusters.*.allowedNamespaces', 'staging')).toBe('disabled');
+    expect(
+      resolveSettingValue('clusters.*.allowedNamespaces', ['user-ns'], undefined, admin, 'prod')
+    ).toEqual({ value: ['user-ns'], source: 'user' });
+    expect(
+      resolveSettingValue('clusters.*.allowedNamespaces', ['user-ns'], undefined, admin, 'staging')
+    ).toEqual({ value: ['default'], source: 'disabled' });
+
+    expect(getDisplayMode(admin, 'clusters.*.nodeShellTerminal.namespace', 'prod')).toBe('normal');
+    expect(getDisplayMode(admin, 'clusters.*.nodeShellTerminal.namespace', 'staging')).toBe(
+      'hidden'
+    );
+    expect(
+      resolveSettingValue(
+        'clusters.*.nodeShellTerminal.namespace',
+        'user-ops',
+        undefined,
+        admin,
+        'prod'
+      )
+    ).toEqual({ value: 'user-ops', source: 'user' });
+    expect(
+      resolveSettingValue(
+        'clusters.*.nodeShellTerminal.namespace',
+        'user-ops',
+        undefined,
+        admin,
+        'staging'
+      )
+    ).toEqual({ value: 'ops', source: 'hidden' });
+  });
+
+  it('checks isSettingClusterDefined matching wildcard and cluster-scoped paths', () => {
+    const admin = makeAdminSettings({
+      clusterDefined: {
+        'clusters.*.allowedNamespaces': ['*'],
+      },
+    });
+    expect(isSettingClusterDefined(admin, 'clusters.*.allowedNamespaces', 'prod')).toBe(true);
+    expect(isSettingClusterDefined(admin, 'allowedNamespaces', 'prod')).toBe(true);
   });
 });

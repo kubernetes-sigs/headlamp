@@ -23,7 +23,7 @@ import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { uniq } from 'lodash';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -32,6 +32,7 @@ import {
   getDiscoveredNamespacesVersion,
   hasAllowedNamespacesRestriction,
   subscribeDiscoveredNamespaces,
+  subscribeToClusterSettings,
 } from '../../helpers/clusterSettings';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
@@ -206,26 +207,33 @@ export function NamespacesAutocomplete() {
   const location = useLocation();
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
+  const adminSettings = useTypedSelector(state => state.adminSettings);
   const clusters = useSelectedClusters();
   // The allowed namespaces of every selected cluster, so none of them is left out when
   // more than one cluster is selected.
   // Discovered namespaces change in the background (refreshes, identity resets), so
   // follow the discovery store too. Selector resolution is tracked separately.
-  const discoveryVersion = React.useSyncExternalStore(
+  const discoveryVersion = useSyncExternalStore(
     subscribeDiscoveredNamespaces,
     getDiscoveredNamespacesVersion
   );
+  const getAllowedSnapshot = () =>
+    JSON.stringify(clusters.map(cluster => getCombinedAllowedNamespaces(cluster, adminSettings)));
+  const allowedPerClusterSnapshot = useSyncExternalStore(
+    subscribeToClusterSettings,
+    getAllowedSnapshot,
+    getAllowedSnapshot
+  );
   const resolutionKey = React.useContext(AllowedNamespacesResolutionContext);
   const allowedPerCluster = useMemo(
-    () => clusters.map(cluster => getCombinedAllowedNamespaces(cluster)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clusters, discoveryVersion, resolutionKey]
+    () => JSON.parse(allowedPerClusterSnapshot) as string[][],
+    [allowedPerClusterSnapshot]
   );
   // A selector that resolves to no namespaces is still a restriction.
   const unrestrictedClusters = useMemo(
-    () => clusters.filter(c => !hasAllowedNamespacesRestriction(c)),
+    () => clusters.filter(c => !hasAllowedNamespacesRestriction(c, adminSettings)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clusters, discoveryVersion, resolutionKey]
+    [clusters, adminSettings, discoveryVersion, resolutionKey, allowedPerClusterSnapshot]
   );
   const allowedNames = useMemo(
     () => uniq(allowedPerCluster.flat()).sort((a, b) => a.localeCompare(b)),

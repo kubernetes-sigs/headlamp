@@ -28,9 +28,9 @@ import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import Pod from '../../lib/k8s/pod';
+import { useSetting } from '../../settings/useAdminSettings';
 import { Activity } from '../activity/Activity';
 import type { ActivityState } from '../activity/activitySlice';
 import ActionButton from '../common/ActionButton';
@@ -44,21 +44,6 @@ import { PodDebugTerminal } from './PodDebugTerminal';
  */
 interface PodDebugActionProps {
   item: Pod | null;
-}
-
-/**
- * Checks if pod debugging is enabled for the cluster.
- * Defaults to true if not configured.
- *
- * @param cluster - Cluster name or null
- * @returns True if enabled or not configured, false otherwise
- */
-function isPodDebugEnabled(cluster: string | null) {
-  if (cluster === null) {
-    return false;
-  }
-  const clusterSettings = loadClusterSettings(cluster);
-  return clusterSettings.podDebugTerminal?.isEnabled ?? true;
 }
 
 /**
@@ -79,15 +64,20 @@ export function PodDebugAction(props: PodDebugActionProps) {
   const activities = useSelector((state: { activity: ActivityState }) => state.activity.activities);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedContainer, setSelectedContainer] = useState<string>('');
+  const cluster = getCluster();
+  const isEnabledSetting = useSetting<boolean>(
+    'clusters.*.podDebugTerminal.isEnabled',
+    cluster ?? undefined
+  );
 
-  if (item === null) {
+  if (item === null || cluster === null) {
     return null;
   }
 
-  const cluster = getCluster();
+  const isEnabled = isEnabledSetting.value ?? true;
   const getActivityId = () => `pod-debug-${item.metadata.uid}`;
 
-  if (!isPodDebugEnabled(cluster)) {
+  if (!isEnabled) {
     return null;
   }
 

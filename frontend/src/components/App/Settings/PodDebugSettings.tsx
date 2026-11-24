@@ -20,6 +20,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ClusterSettings, DEFAULT_POD_DEBUG_IMAGE } from '../../../helpers/clusterSettings';
 import { useTypedSelector } from '../../../redux/hooks';
+import { useSetting } from '../../../settings/useAdminSettings';
 import { HoverInfoLabel } from '../../common/Label';
 import { NameValueTable } from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
@@ -43,7 +44,7 @@ interface SettingsProps {
  * Allows enabling/disabling debugging and configuring the default debug image per cluster.
  */
 export default function PodDebugSettings(props: SettingsProps) {
-  const { clusterSettings, setClusterSettings } = props;
+  const { cluster, clusterSettings, setClusterSettings } = props;
   const { t } = useTranslation(['translation']);
   const defaultPodDebugImage =
     useTypedSelector(state => state.config?.defaultPodDebugImage) || DEFAULT_POD_DEBUG_IMAGE;
@@ -51,8 +52,17 @@ export default function PodDebugSettings(props: SettingsProps) {
   const podDebugLabelID = 'pod-debug-enabled-label';
   const debugImageLabelID = 'debug-image-label';
 
-  const image = clusterSettings.podDebugTerminal?.debugImage ?? '';
-  const isEnabled = clusterSettings.podDebugTerminal?.isEnabled ?? true;
+  const adminDebugImage = useSetting<string>('clusters.*.podDebugTerminal.debugImage', cluster);
+  const adminIsEnabled = useSetting<boolean>('clusters.*.podDebugTerminal.isEnabled', cluster);
+
+  const image =
+    adminDebugImage.disabled || adminDebugImage.hidden
+      ? adminDebugImage.value ?? ''
+      : clusterSettings.podDebugTerminal?.debugImage || adminDebugImage.value || '';
+  const isEnabled =
+    adminIsEnabled.disabled || adminIsEnabled.hidden
+      ? adminIsEnabled.value ?? true
+      : clusterSettings.podDebugTerminal?.isEnabled ?? adminIsEnabled.value ?? true;
 
   function updatePodDebug(patch: Partial<ClusterSettings['podDebugTerminal']>) {
     setClusterSettings(settings => ({
@@ -74,16 +84,19 @@ export default function PodDebugSettings(props: SettingsProps) {
                 )}
               />
             ),
+            hide: adminIsEnabled.hidden,
             value: (
               <Switch
                 inputProps={{ 'aria-labelledby': podDebugLabelID }}
                 checked={isEnabled}
                 onChange={e => updatePodDebug({ isEnabled: e.target.checked })}
+                disabled={adminIsEnabled.disabled}
               />
             ),
           },
           {
             name: <span id={debugImageLabelID}>{t('translation|Debug Image')}</span>,
+            hide: adminDebugImage.hidden,
             value: (
               <TextField
                 onChange={event => {
@@ -91,6 +104,7 @@ export default function PodDebugSettings(props: SettingsProps) {
                   updatePodDebug({ debugImage: value });
                 }}
                 value={image}
+                disabled={adminDebugImage.disabled}
                 placeholder={defaultPodDebugImage}
                 inputProps={{
                   'aria-labelledby': debugImageLabelID,
