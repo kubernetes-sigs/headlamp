@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package telemetry_test
 
 import (
@@ -289,6 +305,31 @@ func TestResponseWriterHijack_ReturnsErrorWhenUnderlyingNotHijacker(t *testing.T
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestResponseWriterUnwrap_FlushReachesUnderlyingWriter(t *testing.T) {
+	provider, _ := setupTestMeter(t)
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+	})
+
+	metrics, err := tel.NewMetrics()
+	require.NoError(t, err)
+
+	var flushErr error
+
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("chunk"))
+		flushErr = http.NewResponseController(w).Flush()
+	})
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/stream", nil)
+
+	metrics.RequestCounterMiddleware(h).ServeHTTP(rr, req)
+
+	require.NoError(t, flushErr, "flush should pass through the metrics wrapper")
+	assert.True(t, rr.Flushed, "underlying writer should have been flushed")
 }
 
 func setupPanicTest(t *testing.T) (*tel.Metrics, *httptest.Server) {

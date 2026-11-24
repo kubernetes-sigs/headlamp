@@ -11,13 +11,9 @@ There are desktop apps for [Linux](./linux-installation.md), [Mac](./mac-install
 :::warning
 **IMPORTANT (UNSIGNED APPS):** After the move under the Kubernetes SIG UI, we are still finishing some last details on how to sign new releases under Kubernetes/CNCF.
 
-This means the Windows and Mac desktop versions are not signed/notarized as before and the OS will try to block the apps from running.
+This means the Windows version is not signed/notarized as before and the OS will try to block the app from running.
 
-You can still run the apps:
-
-**Windows:** When the OS warns you that the application is not signed, choose "More > Run Anyway".
-
-**On Mac:** Open a terminal and type: `xattr -dr com.apple.quarantine /Applications/Headlamp.app`. After this running the app should work.
+You can still run the app on **Windows:** When the OS warns you that the application is not signed, choose "More > Run Anyway".
 
 Once we have a way to sign the apps, we will re-upload the assets.
 We appreciate your patience while we solve this issue.

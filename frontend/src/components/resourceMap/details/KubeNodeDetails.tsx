@@ -15,15 +15,18 @@
  */
 
 import { Box } from '@mui/system';
-import { memo, ReactElement, useEffect } from 'react';
-import Deployment from '../../../lib/k8s/deployment';
-import JobSet from '../../../lib/k8s/jobSet';
-import ReplicaSet from '../../../lib/k8s/replicaSet';
+import { lazy, memo, ReactElement, Suspense, useEffect } from 'react';
+// We use React.lazy below to load the workload classes so we don't create circular dependencies.
+import CompositePodGroupDetails from '../../compositePodGroup/Details';
 import ConfigDetails from '../../configmap/Details';
 import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
-import CronJobDetails from '../../cronjob/Details';
 import DaemonSetDetails from '../../daemonset/Details';
+import { DetailsGridContext } from '../../DetailsViewSection/detailsViewSectionSlice';
+import DeviceClassDetails from '../../device/DeviceClassDetails';
+import ResourceClaimDetails from '../../device/ResourceClaimDetails';
+import ResourceClaimTemplateDetails from '../../device/ResourceClaimTemplateDetails';
+import ResourceSliceDetails from '../../device/ResourceSliceDetails';
 import EndpointDetails from '../../endpoints/Details';
 import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
@@ -32,22 +35,28 @@ import GatewayDetails from '../../gateway/GatewayDetails';
 import GRPCRouteDetails from '../../gateway/GRPCRouteDetails';
 import HTTPRouteDetails from '../../gateway/HTTPRouteDetails';
 import ReferenceGrantDetails from '../../gateway/ReferenceGrantDetails';
+import TCPRouteDetails from '../../gateway/TCPRouteDetails';
+import UDPRouteDetails from '../../gateway/UDPRouteDetails';
 import HpaDetails from '../../horizontalPodAutoscaler/Details';
 import IngressClassDetails from '../../ingress/ClassDetails';
 import IngressDetails from '../../ingress/Details';
 import JobDetails from '../../job/Details';
 import { LeaseDetails } from '../../lease/Details';
 import { LimitRangeDetails } from '../../limitRange/Details';
+import MutatingAdmissionPolicyDetails from '../../mutatingAdmissionPolicy/Details';
+import MutatingAdmissionPolicyBindingDetails from '../../mutatingAdmissionPolicyBinding/Details';
 import NamespaceDetails from '../../namespace/Details';
 import { NetworkPolicyDetails } from '../../networkpolicy/Details';
 import NodeDetails from '../../node/Details';
 import PodDetails from '../../pod/Details';
 import PDBDetails from '../../podDisruptionBudget/Details';
+import PodGroupDetails from '../../podGroup/Details';
 import PriorityClassDetails from '../../priorityClass/Details';
 import ResourceQuotaDetails from '../../resourceQuota/Details';
 import RoleBindingDetails from '../../role/BindingDetails';
 import RoleDetails from '../../role/Details';
 import { RuntimeClassDetails } from '../../runtimeClass/Details';
+import SchedulingWorkloadDetails from '../../schedulingWorkload/Details';
 import SecretDetails from '../../secret/Details';
 import ServiceDetails from '../../service/Details';
 import ServiceAccountDetails from '../../serviceaccount/Details';
@@ -61,17 +70,61 @@ import MutatingWebhookConfigList from '../../webhookconfiguration/MutatingWebhoo
 import ValidatingWebhookConfigurationDetails from '../../webhookconfiguration/ValidatingWebhookConfigDetails';
 import WorkloadDetails from '../../workload/Details';
 
+// Avoid retaining the CronJob detail module unless the selected resource needs it.
+const CronJobDetails = lazy(() => import('../../cronjob/Details'));
+const DeploymentWorkloadDetails = lazy(() =>
+  import('../../../lib/k8s/deployment').then(m => ({
+    default: (props: any) => <WorkloadDetails {...props} workloadKind={m.default} />,
+  }))
+);
+const ReplicaSetWorkloadDetails = lazy(() =>
+  import('../../../lib/k8s/replicaSet').then(m => ({
+    default: (props: any) => <WorkloadDetails {...props} workloadKind={m.default} />,
+  }))
+);
+const JobSetWorkloadDetails = lazy(() =>
+  import('../../../lib/k8s/jobSet').then(m => ({
+    default: (props: any) => <WorkloadDetails {...props} workloadKind={m.default} />,
+  }))
+);
+const LeaderWorkerSetWorkloadDetails = lazy(() =>
+  import('../../../lib/k8s/leaderWorkerSet').then(m => ({
+    default: (props: any) => <WorkloadDetails {...props} workloadKind={m.default} />,
+  }))
+);
+
 const kindComponentMap: Record<
   string,
   (props: { name?: string; namespace?: string; cluster?: string }) => ReactElement
 > = {
   Pod: PodDetails,
-  Deployment: props => <WorkloadDetails {...props} workloadKind={Deployment} />,
-  ReplicaSet: props => <WorkloadDetails {...props} workloadKind={ReplicaSet} />,
+  Deployment: props => (
+    <Suspense fallback={null}>
+      <DeploymentWorkloadDetails {...props} />
+    </Suspense>
+  ),
+  ReplicaSet: props => (
+    <Suspense fallback={null}>
+      <ReplicaSetWorkloadDetails {...props} />
+    </Suspense>
+  ),
   Job: JobDetails,
-  JobSet: props => <WorkloadDetails {...props} workloadKind={JobSet} />,
+  JobSet: props => (
+    <Suspense fallback={null}>
+      <JobSetWorkloadDetails {...props} />
+    </Suspense>
+  ),
+  LeaderWorkerSet: props => (
+    <Suspense fallback={null}>
+      <LeaderWorkerSetWorkloadDetails {...props} />
+    </Suspense>
+  ),
   Service: ServiceDetails,
-  CronJob: CronJobDetails,
+  CronJob: props => (
+    <Suspense fallback={null}>
+      <CronJobDetails {...props} />
+    </Suspense>
+  ),
   DaemonSet: DaemonSetDetails,
   ConfigMap: ConfigDetails,
   Endpoints: EndpointDetails,
@@ -85,6 +138,10 @@ const kindComponentMap: Record<
   Node: NodeDetails,
   PodDisruptionBudget: PDBDetails,
   PriorityClass: PriorityClassDetails,
+  DeviceClass: DeviceClassDetails,
+  ResourceClaim: ResourceClaimDetails,
+  ResourceClaimTemplate: ResourceClaimTemplateDetails,
+  ResourceSlice: ResourceSliceDetails,
   ResourceQuota: ResourceQuotaDetails,
   ClusterRole: RoleDetails,
   Role: RoleDetails,
@@ -98,6 +155,8 @@ const kindComponentMap: Record<
   VolumeAttributesClass: VolumeAttributesClassDetails,
   PersistentVolume: VolumeDetails,
   VerticalPodAutoscaler: VpaDetails,
+  MutatingAdmissionPolicy: MutatingAdmissionPolicyDetails,
+  MutatingAdmissionPolicyBinding: MutatingAdmissionPolicyBindingDetails,
   MutatingWebhookConfiguration: MutatingWebhookConfigList,
   ValidatingWebhookConfiguration: ValidatingWebhookConfigurationDetails,
   IngressClass: IngressClassDetails,
@@ -107,16 +166,17 @@ const kindComponentMap: Record<
   GatewayClass: GatewayClassDetails,
   HTTPRoute: HTTPRouteDetails,
   GRPCRoute: GRPCRouteDetails,
+  TCPRoute: TCPRouteDetails,
+  UDPRoute: UDPRouteDetails,
   ReferenceGrant: ReferenceGrantDetails,
   BackendTLSPolicy: BackendTLSPolicyDetails,
   XBackendTrafficPolicy: BackendTLSPolicyDetails,
+  Workload: SchedulingWorkloadDetails,
+  CompositePodGroup: CompositePodGroupDetails,
+  PodGroup: PodGroupDetails,
 };
 
-export const canRenderDetails = (maybeKind: string) =>
-  maybeKind === 'customresource' ||
-  Object.entries(kindComponentMap).find(
-    ([key]) => key.toLowerCase() === maybeKind?.toLowerCase()
-  ) !== undefined;
+export { canRenderDetails } from './supportedKinds';
 
 function DetailsNotFound() {
   return null;
@@ -166,9 +226,9 @@ export const KubeObjectDetails = memo(
     }, [kind, kindComponentMap]);
 
     return (
-      <Box>
-        <Box sx={{ marginTop: '-70px' }}>{content}</Box>
-      </Box>
+      <DetailsGridContext.Provider value={{ isInPanel: true }}>
+        <Box>{content}</Box>
+      </DetailsGridContext.Provider>
     );
   }
 );

@@ -31,7 +31,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
@@ -42,6 +42,7 @@ import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
 import JobSet from '../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
+import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
 import Namespace from '../../lib/k8s/namespace';
 import Node from '../../lib/k8s/node';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
@@ -63,6 +64,7 @@ import { setTheme, useAppThemes } from '../App/themeSlice';
 import { LightTooltip } from '../common/Tooltip';
 import { KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
+import { rememberThemeChoiceIfEnabled } from '../Sidebar/ThemeToggleButton/ThemeToggleButton';
 import { Delayed } from './Delayed';
 import { useLocalStorageState } from './useLocalStorageState';
 import { useRecent } from './useRecent';
@@ -109,6 +111,7 @@ const classes: KubeObjectClass[] = [
   ServiceAccount,
   Node,
   JobSet,
+  LeaderWorkerSet,
 ];
 
 /**
@@ -184,6 +187,9 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
+  const drawerLocation = useTypedSelector(
+    state => state?.drawerMode?.detailsDrawerLocation ?? 'split-right'
+  );
 
   const [recent, bump] = useRecent('search-recent-items');
 
@@ -198,7 +204,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     const knownNamespaces = new Set<string>(
       [
         ...namespaceItems.map(n => n.metadata.name),
-        ...selectedClusters.flatMap(c => loadClusterSettings(c)?.allowedNamespaces ?? []),
+        ...selectedClusters.flatMap(c => getCombinedAllowedNamespaces(c)),
       ].filter(Boolean)
     );
 
@@ -258,10 +264,11 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         if (drawerEnabled) {
           Activity.launch({
             id: item.metadata.uid,
+            kind: 'details',
             content: <KubeObjectDetails resource={item} />,
             hideTitleInHeader: true,
             cluster: item.cluster,
-            location: 'split-right',
+            location: drawerLocation,
             title: item.kind + ': ' + item.metadata.name,
             icon: <KubeIcon kind={item.kind} width="100%" height="100%" />,
           });
@@ -270,7 +277,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resources, isMap, location.search]
+    [resources, isMap, location.search, drawerLocation]
   );
 
   // Cluster items
@@ -331,16 +338,26 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   // Themes
   const appThemes = useAppThemes();
+  const forceTheme = useTypedSelector(state => state.config.forceTheme);
   const themeActions = useMemo(() => {
+    // A theme forced by configuration can't be changed, so don't offer to switch.
+    if (forceTheme) {
+      return [];
+    }
     return appThemes.map(theme => ({
       id: 'switch-theme-' + theme.name,
       subLabel: 'Theme',
       icon: <ThemePreview theme={theme} size={32} />,
       label: theme.name,
-      onClick: () => dispatch(setTheme(theme.name)),
+      onClick: () => {
+        rememberThemeChoiceIfEnabled(theme);
+        dispatch(setTheme(theme.name));
+      },
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appThemes]);
+  }, [appThemes, forceTheme]);
+
+  const [, setAdvancedSearchQueryKey] = useLocalStorageState(ADVANCED_SEARCH_QUERY_KEY, '');
 
   // Advanced Search
   const advancedSearchSuggestion = useMemo(() => {
@@ -352,7 +369,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       label: `Search "${query}" with Advanced Search`,
       onClick: () => {
         // Set the search query in localStorage for the Advanced Search
-        useLocalStorageState.update(ADVANCED_SEARCH_QUERY_KEY, `metadata.name === "${query}"`);
+        setAdvancedSearchQueryKey(() => `metadata.name === "${query}"`);
 
         const params = new URLSearchParams(history.location.search);
         history.push(createRouteURL('advancedSearch') + '?' + params.toString());

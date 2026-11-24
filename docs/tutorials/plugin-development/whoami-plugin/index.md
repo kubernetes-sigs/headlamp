@@ -18,12 +18,11 @@ In this tutorial, you'll build a focused, single-purpose plugin that adds a **Wh
 2. [What You'll Build](#what-youll-build)
 3. [Create the Plugin](#create-the-plugin)
 4. [Add the Sidebar Entry](#add-the-sidebar-entry)
-5. [Build the WhoAmI Page](#build-the-whoami-page)
-6. [Fetch User Identity](#fetch-user-identity)
-7. [Display the Identity](#display-the-identity)
-8. [Supporting Multi-Cluster](#supporting-multi-cluster)
-9. [Troubleshooting](#troubleshooting)
-10. [Quick Reference](#quick-reference)
+5. [Fetch User Identity](#fetch-user-identity)
+6. [Display the Identity](#display-the-identity)
+7. [Supporting Multi-Cluster](#supporting-multi-cluster)
+8. [Troubleshooting](#troubleshooting)
+9. [Quick Reference](#quick-reference)
 
 ---
 

@@ -47,6 +47,52 @@ import Table from '../common/Table';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { PROJECT_ID_LABEL, toKubernetesName } from './projectUtils';
 
+/** A YAML document that cannot be created as a Kubernetes resource, and why. */
+export interface RejectedYamlDocument {
+  /** The 1-based position of the document in its file. */
+  index: number;
+  /** The required fields the document does not set, empty if it is not an object at all. */
+  missingFields: string[];
+}
+
+/**
+ * Splits parsed YAML documents into the Kubernetes resources a project can create and the
+ * documents it cannot (scalars, lists or objects without a kind, apiVersion or metadata.name),
+ * so each rejected document can be reported, like `kubectl apply` does. Empty documents are
+ * dropped silently.
+ */
+export function splitKubernetesResources(docs: unknown[]): {
+  resources: KubeObjectInterface[];
+  rejected: RejectedYamlDocument[];
+} {
+  const resources: KubeObjectInterface[] = [];
+  const rejected: RejectedYamlDocument[] = [];
+  docs.forEach((doc, position) => {
+    if (doc === null || doc === undefined) {
+      return;
+    }
+    const index = position + 1;
+    if (typeof doc !== 'object' || Array.isArray(doc)) {
+      rejected.push({ index, missingFields: [] });
+      return;
+    }
+    const item = doc as Partial<KubeObjectInterface>;
+    // An empty string is as unset as a missing field: the API server rejects both.
+    const isSet = (value: unknown) => typeof value === 'string' && value !== '';
+    const missingFields = [
+      !isSet(item.apiVersion) && 'apiVersion',
+      !isSet(item.kind) && 'kind',
+      !isSet(item.metadata?.name) && 'metadata.name',
+    ].filter((field): field is string => !!field);
+    if (missingFields.length === 0) {
+      resources.push(item as KubeObjectInterface);
+    } else {
+      rejected.push({ index, missingFields });
+    }
+  });
+  return { resources, rejected };
+}
+
 async function createProjectFromYaml({
   items,
   k8sName,
@@ -81,22 +127,42 @@ async function createProjectFromYaml({
     creatingResource: namespace,
   });
 
+  // Nothing else can be created without the namespace, so a failure here stops the creation.
   await apply(namespace, cluster);
 
+  // Like `kubectl apply`, keep applying the other resources when one fails, then report every
+  // failure.
+  const created: KubeObjectInterface[] = [];
+  const failed: FailedResource[] = [];
   for (const item of itemsToCreate) {
-    setCreationState(state => ({
+    setCreationState({
       stage: 'creating',
-      createdResources:
-        state.stage === 'creating' ? [...state.createdResources, state.creatingResource] : [],
+      createdResources: [namespace, ...created],
       creatingResource: item,
-    }));
-    await apply(item, cluster);
+    });
+    try {
+      await apply(item, cluster);
+      created.push(item);
+    } catch (error) {
+      failed.push({ resource: item, message: (error as Error).message });
+    }
+  }
+
+  if (failed.length > 0) {
+    setCreationState({ stage: 'partialFailure', name: k8sName, created, failed });
+    return false;
   }
 
   setCreationState({
     stage: 'success',
     name: k8sName,
   });
+  return true;
+}
+
+interface FailedResource {
+  resource: KubeObjectInterface;
+  message: string;
 }
 
 type CreationState =
@@ -107,6 +173,12 @@ type CreationState =
       creatingResource: KubeObjectInterface;
     }
   | { stage: 'success'; name: string }
+  | {
+      stage: 'partialFailure';
+      name: string;
+      created: KubeObjectInterface[];
+      failed: FailedResource[];
+    }
   | { stage: 'error'; error: ApiError };
 
 export function CreateNew() {
@@ -123,6 +195,18 @@ export function CreateNew() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // YAML documents that were loaded but cannot be created, one message per document.
+  const [rejectedDocuments, setRejectedDocuments] = useState<string[]>([]);
+
+  const describeRejected = (source: string, rejected: RejectedYamlDocument[]) =>
+    rejected.map(({ index, missingFields }) => {
+      const reason =
+        missingFields.length === 0
+          ? t('not a Kubernetes object')
+          : missingFields.map(field => t('{{field}} not set', { field })).join(', ');
+      return t('{{source}}, document {{index}}: {{reason}}', { source, index, reason });
+    });
 
   const { items: allProjectNamespaces } = Namespace.useList({
     clusters: allClusters ? Object.keys(allClusters) : [],
@@ -173,9 +257,9 @@ export function CreateNew() {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       const content = await response.text();
-      const docs = loadAll(content) as KubeObjectInterface[];
-      const validDocs = docs.filter(doc => !!doc);
-      setItems(validDocs);
+      const { resources, rejected } = splitKubernetesResources(loadAll(content));
+      setItems(resources);
+      setRejectedDocuments(describeRejected(yamlUrl, rejected));
       setErrors(prev => ({ ...prev, items: '' }));
     } catch (error) {
       setErrors(prev => ({
@@ -194,18 +278,17 @@ export function CreateNew() {
     setErrors(prev => ({ ...prev, items: '' }));
 
     const promises = acceptedFiles.map(file => {
-      return new Promise<{ docs: KubeObjectInterface[] }>((resolve, reject) => {
+      return new Promise<{ docs: KubeObjectInterface[]; rejected: string[] }>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
           const content = reader.result as string;
           try {
-            const docs = loadAll(content) as KubeObjectInterface[];
-            const validDocs = docs.filter(doc => !!doc);
-            resolve({ docs: validDocs });
+            const { resources, rejected } = splitKubernetesResources(loadAll(content));
+            resolve({ docs: resources, rejected: describeRejected(file.name, rejected) });
           } catch (err) {
             console.error('Error parsing YAML file:', file.name, err);
             // Resolve with empty array for failed files
-            resolve({ docs: [] });
+            resolve({ docs: [], rejected: [] });
           }
         };
         reader.onerror = err => {
@@ -220,6 +303,7 @@ export function CreateNew() {
       .then(results => {
         const newDocs = results.flatMap(result => result.docs);
         setItems(prevItems => [...prevItems, ...newDocs]);
+        setRejectedDocuments(prev => [...prev, ...results.flatMap(result => result.rejected)]);
       })
       .catch(err => {
         console.error('An error occurred while processing files.', err);
@@ -267,13 +351,15 @@ export function CreateNew() {
     }
 
     try {
-      await createProjectFromYaml({
+      const allCreated = await createProjectFromYaml({
         items,
         k8sName,
         cluster: selectedClusters!,
         setCreationState,
       });
-      history.push(createRouteURL('projectDetails', { name: k8sName }));
+      if (allCreated) {
+        history.push(createRouteURL('projectDetails', { name: k8sName }));
+      }
     } catch (e) {
       setCreationState({
         stage: 'error',
@@ -356,6 +442,22 @@ export function CreateNew() {
                 </Grid>
                 <Grid item xs={9}>
                   {errors.items && <Typography color="error">{errors.items}</Typography>}
+                  {rejectedDocuments.length > 0 && (
+                    <Box role="alert" sx={{ mb: 1 }}>
+                      <Typography color="error">
+                        {t(
+                          'These YAML documents are not Kubernetes resources and will not be created:'
+                        )}
+                      </Typography>
+                      <Box component="ul" sx={{ m: 0 }}>
+                        {rejectedDocuments.map((message, index) => (
+                          <Typography component="li" color="error" key={index}>
+                            {message}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
 
                   <Box sx={{ width: '100%' }}>
                     <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -431,7 +533,8 @@ export function CreateNew() {
                 </Grid>
               </Grid>
 
-              {items.length > 0 && (
+              {/* Also shown for uploads with only rejected documents, so they can be cleared. */}
+              {(items.length > 0 || rejectedDocuments.length > 0) && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 3 }}>
                   <Box
                     sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
@@ -442,57 +545,62 @@ export function CreateNew() {
                     <Button
                       variant="outlined"
                       size="small"
-                      onClick={() => setItems([])}
+                      onClick={() => {
+                        setItems([]);
+                        setRejectedDocuments([]);
+                      }}
                       startIcon={<InlineIcon icon="mdi:delete" width={16} />}
                     >
                       {t('Clear All')}
                     </Button>
                   </Box>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                    }}
-                  >
-                    <Table
-                      data={items}
-                      columns={[
-                        {
-                          id: 'kind',
-                          header: t('Kind'),
-                          accessorFn: item => item.kind,
-                          Cell: ({ row: { original: item } }) => (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <KubeIcon kind={item.kind as any} width="24px" height="24px" />
-                              <Typography variant="body2" color="text.secondary">
-                                {item.kind}
-                              </Typography>
-                            </Box>
-                          ),
-                          gridTemplate: 'min-content',
-                        },
-                        {
-                          id: 'name',
-                          header: t('Name'),
-                          accessorFn: item => item.metadata.name,
-                        },
-                        {
-                          id: 'apiVersion',
-                          header: t('API Version'),
-                          accessorFn: item => item.apiVersion,
-                        },
-                        {
-                          id: 'actions',
-                          header: t('Actions'),
-                          gridTemplate: 'min-content',
-                          accessorFn: item => item.metadata.uid,
-                          Cell: ({ row: { original: item } }) => (
-                            <ViewYaml item={{ ...item, jsonData: item } as any} />
-                          ),
-                        },
-                      ]}
-                    />
-                  </Box>
+                  {items.length > 0 && (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
+                      <Table
+                        data={items}
+                        columns={[
+                          {
+                            id: 'kind',
+                            header: t('Kind'),
+                            accessorFn: item => item.kind,
+                            Cell: ({ row: { original: item } }) => (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <KubeIcon kind={item.kind as any} width="24px" height="24px" />
+                                <Typography variant="body2" color="text.secondary">
+                                  {item.kind}
+                                </Typography>
+                              </Box>
+                            ),
+                            gridTemplate: 'min-content',
+                          },
+                          {
+                            id: 'name',
+                            header: t('Name'),
+                            accessorFn: item => item.metadata.name,
+                          },
+                          {
+                            id: 'apiVersion',
+                            header: t('API Version'),
+                            accessorFn: item => item.apiVersion,
+                          },
+                          {
+                            id: 'actions',
+                            header: t('Actions'),
+                            gridTemplate: 'min-content',
+                            accessorFn: item => item.metadata.uid,
+                            Cell: ({ row: { original: item } }) => (
+                              <ViewYaml item={{ ...item, jsonData: item } as any} />
+                            ),
+                          },
+                        ]}
+                      />
+                    </Box>
+                  )}
                 </Box>
               )}
               <DialogActions>
@@ -542,6 +650,50 @@ export function CreateNew() {
                 <CircularProgress size="1rem" />
               </Box>
             </Box>
+          </Box>
+        )}
+
+        {creationState.stage === 'partialFailure' && (
+          <Box>
+            <Typography variant="h1">{t('Some resources could not be created')}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              {t('The project was created, but these resources failed to apply:')}
+            </Typography>
+            <Box component="ul" role="alert">
+              {creationState.failed.map(({ resource, message }, index) => (
+                <Typography component="li" color="error" key={`failed-${index}`}>
+                  {t('{{kind}} {{name}}: {{message}}', {
+                    kind: resource.kind,
+                    name: resource.metadata.name,
+                    message,
+                  })}
+                </Typography>
+              ))}
+            </Box>
+            {creationState.created.length > 0 && (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  {t('Created resources:')}
+                </Typography>
+                <Box component="ul">
+                  {creationState.created.map((resource, index) => (
+                    <Typography component="li" key={`created-${index}`}>
+                      {resource.kind} {resource.metadata.name}
+                    </Typography>
+                  ))}
+                </Box>
+              </>
+            )}
+            <DialogActions>
+              <Button
+                variant="contained"
+                onClick={() => {
+                  history.push(createRouteURL('projectDetails', { name: creationState.name }));
+                }}
+              >
+                {t('Go to project')}
+              </Button>
+            </DialogActions>
           </Box>
         )}
 

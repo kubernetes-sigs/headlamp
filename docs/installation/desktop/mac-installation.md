@@ -23,7 +23,7 @@ brew upgrade headlamp
 For more information on upgrading packages with Homebrew, including automatic updates, please
 read the [official documentation](https://docs.brew.sh/Manpage).
 
-## Install via Github Releases
+## Install via GitHub Releases
 
 For Mac OS we provide a _.dmg_ file, so you need to download it from the [releases page](https://github.com/kubernetes-sigs/headlamp/releases)
 and then follow the below steps :

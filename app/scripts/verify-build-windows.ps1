@@ -18,6 +18,11 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appDir = Split-Path -Parent $scriptDir
 $distDir = Join-Path $appDir "dist"
+$appExecutableName = & node -e "const path=require('path'); const d=process.argv[1]; const p=require(path.join(d, 'package.json')); const {derivePackageVerificationName}=require(path.join(d, 'scripts/package-verification-name.ts')); process.stdout.write(derivePackageVerificationName(p, 'win'))" $appDir
+if ($LASTEXITCODE -ne 0 -or -not $appExecutableName) {
+  Write-Host "[FAIL] Could not derive the app executable name" -ForegroundColor Red
+  exit 1
+}
 
 # Function to test backend binary
 function Test-BackendBinary {
@@ -55,12 +60,8 @@ function Test-BackendBinary {
     exit $exitCode
   }
   Write-Host "Backend version: $versionOutput"
-  if (-not $versionOutput -or -not ($versionOutput -match "Headlamp")) {
-    if (-not $versionOutput) {
-      Write-Host "[FAIL] Backend produced no version output" -ForegroundColor Red
-    } else {
-      Write-Host "[FAIL] Backend version check failed - output does not contain 'Headlamp'" -ForegroundColor Red
-    }
+  if (-not $versionOutput) {
+    Write-Host "[FAIL] Backend produced no version output" -ForegroundColor Red
     exit 1
   }
   Write-Host "[PASS] Backend binary is working" -ForegroundColor Green
@@ -97,7 +98,7 @@ if (Test-Path $unpackedDir) {
   $backendPath = Join-Path $unpackedDir "resources\headlamp-server.exe"
   if (Test-Path $backendPath) {
     Test-BackendBinary $backendPath
-    $appPath = Join-Path $unpackedDir "Headlamp.exe"
+    $appPath = Join-Path $unpackedDir $appExecutableName
   } else {
     Write-Host "[FAIL] Backend server binary not found in unpacked resources" -ForegroundColor Red
     exit 1
@@ -108,7 +109,7 @@ if (Test-Path $unpackedDir) {
   if ($backendPath) {
     Test-BackendBinary $backendPath.FullName
     # Try to find the app executable in the dist output
-    $appPath = Get-ChildItem -Path $distDir -Recurse -Filter "Headlamp.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 | Select-Object -ExpandProperty FullName
+    $appPath = Get-ChildItem -Path $distDir -Recurse -Filter $appExecutableName -ErrorAction SilentlyContinue | Select-Object -First 1 | Select-Object -ExpandProperty FullName
   } else {
     Write-Host "[FAIL] Could not find backend binary to test in dist output" -ForegroundColor Red
     exit 1
@@ -120,7 +121,7 @@ Write-Host ""
 Write-Host "=== Verifying Electron App ===" -ForegroundColor Cyan
 if ($appPath -and (Test-Path $appPath)) {
   Write-Host "Testing Electron app..."
-  Write-Host "Found Headlamp at: $appPath"
+  Write-Host "Found $appExecutableName at: $appPath"
   
   # Initialize tempDir outside try block so it's accessible in catch/finally
   $tempDir = $null
@@ -200,7 +201,7 @@ if ($appPath -and (Test-Path $appPath)) {
     }
   }
 } else {
-  Write-Host "[FAIL] Could not find Headlamp.exe for app verification" -ForegroundColor Red
+  Write-Host "[FAIL] Could not find $appExecutableName for app verification" -ForegroundColor Red
   exit 1
 }
 

@@ -14,32 +14,65 @@
  * limitations under the License.
  */
 
+import { Box } from '@mui/material';
+import { visuallyHidden } from '@mui/utils';
+import type { ComponentProps, MouseEventHandler } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 
 interface CopyButtonProps {
   text?: string;
   buttonStyle?: ButtonStyle;
+  iconButtonProps?: ComponentProps<typeof ActionButton>['iconButtonProps'];
+  width?: ComponentProps<typeof ActionButton>['width'];
+  onClick?: MouseEventHandler<HTMLElement>;
 }
 
 export default function CopyButton(props: CopyButtonProps) {
-  const { text, buttonStyle } = props;
+  const { text, buttonStyle, iconButtonProps, width, onClick } = props;
   const { t } = useTranslation(['translation']);
+  const [copied, setCopied] = useState(false);
+  const resetTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => clearTimeout(resetTimeoutRef.current);
+  }, []);
 
   if (text === undefined || text === null || text === '') {
     return <></>;
   }
 
-  async function onCopy() {
-    await navigator.clipboard.writeText(text!);
+  const copyText = text;
+
+  async function onCopy(event: Parameters<MouseEventHandler<HTMLElement>>[0]) {
+    onClick?.(event);
+
+    clearTimeout(resetTimeoutRef.current);
+
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+      resetTimeoutRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      setCopied(false);
+      console.error('Failed to copy to clipboard:', err);
+    }
   }
 
   return (
-    <ActionButton
-      description={t('translation|Copy to clipboard')}
-      buttonStyle={buttonStyle}
-      onClick={onCopy}
-      icon="mdi:content-copy"
-    />
+    <>
+      <ActionButton
+        description={copied ? t('translation|Copied!') : t('translation|Copy to clipboard')}
+        buttonStyle={buttonStyle}
+        onClick={onCopy}
+        icon={copied ? 'mdi:check' : 'mdi:content-copy'}
+        iconButtonProps={iconButtonProps}
+        width={width}
+      />
+      <Box role="status" aria-live="polite" aria-atomic="true" sx={visuallyHidden}>
+        {copied ? t('translation|Copied!') : ''}
+      </Box>
+    </>
   );
 }

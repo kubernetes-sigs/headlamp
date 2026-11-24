@@ -1,0 +1,26 @@
+config:
+  inCluster: true
+  unsafeUseServiceAccountToken: true
+  extraArgs:
+    - -proxy-auth=true
+    - -proxy-auth-username-header=X-Pomerium-Claim-Email
+    - -proxy-auth-email-header=X-Pomerium-Claim-Email
+
+clusterRoleBinding:
+  clusterRoleName: view
+
+ingress:
+  enabled: true
+  ingressClassName: pomerium
+  annotations:
+    ingress.pomerium.io/allow_any_authenticated_user: 'true'
+    ingress.pomerium.io/pass_identity_headers: 'true'
+  hosts:
+    - host: headlamp.localhost.pomerium.io
+      paths:
+        - path: /
+          type: Prefix
+  tls:
+    - secretName: headlamp-e2e-tls
+      hosts:
+        - headlamp.localhost.pomerium.io

@@ -17,8 +17,12 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import type { KubeObject } from '../../lib/k8s/KubeObject';
+import type Pod from '../../lib/k8s/pod';
 import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
 import { useEventCallback } from '../../redux/headlampEventSlice';
+import Link from '../common/Link';
 import {
   ConditionsSection,
   ContainersSection,
@@ -29,9 +33,11 @@ import {
   MetadataDictGrid,
   OwnedJobsSection,
   OwnedPodsSection,
+  OwnedStatefulSetsSection,
   RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
+import { WorkloadDiagnosticsSection } from '../diagnostics/Diagnostics';
 import { KIND_EXTRA_INFO } from './extraInfo';
 
 interface WorkloadDetailsProps<T extends WorkloadClass> {
@@ -39,6 +45,26 @@ interface WorkloadDetailsProps<T extends WorkloadClass> {
   name?: string;
   namespace?: string;
   cluster?: string;
+}
+
+// `null` (still loading) must stay distinct from `[]` (loaded, no pods), or a
+// transition between the two looks like a no-op and leaves the section spinning.
+const LOADING_KEY = '\u0000loading';
+
+function getOwnedPodsKey(pods: Pod[] | null) {
+  if (pods === null) return LOADING_KEY;
+  return pods
+    .map(pod =>
+      [pod.metadata.uid, pod.metadata.namespace, pod.metadata.name, pod.metadata.resourceVersion]
+        .filter(Boolean)
+        .join('/')
+    )
+    .join('|');
+}
+
+function getOwnedPodsErrorsKey(errors: ApiError[] | null) {
+  if (errors === null) return LOADING_KEY;
+  return errors.map(error => error.toString()).join('|');
 }
 
 export default function WorkloadDetails<T extends WorkloadClass>(props: WorkloadDetailsProps<T>) {
@@ -52,8 +78,40 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
   const autoLaunchView = queryParams.get('view');
   const lastAutoLaunchedLogs = React.useRef<string | null>(null);
   const [workloadItem, setWorkloadItem] = React.useState<Workload | null>(null);
+  const [ownedPodsState, setOwnedPodsState] = React.useState<{
+    workloadUid?: string;
+    pods: Pod[] | null;
+    errors: ApiError[] | null;
+    podsKey?: string;
+    errorsKey?: string;
+  }>({ pods: null, errors: null });
   const dispatchHeadlampEvent = useEventCallback();
   const isLoggableKind = LOGGABLE_WORKLOAD_KINDS.has(workloadKind.kind);
+  const handleOwnedPodsUpdate = React.useCallback(
+    (resource: KubeObject, pods: Pod[] | null, errors: ApiError[] | null) => {
+      setOwnedPodsState(previous => {
+        const workloadUid = resource.metadata.uid;
+        const podsKey = getOwnedPodsKey(pods);
+        const errorsKey = getOwnedPodsErrorsKey(errors);
+        if (
+          previous.workloadUid === workloadUid &&
+          previous.podsKey === podsKey &&
+          previous.errorsKey === errorsKey
+        ) {
+          return previous;
+        }
+
+        return {
+          workloadUid,
+          pods,
+          errors,
+          podsKey,
+          errorsKey,
+        };
+      });
+    },
+    []
+  );
 
   React.useEffect(() => {
     if (autoLaunchView !== 'logs') {
@@ -136,6 +194,17 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       withEvents
       onResourceUpdate={item => {
         setWorkloadItem(item);
+        setOwnedPodsState(previous =>
+          previous.workloadUid === item?.metadata.uid
+            ? previous
+            : {
+                workloadUid: item?.metadata.uid,
+                pods: null,
+                errors: null,
+                podsKey: getOwnedPodsKey(null),
+                errorsKey: getOwnedPodsErrorsKey(null),
+              }
+        );
       }}
       actions={item => {
         if (!item) return [];
@@ -187,6 +256,26 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             ),
           },
           {
+            name: t('Service Account'),
+            value: (
+              <Link
+                routeName="serviceAccount"
+                params={{
+                  namespace: item.metadata.namespace,
+                  name:
+                    item.spec?.template?.spec?.serviceAccountName ||
+                    item.spec?.template?.spec?.serviceAccount ||
+                    'default',
+                }}
+                activeCluster={item.cluster}
+              >
+                {item.spec?.template?.spec?.serviceAccountName ||
+                  item.spec?.template?.spec?.serviceAccount ||
+                  'default'}
+              </Link>
+            ),
+          },
+          {
             name: t('Replicas'),
             value: renderReplicas(item),
             hide: !showReplicas(item),
@@ -197,6 +286,18 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       extraSections={item => {
         if (!item) return [];
         const sections = [
+          {
+            id: 'headlamp.workload-diagnostics',
+            section: (
+              <WorkloadDiagnosticsSection
+                workload={item}
+                pods={ownedPodsState.workloadUid === item.metadata.uid ? ownedPodsState.pods : null}
+                errors={
+                  ownedPodsState.workloadUid === item.metadata.uid ? ownedPodsState.errors : null
+                }
+              />
+            ),
+          },
           {
             id: 'headlamp.workload-conditions',
             section: <ConditionsSection resource={item?.jsonData} />,
@@ -209,14 +310,33 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
                 },
               ]
             : []),
+          // A leader worker set owns a stateful set per group, which in turn
+          // owns the leader and worker pods listed below.
+          ...(workloadKind.kind === 'LeaderWorkerSet'
+            ? [
+                {
+                  id: 'headlamp.workload-owned-statefulsets',
+                  section: <OwnedStatefulSetsSection resource={item} />,
+                },
+              ]
+            : []),
           {
             id: 'headlamp.workload-owned-pods',
-            section: <OwnedPodsSection resource={item} />,
+            section: <OwnedPodsSection resource={item} onPodsUpdate={handleOwnedPodsUpdate} />,
           },
-          {
-            id: 'headlamp.workload-containers',
-            section: <ContainersSection resource={item} />,
-          },
+          // ContainersSection reads spec.containers or spec.template.spec.containers.
+          // A leader worker set has neither, keeping its containers under
+          // spec.leaderWorkerTemplate, so the section would render as an untitled
+          // empty placeholder. The leader and worker containers are already visible
+          // in the owned stateful sets listed above.
+          ...(workloadKind.kind === 'LeaderWorkerSet'
+            ? []
+            : [
+                {
+                  id: 'headlamp.workload-containers',
+                  section: <ContainersSection resource={item} />,
+                },
+              ]),
         ];
 
         // Add revision history for rollbackable workloads

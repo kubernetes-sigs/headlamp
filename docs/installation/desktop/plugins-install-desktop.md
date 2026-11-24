@@ -6,12 +6,12 @@ sidebar_position: 4
 
 Headlamp Desktop app supports installing plugins via the Plugin Catalog.
 
-There is also [documentation for using plugins Headlamp running in-cluster](../in-cluster/index.md#plugin-management).
+There is also [documentation for using plugins with Headlamp running in-cluster](../in-cluster/index.md#plugin-management).
 
 
 ## Plugin Catalog
 
-When you start the Headlamp app, you should see "Plugin Catalog" link in the sidebar.
+When you start the Headlamp app, you should see a "Plugin Catalog" link in the sidebar.
 
 You can use the interface to search through plugins and find the ones you want to install, update or remove.
 

@@ -18,6 +18,7 @@ import Button from '@mui/material/Button';
 import { alpha } from '@mui/system';
 import React, { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useClusterPresentation } from '../../helpers/useClusterPresentation';
 import ClusterBadge from '../Sidebar/ClusterBadge';
 
 export interface ClusterChooserProps {
@@ -38,14 +39,23 @@ const ClusterChooser = React.forwardRef(function ClusterChooser(
 ) {
   const { t } = useTranslation();
 
+  const { getLabel } = useClusterPresentation();
   const selected = selectedClusters ?? [];
   const multipleSelected = selected.length > 1;
   const MAX_INLINE_CLUSTERS = 2;
+  // Inline labels stay short; only names repeated in the selection need their details.
+  const inlineLabels = selected.slice(0, MAX_INLINE_CLUSTERS).map(id => getLabel(id));
   const displayName = multipleSelected
     ? selected.length <= MAX_INLINE_CLUSTERS
-      ? selected.join(', ')
+      ? inlineLabels
+          .map(label =>
+            inlineLabels.filter(other => other.name === label.name).length > 1
+              ? label.text
+              : label.name
+          )
+          .join(', ')
       : t('{{count}} clusters', { count: selected.length })
-    : selected[0] ?? cluster ?? t('Cluster');
+    : getLabel(selected[0] ?? cluster ?? t('Cluster')).name;
 
   return (
     <Button
@@ -65,6 +75,9 @@ const ClusterChooser = React.forwardRef(function ClusterChooser(
     >
       <ClusterBadge
         name={displayName}
+        secondary={
+          multipleSelected ? undefined : getLabel(selected[0] ?? cluster ?? t('Cluster')).secondary
+        }
         icon={multipleSelected ? undefined : icon}
         accentColor={accentColor}
       />

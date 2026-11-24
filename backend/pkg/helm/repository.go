@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,8 +64,30 @@ func (r AddUpdateRepoRequest) Validate() error {
 		return errors.New("name is required")
 	}
 
+	if strings.ContainsAny(r.Name, `/\`) || strings.Contains(r.Name, "..") {
+		return errors.New("name must not contain path separators or '..'")
+	}
+
 	if strings.TrimSpace(r.URL) == "" {
 		return errors.New("url is required")
+	}
+
+	u, err := url.ParseRequestURI(r.URL)
+	if err != nil {
+		return errors.New("invalid url")
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme == "oci" {
+		return errors.New("OCI registries can't be added as repositories")
+	}
+
+	if scheme != "http" && scheme != "https" {
+		return errors.New("url scheme must be http or https")
+	}
+
+	if u.Hostname() == "" {
+		return errors.New("url host is required")
 	}
 
 	return nil
@@ -97,6 +120,7 @@ func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool,
 
 	fileLock := flock.New(lockPath)
 
+	// The context bounds the total wait; this duration controls how often the lock is retried.
 	locked, err := fileLock.TryLockContext(lockCtx, time.Second)
 
 	return locked, fileLock, err
@@ -169,6 +193,14 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 	newRepo := &repo.Entry{
 		Name: request.Name,
 		URL:  request.URL,
+	}
+
+	// repo.File.Update replaces the entry wholesale, so carry over the
+	// server-side fields (credentials, TLS file paths) that the HTTP API
+	// deliberately does not accept from clients. Fields supplied in the
+	// request still win because applyRequestFields runs afterwards.
+	if existing := repoFile.Get(request.Name); existing != nil {
+		copyExistingRepoFields(newRepo, existing)
 	}
 
 	applyRequestFields(newRepo, request)
@@ -255,7 +287,7 @@ func createFullPath(p string) (*os.File, error) {
 		return nil, err
 	}
 
-	return os.Create(p) //nolint:gosec
+	return os.Create(p) //nolint:gosec // Path is constructed from controlled repository configuration
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {

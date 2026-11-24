@@ -37,9 +37,13 @@ import {
 } from '../../../helpers/tablesRowsPerPage';
 import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 
-export default function NumRowsInput(props: { defaultValue: number[]; nameLabelID?: string }) {
+export default function NumRowsInput(props: {
+  defaultValue: number[];
+  nameLabelID?: string;
+  disabled?: boolean;
+}) {
   const { t } = useTranslation(['frequent']);
-  const { defaultValue, nameLabelID } = props;
+  const { defaultValue, nameLabelID, disabled } = props;
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [options, setOptions] = useState(defaultValue);
   const [minRows, maxRows] = [minTablesRowsPerPage, maxTablesRowsPerPage];
@@ -65,9 +69,19 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
   const [errorMessage, setErrorMessage] = useState('');
   const dispatch = useDispatch();
 
+  // Sync local options when the admin-resolved defaultValue changes
+  // (e.g. after admin settings load asynchronously).
   useEffect(() => {
-    dispatch(setAppSettings({ tableRowsPerPageOptions: options }));
-  }, [options, dispatch]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOptions(defaultValue);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedValue(prev => (defaultValue.includes(prev) || prev === -1 ? prev : defaultValue[0]));
+  }, [defaultValue]);
+
+  function updateOptions(newOptions: number[]) {
+    setOptions(newOptions);
+    dispatch(setAppSettings({ tableRowsPerPageOptions: newOptions }));
+  }
 
   // Make sure we update the value in the localStorage when the user selects a new value.
   useEffect(() => {
@@ -131,7 +145,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
                 ...new Set([...defaultTableRowsPerPageOptions, parsedCustomValue]),
               ];
               newOptions.sort((a, b) => a - b);
-              setOptions(newOptions);
+              updateOptions(newOptions);
               setSelectedValue(parsedCustomValue);
             }}
           >
@@ -140,7 +154,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
           <IconButton
             aria-label={t('translation|Delete')}
             onClick={() => {
-              setOptions(defaultTableRowsPerPageOptions);
+              updateOptions(defaultTableRowsPerPageOptions);
               setSelectedValue(defaultTableRowsPerPageOptions[0]);
             }}
             size="medium"
@@ -150,10 +164,11 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
         </Box>
       </Box>
     ) : (
-      <FormControl>
+      <FormControl disabled={disabled}>
         <Select
           value={selectedValue}
           style={{ width: '100px' }}
+          disabled={disabled}
           open={isSelectOpen}
           onClose={handleClose}
           onOpen={handleOpen}
@@ -174,7 +189,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
                       size="small"
                       aria-label={t('translation|Delete')}
                       onClick={() => {
-                        setOptions(defaultTableRowsPerPageOptions);
+                        updateOptions(defaultTableRowsPerPageOptions);
                         setSelectedValue(defaultTableRowsPerPageOptions[0]);
                         setIsSelectOpen(false);
                       }}

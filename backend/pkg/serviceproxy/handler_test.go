@@ -1,4 +1,20 @@
-package serviceproxy //nolint
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package serviceproxy //nolint:testpackage // Tests exercise unexported service proxy internals.
 
 import (
 	"context"
@@ -8,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,7 +35,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 )
 
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering service proxy request dispatching.
 func TestHandleServiceProxy(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -227,6 +244,43 @@ func TestDisableResponseCaching(t *testing.T) {
 	assert.Equal(t, "0", w.Header().Get("X-Accel-Expires"))
 }
 
+// TestRequestHandlerSendsNoCacheHeaders is a regression test for the
+// cache-suppression headers being registered with defer, which ran only after
+// the response had been written and therefore never reached the client. The
+// headers must be observed from a real server round-trip: a ResponseRecorder's
+// live header map would show them even when they were set too late to be sent.
+func TestRequestHandlerSendsNoCacheHeaders(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = mux.SetURLVars(r, map[string]string{"clusterName": "unknown", "namespace": "default", "name": "svc"})
+		RequestHandler(store, false, w, r)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	// The unknown cluster makes the handler take the early 404 error path;
+	// the no-cache headers must be present on every response.
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, "no-cache, private, max-age=0", resp.Header.Get("Cache-Control"))
+	assert.Equal(t, "no-cache", resp.Header.Get("Pragma"))
+	assert.Equal(t, "0", resp.Header.Get("X-Accel-Expires"))
+	assert.NotEmpty(t, resp.Header.Get("Expires"))
+	assert.Equal(t, "sandbox", resp.Header.Get("Content-Security-Policy"))
+	assert.Equal(t, "nosniff", resp.Header.Get("X-Content-Type-Options"))
+}
+
 // createMockService creates a mock Kubernetes service for testing.
 func createMockService(namespace, name string) *corev1.Service {
 	return &corev1.Service{
@@ -245,7 +299,7 @@ func createMockService(namespace, name string) *corev1.Service {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Long test function containing multiple getAuthToken test scenarios.
 func TestGetAuthToken(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -362,7 +416,7 @@ func TestGetAuthToken(t *testing.T) {
 			expectedToken: "spaced-token",
 			expectError:   false,
 		},
-		{ //nolint:gosec
+		{ //nolint:gosec // Hardcoded mock bearer token string used strictly for unit testing.
 			name:        "valid token with Bearer prefix",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
@@ -407,7 +461,7 @@ func TestGetAuthToken(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Long test function covering multiple GetServiceFromCluster error scenarios.
 func TestGetServiceFromCluster(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -464,7 +518,16 @@ func TestGetServiceFromCluster(t *testing.T) {
 				"forbidden-service",
 				nil,
 			),
-			expectedStatus: http.StatusNotFound,
+			expectedStatus: http.StatusForbidden,
+			expectError:    true,
+		},
+		{
+			name:           "internal server error from cluster",
+			namespace:      "default",
+			serviceName:    "failing-service",
+			setupService:   false,
+			mockError:      k8serrors.NewInternalError(errors.New("etcd connection timeout")),
+			expectedStatus: http.StatusInternalServerError,
 			expectError:    true,
 		},
 	}
@@ -506,7 +569,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 	}
 }
 
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering request URI parsing edge cases.
 func TestParseInfoFromRequest(t *testing.T) {
 	tests := []struct {
 		name                string

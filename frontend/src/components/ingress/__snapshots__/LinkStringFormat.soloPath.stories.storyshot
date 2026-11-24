@@ -6,7 +6,7 @@
     >
       <a
         class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-        href="http://exampleurl.com/pathA"
+        href="http://examplehost.com/pathA"
         style="margin-right: 5px;"
       >
         /pathA

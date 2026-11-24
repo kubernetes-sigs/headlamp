@@ -15,16 +15,36 @@
  */
 
 import { render, waitFor } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import React from 'react';
 import App from './App';
 
-test('renders without crashing', async () => {
-  const { getByText } = render(
+vi.mock('./components/common/ReleaseNotes/ReleaseNotes', () => ({
+  default: () => <div data-testid="release-notes" />,
+}));
+
+const server = setupServer(
+  http.get('*/plugins', () => HttpResponse.json([])),
+  http.get('*/config', () => HttpResponse.json({ clusters: [] }))
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
+afterAll(() => server.close());
+
+test('renders application UI after startup is ready', async () => {
+  const { getByLabelText, getByTestId, getByText, queryByTestId, queryByText } = render(
     <React.Suspense fallback="Loading...">
       <App />
     </React.Suspense>
   );
+
+  expect(getByLabelText('Loading')).toHaveClass('MuiCircularProgress-colorInherit');
+  expect(getByLabelText('Loading')).not.toHaveClass('MuiCircularProgress-colorPrimary');
+  expect(queryByText(/Skip to main content/i)).not.toBeInTheDocument();
+  expect(queryByTestId('release-notes')).not.toBeInTheDocument();
   await waitFor(() => {
     expect(getByText(/Skip to main content/i)).toBeInTheDocument();
+    expect(getByTestId('release-notes')).toBeInTheDocument();
   });
 });

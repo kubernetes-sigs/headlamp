@@ -35,6 +35,7 @@ import CreateButton from '../common/Resource/CreateButton';
 import NavigationTabs from './NavigationTabs';
 import SidebarItem, { SidebarItemProps } from './SidebarItem';
 import { DefaultSidebars, setSidebarSelected, setWhetherSidebarOpen } from './sidebarSlice';
+import ThemeToggleButton from './ThemeToggleButton/ThemeToggleButton';
 import { useSidebarItems } from './useSidebarItems';
 import VersionButton from './VersionButton';
 
@@ -98,7 +99,7 @@ function AddClusterButton() {
   );
 }
 
-function SidebarToggleButton() {
+export function SidebarToggleButton() {
   const dispatch = useDispatch();
   const { isOpen, isNarrow, canExpand, isTemporary } = useSidebarInfo();
 
@@ -106,11 +107,18 @@ function SidebarToggleButton() {
   const isNarrowOnly = isNarrow && !canExpand;
 
   if (isTemporary || isNarrowOnly) {
-    return null;
+    return <ThemeToggleButton />;
   }
 
   return (
-    <Box textAlign={isOpen ? 'right' : 'center'}>
+    <Box
+      display="flex"
+      flexDirection={isOpen ? 'row' : 'column'}
+      alignItems="center"
+      justifyContent={isOpen ? 'flex-end' : 'center'}
+      gap={0.5}
+    >
+      <ThemeToggleButton />
       <ActionButton
         iconButtonProps={{
           size: 'small',
@@ -130,6 +138,8 @@ function SidebarToggleButton() {
 
 const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) => {
   const { sidebarName, isOpen } = props;
+  const { isTemporary } = useSidebarInfo();
+  const dispatch = useDispatch();
 
   if (sidebarName === DefaultSidebars.HOME) {
     return (
@@ -150,7 +160,10 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
 
   return (
     <Box textAlign="center">
-      <CreateButton isNarrow={!isOpen} />
+      <CreateButton
+        isNarrow={!isOpen}
+        onClickExtra={isTemporary ? () => dispatch(setWhetherSidebarOpen(false)) : undefined}
+      />
       <Box
         display="flex"
         justifyContent="space-between"

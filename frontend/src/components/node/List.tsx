@@ -14,16 +14,38 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
-import { HoverInfoLabel } from '../common/Label';
+import { HoverInfoLabel, StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { UsageBarChart } from './Charts';
 import { NodeReadyLabel } from './Details';
 import UpgradeVisualizationPanel from './UpgradeVisualizationPanel';
-import { formatTaint, NodeTaintsLabel } from './utils';
+import { formatTaint, isNodeCordoned, NodeTaintsLabel } from './utils';
+
+export function filterNode(node: Node, search: string) {
+  const lowerSearch = search.trim().toLowerCase();
+  const isReady = !!node.status?.conditions?.find(
+    condition => condition.type === 'Ready' && condition.status === 'True'
+  );
+  const isCordoned = isNodeCordoned(node);
+
+  if (lowerSearch === 'ready' || lowerSearch === 'schedulable') {
+    return isReady && !isCordoned;
+  }
+  // Ready cordoned nodes, matching the cluster chart's Cordoned slice (not-ready ones count as NotReady).
+  // Drained nodes are also cordoned, so they are listed too.
+  if (lowerSearch === 'cordoned') {
+    return isReady && isCordoned;
+  }
+  if (lowerSearch === 'notready' || lowerSearch === 'not ready' || lowerSearch === 'not-ready') {
+    return !isReady;
+  }
+  return undefined;
+}
 
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
@@ -42,6 +64,8 @@ export default function NodeList() {
       <ResourceListView
         title={t('Nodes')}
         resourceClass={Node}
+        searchFilter={filterNode}
+        reflectInURL="nodes"
         headerProps={{
           noNamespaceFilter: true,
         }}
@@ -93,7 +117,14 @@ export default function NodeList() {
               );
               return isReady ? t('translation|Yes') : t('translation|No');
             },
-            render: node => <NodeReadyLabel node={node} />,
+            render: node => (
+              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                <NodeReadyLabel node={node} />
+                {isNodeCordoned(node) && (
+                  <StatusLabel status="warning">{t('translation|Cordoned')}</StatusLabel>
+                )}
+              </Box>
+            ),
           },
           {
             id: 'taints',
@@ -127,11 +158,14 @@ export default function NodeList() {
             id: 'internalIP',
             label: t('translation|Internal IP'),
             getValue: node => node.getInternalIP(),
+            copyable: true,
           },
           {
             id: 'externalIP',
             label: t('External IP'),
-            getValue: node => node.getExternalIP() || t('translation|None'),
+            getValue: node => node.getExternalIP() || '',
+            render: node => node.getExternalIP() || t('translation|None'),
+            copyable: true,
           },
           {
             id: 'version',

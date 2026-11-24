@@ -1,5 +1,21 @@
 #!/usr/bin/env node
 
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -10,6 +26,8 @@ import { tagRelease } from './commands/tag.js';
 import { publishRelease } from './commands/publish.js';
 import { buildArtifacts } from './commands/build.js';
 import { getAppRuns } from './commands/get-app-runs.js';
+import { securityCheck } from './commands/security-check.js';
+import { verifyAssets } from './commands/verify-assets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -30,6 +48,10 @@ program.command('check')
   .argument('<release-version>', 'Version to check (e.g., 0.30.0)')
   .action(checkRelease);
 
+program.command('security-check')
+  .description('Scan the backend for known vulnerabilities (govulncheck) and Dockerfiles for security issues (hadolint)')
+  .action(securityCheck);
+
 program.command('start')
   .description('Update package.json with new version and commit changes')
   .argument('<release-version>', 'New version number (e.g., 0.30.0)')
@@ -37,18 +59,26 @@ program.command('start')
   .action(startRelease);
 
 program.command('tag')
-  .description('Create a git tag for the release')
+  .description('Create a signed git tag for the release (uses your git signing configuration)')
+  .option('--no-sign', 'Create an unsigned annotated tag instead')
   .action(tagRelease);
 
 program.command('publish')
   .description('Push tag, assign to release draft, and publish the release')
   .argument('<release-version>', 'Version to publish (e.g., 0.30.0)')
   .option('--force', 'Skip confirmation prompt')
+  .option('--allow-unsigned', 'Publish even if the release tag is not signed or GitHub can\'t verify its signature')
   .action(publishRelease);
 
 // CI command with subcommands
 const ci = program.command('ci')
   .description('CI-related commands');
+
+ci.command('verify-assets')
+  .description('Check that files are attached to a release and match the local copies')
+  .argument('<release-version>', 'Release to check (e.g., 0.30.0)')
+  .argument('<files...>', 'Local files to compare with the release assets')
+  .action(verifyAssets);
 
 ci.command('app')
   .description('Manage app build workflows')

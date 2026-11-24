@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { loadClusterSettings } from '../../helpers/clusterSettings';
+import type { ConnectionPresentation } from '../../helpers/clusterPresentation';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
 import { KubeMetadata } from './KubeMetadata';
 export {
@@ -52,12 +53,18 @@ export function getAllowedNamespaces(cluster: string | null = getCluster()): str
     return [];
   }
 
-  const clusterSettings = loadClusterSettings(cluster);
-  return clusterSettings.allowedNamespaces || [];
+  return getCombinedAllowedNamespaces(cluster);
 }
 
 export interface Cluster {
+  /** Connection key used for routes, authentication and persisted settings. */
   name: string;
+  /** Metadata the backend sends with the connection, such as its source and origin. */
+  meta_data?: {
+    /** Human-readable name and fields to show for the connection. */
+    presentation?: ConnectionPresentation;
+    [key: string]: any;
+  };
   useToken?: boolean;
   /**
    * Either 'oidc' or ''. '' means unknown.
@@ -380,7 +387,8 @@ export interface KubeContainer {
        * this field is used. It makes that resource available inside a container.
        */
       name: string;
-    };
+      request?: string;
+    }[];
     /**
      * Limits describes the maximum amount of compute resources allowed.
      *
@@ -493,6 +501,16 @@ export interface KubeContainer {
    * Cannot be updated.
    */
   workingDir?: string;
+  /**
+   * If set, the name of the container from the pod spec that this ephemeral
+   * container targets. The ephemeral container will be run in the namespaces
+   * (IPC, PID, etc.) of this container. If not set, the ephemeral container
+   * uses the namespaces configured in the Pod spec.
+   *
+   * The container runtime must support this feature.
+   * Only applies to ephemeral containers.
+   */
+  targetContainerName?: string;
 }
 
 export interface KubeContainerProbe {
@@ -559,6 +577,30 @@ export interface ContainerState {
   };
 }
 
+/** The health of one device or resource allocated to a container. */
+export interface ResourceHealth {
+  /**
+   * For DRA devices: the device's first CDI device ID, or `<driver>/<pool>/<device>` when
+   * the driver gives none.
+   */
+  resourceID: string;
+  /** Unknown when the kubelet cannot tell, for example after the driver stopped. */
+  health?: 'Healthy' | 'Unhealthy' | 'Unknown';
+  /** The reason the driver gave, such as an ECC error count. */
+  message?: string;
+}
+
+/** The health of the devices behind one resource or claim of a container. */
+export interface ResourceStatus {
+  /**
+   * For DRA devices: `claim:<name>` or `claim:<name>/<request>`, where the name is the one
+   * the Pod spec gives the claim.
+   */
+  name: string;
+  /** One entry per device. */
+  resources?: ResourceHealth[];
+}
+
 export interface KubeContainerStatus {
   containerID?: string;
   image: string;
@@ -569,4 +611,6 @@ export interface KubeContainerStatus {
   lastState: Partial<ContainerState>;
   state: Partial<ContainerState>;
   started?: boolean;
+  /** The health that device plugins and DRA drivers report for the container's devices. */
+  allocatedResourcesStatus?: ResourceStatus[];
 }

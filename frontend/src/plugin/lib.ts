@@ -67,6 +67,18 @@ export abstract class Plugin {
   abstract initialize(register: Registry): boolean | void;
 }
 
+/** APIs exposed to Headlamp's renderer process by the desktop preload bridge. */
+export interface DesktopApi {
+  /** Ends an OIDC session in an isolated desktop browser window. */
+  oidcLogout?: (cluster: string) => Promise<void>;
+  /** Operating system platform hosting the desktop app. */
+  platform: NodeJS.Platform;
+  /** Whether Electron is running in development mode, independent of the frontend build mode. */
+  isDevelopment?: boolean;
+  /** Additional APIs exposed by the desktop preload bridge. */
+  [key: string]: any;
+}
+
 declare global {
   interface Window {
     pluginLib: {
@@ -76,7 +88,7 @@ declare global {
       [pluginId: string]: Plugin;
     };
     registerPlugin: (pluginId: string, pluginObj: Plugin) => void;
-    desktopApi: any;
+    desktopApi: DesktopApi;
   }
 }
 
@@ -86,7 +98,8 @@ declare global {
  * "url" field instead).
  */
 export interface AppMenu {
-  /** A URL to open (if not starting with http, then it'll be opened in the external browser) */
+  /** A URL to open: an app URL is opened in the app window, an http(s) URL in the
+   * external browser. Other URLs are ignored. */
   url?: string;
   /** The submenus of this menu */
   submenu?: AppMenu[];

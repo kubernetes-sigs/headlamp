@@ -23,10 +23,10 @@
     >
       <div
         aria-labelledby=":mock-test-id:"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth MuiDialog-paperFullScreen css-9gxng4-MuiPaper-root-MuiDialog-paper"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-kl791l-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
-        <h2
+        <div
           class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
           id=":mock-test-id:"
           style="display: flex;"
@@ -76,7 +76,7 @@
               </div>
             </div>
           </div>
-        </h2>
+        </div>
         <div
           class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
         >

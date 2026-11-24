@@ -27,17 +27,176 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+The development launcher forwards `SIGINT`, `SIGTERM`, `SIGHUP`, and `SIGBREAK`
+to the backend, matching cross-env's signal handling.
+
+### Compiler flags and debugging information
+
+The npm and Makefile backend builds use a shared Go driver with no external
+dependencies. Make backend builds do not require Node.js. The npm path uses a
+small Node.js launcher, which does not add a requirement beyond npm itself.
+The stdlib-only bootstrap ignores surrounding module requirements; the actual
+backend build retains the caller's module and automatic toolchain settings.
+With no linker overrides, both retain the existing `-trimpath`, `-s`, and `-w`
+defaults.
+
+`GOFLAGS` settings, including those saved with `go env -w`, are honored.
+Use Go's `-ldflags` setting in `GOFLAGS` to replace the default stripping flags.
+Makefile builds retain the application version and name, and embedded builds add
+the required `embed` tag without discarding caller-supplied build tags.
+Package-specific `-ldflags` settings keep Go's matching and precedence rules.
+
+To retain symbol tables and DWARF debugging information:
+
+```bash
+GOFLAGS='-ldflags=' npm run backend:build
+GOFLAGS='-ldflags=' make backend
+```
+
+For easier stepping through unoptimized code with local source paths, use Go's
+quoting syntax for settings containing spaces:
+
+```bash
+GOFLAGS="-trimpath=false -ldflags= '-gcflags=all=-N -l'" make backend
+```
+
+These variables are inherited by desktop packaging hooks and embedded
+cross-compilation targets. `CC`, `CXX`, `CGO_CFLAGS`, `CGO_CXXFLAGS`, and
+`CGO_LDFLAGS` are passed through to Go unchanged when cgo is enabled; embedded
+cross-compilation targets continue to disable cgo.
+Generic C/C++ `CFLAGS` and `LDFLAGS` are not reinterpreted as Go options; use the
+Go and cgo variables above.
+The container build accepts `--build-arg GOFLAGS=...` and continues to use Go's
+unstripped defaults unless stripping is explicitly requested.
+
+CI exercises native Make/npm entrypoints on Linux, macOS, and Windows. Desktop
+packaging and a backend-only container build request
+`GOFLAGS='-trimpath=false -ldflags=-compressdwarf=false'`; the artifact verifier
+then checks the recorded flags and uncompressed DWARF entries in the resulting
+backend binaries, including packaged desktop resources.
+
+## Backend token protection
+
+`HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend
+routes. The desktop app generates a random token for each launch and sends it to
+its backend and renderer. Development commands such as `npm run backend:start`
+set a predictable token for local use.
+
+When `HEADLAMP_BACKEND_TOKEN` is unset or empty, backend-token enforcement is
+disabled. This opt-in behavior preserves standalone development and test setups
+that start the backend directly. Do not expose a non-in-cluster server with an
+empty token: protected cluster, plugin, Helm, and proxy routes are then available
+without this additional credential check.
+
+When the variable is non-empty, clients must send the same value in the
+`X-HEADLAMP_BACKEND-TOKEN` header. WebSocket clients use Headlamp's private
+backend-token subprotocol instead. In-cluster mode does not use this desktop
+token boundary and continues to rely on its configured authentication and
+authorization mechanisms.
+
+## Service proxy content isolation
+
+Service proxy responses set `Content-Security-Policy: sandbox` and
+`X-Content-Type-Options: nosniff` to isolate service content from Headlamp's
+origin. JSON and streaming are unchanged; interactive applications need a
+separate origin.
+
+## Persistent cluster deletion
+
+`removeKubeConfig=true` requires `--allow-kubeconfig-changes` and a registered
+file-backed cluster. The backend uses its loaded file and original context key,
+not client-supplied identifiers; configured external files and symlinks work.
+Runtime imports and renames retain this origin.
+Imports and deletions lock the same recorded path, including symlinks.
+File updates precede in-memory removal, so failures keep the stored cluster.
+Memory-only deletion does not require file-mutation permission.
+
+## JSON request body limits
+
+Cluster add and rename, node drain, token-setting, and kubeconfig-parsing
+endpoints accept one JSON value with a maximum body size of 1 MiB, including
+trailing whitespace. Larger bodies return `413 Request Entity Too Large`;
+malformed JSON or additional JSON values return `400 Bad Request`.
+Unknown fields remain accepted for compatibility.
+
+The limit is local to these endpoints, not global middleware. Kubernetes
+API proxy requests are unchanged and can still forward larger manifests.
+
+## Node drain authentication
+
+The frontend submits node drains and polls their status through
+`/clusters/<cluster>/drain-node` and `/clusters/<cluster>/drain-node-status`.
+These paths receive the existing cluster-scoped authentication cookie and OIDC
+refresh middleware; the current drain uses the refreshed user credential.
+Kubernetes RBAC and audit events therefore use the caller's identity.
+
+In-cluster requests without a user credential are rejected unless the existing
+unsafe service-account mode was explicitly enabled. Drain does not implicitly
+fall back to the pod's service account or forward that credential to an external
+context. Legacy unscoped routes remain available for existing callers, but
+cookie-only browser clients should use the cluster-scoped routes.
+
+## Helm release history
+
+`GET /clusters/<cluster>/helm/release/history` requires non-empty `name` and
+`namespace` query parameters. Missing or empty values return `400 Bad Request`
+before Helm accesses the cluster. Valid requests retain the existing
+`{"releases": [...]}` response and release-lookup error handling.
+
+## Helm chart sources
+
+Helm install (`POST /clusters/<cluster>/helm/release/install`) and
+upgrade (`PUT /clusters/<cluster>/helm/releases/upgrade`) requests
+accept only a `chart` of the form
+`<repository>/<chart>`, where `<repository>` is a Helm repository
+registered with the backend through the repository routes. Other values
+are rejected with `400`: `http(s)` and `oci://` URLs, absolute and
+relative paths, and references that also exist as a path on the
+backend's filesystem. This only checks the `chart` value in the request,
+so a client cannot pass a chart URL or a local path. It does not limit
+which repository URLs can be registered, or the chart URLs listed in a
+repository's index; those are not covered by this check. Clients that
+installed charts from a direct URL must add the repository first and
+install from it.
+
+## Kubernetes response cache
+
+With `--cache-enabled`, users share resource responses within the same cluster
+connection. Each GET still checks the caller's permissions through a Kubernetes
+SelfSubjectAccessReview. Keys distinguish API versions, resources, namespaces,
+names, query parameters and the `Accept` representation. For example,
+`/api/v1/namespaces/team/pods/shared` and
+`/api/v1/namespaces/team/secrets/shared` never share an entry.
+
+A shared metadata list/watch invalidates each resource scope. It uses the
+connection's credentials when available, or a requesting user's token for a
+connection without stored credentials. Tokens are not saved to the context
+store. Until the watch is synchronized, and whenever it disconnects, requests go
+directly to Kubernetes. Authorization-check errors also bypass the cache.
+Watch events and writes invalidate both existing responses and pending fills;
+idle watches stop after ten minutes. Streaming, paginated, conditional, range,
+impersonated and subresource requests bypass the response cache, as do requests
+for a specific resource version or with `Cache-Control: no-cache`. Only successful
+Kubernetes objects are stored, and never responses that set cookies, send
+`Cache-Control: no-store` or vary on anything but `Accept` and `Accept-Encoding`.
+
+## Telemetry
+
+Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
+
 ## Logging configuration
 
 Headlamp’s backend supports configurable log levels to control verbosity.
 
 Log level can be configured using either a flag or an environment variable:
+
 - the log level: `--log-level` or env var `HEADLAMP_CONFIG_LOG_LEVEL`
 
 Supported Values:
+
 - `debug`
 - `info` (default)
-- `warn` 
+- `warn`
 - `error`
 
 > **Note:** Headlamp uses zerolog defaults.  
@@ -79,6 +238,13 @@ npm run backend:format
 npm run backend:test
 ```
 
+The development launcher's signal forwarding is tested by the app unit tests
+(`app/electron/run-backend.test.ts`):
+
+```bash
+npm run app:test:unit
+```
+
 Test coverage with a html report in the browser.
 
 ```bash
@@ -86,9 +252,101 @@ npm run backend:coverage:html
 ```
 
 To just print a simpler coverage report to the console.
+
 ```bash
 npm run backend:coverage
 ```
+
+## Memory profiling
+
+Use representative kubeconfigs, clusters, and requests when comparing profiles. Run each
+measurement several times and compare medians.
+
+```bash
+# GC activity and heap goals for a running development server.
+GODEBUG=gctrace=1 npm run backend:start 2>gc.log
+
+# Heap retained by a test or benchmark.
+cd backend
+go test -run TestName -memprofile=/tmp/heap.pprof ./pkg/package
+go tool pprof -inuse_space /tmp/heap.pprof
+
+# Total allocations, including objects that have already been collected.
+go test -run '^$' -bench BenchmarkName -benchmem \
+  -memprofile=/tmp/allocs.pprof ./pkg/package
+go tool pprof -alloc_space /tmp/allocs.pprof
+
+# Allocation/free events, GC pauses, and goroutine scheduling.
+GODEBUG=traceallocfree=1 go test -run TestName -trace=/tmp/trace.out ./pkg/package
+go tool trace /tmp/trace.out
+```
+
+On Unix, `GOTRACEBACK=all` followed by `kill -QUIT <pid>` prints all goroutine
+stacks. This terminates the process, so only use it on a development instance.
+Repeated dumps reveal goroutines whose count or blocked stacks keep growing.
+
+In `pprof`, start with `top`, `top -cum`, `list <function>`, and `web`.
+`inuse_space` identifies long-lived allocations; `alloc_space` identifies allocation
+churn. Compare profiles with `go tool pprof -base before.pprof after.pprof`.
+In traces and GC logs, look for a growing live heap after GC, frequent collections
+with little heap reduction, and increasing goroutine counts. Map growth appears as
+retained `runtime.mapassign` call paths and should be checked for missing bounds or
+expiration.
+
+### Ranked optimization opportunities
+
+| Rank | Change | Expected memory effect | Trade-off |
+| --- | --- | --- | --- |
+| 1 | Share cache-invalidation watchers for equivalent cluster connections | Avoids duplicated informer stores and goroutines for stateless users | Requires careful authentication and watcher lifecycle isolation |
+| 2 | Add byte and entry limits to the Kubernetes response cache | Prevents unbounded retained response growth and avoids caching oversized responses | Lower cache hit rate |
+| 3 | Cache only the Kubernetes authorization client instead of a full clientset | Removes unused typed clients from each token cache entry | Narrows the internal cache API |
+| 4 | Initialize proxy transports only when a context is first used | Saves per-context TLS and transport state for unused contexts | Adds synchronization to the first request |
+| 5 | Lower `GOGC` for the desktop backend | About 2–4.5 MiB in measured idle/request workloads | More frequent GC and modestly higher CPU use |
+
+The desktop launcher defaults its bundled backend to `GOGC=25`, while preserving
+an explicitly configured `GOGC`. In isolated measurements, `GOGC=50` reduced
+median startup RSS from 82,384 KiB to 80,492 KiB. Lowering it to `GOGC=25`
+saved another 2.1 MiB of private dirty memory after 20,000 `/config` requests,
+with about 11% more backend CPU than `GOGC=50`.
+
+`GOMEMLIMIT` is a soft runtime limit rather than a live-heap target. Set it to
+roughly 85–90% of a container's memory limit, leaving room for the executable,
+stacks, and non-Go allocations. Limits between 20 MiB and 64 MiB did not
+consistently reduce the small desktop startup workload, so the app does not force
+a fixed value. Re-profile under production load before setting either variable.
+
+### Evaluated compiler and runtime options
+
+The following medians are from three Linux amd64 runs of 20,000 local `/config`
+requests with Go 1.26.5. Private dirty memory is reported instead of total RSS
+because demand-paged executable mappings varied substantially with link layout.
+These are directional results from a small workload.
+
+| Runtime configuration | Private dirty after requests | Backend CPU | Result |
+| --- | ---: | ---: | --- |
+| `GOGC=100` | 17.2 MiB | 3.26 s | Go default and comparison baseline |
+| `GOGC=50` | 14.8 MiB | 3.37 s | Saves 2.4 MiB over the Go default |
+| `GOGC=25` | 12.7 MiB | 3.73 s | Current desktop default; saves another 2.1 MiB with about 11% more CPU than `GOGC=50` |
+| `GOGC=50 GOMEMLIMIT=64MiB` | 14.8 MiB | 3.43 s | No measurable saving in this workload |
+| `GOGC=50 GODEBUG=disablethp=1` | 11.7 MiB | 3.44 s | Linux-only saving on this host; not used because the compatibility setting is scheduled for removal |
+| `GOGC=50 GOMAXPROCS=1` | 13.2 MiB | 2.32 s | Not used because serializing execution can hurt concurrent workloads |
+
+Compiler experiments used the same workload with `GOGC=50`:
+
+| Build option | Binary size | Private dirty | Backend CPU | Result |
+| --- | ---: | ---: | ---: | --- |
+| Default | 114.4 MiB | 14.8 MiB | 3.37 s | Baseline |
+| `-trimpath -ldflags="-s -w"` | 81.4 MiB | 14.5 MiB | 3.38 s | Current backend build default; saves 28.8% on disk, but no meaningful runtime memory |
+| `-gcflags=all=-l` | 103.5 MiB | 12.8 MiB | 4.21 s | About 2 MiB less memory at roughly 25% more CPU; not selected |
+| `GOAMD64=v3` | 114.4 MiB | 14.9 MiB | 3.41 s | No memory saving and reduces CPU compatibility |
+| `-buildmode=pie` | 120.9 MiB | 19.1 MiB | 3.45 s | Increased private memory |
+| `GOEXPERIMENT=greenteagc` | 114.4 MiB | 14.7 MiB | 3.47 s | No meaningful saving in this workload |
+
+Go plugins are not a portable memory-saving mechanism for the backend. They are
+unsupported on Windows, must match the main binary's toolchain and dependencies,
+cannot be unloaded, and therefore retain their memory after first use. Splitting
+optional features into helper processes would also add another Go runtime and IPC
+complexity.
 
 ## Fuzz Testing
 
@@ -103,4 +361,3 @@ npm run backend:fuzz
 This will run fuzz tests in the `backend/pkg/auth` package for 30 seconds. The fuzz corpus (interesting test cases discovered during fuzzing) is stored in `testdata/fuzz/` directories and committed to the repository for regression testing.
 
 For more information about Go fuzzing, see the [official Go fuzzing documentation](https://go.dev/security/fuzz/).
-

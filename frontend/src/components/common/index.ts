@@ -33,7 +33,7 @@ export { default as Loader } from './Loader';
 export * from './LogViewer';
 export * from './NameValueTable';
 export { default as NameValueTable } from './NameValueTable';
-export * from './ObjectEventList';
+export type { ObjectEventListProps } from './ObjectEventList';
 export { default as ObjectEventList } from './ObjectEventList';
 export * from './Resource';
 export * as Resource from './Resource';

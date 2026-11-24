@@ -66,6 +66,11 @@ func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.Cu
 
 // setKeyInCache sets the context in the cache with the given key.
 func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) error {
+	// Concurrent requests for the same key must not both see it missing and each add a context,
+	// as the later add replaces the first context and discards its already set up proxy.
+	c.statelessCacheMu.Lock()
+	defer c.statelessCacheMu.Unlock()
+
 	// check context is present
 	_, err := c.KubeConfigStore.GetContext(key)
 	if err != nil && err.Error() == "key not found" {
@@ -169,12 +174,11 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 	var kubeconfigReq KubeconfigRequest
 
 	// Decode the JSON request body into the kubeconfigReq variable
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&kubeconfigReq); err != nil {
+	if err := decodeRequestBody(w, r, &kubeconfigReq); err != nil {
 		// Handle the error, return a bad request response
 		logger.Log(logger.LevelError, nil, err, "decoding config")
 
-		http.Error(w, "Invalid JSON request body", http.StatusBadRequest)
+		writeDecodeError(w, err, "Invalid JSON request body")
 
 		return
 	}
@@ -204,6 +208,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		DefaultLightTheme:       c.DefaultLightTheme,
 		DefaultDarkTheme:        c.DefaultDarkTheme,
 		ForceTheme:              c.ForceTheme,
+		OidcAutoLogin:           c.OidcAutoLogin,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
@@ -267,6 +272,10 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 // For stateless clusters it is combination of cluster name and user id.
 // For normal clusters it is just the cluster name.
 func (c *HeadlampConfig) getContextKeyForRequest(r *http.Request) (string, error) {
+	if resolved, ok := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext); ok {
+		return resolved.key, nil
+	}
+
 	var contextKey string
 
 	clusterName := mux.Vars(r)["clusterName"]

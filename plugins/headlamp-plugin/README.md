@@ -57,14 +57,22 @@ headlamp-plugin --help
                                             Options:
                                                   --version          Show version number
                                               -c, --config           Path to plugin configuration file
-                                                  --folderName       Name of the folder to install the plugin 
-                                                  --headlampVersion  Version of headlamp to install the plugin 
+                                                  --folderName       Name of the folder to install the plugin
+                                                  --headlampVersion  Version of headlamp to install the plugin
                                               -q, --quiet            Do not print logs
                                               -w, --watch            Watch config file for changes and automatically
                                                                     reinstall plugins
   headlamp-plugin.js update [pluginName]    Update the plugin to the latest version.
   headlamp-plugin.js uninstall [pluginName] Uninstall the plugin.
 ```
+
+## TypeScript versions
+
+The default plugin compiler remains TypeScript 5.6.2. Plugin projects can opt into
+stable TypeScript 7 for type-checking while retaining a compatible legacy compiler
+API for linting, Storybook, and i18n extraction. See the
+[TypeScript setup and limitations](../../docs/development/plugins/getting-started.md#typescript-versions).
+Do not globally override `typescript` to version 7.
 
 ## Template for installing plugins from a configuration file
 
@@ -101,6 +109,75 @@ See test-headlamp-plugin.js for some basic integration tests.
 
 See test-headlamp-plugin-published.js for testing published packages.
 
+Run the fast compiler-selection and upgrade-policy tests with:
+
+```bash
+npm run test:typescript
+```
+
+Run the SDK-owned tooling tests and per-scope statement coverage with:
+
+```bash
+npm run test:tooling
+npm run test:coverage
+```
+
+The coverage command includes the existing compiler-selection and upgrade tests.
+The existing `test-headlamp-plugin.js` CI harness runs this command before its
+packed-consumer checks, retaining the separate Storybook mock contracts. Test
+files run sequentially to bound compiler/subprocess load without extending their
+individual timeouts.
+It requires **at least 80% statement coverage independently** for:
+
+- CLI code in `bin/headlamp-plugin.js` and `bin/typescript.js`.
+- The shipped Vite, i18next and Storybook configuration, including the TSX preview.
+- The JavaScript build-maintenance scripts and dependency synchronization.
+
+The exact file inventory is maintained in `test/helpers/coverage-scopes.cjs`.
+Unvisited files stay in the denominator. Copied frontend code, generated output,
+test harnesses, shipped test mocks, consumer templates and the generated MSW worker
+are not counted as production SDK tooling. The six TypeScript facade modules only
+reexport frontend bindings and contain no executable statements. The shell
+dependency-install wrapper is outside the JavaScript statement metric.
+
+Reports are written to `coverage/index.html`, `coverage/coverage-final.json`,
+`coverage/coverage-summary.json` and `coverage/scopes.json`. The command deletes
+its previous `coverage/` output before running and exits unsuccessfully if tests
+fail or any scope is below 80%, using the exact counters rather than a rounded
+percentage.
+
+These are offline behavior tests. They exercise real fixture files and CLI parsing;
+external npm/git/compiler/bundler operations are controlled at their API boundary
+to test failures and upgrade/watch decisions without changing installed packages,
+global npm links or user data. A separate real-process scenario verifies offline
+creation, extraction, packaging and archive checksums. CJS/ESM/TSX configuration is
+instrumented before the test-only module transformation so counters refer to the
+original source, and CLI child processes inherit collection.
+
+Collection-build regressions also run the real CLI and Vite against two distinct
+packages and verify each package's own bundle and Brotli output. Collection builds
+run sequentially because compilation temporarily changes the working directory.
+
+This command does not replace the real packed-consumer integration and TypeScript
+compatibility matrices described below, or the Storybook mock contracts. Those
+remain separate validation of the actual external tools.
+
+After building and packing the local tooling, run the standalone compatibility
+matrix (Node 24/npm 11) with:
+
+```bash
+npm run build
+npm pack
+npm run test:typescript:compatibility -- ./kinvolk-headlamp-plugin-0.14.0.tgz
+```
+
+Use the tarball filename produced by `npm pack` for the current version. The matrix
+uses clean packed consumers, checks the TypeScript 5 baseline and TypeScript 7
+opt-in, and exercises lint, type-checking, tests, builds, Storybook, i18n, and
+upgrades. It needs registry access, including for the normal upgrade's audit step.
+It is intentionally separate from the default integration harness because it
+performs multiple full installations.
+
 #### linking to use local version of headlamp-plugin
 
 Use your changes inside a plugin with an npm feature called linking:
@@ -127,6 +204,22 @@ cd plugins/headlamp-plugin
 node ./bin/headlamp-plugin.js create myplugin --link
 ```
 
+### Storybook and test tooling
+
+The toolkit uses Storybook 10 and Vitest 5. Storybook configuration must use ESM;
+the shared configuration is `config/.storybook/main.mjs`. Existing custom
+CommonJS Storybook configurations must be migrated when upgrading.
+
+Plugin development requires Node 22.12 or newer supported by Vitest 5.
+Istanbul coverage's Babel dependencies require Node 22.18 or newer on the
+Node 22 line, or Node 24.11 or newer on the Node 24 line.
+
+Use `headlamp-plugin upgrade` to refresh template-managed scripts, TypeScript
+files, lint configuration, and overrides, including Vitest/coverage and the
+`webpack-dev-middleware` override (`^7.4.6`). npm does not apply the toolkit's
+overrides when it is installed as a dependency. Review any separately declared
+tooling dependencies and custom Storybook configuration for compatibility.
+
 ### Keep the dependencies in sync with the frontend/
 
 Run `npm run update-dependencies` so the packages are kept up to date with there.
@@ -135,13 +228,27 @@ A lot of the packages are shared between the two, but some are not. See
 dependencies-sync.js for lists of dependencies which are shared/not-shared.
 You may need to update these lists when adding/removing packages.
 
+Storybook versions intentionally differ from the frontend until its separate
+Storybook 10 migration is complete.
+
 Run `npm run check-dependencies` to see if frontend/package.json and
 headlamp-plugin/package.json are synced. This is run in CI to make sure when dependencies
 are changed, they are synced appropriately.
 
 ### Upgrading to an alpha release
 
-You can try an alpha release for testing with the following command.
+Commit or back up your plugin first. The upgrade command replaces template-managed
+configuration, regenerates `node_modules` and the lockfile, runs `npm audit fix`,
+and formats, lints, and type-checks the plugin. Review the resulting diff;
+custom Storybook configuration and your Node installation are not migrated.
+
+After publication, upgrade to a specific prerelease with:
+
+```bash
+npx @kinvolk/headlamp-plugin@0.15.0-alpha.0 upgrade --headlamp-plugin-version=0.15.0-alpha.0 your-plugin-folder
+```
+
+Or explicitly opt in to whichever prerelease is currently tagged `alpha`:
 
 ```bash
 npx @kinvolk/headlamp-plugin@alpha upgrade --headlamp-plugin-version=alpha your-plugin-folder

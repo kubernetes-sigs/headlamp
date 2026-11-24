@@ -152,21 +152,21 @@ const multiplePath = new Ingress({
 
 export const Empty = Template.bind({});
 Empty.args = {
-  url: 'exampleurl.com',
+  url: 'examplehost.com',
   item: noPath,
   urlPath: '/',
 };
 
 export const soloPath = Template.bind({});
 soloPath.args = {
-  url: 'exampleurl.com',
+  url: 'examplehost.com',
   item: onePath,
   urlPath: '/pathA',
 };
 
 export const morePath = Template.bind({});
 morePath.args = {
-  url: 'exampleurl.com',
+  url: 'examplehost.com',
   item: multiplePath,
   urlPath: '/pathB',
 };

@@ -20,12 +20,13 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
-import { isValidElement, useMemo, useState } from 'react';
+import { isValidElement, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { ConfigStore } from '../../../plugin/configStore';
 import { PluginInfo } from '../../../plugin/pluginsSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import NotFoundComponent from '../../404';
 import { SectionHeader } from '../../common';
@@ -71,6 +72,12 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
   const deletePluginAction = usePluginDelete();
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PLUGIN_DETAILS_VIEW);
+
+  useEffect(() => {
+    dispatchHeadlampEvent({ plugin });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plugin]);
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
@@ -264,14 +271,29 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
                   ]
                 : []
             }
-            subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
+            subtitle={
+              author ? (
+                <Typography
+                  component="span"
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ display: 'block', fontStyle: 'normal', mt: 0.5 }}
+                >
+                  {t('translation|Published by {{author}}', { author })}
+                </Typography>
+              ) : undefined
+            }
             noPadding={false}
-            headerStyle="subsection"
+            headerStyle="main"
           />
         }
         backLink={'/settings/plugins'}
       >
-        {plugin.description}
+        {plugin.description && (
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            {plugin.description}
+          </Typography>
+        )}
         {plugin.isLoaded === false && plugin.overriddenBy && (
           <Box mt={2} p={2} sx={{ bgcolor: 'warning.light', borderRadius: 1 }}>
             <Typography variant="body2">
@@ -307,19 +329,12 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
             spacing={2}
             justifyContent="flex-start"
             alignItems="center"
-            sx={{ borderTop: '2px solid', borderColor: 'silver', padding: '10px' }}
+            sx={{ borderTop: '2px solid', borderColor: 'divider', padding: '10px' }}
           >
-            <Button
-              variant="contained"
-              disabled={!enableSaveButton}
-              style={{ backgroundColor: 'silver', color: 'black' }}
-              onClick={handleSave}
-            >
+            <Button variant="contained" disabled={!enableSaveButton} onClick={handleSave}>
               {t('translation|Save')}
             </Button>
-            <Button style={{ color: 'silver' }} onClick={handleCancel}>
-              {t('translation|Cancel')}
-            </Button>
+            <Button onClick={handleCancel}>{t('translation|Cancel')}</Button>
           </Stack>
         </Box>
       )}

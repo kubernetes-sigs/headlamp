@@ -16,7 +16,7 @@
 
 import { useTheme } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
-import { BaseEdge, EdgeProps } from '@xyflow/react';
+import { BaseEdge, EdgeLabelRenderer, EdgeProps } from '@xyflow/react';
 import { memo } from 'react';
 import { GraphEdge } from '../graph/graphModel';
 
@@ -42,13 +42,49 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
     bendPoints[0].y + dy
   } ${bendPoints[1].x + dx},${bendPoints[1].y + dy} ${endPoint.x + dx},${endPoint.y + dy}`;
 
+  // Calculate the midpoint of the cubic bezier curve (at t = 0.5)
+  const labelX =
+    0.125 * (startPoint.x + dx) +
+    0.375 * (bendPoints[0].x + dx) +
+    0.375 * (bendPoints[1].x + dx) +
+    0.125 * (endPoint.x + dx);
+  const labelY =
+    0.125 * (startPoint.y + dy) +
+    0.375 * (bendPoints[0].y + dy) +
+    0.375 * (bendPoints[1].y + dy) +
+    0.125 * (endPoint.y + dy);
+
+  const label = data?.label;
+
   return (
-    <BaseEdge
-      id={props.id}
-      path={svgPath}
-      style={{
-        stroke: alpha(theme.palette.action.active, 0.8),
-      }}
-    />
+    <>
+      <BaseEdge
+        id={props.id}
+        path={svgPath}
+        style={{
+          stroke: alpha(theme.palette.action.active, 0.8),
+        }}
+      />
+      {label && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              background: theme.palette.background.paper,
+              padding: '2px 6px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              color: theme.palette.text.secondary,
+              border: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+              pointerEvents: 'none',
+            }}
+            className="nodrag nopan"
+          >
+            {label}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
   );
 });

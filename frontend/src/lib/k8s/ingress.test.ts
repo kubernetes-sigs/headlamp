@@ -236,6 +236,33 @@ describe('Ingress class', () => {
       expect(rules[0].http!.paths).toEqual([]);
     });
 
+    it('preserves pathType on normalized paths', () => {
+      const ingress = new Ingress(JSON.parse(JSON.stringify(mockIngressData)));
+      const rules = ingress.getRules();
+      expect(rules[0].http!.paths[0].pathType).toBe('Prefix');
+      expect(rules[0].http!.paths[1].pathType).toBe('Prefix');
+    });
+
+    it('leaves pathType undefined for legacy rules that do not define it', () => {
+      const data = JSON.parse(JSON.stringify(mockIngressData));
+      data.spec.rules = [
+        {
+          host: 'legacy.example.com',
+          http: {
+            paths: [
+              {
+                path: '/api',
+                backend: { serviceName: 'legacy-svc', servicePort: '8080' },
+              },
+            ],
+          },
+        },
+      ];
+      const ingress = new Ingress(data);
+      const rules = ingress.getRules();
+      expect(rules[0].http!.paths[0].pathType).toBeUndefined();
+    });
+
     it('caches rules and returns cached result on subsequent calls', () => {
       // Create a fresh instance with deep-cloned data to avoid shared refs
       const data = JSON.parse(JSON.stringify(mockIngressData));

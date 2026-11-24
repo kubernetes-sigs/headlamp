@@ -1,196 +1,374 @@
 ---
-title: How to Set Up Headlamp in minikube with Dex OIDC Authentication
-sidebar_label: "Tutorial: OIDC with Dex"
+title: Set Up Headlamp behind OAuth2-Proxy with Dex
+sidebar_label: "Tutorial: OIDC with Dex and OAuth2-Proxy"
 ---
 
-In this tutorial, we'll walk through the process of configuring Headlamp within a Minikube cluster while utilizing Dex for OIDC (OpenID Connect) authentication. This tutorial is based on Dex version 2.38.0, Minikube version v1.31.2, and Headlamp version 0.22.0.
+This guide places [OAuth2-Proxy](https://oauth2-proxy.github.io/oauth2-proxy/)
+in front of Headlamp and uses [Dex](https://dexidp.io/) as the OpenID Connect
+(OIDC) provider. OAuth2-Proxy signs users in and forwards their ID token to
+Headlamp. Headlamp then uses that token for Kubernetes API requests, so the
+API server can apply RBAC to the Dex identity.
 
-## Configuring Dex
+This follows the upstream
+[OAuth2-Proxy Headlamp integration](https://oauth2-proxy.github.io/oauth2-proxy/configuration/integrations/headlamp/).
 
-To enable OIDC authentication in your Minikube cluster, you'll need to configure Dex. Before proceeding, follow the [getting started guide](https://dexidp.io/docs/getting-started/) to set up your Dex instance. Follow these steps to configure Dex:
+## Architecture
 
-1. Create a Dex configuration file. The following example demonstrates a basic configuration file for Dex, containing a
-   static client, connector, and static password.
+```text
+Browser ──► OAuth2-Proxy ──► Dex
+                 │
+                 │ Authorization: Bearer <ID token>
+                 ▼
+             Headlamp ──► Kubernetes API server
+                              │
+                              └─ validates the token against Dex and applies RBAC
+```
+
+## Choose a setup
+
+This directory supports two different setups. Do not mix their configuration:
+
+- **Local authentication demo:** Run [`test-scripts/run.sh`](./test-scripts/).
+  It uses HTTP and `kubectl port-forward`. OAuth2-Proxy authenticates users,
+  but Headlamp uses its ServiceAccount for Kubernetes requests, so every
+  signed-in user has the same Kubernetes permissions. It does not demonstrate
+  per-user RBAC.
+- **Per-user Kubernetes RBAC:** Follow the manual steps below. This requires an
+  HTTPS Dex issuer that is reachable from the browser, OAuth2-Proxy, and the
+  Kubernetes API server.
+
+| | Local scripts | Manual per-user setup |
+|---|---|---|
+| Transport | HTTP and port-forwarding | HTTPS and Ingress |
+| Kubernetes identity | Headlamp ServiceAccount | Dex user and groups |
+| API-server OIDC | Disabled | Enabled |
+| Intended use | Login-flow evaluation | Per-user authorization |
+
+Both paths use the same Dex client ID, OAuth2-Proxy callback path, Headlamp
+upstream, and pinned chart versions. Their transport and Kubernetes identity
+intentionally differ.
+
+## Prerequisites
+
+- [Minikube](https://minikube.sigs.k8s.io/) 1.31 or newer
+- [Helm](https://helm.sh/) 3.10 or newer
+- `kubectl`
+- Dex 2.45.1
+- An Ingress controller (the example uses NGINX)
+- DNS names and TLS certificates trusted by every client that connects to them
+
+The examples below use:
+
+- Dex issuer: `https://dex.example.com:5556`
+- Headlamp entry point: `https://headlamp.example.com`
+- OIDC client ID: `headlamp`
+
+Use those values consistently. In particular, the Dex `issuer`, Kubernetes
+`--oidc-issuer-url`, and OAuth2-Proxy `oidc_issuer_url` must be identical.
+`dex.example.com` must resolve and be reachable from your browser, pods, and the
+Minikube control plane. `headlamp.example.com` must resolve to the Ingress
+controller from your browser. Replace these reserved example domains with names
+from your environment.
+
+Set shell variables for the commands below:
+
+```shell
+export DEX_HOST="dex.example.com"
+export HEADLAMP_HOST="headlamp.example.com"
+export HEADLAMP_TLS_CERT="/absolute/path/to/headlamp-tls.crt"
+export HEADLAMP_TLS_KEY="/absolute/path/to/headlamp-tls.key"
+export OIDC_CLIENT_SECRET="$(openssl rand -hex 32)"
+export COOKIE_SECRET="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')"
+```
+
+Keep these variables in the same shell while following the steps.
+
+## 1. Configure Dex
+
+Create `dex-config.yaml`:
 
 ```yaml title="dex-config.yaml"
-issuer: <YOUR-DEX-URL>
+issuer: https://dex.example.com:5556
 
 storage:
   type: sqlite3
+  config:
+    file: ./dex.db
 
 web:
-  http: 0.0.0.0:5556
+  https: 0.0.0.0:5556
+  tlsCert: /absolute/path/to/dex-tls.crt
+  tlsKey: /absolute/path/to/dex-tls.key
 
 staticClients:
-  - id: example-app
+  - id: headlamp
+    name: "Headlamp via OAuth2-Proxy"
+    secretEnv: OIDC_CLIENT_SECRET
     redirectURIs:
-      - "http://localhost:8000"
-    name: "Example App"
-    secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+      - "https://headlamp.example.com/oauth2/callback"
 
-connectors:
-  - type: mockCallback
-    id: mock
-    name: Example
-
-# Let dex keep a list of passwords which can be used to login to dex.
+# This static account is for evaluating the setup only. Use an external
+# connector and managed identities in production.
 enablePasswordDB: true
-
 staticPasswords:
   - email: "admin@example.com"
-    # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
+    # bcrypt hash of "password":
+    #   echo password | htpasswd -BinC 10 admin | cut -d: -f2
     hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
     username: "admin"
+    emailVerified: true
     userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+    groups:
+      - "headlamp-readers"
 ```
 
-2. Start Dex with the following command:
+The relative database path keeps this walkthrough runnable as an unprivileged
+user. Use persistent, access-controlled storage for a real Dex deployment.
+Start Dex with:
 
 ```shell
 dex serve dex-config.yaml
 ```
 
-## Setting up Minikube with the Dex OIDC Configuration
+Verify from the machine running your browser that its discovery document is
+available and advertises the exact issuer URL:
 
-To configure Minikube for Dex OIDC integration, follow these steps:
+```shell
+curl --fail "https://${DEX_HOST}:5556/.well-known/openid-configuration"
+```
 
-1. **Run the following command** to start Minikube with the necessary configuration options:
+## 2. Configure the Kubernetes API server
+
+Start Minikube with Dex as a trusted issuer:
 
 ```shell
 minikube start -p=dex \
---extra-config=apiserver.authorization-mode=Node,RBAC \
---extra-config=apiserver.oidc-issuer-url=https://<YOUR-DEX-URL> \
---extra-config=apiserver.oidc-username-claim=email \
---extra-config=apiserver.oidc-client-id=<CLIENT-ID>
+  --extra-config=apiserver.authorization-mode=Node,RBAC \
+  --extra-config=apiserver.oidc-issuer-url="https://${DEX_HOST}:5556" \
+  --extra-config=apiserver.oidc-username-claim=email \
+  --extra-config=apiserver.oidc-groups-claim=groups \
+  --extra-config=apiserver.oidc-client-id=headlamp
 ```
 
-![Minikube start](./minikube-start.jpg)
+If Dex uses a private certificate authority, also configure
+`apiserver.oidc-ca-file` and mount that CA file into the Minikube control-plane
+container. The certificate must also be trusted by OAuth2-Proxy and your
+browser.
 
-Note:
-Replace `<YOUR-DEX-URL>` with the actual URL of your Dex instance and `<CLIENT-ID>` with the actual client ID.
+Verify that a pod can resolve and trust Dex:
 
-## Configuring a ClusterRole Binding for the OIDC User
+```shell
+kubectl run dex-connectivity-check \
+  --image=curlimages/curl:8.12.1 \
+  --restart=Never --rm -i -- \
+  --fail "https://${DEX_HOST}:5556/.well-known/openid-configuration"
+```
 
-Once your cluster is operational, you need to configure a cluster role and a cluster role binding for the Dex user. This step is essential for enabling the Kubernetes API server to identify the user. In this example, we'll be associating the user with the predefined `cluster-admin` Role.
+Resolve DNS or certificate errors before installing OAuth2-Proxy.
 
-```yaml title="clusterRoleBinding.yaml"
+## 3. Grant the test user limited access
+
+For this tutorial, grant the Dex group read-only access. Avoid using
+`cluster-admin` for login examples because copied examples often survive into
+real environments.
+
+```yaml title="clusterrolebinding.yaml"
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: admin-user-clusterrolebinding
+  name: dex-headlamp-view
 subjects:
-  - kind: User
-    name: admin@example.com
+  - kind: Group
+    name: headlamp-readers
     apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
-  name: cluster-admin
+  name: view
   apiGroup: rbac.authorization.k8s.io
 ```
 
-Create the cluster role binding by running the following command:
-
 ```shell
-kubectl apply -f clusterRoleBinding.yaml
+kubectl apply -f clusterrolebinding.yaml
 ```
 
-## Configuring kubectl for OIDC User Authentication
+The group name matches the `groups` claim in `dex-config.yaml`.
 
-Once you've set up your cluster and created a ClusterRoleBinding, it's time to configure `kubectl` to work with your OIDC user for authentication. Follow these steps:
+## 4. Install Headlamp
 
-1. Install the `oidc-login` plugin with [krew](https://krew.sigs.k8s.io/docs/user-guide/quickstart/) by executing the following command:
-
-```shell
-kubectl krew install oidc-login
-```
-
-![OIDC Login Install](./oidc-login-install.jpg)
-
-2. Set Up `oidc-login`, Configure oidc-login with the necessary parameters by running the following command:
-
-```shell
-kubectl oidc-login setup --oidc-issuer-url=https://<YOUR-DEX-URL> \ --oidc-client-id=<CLIENT-ID> \
---oidc-client-secret=<CLIENT-SECRET>
-```
-
-![OIDC Login Setup](./oidc-login-setup1.jpg)
-![OIDC Login Setup](./oidc-login-setup2.jpg)
-
-3. Create OIDC User for the Cluster, later this user will be mapped to the dex cluster.
-
-```shell
-kubectl config set-credentials oidc-user \
-  --exec-api-version=client.authentication.k8s.io/v1beta1 \
-  --exec-command=kubectl \
-  --exec-arg=oidc-login \
-  --exec-arg=get-token \
-  --exec-arg=--oidc-issuer-url=<YOUR-DEX-URL> \
-  --exec-arg=--oidc-client-id=<CLIENT-ID> \
-  --exec-arg=--oidc-client-secret=<CLIENT-SECRET> \
-  --exec-arg=--oidc-extra-scope=email
-```
-
-4. Link the User to the Cluster: To associate the user with the cluster, create a new context by running the following commands:
-
-```shell
-kubectl config set-context dex-oidc --namespace=default --cluster=dex --user=oidc-user
-kubectl config use-context dex-oidc
-```
-
-5. Test the Configuration: To verify that the configuration is working, list the namespaces in the cluster by executing the command:
-
-```shell
-kubectl get ns
-```
-
-Upon running this command, a new browser window will open, prompting you to log in. Once you've completed the login process, you can close the window. You should see the namespaces in your cluster.
-
-# Setting up Headlamp with Dex OIDC Authentication
-
-To configure Headlamp, you can use the Headlamp Helm chart. Follow these steps to set it up with OIDC(OpenID Connect) authentication:
-
-1. Before setting up Headlamp add `http://localhost:4466/oidc-callback` to the `redirectURIs`
-   in the Dex configuration.
-
-2. Create a `values.yaml` file and add the following OIDC configuration to it:
-
-```yaml title="values.yaml"
-config:
-  oidc:
-    clientID: "<YOUR-CLIENT-ID>"
-    clientSecret: "<YOUR-CLIENT-SECRET>"
-    issuerURL: "<YOUR-DEX-URL>"
-    scopes: "email"
-```
-
-Replace `<YOUR-CLIENT-ID>`,`<YOUR-CLIENT-SECRET>`,`<YOUR-DEX-URL>` with your specific OIDC configuration details.
-
-3. Save the `values.yaml` file and Install Headlamp using helm with the following commands:
+OAuth2-Proxy handles login, so Headlamp does not need its own OIDC client
+configuration. Keep `unsafeUseServiceAccountToken` disabled; Headlamp must use
+the forwarded user token for Kubernetes API requests.
 
 ```shell
 helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
-helm install headlamp-oidc headlamp/headlamp -f values.yaml --namespace=headlamp --create-namespace
+helm repo update
+helm install headlamp headlamp/headlamp \
+  --version 0.44.0 \
+  --namespace headlamp \
+  --create-namespace \
+  --set config.unsafeUseServiceAccountToken=false
 ```
 
-![Headlamp install](./headlamp-install.jpg)
+## 5. Install OAuth2-Proxy
 
-This will install Headlamp in the headlamp namespace with the OIDC configuration from the values.yaml file.
+Create `oauth2-proxy-values.yaml`. The install command below supplies the two
+generated secrets without writing them to this file:
 
-4. After a successful installation, you can access Headlamp by port-forwarding to the pod:
+```yaml title="oauth2-proxy-values.yaml"
+config:
+  clientID: "headlamp"
+  configFile: |-
+    provider = "oidc"
+    oidc_issuer_url = "https://dex.example.com:5556"
+    redirect_url = "https://headlamp.example.com/oauth2/callback"
+    email_domains = ["example.com"]
+    scope = "openid profile email groups"
+
+    # Forward Dex's ID token to Headlamp. Headlamp uses this header for
+    # Kubernetes API requests.
+    pass_authorization_header = true
+
+    upstreams = ["http://headlamp.headlamp.svc.cluster.local:80"]
+    http_address = "0.0.0.0:4180"
+    reverse_proxy = true
+```
+
+Install OAuth2-Proxy:
 
 ```shell
-kubectl port-forward svc/headlamp-oidc 4466:80 -n headlamp
+helm repo add oauth2-proxy https://oauth2-proxy.github.io/manifests
+helm repo update
+helm install oauth2-proxy oauth2-proxy/oauth2-proxy \
+  --version 10.7.0 \
+  --namespace headlamp \
+  --set-string config.clientSecret="$OIDC_CLIENT_SECRET" \
+  --set-string config.cookieSecret="$COOKIE_SECRET" \
+  -f oauth2-proxy-values.yaml
 ```
 
-5. Open your web browser and go to <http://localhost:4466>. Click on "sign-in." After completing the login flow successfully, you'll gain access to your Kubernetes cluster using Headlamp.
+Wait for both deployments:
 
-![Headlamp access](./headlamp-access1.jpg)
-![Headlamp access](./headlamp-access2.jpg)
-![Headlamp access](./headlamp-access3.jpg)
-![Headlamp access](./headlamp-access4.jpg)
+```shell
+kubectl -n headlamp rollout status deployment/headlamp
+kubectl -n headlamp rollout status deployment/oauth2-proxy
+```
 
-## Conclusion
+## 6. Expose only OAuth2-Proxy
 
-In this tutorial, we've set up Headlamp within a Kubernetes cluster and integrated it with OIDC (OpenID Connect) authentication provided by Dex. By following the steps outlined in this guide, you've successfully configured Headlamp to enhance your Kubernetes cluster management.
+If this Minikube profile does not already have an Ingress controller, enable
+the NGINX addon:
 
-This setup allows you to enjoy Headlamp's user-friendly interface and advanced features. You can also be assured of secure and streamlined authentication through Dex. With the power of OIDC, you can easily and safely access and manage your Kubernetes resources.
+```shell
+minikube addons enable ingress -p=dex
+```
+
+Create the TLS secret from the certificate for `$HEADLAMP_HOST`:
+
+```shell
+kubectl -n headlamp create secret tls headlamp-ingress-tls \
+  --cert="$HEADLAMP_TLS_CERT" \
+  --key="$HEADLAMP_TLS_KEY"
+```
+
+Create `headlamp-ingress.yaml`:
+
+```yaml title="headlamp-ingress.yaml"
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - headlamp.example.com
+      secretName: headlamp-ingress-tls
+  rules:
+    - host: headlamp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 80
+```
+
+```shell
+kubectl apply -f headlamp-ingress.yaml
+```
+
+Point `$HEADLAMP_HOST` at your Ingress address. For the Minikube NGINX addon,
+obtain the address with `minikube ip -p=dex`.
+
+Do not create an Ingress for the Headlamp service itself, because doing so
+bypasses the authentication gate.
+
+## 7. Verify login and RBAC
+
+Open `https://headlamp.example.com` and sign in as
+`admin@example.com` / `password`. After Dex redirects back through
+`/oauth2/callback`, Headlamp should display cluster resources allowed by the
+`view` role.
+
+Confirm the same authorization boundary independently:
+
+```shell
+kubectl auth can-i --as=admin@example.com \
+  --as-group=headlamp-readers list pods --all-namespaces
+kubectl auth can-i --as=admin@example.com \
+  --as-group=headlamp-readers delete pods --all-namespaces
+```
+
+The list command should return `yes`; the delete command should return `no`.
+
+## Local authentication demo
+
+To exercise the browser login flow without configuring TLS or API-server OIDC,
+use the scripts next to this guide:
+
+```shell
+cd test-scripts
+./run.sh
+./test.sh
+```
+
+Open <http://localhost:8080>, sign in as `admin@example.com` / `password`, and
+run `./cleanup.sh` when finished.
+
+The local scripts deliberately enable Headlamp's
+`unsafeUseServiceAccountToken` setting. OAuth2-Proxy still gates access, but
+Kubernetes sees Headlamp's ServiceAccount rather than the Dex user. Never expose
+Headlamp directly or use this shared-identity mode when you require per-user
+audit or authorization.
+
+![OAuth2-Proxy sign-in page](./images/01-oauth2-proxy-signin.png)
+
+![Dex local-account login form](./images/02-dex-login.png)
+
+![Headlamp after successful login](./images/03-headlamp-after-login.png)
+
+## Production checklist
+
+- Replace Dex's static password database with an appropriate connector.
+- Store client and cookie secrets outside Helm values files and rotate them.
+- Restrict `email_domains` and use least-privilege, group-based RBAC.
+- Use trusted HTTPS certificates or configure the required private CA bundles.
+- Expose only OAuth2-Proxy, and configure your ingress to preserve forwarded
+  protocol and host headers.
+- Keep `unsafeUseServiceAccountToken` disabled for per-user RBAC.
+- Pin and deliberately update chart and image versions.
+
+## Troubleshooting
+
+- **Dex returns `invalid_redirect_uri`:** Make Dex's `redirectURIs` entry
+  exactly match OAuth2-Proxy's `redirect_url`.
+- **OAuth2-Proxy cannot discover Dex:** Confirm that `oidc_issuer_url` is
+  reachable from its pod and exactly matches the discovery document's `issuer`.
+- **Headlamp returns Kubernetes authentication errors:** Confirm that the API
+  server trusts the same issuer and client ID, and can validate Dex's TLS chain.
+- **Login succeeds but resources are forbidden:** Check the token's email and
+  group claims, then compare them with the relevant RBAC subjects.

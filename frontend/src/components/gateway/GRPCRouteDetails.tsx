@@ -24,7 +24,13 @@ import Link from '../common/Link';
 import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
-import { GatewayParentRefSection } from './utils';
+import {
+  GatewayParentRefSection,
+  ROUTE_FILTER_CONFIGURATION_WIDTH,
+  ROUTE_FILTER_TYPE_WIDTH,
+  type RouteFilter,
+  RouteFilterConfiguration,
+} from './utils';
 
 function GRPCRouteRuleTable(props: { rule: GRPCRouteRule; namespace?: string }) {
   const { rule, namespace } = props;
@@ -95,10 +101,7 @@ export function GRPCRuleMatches(props: GRPCRuleMatchesProps) {
 }
 
 export interface GRPCRuleFiltersProps {
-  filters?: {
-    type: string;
-    [key: string]: any;
-  }[];
+  filters?: RouteFilter[];
 }
 
 export function GRPCRuleFilters(props: GRPCRuleFiltersProps) {
@@ -113,7 +116,13 @@ export function GRPCRuleFilters(props: GRPCRuleFiltersProps) {
       columns={[
         {
           label: t('translation|Filter Type'),
-          getter: (data: { type: string }) => data.type,
+          getter: (data: RouteFilter) => data.type,
+          gridTemplate: ROUTE_FILTER_TYPE_WIDTH,
+        },
+        {
+          label: t('translation|Configuration'),
+          getter: (data: RouteFilter) => <RouteFilterConfiguration filter={data} />,
+          gridTemplate: ROUTE_FILTER_CONFIGURATION_WIDTH,
         },
       ]}
       data={filters}
@@ -185,9 +194,13 @@ export function GRPCRuleBackendRefs(props: GRPCRuleBackendRefsProps) {
   );
 }
 
-export default function GRPCRouteDetails(props: { name?: string; namespace?: string }) {
+export default function GRPCRouteDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
@@ -195,6 +208,7 @@ export default function GRPCRouteDetails(props: { name?: string; namespace?: str
       resourceType={GRPCRoute}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       extraInfo={grpcRoute =>
         grpcRoute && [
           {
@@ -223,7 +237,13 @@ export default function GRPCRouteDetails(props: { name?: string; namespace?: str
           },
           {
             id: 'headlamp.grpcroute-parentrefs',
-            section: <GatewayParentRefSection parentRefs={item?.parentRefs || []} />,
+            section: (
+              <GatewayParentRefSection
+                parentRefs={item?.parentRefs || []}
+                namespace={namespace}
+                cluster={item.cluster ?? cluster}
+              />
+            ),
           },
         ]
       }

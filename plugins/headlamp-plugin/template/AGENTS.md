@@ -122,7 +122,7 @@ Check out production-ready plugins in `node_modules/@kinvolk/headlamp-plugin/off
 
 - Use `npm run i18n <locale>` to add new locales (e.g., `npm run i18n es` for Spanish)
 - Translation files are in `locales/<locale>/translation.json`
-- Use `useTranslation()` hook from `@kinvolk/headlamp-plugin/i18n`
+- Use `useTranslation()` hook from `@kinvolk/headlamp-plugin/lib`
 
 ## Development Workflow
 

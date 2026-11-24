@@ -1,0 +1,7 @@
+config:
+  oidc:
+    clientID: headlamp
+    issuerURL: https://idp.example.com
+  clusterAPI:
+    enabled: true
+    namespaces: [workload-team-a]

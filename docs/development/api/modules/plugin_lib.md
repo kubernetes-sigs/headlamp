@@ -10,3 +10,4 @@
 ## Interfaces
 
 - [AppMenu](../interfaces/plugin_lib.AppMenu.md)
+- [DesktopApi](../interfaces/plugin_lib.DesktopApi.md)

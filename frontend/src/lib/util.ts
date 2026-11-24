@@ -20,12 +20,13 @@ import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
+import { selectEffectiveSettings } from '../settings/useAdminSettings';
 import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
 import type { ApiError } from './k8s/api/v2/ApiError';
 import type { KubeMetrics } from './k8s/cluster';
 import type { KubeEvent } from './k8s/event';
 import type { KubeObjectInterface } from './k8s/KubeObject';
-import Node from './k8s/node';
+import type Node from './k8s/node';
 import type { Workload } from './k8s/Workload';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 
@@ -58,6 +59,10 @@ export interface TimeAgoOptions {
  * @returns A short, human-readable duration string.
  */
 function shortHumanDuration(durationMs: number): string {
+  if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+    return '<invalid>';
+  }
+
   const seconds = Math.trunc(durationMs / 1000);
   if (seconds < -1) {
     return '<invalid>';
@@ -106,6 +111,10 @@ function shortHumanDuration(durationMs: number): string {
  * @returns The formatted duration.
  */
 function humanDuration(durationMs: number): string {
+  if (Number.isNaN(durationMs) || !Number.isFinite(durationMs)) {
+    return '<invalid>';
+  }
+
   const seconds = Math.trunc(durationMs / 1000);
   if (seconds < -1) {
     return '<invalid>';
@@ -171,6 +180,10 @@ function humanDuration(durationMs: number): string {
  */
 export function timeAgo(date: DateParam, options: TimeAgoOptions = {}) {
   const fromDate = new Date(date);
+  if (Number.isNaN(fromDate.getTime())) {
+    return '<invalid>';
+  }
+
   let now = new Date();
 
   if (import.meta.env.UNDER_TEST) {
@@ -243,7 +256,7 @@ export function localeDate(date: DateParam) {
     locale = 'en-US';
     return new Date(date).toISOString();
   } else {
-    const tz = store.getState().config.settings.timezone;
+    const tz = selectEffectiveSettings(store.getState()).timezone;
     if (tz && isValidTimezone(tz)) {
       options.timeZone = tz;
     }
@@ -266,14 +279,14 @@ export function getPercentStr(value: number, total: number) {
 }
 
 export function getReadyReplicas(item: Workload) {
-  return item.status.readyReplicas || item.status.numberReady || 0;
+  return item.status?.readyReplicas || item.status?.numberReady || 0;
 }
 
 export function getTotalReplicas(item: Workload) {
   return (
     item.spec.replicas ||
-    item.status.currentNumberScheduled ||
-    item.status.desiredNumberScheduled ||
+    item.status?.desiredNumberScheduled ||
+    item.status?.currentNumberScheduled ||
     0
   );
 }
@@ -323,12 +336,26 @@ export function useFilterFunc<
 >(matchCriteria?: string[]) {
   const filter = useTypedSelector(state => state.filter);
 
-  return (item: T, search?: string) => {
-    if (item?.metadata) {
-      return filterResource(item as KubeObjectInterface | KubeEvent, filter, search, matchCriteria);
-    }
-    return filterGeneric<T>(item, search, matchCriteria);
-  };
+  // Callers pass the criteria as an inline array, so the memo keys on their content.
+  const criteriaKey = matchCriteria && JSON.stringify(matchCriteria);
+
+  // Tables memoize their rows on this function, so a new identity per render would throw away
+  // everything derived from those rows, filter dropdown options included.
+  return React.useMemo(
+    () => (item: T, search?: string) => {
+      if (item?.metadata) {
+        return filterResource(
+          item as KubeObjectInterface | KubeEvent,
+          filter,
+          search,
+          matchCriteria
+        );
+      }
+      return filterGeneric<T>(item, search, matchCriteria);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filter, criteriaKey]
+  );
 }
 
 export function useErrorState(dependentSetter?: (...args: any) => void) {
@@ -527,7 +554,7 @@ export function normalizeUnit(resourceType: string, quantity: string) {
     case 'cpu':
       normalizedQuantity = quantity?.endsWith('m')
         ? `${Number(quantity.substring(0, quantity.length - 1)) / 1000}`
-        : `${quantity}`;
+        : `${(quantity ?? '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`;
       if (normalizedQuantity === '1') {
         normalizedQuantity = normalizedQuantity + ' ' + 'core';
       } else {
@@ -583,7 +610,7 @@ export function normalizeUnit(resourceType: string, quantity: string) {
         const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
         const k = 1000;
         const dm = 2;
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const i = Math.max(0, Math.floor(Math.log(Math.abs(bytes)) / Math.log(k)));
         normalizedQuantity = parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
       }
       break;

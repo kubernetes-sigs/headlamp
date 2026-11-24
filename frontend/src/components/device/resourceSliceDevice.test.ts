@@ -1,0 +1,45 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { describe, expect, it } from 'vitest';
+import type { DeviceAttribute, ResourceSliceDevice } from '../../lib/k8s/resourceSlice';
+import { formatDeviceAttribute, getDeviceNodeAccess } from './resourceSliceDevice';
+
+describe('getDeviceNodeAccess', () => {
+  it.each([
+    [{ nodeName: 'gpu-worker-0' }, 'node'],
+    [{ nodeSelector: { nodeSelectorTerms: [] } }, 'nodeSelector'],
+    [{ allNodes: true }, 'allNodes'],
+    [{}, undefined],
+  ] as [Partial<ResourceSliceDevice>, string | undefined][])(
+    'tells where a device can be used from: %o',
+    (placement, access) => {
+      expect(getDeviceNodeAccess({ name: 'gpu-0', ...placement })).toBe(access);
+    }
+  );
+});
+
+describe('formatDeviceAttribute', () => {
+  it.each([
+    [{ int: 0 }, '0'],
+    [{ bool: false }, 'false'],
+    [{ string: 'LATEST-GPU-MODEL' }, 'LATEST-GPU-MODEL'],
+    [{ version: '1.0.0' }, '1.0.0'],
+    [{}, undefined],
+  ] as [DeviceAttribute, string | undefined][])('shows %o as %s', (attribute, text) => {
+    expect(formatDeviceAttribute(attribute)).toBe(text);
+  });
+});

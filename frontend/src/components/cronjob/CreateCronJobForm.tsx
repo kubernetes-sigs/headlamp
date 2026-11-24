@@ -51,6 +51,7 @@ export default function CreateCronJobForm(props: CreateCronJobFormProps) {
           path: 'spec.schedule',
           label: t('translation|Schedule'),
           helperText: t('translation|Cron expression, e.g. "*/5 * * * *".'),
+          required: true,
         },
         {
           key: 'timeZone',

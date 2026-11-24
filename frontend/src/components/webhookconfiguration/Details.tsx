@@ -44,7 +44,7 @@ export default function WebhookConfigurationDetails(props: WebhookConfigurationD
         item && [
           {
             name: t('API Version'),
-            value: item.metadata.apiVersion,
+            value: item.jsonData.apiVersion,
           },
           {
             name: t('Webhooks'),

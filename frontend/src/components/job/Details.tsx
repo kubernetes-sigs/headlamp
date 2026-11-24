@@ -20,6 +20,7 @@ import { useLocation, useParams } from 'react-router-dom';
 import Job from '../../lib/k8s/job';
 import { formatDuration } from '../../lib/util';
 import { useEventCallback } from '../../redux/headlampEventSlice';
+import Link from '../common/Link';
 import {
   ConditionsSection,
   ContainersSection,
@@ -29,6 +30,8 @@ import {
   MetadataDictGrid,
   OwnedPodsSection,
 } from '../common/Resource';
+import JobSuspendButton from './JobSuspendButton';
+import { jobSuspendKey } from './jobSuspendState';
 import { makeJobStatusLabel } from './List';
 
 export default function JobDetails(props: { name?: string; namespace?: string; cluster?: string }) {
@@ -68,6 +71,10 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
         item
           ? [
               {
+                id: 'suspend',
+                action: <JobSuspendButton key={jobSuspendKey(item)} item={item} />,
+              },
+              {
                 id: 'logs',
                 action: <LogsButton key="logs" item={item} />,
               },
@@ -82,6 +89,26 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
             name: t('translation|Status'),
             value: statusLabel,
             hide: !statusLabel,
+          },
+          {
+            name: t('Service Account'),
+            value: (
+              <Link
+                routeName="serviceAccount"
+                params={{
+                  namespace: item.metadata.namespace,
+                  name:
+                    item.spec?.template?.spec?.serviceAccountName ||
+                    item.spec?.template?.spec?.serviceAccount ||
+                    'default',
+                }}
+                activeCluster={item.cluster}
+              >
+                {item.spec?.template?.spec?.serviceAccountName ||
+                  item.spec?.template?.spec?.serviceAccount ||
+                  'default'}
+              </Link>
+            ),
           },
           {
             name: t('glossary|Completions'),

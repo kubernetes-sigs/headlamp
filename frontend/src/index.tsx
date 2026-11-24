@@ -22,9 +22,3 @@ import App from './App';
 const container = document.getElementById('root');
 const root = createRoot(container!);
 root.render(<App />);
-
-/**
- * We used to have axe a11y check here
- * TODO: Integrate a11y check in e2e tests
- * https://playwright.dev/docs/accessibility-testing
- */

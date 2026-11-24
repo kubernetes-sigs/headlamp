@@ -18,14 +18,17 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
 export interface LeaseSpec {
-  holderIdentity: string;
-  leaseDurationSeconds: number;
-  leaseTransitions: number;
-  renewTime: string;
+  holderIdentity?: string;
+  leaseDurationSeconds?: number;
+  leaseTransitions?: number;
+  renewTime?: string;
+  acquireTime?: string;
+  preferredHolder?: string;
+  strategy?: string;
 }
 
 export interface KubeLease extends KubeObjectInterface {
-  spec: LeaseSpec;
+  spec?: LeaseSpec;
 }
 
 export class Lease extends KubeObject<KubeLease> {
@@ -45,7 +48,7 @@ export class Lease extends KubeObject<KubeLease> {
     return baseObject;
   }
 
-  get spec() {
-    return this.jsonData.spec;
+  get spec(): LeaseSpec | undefined {
+    return this.jsonData?.spec;
   }
 }

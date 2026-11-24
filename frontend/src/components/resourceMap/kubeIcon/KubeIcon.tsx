@@ -81,6 +81,14 @@ const kindToIcon: Record<string, React.FC<any>> = {
   // jobset
   'jobset.x-k8s.io/JobSet': JobIcon,
 
+  // leaderworkerset
+  'leaderworkerset.x-k8s.io/LeaderWorkerSet': StsIcon,
+
+  // workload aware scheduling
+  'scheduling.k8s.io/Workload': DeployIcon,
+  'scheduling.k8s.io/PodGroup': RsIcon,
+  'scheduling.k8s.io/CompositePodGroup': StsIcon,
+
   // rbac
   'rbac.authorization.k8s.io/Role': RoleIcon,
   'rbac.authorization.k8s.io/RoleBinding': RbIcon,
@@ -112,6 +120,10 @@ const kindGroups = {
     'Job',
     'CronJob',
     'JobSet',
+    'LeaderWorkerSet',
+    'Workload',
+    'PodGroup',
+    'CompositePodGroup',
   ]),
   storage: new Set(['PersistentVolumeClaim']),
   network: new Set([
@@ -132,9 +144,15 @@ const kindGroups = {
     'PodDisruptionBudget',
     'PriorityClass',
     'RuntimeClass',
+    'DeviceClass',
+    'ResourceClaim',
+    'ResourceClaimTemplate',
+    'ResourceSlice',
     'Lease',
     'ResourceQuota',
     'LimitRange',
+    'MutatingAdmissionPolicy',
+    'MutatingAdmissionPolicyBinding',
     'MutatingWebhookConfiguration',
     'ValidatingWebhookConfiguration',
   ]),

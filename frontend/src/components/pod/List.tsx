@@ -16,11 +16,13 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Fade from '@mui/material/Fade';
 import { TFunction } from 'i18next';
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import { DEFAULT_LIST_LIMIT } from '../../lib/k8s/api/v2/useKubeObjectList';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics';
@@ -32,6 +34,7 @@ import { CreateResourceButton } from '../common';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { useThrottle } from '../common/Resource/ResourceTable';
 import { SimpleTableProps } from '../common/SimpleTable';
 import { TooltipIcon } from '../common/Tooltip';
 import LightTooltip from '../common/Tooltip/TooltipLight';
@@ -61,6 +64,17 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
   const { reason, message: tooltip } = pod.getDetailedStatus();
 
   const containerStatuses = pod.status?.containerStatuses || [];
+  const allContainerStatuses = [
+    ...(pod.status?.initContainerStatuses ?? []),
+    ...containerStatuses,
+    ...(pod.status?.ephemeralContainerStatuses ?? []),
+  ];
+  const isOOMKilled = allContainerStatuses.some(
+    cs =>
+      cs.state?.terminated?.reason === 'OOMKilled' ||
+      cs.lastState?.terminated?.reason === 'OOMKilled'
+  );
+
   const containerIndicators = containerStatuses.map((cs, index) => {
     const { color, tooltip } = getContainerDisplayStatus(cs, t);
     return (
@@ -104,6 +118,18 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
           </StatusLabel>
         </Box>
       </LightTooltip>
+      {isOOMKilled && !reason.endsWith('OOMKilled') && (
+        <LightTooltip
+          title={t('translation|Container was terminated due to OOMKilled (Out of Memory)')}
+        >
+          <Box display="inline" tabIndex={0}>
+            <StatusLabel status="error">
+              <Icon aria-hidden="true" icon="mdi:alert-circle" width="1.2rem" height="1.2rem" />
+              {t('translation|OOMKilled')}
+            </StatusLabel>
+          </Box>
+        </LightTooltip>
+      )}
       {showContainerStatus && containerIndicators.length > 0 && (
         <Box display="flex" gap={0.5}>
           {containerIndicators}
@@ -190,6 +216,82 @@ function getContainerDisplayStatus(container: KubeContainerStatus, t: TFunction)
   };
 }
 
+/**
+ * Returns the highest CPU usage of the pod's containers, as a percentage of each container's own
+ * CPU limit. Usage is compared per container, so a container without a limit, such as a sidecar,
+ * can't make a limited container look close to its limit. The CPU column shows a near-limit
+ * warning when this reaches 95%, as a container is throttled at its CPU limit.
+ *
+ * @param pod - The pod whose containers and init containers are checked.
+ * @param metric - The pod's metrics from the metrics server, if available.
+ * @returns The highest usage of a limited container as a percentage of its limit, which can be
+ *   above 100, or 0 when there are no metrics or no container has both a CPU limit and usage.
+ */
+export function getMaxContainerCpuLimitPercent(pod: Pod, metric?: PodMetrics): number {
+  if (!metric) return 0;
+  let maxPercent = 0;
+  const containers = [...(pod.spec?.containers ?? []), ...(pod.spec?.initContainers ?? [])];
+  for (const container of containers) {
+    const limit = parseCpu(container.resources?.limits?.cpu || '0');
+    if (limit > 0) {
+      const cMetric = metric.jsonData?.containers?.find(c => c.name === container.name);
+      if (cMetric) {
+        const usage = parseCpu(cMetric.usage?.cpu || '0');
+        const percent = (usage / limit) * 100;
+        if (percent > maxPercent) {
+          maxPercent = percent;
+        }
+      }
+    }
+  }
+  return maxPercent;
+}
+
+/**
+ * Returns the highest memory usage of the pod's containers, as a percentage of each container's
+ * own memory limit. Usage is compared per container, so a container without a limit, such as a
+ * sidecar, can't make a limited container look close to its limit. The memory column shows a
+ * high memory warning from 75% and an OOM risk alert from 90%, as a container is OOM killed when
+ * it goes over its limit.
+ *
+ * @param pod - The pod whose containers and init containers are checked.
+ * @param metric - The pod's metrics from the metrics server, if available.
+ * @returns The highest usage of a limited container as a percentage of its limit, which can be
+ *   above 100, or 0 when there are no metrics or no container has both a memory limit and usage.
+ */
+export function getMaxContainerMemoryLimitPercent(pod: Pod, metric?: PodMetrics): number {
+  if (!metric) return 0;
+  let maxPercent = 0;
+  const containers = [...(pod.spec?.containers ?? []), ...(pod.spec?.initContainers ?? [])];
+  for (const container of containers) {
+    const limit = parseRam(container.resources?.limits?.memory || '0');
+    if (limit > 0) {
+      const cMetric = metric.jsonData?.containers?.find(c => c.name === container.name);
+      if (cMetric) {
+        const usage = parseRam(cMetric.usage?.memory || '0');
+        const percent = (usage / limit) * 100;
+        if (percent > maxPercent) {
+          maxPercent = percent;
+        }
+      }
+    }
+  }
+  return maxPercent;
+}
+
+/**
+ * Returns the table value of a CPU or memory cell. Table cells only re-render when this value
+ * changes, so it also holds the per-container limit usage behind the cell's alert, which can
+ * change while the pod's total usage does not. The columns sort by their own sort function.
+ */
+export function resourceCellValue(usage: number, limitPercent: number): string {
+  return `${usage}:${Math.floor(limitPercent * 10)}`;
+}
+
+function podMetricKey(cluster: string, namespace: string | undefined, name: string) {
+  return `${cluster}/${namespace ?? ''}/${name}`;
+}
+
 export interface PodListProps {
   pods: Pod[] | null;
   metrics: PodMetrics[] | null;
@@ -200,6 +302,24 @@ export interface PodListProps {
   hideCreateButton?: boolean;
   enableRowActions?: boolean;
   enableRowSelection?: boolean;
+  hasMore?: boolean;
+  remainingItemCount?: number;
+  onLoadMore?: () => Promise<void>;
+}
+
+export function filterPod(pod: Pod, search: string) {
+  const lowerSearch = search.trim().toLowerCase();
+  const isReadyOrSucceeded =
+    pod.status?.phase === 'Succeeded' ||
+    (pod.status?.conditions || []).find(condition => condition.type === 'Ready')?.status === 'True';
+
+  if (lowerSearch === 'ready') {
+    return isReadyOrSucceeded;
+  }
+  if (lowerSearch === 'notready' || lowerSearch === 'not ready' || lowerSearch === 'not-ready') {
+    return !isReadyOrSucceeded;
+  }
+  return undefined;
 }
 
 export function PodListRenderer(props: PodListProps) {
@@ -213,45 +333,78 @@ export function PodListRenderer(props: PodListProps) {
     hideCreateButton,
     enableRowActions,
     enableRowSelection,
+    hasMore,
+    remainingItemCount,
+    onLoadMore,
   } = props;
-  const { t } = useTranslation(['glossary', 'translation']);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const metricsMap = React.useMemo(() => {
+  async function handleLoadMore() {
+    if (!onLoadMore) return;
+    setLoadingMore(true);
+    try {
+      await onLoadMore();
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+  const { t } = useTranslation(['glossary', 'translation']);
+  const loadedCount = pods?.length ?? 0;
+  const loadMoreLabel =
+    remainingItemCount === undefined
+      ? t('{{ loaded }} loaded', { loaded: loadedCount.toLocaleString() })
+      : t('{{ loaded }} of ~{{ total }}', {
+          loaded: loadedCount.toLocaleString(),
+          total: (loadedCount + remainingItemCount).toLocaleString(),
+        });
+
+  // The table keeps the values it read from a row until its data changes, so it gets a new
+  // array along with the metrics. Otherwise usage and its alerts would stay as they were when
+  // the pods last changed.
+  const [metricsMap, tableData] = useMemo(() => {
     const map = new Map<string, PodMetrics>();
-    (metrics || []).forEach(m => {
-      map.set(`${m.cluster}/${m.getNamespace()}/${m.getName()}`, m);
-    });
-    return map;
-  }, [metrics]);
+    metrics?.forEach(m => map.set(podMetricKey(m.cluster, m.getNamespace(), m.getName()), m));
+    return [map, pods && [...pods]] as const;
+  }, [metrics, pods]);
 
   const getCpuUsage = (pod: Pod) => {
-    const metric = metricsMap.get(`${pod.cluster}/${pod.getNamespace()}/${pod.getName()}`);
+    const metric = metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()));
     if (!metric) return;
-
-    return (
-      metric?.jsonData.containers.map(it => parseCpu(it.usage.cpu)).reduce((a, b) => a + b, 0) ?? 0
-    );
+    return metric.jsonData.containers.map(it => parseCpu(it.usage.cpu)).reduce((a, b) => a + b, 0);
   };
 
   const getMemoryUsage = (pod: Pod) => {
-    const metric = metricsMap.get(`${pod.cluster}/${pod.getNamespace()}/${pod.getName()}`);
-
+    const metric = metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()));
     if (!metric) return;
-
-    return (
-      metric?.jsonData.containers.map(it => parseRam(it.usage.memory)).reduce((a, b) => a + b, 0) ??
-      0
-    );
+    return metric.jsonData.containers
+      .map(it => parseRam(it.usage.memory))
+      .reduce((a, b) => a + b, 0);
   };
 
   return (
     <ResourceListView
       title={t('Pods')}
+      searchFilter={filterPod}
       headerProps={{
         noNamespaceFilter,
         titleSideActions: hideCreateButton
           ? []
           : [<CreateResourceButton resourceClass={Pod} key="create-pod-button" />],
+        actions: hasMore
+          ? [
+              <Box key="load-more" display="flex" alignItems="center" gap={1}>
+                <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{loadMoreLabel}</span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={loadingMore}
+                  onClick={handleLoadMore}
+                >
+                  {loadingMore ? t('translation|Loading...') : t('glossary|Load more')}
+                </Button>
+              </Box>,
+            ]
+          : [],
       }}
       hideColumns={hideColumns}
       errors={errors}
@@ -260,6 +413,7 @@ export function PodListRenderer(props: PodListProps) {
         'namespace',
         'cluster',
         {
+          id: 'restarts',
           label: t('Restarts'),
           gridTemplate: 'min-content',
           disableFiltering: true,
@@ -272,6 +426,7 @@ export function PodListRenderer(props: PodListProps) {
                 })
               : restarts;
           },
+          sort: (a, b) => a.getDetailedStatus().restarts - b.getDetailedStatus().restarts,
         },
         {
           id: 'ready',
@@ -282,18 +437,40 @@ export function PodListRenderer(props: PodListProps) {
             const podRow = pod.getDetailedStatus();
             return `${podRow.readyContainers}/${podRow.totalContainers}`;
           },
+          sort: (a, b) => {
+            const aStatus = a.getDetailedStatus();
+            const bStatus = b.getDetailedStatus();
+            const aRatio =
+              aStatus.totalContainers > 0 ? aStatus.readyContainers / aStatus.totalContainers : 0;
+            const bRatio =
+              bStatus.totalContainers > 0 ? bStatus.readyContainers / bStatus.totalContainers : 0;
+            return aRatio - bRatio;
+          },
         },
         {
           id: 'status',
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
           label: t('translation|Status'),
-          // include ready condition status so the cell re-renders when icon state changes
+          // Include the ready condition and OOMKilled status so the cell re-renders when its icons
+          // change, and a search for OOMKilled finds pods showing that badge.
           getValue: pod => {
             const status = pod.getDetailedStatus();
             const readyCondition = (pod.status?.conditions || []).find(c => c.type === 'Ready');
             const phase = pod.status?.phase || '';
-            return `${phase}:${status.reason}:${readyCondition?.status ?? ''}`;
+            const allStatuses = [
+              ...(pod.status?.initContainerStatuses ?? []),
+              ...(pod.status?.containerStatuses ?? []),
+              ...(pod.status?.ephemeralContainerStatuses ?? []),
+            ];
+            const isOOMKilled = allStatuses.some(
+              cs =>
+                cs.state?.terminated?.reason === 'OOMKilled' ||
+                cs.lastState?.terminated?.reason === 'OOMKilled'
+            );
+            return `${phase}:${status.reason}:${readyCondition?.status ?? ''}${
+              isOOMKilled ? ':OOMKilled' : ''
+            }`;
           },
           render: pod => makePodStatusLabel(pod, true, t),
         },
@@ -335,9 +512,35 @@ export function PodListRenderer(props: PodListProps) {
                     );
                   }
 
+                  const metric = metricsMap.get(
+                    podMetricKey(pod.cluster, pod.getNamespace(), pod.getName())
+                  );
+                  const limitPercent = getMaxContainerCpuLimitPercent(pod, metric);
+                  const isHighCpu = limitPercent >= 95;
+
                   return (
                     <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {isHighCpu && (
+                        <LightTooltip
+                          title={t('translation|CPU Near Limit: {{ percent }}% of limit', {
+                            percent: limitPercent.toFixed(0),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            tabIndex={0}
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'warning.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-outline"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|CPU Near Limit')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
                       {tooltipLines.length > 0 && (
                         <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
                           <TooltipIcon>
@@ -350,7 +553,16 @@ export function PodListRenderer(props: PodListProps) {
                     </Box>
                   );
                 },
-                getValue: (pod: Pod) => getCpuUsage(pod) ?? 0,
+                sort: (a: Pod, b: Pod) => (getCpuUsage(a) ?? 0) - (getCpuUsage(b) ?? 0),
+                sortDescFirst: true,
+                getValue: (pod: Pod) =>
+                  resourceCellValue(
+                    getCpuUsage(pod) ?? 0,
+                    getMaxContainerCpuLimitPercent(
+                      pod,
+                      metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()))
+                    )
+                  ),
               },
               {
                 id: 'memory',
@@ -387,9 +599,56 @@ export function PodListRenderer(props: PodListProps) {
                     );
                   }
 
+                  const metric = metricsMap.get(
+                    podMetricKey(pod.cluster, pod.getNamespace(), pod.getName())
+                  );
+                  const limitPercent = getMaxContainerMemoryLimitPercent(pod, metric);
+                  const isOOMRisk = limitPercent >= 90;
+                  const isHighMemory = limitPercent >= 75 && limitPercent < 90;
+
                   return (
                     <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {isOOMRisk && (
+                        <LightTooltip
+                          title={t('translation|OOM Risk: {{ percent }}% of limit', {
+                            percent: limitPercent.toFixed(0),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            tabIndex={0}
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'error.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-circle"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|OOM Risk')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
+                      {isHighMemory && (
+                        <LightTooltip
+                          title={t('translation|High Memory: {{ percent }}% of limit', {
+                            percent: Math.floor(limitPercent),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            tabIndex={0}
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'warning.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-outline"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|High Memory')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
                       {tooltipLines.length > 0 && (
                         <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
                           <TooltipIcon>
@@ -402,7 +661,16 @@ export function PodListRenderer(props: PodListProps) {
                     </Box>
                   );
                 },
-                getValue: (pod: Pod) => getMemoryUsage(pod) ?? 0,
+                sort: (a: Pod, b: Pod) => (getMemoryUsage(a) ?? 0) - (getMemoryUsage(b) ?? 0),
+                sortDescFirst: true,
+                getValue: (pod: Pod) =>
+                  resourceCellValue(
+                    getMemoryUsage(pod) ?? 0,
+                    getMaxContainerMemoryLimitPercent(
+                      pod,
+                      metricsMap.get(podMetricKey(pod.cluster, pod.getNamespace(), pod.getName()))
+                    )
+                  ),
               },
             ]
           : []),
@@ -411,6 +679,7 @@ export function PodListRenderer(props: PodListProps) {
           gridTemplate: 'min-content',
           label: t('glossary|IP'),
           getValue: pod => pod.status?.podIP ?? '',
+          copyable: true,
         },
         {
           id: 'node',
@@ -511,7 +780,7 @@ export function PodListRenderer(props: PodListProps) {
         'labels',
         'age',
       ]}
-      data={pods}
+      data={tableData}
       reflectInURL={reflectTableInURL}
       id="headlamp-pods"
       enableRowActions={enableRowActions}
@@ -521,22 +790,43 @@ export function PodListRenderer(props: PodListProps) {
 }
 
 export default function PodList() {
-  const { items, errors } = Pod.useList({ namespace: useNamespaces() });
-  const { items: podMetrics } = PodMetrics.useList({
-    namespace: useNamespaces(),
+  const namespaces = useNamespaces();
+  const { items, errors, hasMore, remainingItemCount, loadMore } = Pod.useList({
+    namespace: namespaces,
+    limit: DEFAULT_LIST_LIMIT,
+  });
+  const { items: podMetrics, loadMore: loadMoreMetrics } = PodMetrics.useList({
+    namespace: namespaces,
+    limit: DEFAULT_LIST_LIMIT,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
+
+  const throttledItems = useThrottle(items, 1000);
+  const loadMorePodsAndMetrics = React.useCallback(async () => {
+    await loadMore?.();
+    await loadMoreMetrics?.();
+  }, [loadMore, loadMoreMetrics]);
 
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.LIST_VIEW);
 
   React.useEffect(() => {
     dispatchHeadlampEvent({
-      resources: items ?? [],
+      resources: throttledItems ?? [],
       resourceKind: 'Pod',
       error: errors?.[0] || undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, errors]);
+  }, [throttledItems, errors]);
 
-  return <PodListRenderer pods={items} errors={errors} metrics={podMetrics} reflectTableInURL />;
+  return (
+    <PodListRenderer
+      pods={throttledItems}
+      errors={errors}
+      metrics={podMetrics}
+      reflectTableInURL
+      hasMore={hasMore}
+      remainingItemCount={remainingItemCount}
+      onLoadMore={loadMore ? loadMorePodsAndMetrics : undefined}
+    />
+  );
 }

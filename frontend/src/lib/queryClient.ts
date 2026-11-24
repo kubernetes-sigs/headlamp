@@ -16,11 +16,55 @@
 
 import { QueryClient } from '@tanstack/react-query';
 
+/**
+ * Determines whether React Query should retry a failed query.
+ *
+ * @param failureCount - Number of failed attempts before this retry decision.
+ * @param error - The query error, which may include a numeric HTTP `status`.
+ * @returns `true` while retries remain for transient errors; `false` for
+ * permanent HTTP 4xx errors other than 408 and 429, or after three failures.
+ */
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  const status =
+    error !== null &&
+    typeof error === 'object' &&
+    'status' in error &&
+    typeof error.status === 'number' &&
+    Number.isFinite(error.status)
+      ? error.status
+      : undefined;
+
+  if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+    return false;
+  }
+
+  return failureCount < 3;
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 3 * 60_000,
       refetchOnWindowFocus: false,
+      retry: shouldRetryQuery,
     },
   },
 });
+
+/**
+ * Invalidates the cached user identity (`clusterMe`) for every cluster.
+ *
+ * Call this after an OIDC login completes. The backend may broadcast the new
+ * token to sibling clusters that share the same identity provider, which
+ * replaces their auth cookies too. Invalidating only the cluster that was
+ * logged into would leave the other clusters showing a stale identity from
+ * cache (for up to their staleTime) while requests to them already run as the
+ * new user.
+ *
+ * It lives here rather than in lib/auth because lib/util re-exports lib/auth to
+ * plugins as `Utils.auth`; invalidating Headlamp's own query keys is not a
+ * capability plugins should have.
+ */
+export function invalidateClusterUserInfo() {
+  return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
+}

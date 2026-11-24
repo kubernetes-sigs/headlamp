@@ -31,52 +31,69 @@ helm install my-headlamp headlamp/headlamp --namespace kube-system --set replica
 
 ### Cluster Inventory
 
-Headlamp can discover clusters from Cluster Inventory API `ClusterProfile`
-resources when Cluster Inventory is enabled. The Helm chart configures the
-backend flags from `config.clusterInventory` and mounts an access provider
-config file.
-
-Create `cluster-inventory-values.yaml`:
+Cluster Inventory lets a shared Headlamp deployment discover clusters from
+`ClusterProfile` resources. Each user signs in through Headlamp's OIDC provider;
+the discovered Kubernetes API server validates that user's token and applies
+that user's RBAC permissions.
 
 ```yaml
 config:
+  oidc:
+    clientID: headlamp
+    clientSecret: your-client-secret
+    issuerURL: https://idp.example.com
+    scopes: profile,email,offline_access
   clusterInventory:
     enabled: true
-    accessProvidersConfig:
-      providers:
-        - name: secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-        - name: kubeconfig-secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-    plugins:
-      - name: secretreader
-        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
-        mountPath: /access-plugins/secretreader
-      - name: kubeconfig-secretreader
-        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
-        mountPath: /access-plugins/kubeconfig-secretreader
+    namespaces:
+      - inventory-team-a
+      - inventory-team-b
 ```
 
-Then install Headlamp with the values file:
+All discovered clusters' API servers must trust the same OIDC issuer and client
+as Headlamp. `offline_access` enables refresh tokens when the identity provider
+requires that scope. Enabling Inventory without an OIDC client ID and issuer is
+an error. Inventory remains an experimental/alpha feature and is disabled by
+default.
 
-```bash
-helm install my-headlamp headlamp/headlamp --namespace kube-system --values cluster-inventory-values.yaml
+| Connection | Credential used | Required permission |
+| --- | --- | --- |
+| Headlamp reads ClusterProfiles on the inventory root | Pod service account | Get, list, and watch ClusterProfiles in the watched namespaces |
+| A user opens a discovered cluster | That user's OIDC token | RBAC granted to that user on the discovered cluster |
+
+Without an explicit namespace list, Headlamp watches its pod namespace. Set
+`namespaces: ["*"]` to watch all namespaces with equivalent cluster-wide
+ClusterProfile access; `*` cannot be combined with named namespaces. The default
+label selector excludes profiles carrying `headlamp.dev/ignore`.
+
+Each valid `status.accessProviders` entry becomes a selectable connection, with
+`-<access-provider-name>` appended to its context name. Its `cluster` supplies the
+HTTPS endpoint, inline CA data, TLS settings, and proxy URL. Invalid entries are
+excluded independently. Provider names do not select credentials.
+Headlamp does not execute access-provider plugins or read cluster credentials
+from Inventory. The Helm chart ignores the former defaults
+`accessProvidersConfig: {}` and `plugins: []` and rejects nonempty settings under
+either key. The `--cluster-inventory-provider-file` flag returns an error.
+
+### Cluster API
+
+Set `config.clusterAPI.enabled: true` to discover v1beta2 Cluster API workloads
+using the same OIDC configuration as Cluster Inventory. For example:
+
+```yaml
+config:
+  clusterAPI:
+    enabled: true
+    namespaces: [workload-team-a]
 ```
 
-The `accessProvidersConfig` object is the provider config consumed by the
-Cluster Inventory access provider. The `plugins` entries are Kubernetes `image`
-volumes that mount provider binaries into the Headlamp container, not Headlamp
-UI plugins. By default, Headlamp watches `ClusterProfile` resources that do not
-have the `headlamp.dev/ignore` label because the chart sets
-`config.clusterInventory.labelSelector` to `!headlamp.dev/ignore`.
+Headlamp reads each Cluster and its `<cluster>-kubeconfig` Secret in the same
+namespace for connection and TLS information. It uses each signed-in user's OIDC
+identity, without using credentials in that Secret for workload access.
+The management identity needs `get`, `list`, and `watch` on `clusters` in
+`cluster.x-k8s.io` and core `secrets` in the selected namespaces.
+See [Cluster API discovery](../../development/cluster-api-discovery.md) for the Secret
+contract and supported settings.
 
 ## Using simple yaml
 
@@ -98,15 +115,128 @@ Headlamp supports optional TLS termination at the backend server. The default is
 
 ## Use a non-default kube config file
 
-By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.
+When Headlamp runs with the `-in-cluster` flag (the default for the Helm chart
+and the sample deployment YAML), it automatically creates a cluster context
+named `main` from the pod's service account. This context exists only in
+memory: no kubeconfig file is written to the pod's filesystem. You do not need
+to provide, generate, or mount any kubeconfig file for Headlamp to access the
+cluster it is running in.
 
-If you wish to use another specific non-default kubeconfig file, then you can do it by mounting it to the default location at `/home/headlamp/.config/Headlamp/kubeconfigs/config`, or
-providing a custom path Headlamp with the ` -kubeconfig` argument or the KUBECONFIG env (through helm values.env)
+Mounting extra kubeconfig files is only needed if you want Headlamp to show
+**additional** clusters besides the one it is deployed to.
+
+:::note
+In in-cluster mode, the `KUBECONFIG` environment variable is ignored. To point
+Headlamp at kubeconfig files, either mount them at the default location shown
+below, pass the `-kubeconfig` argument, or set the `HEADLAMP_CONFIG_KUBECONFIG`
+environment variable. Kubeconfig files are read when the server starts, so
+restart the pod after changing them.
+:::
+
+First, store the kubeconfig for the extra cluster(s) in a Secret. The examples
+below assume Headlamp is installed in the `kube-system` namespace:
+
+```bash
+kubectl create secret generic headlamp-kubeconfig \
+  --from-file=config=./my-kubeconfig \
+  --namespace kube-system
+```
+
+### Option 1: Mount the kubeconfig at the default location
+
+Headlamp loads a kubeconfig file from
+`/home/headlamp/.config/Headlamp/kubeconfigs/config` at startup. Mount the
+Secret at that directory with these Helm values (the key inside the Secret
+must be named `config`):
+
+```yaml
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /home/headlamp/.config/Headlamp/kubeconfigs
+    readOnly: true
+volumes:
+  - name: kubeconfig
+    secret:
+      secretName: headlamp-kubeconfig
+```
+
+```bash
+helm install my-headlamp headlamp/headlamp --namespace kube-system -f values.yaml
+```
+
+### Option 2: Mount the kubeconfig anywhere and use the -kubeconfig argument
+
+If you prefer an explicit path, mount the Secret wherever you like and pass
+the path with the `-kubeconfig` argument through `config.extraArgs`:
+
+```yaml
+config:
+  extraArgs:
+    - -kubeconfig=/headlamp/kubeconfig/config
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /headlamp/kubeconfig
+    readOnly: true
+volumes:
+  - name: kubeconfig
+    secret:
+      secretName: headlamp-kubeconfig
+```
 
 ### Use several kubeconfig files
 
-If you need to use more than one kubeconfig file at the same time, you can list
-each config file path with a ":" separator in the KUBECONFIG env.
+If you need to use more than one kubeconfig file at the same time, you can
+list each file path with a ":" separator in the `-kubeconfig` argument:
+
+```yaml
+config:
+  extraArgs:
+    - -kubeconfig=/headlamp/kubeconfig/cluster-a:/headlamp/kubeconfig/cluster-b
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /headlamp/kubeconfig
+    readOnly: true
+volumes:
+  - name: kubeconfig
+    secret:
+      secretName: headlamp-kubeconfig
+```
+
+with a Secret that contains one key per kubeconfig file:
+
+```bash
+kubectl create secret generic headlamp-kubeconfig \
+  --from-file=cluster-a=./cluster-a-kubeconfig \
+  --from-file=cluster-b=./cluster-b-kubeconfig \
+  --namespace kube-system
+```
+
+### Using plain YAML instead of Helm
+
+If you deploy Headlamp with a plain manifest (like
+[kubernetes-headlamp.yaml](https://github.com/kubernetes-sigs/headlamp/blob/main/kubernetes-headlamp.yaml)),
+apply the same idea directly on the Deployment:
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: headlamp
+          image: ghcr.io/headlamp-k8s/headlamp:latest
+          args:
+            - "-in-cluster"
+            - "-plugins-dir=/headlamp/plugins"
+            - "-kubeconfig=/headlamp/kubeconfig/config"
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /headlamp/kubeconfig
+              readOnly: true
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: headlamp-kubeconfig
+```
 
 ## Exposing Headlamp with an ingress server
 

@@ -30,6 +30,15 @@ export default {
 
   docs: {},
 
+  viteFinal: async config => {
+    config.esbuild = {
+      ...config.esbuild,
+      jsx: 'automatic',
+    };
+
+    return config;
+  },
+
   typescript: {
     reactDocgen: 'react-docgen-typescript',
   },

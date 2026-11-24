@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package serviceproxy_test
 
 import (
@@ -10,7 +26,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 )
 
-//nolint:funlen
+//nolint:funlen // Table-driven test function covering HTTP streaming proxy responses.
 func TestHTTPGetStream(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -55,6 +71,33 @@ func TestHTTPGetStream(t *testing.T) {
 			wantErr:     false,
 			wantStatus:  http.StatusNotFound,
 		},
+		{
+			name:        "HTML remains sandboxed",
+			statusCode:  http.StatusOK,
+			body:        `<html><script>document.title = "service";</script></html>`,
+			contentType: "text/html",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "SVG remains sandboxed",
+			statusCode:  http.StatusOK,
+			body:        `<svg xmlns="http://www.w3.org/2000/svg" onload="document.title='service'"/>`,
+			contentType: "image/svg+xml",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "JSON is preserved",
+			statusCode:  http.StatusOK,
+			body:        `{"status":"ok"}`,
+			contentType: "application/json",
+			wantStatus:  http.StatusOK,
+		},
+		{
+			name:        "empty HTML error remains sandboxed",
+			statusCode:  http.StatusBadGateway,
+			contentType: "text/html",
+			wantStatus:  http.StatusBadGateway,
+		},
 	}
 
 	for _, tt := range tests {
@@ -97,6 +140,15 @@ func TestHTTPGetStream(t *testing.T) {
 			if !tt.wantErr && w.Header().Get("Content-Type") != tt.contentType {
 				t.Errorf("HTTPGetStream() content type = %s, want %s", w.Header().Get("Content-Type"), tt.contentType)
 			}
+
+			headers := w.Result().Header
+			if got := headers.Get("Content-Security-Policy"); got != "sandbox" {
+				t.Errorf("HTTPGetStream() Content-Security-Policy = %q, want sandbox", got)
+			}
+
+			if got := headers.Get("X-Content-Type-Options"); got != "nosniff" {
+				t.Errorf("HTTPGetStream() X-Content-Type-Options = %q, want nosniff", got)
+			}
 		})
 	}
 }
@@ -117,21 +169,41 @@ func TestHTTPGetStreamContextCancellation(t *testing.T) {
 }
 
 func TestHTTPGetStreamTimeout(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(15 * time.Second)
+	requestStarted := make(chan struct{})
+	requestFinished := make(chan struct{})
 
-		if _, err := w.Write([]byte("Hello, World!")); err != nil {
-			t.Fatalf("write test: %v", err)
-		}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		<-r.Context().Done()
+		close(requestFinished)
 	}))
 	defer ts.Close()
+	defer ts.CloseClientConnections()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
+	start := time.Now()
+
 	err := serviceproxy.HTTPGetStream(ctx, ts.URL, &countingResponseWriter{})
 	if err == nil {
 		t.Errorf("HTTPGetStream() error = nil, want error")
+	}
+
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("HTTPGetStream() took %v, want under %v", elapsed, 5*time.Second)
+	}
+
+	select {
+	case <-requestStarted:
+	case <-time.After(time.Second):
+		t.Fatal("HTTPGetStream() did not reach the test server")
+	}
+
+	select {
+	case <-requestFinished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("test server handler did not exit after context cancellation")
 	}
 }
 

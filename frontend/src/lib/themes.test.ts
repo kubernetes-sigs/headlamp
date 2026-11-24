@@ -16,8 +16,22 @@
 
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  darkTheme as builtInDarkTheme,
+  lightTheme as builtInLightTheme,
+} from '../components/App/defaultAppThemes';
 import { AppTheme } from './AppTheme';
-import { createMuiTheme, getThemeName, setTheme, usePrefersColorScheme } from './themes';
+import {
+  AUTOMATIC_THEME_PREFERENCE_KEY,
+  createMuiTheme,
+  getThemeName,
+  getUserSelectedThemeName,
+  PREFERRED_DARK_THEME_KEY,
+  PREFERRED_LIGHT_THEME_KEY,
+  setTheme,
+  SYSTEM_THEME_PREFERENCE_KEY,
+  usePrefersColorScheme,
+} from './themes';
 
 describe('themes.ts', () => {
   describe('createMuiTheme', () => {
@@ -33,6 +47,18 @@ describe('themes.ts', () => {
       const theme = createMuiTheme(darkTheme);
       expect(theme.palette.mode).toBe('dark');
       expect(theme.palette.background.default).toBe('#1f1f1f');
+    });
+
+    it('should keep warning alerts readable in the dark theme', () => {
+      const theme = createMuiTheme({ base: 'dark', name: 'Dark Theme' });
+
+      expect(theme.components?.MuiAlert?.styleOverrides?.standardWarning).toEqual({
+        backgroundColor: 'rgba(255, 152, 0, 0.12)',
+        color: '#fff3e0',
+        '& .MuiAlert-icon': {
+          color: '#ffb74d',
+        },
+      });
     });
 
     it('should set searchHint defaults for light and dark themes', () => {
@@ -55,24 +81,58 @@ describe('themes.ts', () => {
 
       expect(theme.palette.navbar.searchHint).toBe('#123456');
     });
+
+    it('should allow secondary contrast text override from AppTheme', () => {
+      const theme = createMuiTheme({
+        base: 'light',
+        name: 'Custom Theme',
+        secondary: '#123456',
+        secondaryContrastText: '#ffffff',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#ffffff');
+    });
+
+    it('should allow secondary contrast text override for dark themes', () => {
+      const theme = createMuiTheme({
+        base: 'dark',
+        name: 'Custom Dark Theme',
+        secondary: '#123456',
+        secondaryContrastText: '#ffffff',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#ffffff');
+    });
+
+    it('should use black contrast text by default for custom secondary colors', () => {
+      const theme = createMuiTheme({
+        base: 'light',
+        name: 'Custom Theme',
+        secondary: '#123456',
+      });
+
+      expect(theme.palette.secondary.contrastText).toBe('#000');
+    });
   });
 
   describe('getThemeName', () => {
     it('should return light theme by default', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
         matchMedia: vi.fn().mockReturnValue({ matches: false }),
       });
 
-      expect(getThemeName()).toBe('Light');
+      expect(getThemeName()).toBe(builtInLightTheme.name);
     });
 
     it('should return dark theme if user prefers dark mode', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -81,7 +141,7 @@ describe('themes.ts', () => {
         })),
       });
 
-      expect(getThemeName()).toBe('Dark');
+      expect(getThemeName()).toBe(builtInDarkTheme.name);
     });
 
     it('should return the theme stored in localStorage', () => {
@@ -236,6 +296,7 @@ describe('themes.ts', () => {
     it('should use backend default light theme when OS prefers light', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -254,6 +315,7 @@ describe('themes.ts', () => {
     it('should use backend default dark theme when OS prefers dark', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -272,6 +334,7 @@ describe('themes.ts', () => {
     it('should fall back to OS preference when no backend default matches', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -284,12 +347,13 @@ describe('themes.ts', () => {
         defaultLightTheme: 'corporate-light',
       };
 
-      expect(getThemeName(backendConfig)).toBe('Dark');
+      expect(getThemeName(backendConfig)).toBe(builtInDarkTheme.name);
     });
 
     it('should handle both default themes with OS preference selection', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -309,6 +373,7 @@ describe('themes.ts', () => {
     it('should use force theme even with other defaults set', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
 
@@ -324,6 +389,7 @@ describe('themes.ts', () => {
     it('should work with plugin-provided theme names', () => {
       vi.stubGlobal('localStorage', {
         headlampThemePreference: null,
+        getItem: vi.fn(() => null),
         clear: vi.fn(),
       });
       vi.stubGlobal('window', {
@@ -337,6 +403,109 @@ describe('themes.ts', () => {
       };
 
       expect(getThemeName(backendConfig)).toBe('my-custom-plugin-theme');
+    });
+  });
+
+  describe('getThemeName with themes saved for quick swap', () => {
+    const backendConfig = {
+      defaultLightTheme: 'corporate-light',
+      defaultDarkTheme: 'corporate-dark',
+    };
+
+    function stubStorage(items: Record<string, string>, themePreference: string | null = null) {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: themePreference,
+        getItem: vi.fn((key: string) => items[key] ?? null),
+        clear: vi.fn(),
+      });
+    }
+
+    function stubOsScheme(scheme: 'light' | 'dark' | 'none') {
+      vi.stubGlobal('window', {
+        matchMedia: vi.fn(query => ({
+          matches: query === `(prefers-color-scheme: ${scheme})`,
+        })),
+      });
+    }
+
+    const saved = {
+      [PREFERRED_LIGHT_THEME_KEY]: 'my-light',
+      [PREFERRED_DARK_THEME_KEY]: 'my-dark',
+    };
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('uses the saved dark theme over the backend default when the OS prefers dark', () => {
+      stubStorage(saved);
+      stubOsScheme('dark');
+      expect(getThemeName(backendConfig)).toBe('my-dark');
+    });
+
+    it('uses the saved light theme over the backend default when the OS prefers light', () => {
+      stubStorage(saved);
+      stubOsScheme('light');
+      expect(getThemeName(backendConfig)).toBe('my-light');
+    });
+
+    it('uses the saved light theme when the OS reports no preference', () => {
+      stubStorage(saved);
+      stubOsScheme('none');
+      expect(getThemeName(backendConfig)).toBe('my-light');
+    });
+
+    it('keeps the backend default for a mode with no saved theme', () => {
+      stubStorage({ [PREFERRED_LIGHT_THEME_KEY]: 'my-light' });
+      stubOsScheme('dark');
+      expect(getThemeName(backendConfig)).toBe('corporate-dark');
+    });
+
+    it('prefers the last theme switched to over the saved quick swap theme', () => {
+      stubStorage(saved, 'last-used');
+      stubOsScheme('dark');
+      expect(getThemeName(backendConfig)).toBe('last-used');
+    });
+
+    it('lets a forced theme override the saved quick swap theme', () => {
+      stubStorage(saved);
+      stubOsScheme('dark');
+      expect(getThemeName({ ...backendConfig, forceTheme: 'forced' })).toBe('forced');
+    });
+
+    it('keeps a theme applied by following the system over the saved quick swap theme', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'followed',
+        [AUTOMATIC_THEME_PREFERENCE_KEY]: 'followed',
+        [SYSTEM_THEME_PREFERENCE_KEY]: 'followed',
+        getItem: vi.fn((key: string) => (saved as Record<string, string>)[key] ?? null),
+        clear: vi.fn(),
+      });
+      stubOsScheme('light');
+      expect(getThemeName(backendConfig)).toBe('followed');
+      expect(getThemeName({ ...backendConfig, forceTheme: 'forced' })).toBe('forced');
+    });
+
+    it('does not keep other automatically applied themes over the saved quick swap theme', () => {
+      vi.stubGlobal('localStorage', {
+        headlampThemePreference: 'plugin-default',
+        [AUTOMATIC_THEME_PREFERENCE_KEY]: 'plugin-default',
+        getItem: vi.fn((key: string) => (saved as Record<string, string>)[key] ?? null),
+        clear: vi.fn(),
+      });
+      stubOsScheme('light');
+      expect(getThemeName(backendConfig)).toBe('my-light');
+    });
+
+    it('ignores a saved quick swap theme that is not registered', () => {
+      stubStorage(saved);
+      stubOsScheme('dark');
+      const registered: AppTheme[] = [{ name: 'corporate-dark', base: 'dark' }];
+      expect(getThemeName(backendConfig, registered)).toBe('corporate-dark');
+      expect(getUserSelectedThemeName(registered)).toBeUndefined();
+      expect(getThemeName(backendConfig, [...registered, { name: 'my-dark', base: 'dark' }])).toBe(
+        'my-dark'
+      );
     });
   });
 });

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +54,7 @@ func TestGetPortForwards_MissingCluster(t *testing.T) {
 	// No clusterName in mux vars — simulates a request without the route parameter.
 	r := newRequestWithVars(http.MethodGet, "/portforward/list", nil, map[string]string{})
 
-	portforward.GetPortForwards(ch, w, r)
+	portforward.GetPortForwards(ch, "", w, r)
 
 	res := w.Result()
 
@@ -74,7 +76,7 @@ func TestGetPortForwards_EmptyList(t *testing.T) {
 		"clusterName": "test-cluster",
 	})
 
-	portforward.GetPortForwards(ch, w, r)
+	portforward.GetPortForwards(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -99,7 +101,7 @@ func TestGetPortForwards_ContentTypeHeader(t *testing.T) {
 		"clusterName": "any-cluster",
 	})
 
-	portforward.GetPortForwards(ch, w, r)
+	portforward.GetPortForwards(ch, "any-cluster", w, r)
 
 	res := w.Result()
 
@@ -119,7 +121,7 @@ func TestGetPortForwardByID_MissingCluster(t *testing.T) {
 	r := newRequestWithVars(http.MethodGet, "/portforward?id=abc", nil, map[string]string{})
 	r.URL = &url.URL{RawQuery: "id=abc"}
 
-	portforward.GetPortForwardByID(ch, w, r)
+	portforward.GetPortForwardByID(ch, "", w, r)
 
 	res := w.Result()
 
@@ -142,7 +144,7 @@ func TestGetPortForwardByID_MissingID(t *testing.T) {
 	})
 	r.URL = &url.URL{}
 
-	portforward.GetPortForwardByID(ch, w, r)
+	portforward.GetPortForwardByID(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -165,7 +167,7 @@ func TestGetPortForwardByID_NotFound(t *testing.T) {
 	})
 	r.URL = &url.URL{RawQuery: "id=nonexistent"}
 
-	portforward.GetPortForwardByID(ch, w, r)
+	portforward.GetPortForwardByID(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -191,7 +193,7 @@ func TestStopOrDeletePortForward_InvalidJSON(t *testing.T) {
 		"clusterName": "test-cluster",
 	})
 
-	portforward.StopOrDeletePortForward(ch, w, r)
+	portforward.StopOrDeletePortForward(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -200,66 +202,178 @@ func TestStopOrDeletePortForward_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 }
 
-func TestStopOrDeletePortForward_MissingID(t *testing.T) {
+func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
 	t.Parallel()
 
-	ch := cache.New[interface{}]()
-	w := httptest.NewRecorder()
-
-	payload := map[string]interface{}{
-		"id":           "",
-		"stopOrDelete": true,
+	tests := []struct {
+		name           string
+		id             string
+		wantStatusCode int
+		wantBody       string
+	}{
+		{
+			name:           "missing id",
+			id:             "",
+			wantStatusCode: http.StatusBadRequest,
+			wantBody:       "id is required",
+		},
+		{
+			name:           "id not found in cache",
+			id:             "does-not-exist",
+			wantStatusCode: http.StatusInternalServerError,
+			wantBody:       "failed to delete port forward",
+		},
 	}
 
-	jsonPayload, err := json.Marshal(payload)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		tt := tt
 
-	body := bytes.NewReader(jsonPayload)
-	r := newRequestWithVars(http.MethodDelete, "/portforward", body, map[string]string{
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ch := cache.New[interface{}]()
+			w := httptest.NewRecorder()
+
+			payload := map[string]interface{}{
+				"id":           tt.id,
+				"stopOrDelete": true,
+			}
+
+			jsonPayload, err := json.Marshal(payload)
+			require.NoError(t, err)
+
+			body := bytes.NewReader(jsonPayload)
+			r := newRequestWithVars(http.MethodDelete, "/portforward", body, map[string]string{
+				"clusterName": "test-cluster",
+			})
+
+			portforward.StopOrDeletePortForward(ch, "test-cluster", w, r)
+
+			res := w.Result()
+
+			defer func() { _ = res.Body.Close() }()
+
+			assert.Equal(t, tt.wantStatusCode, res.StatusCode)
+
+			respBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(respBody), tt.wantBody)
+		})
+	}
+}
+
+func assertPortForwardBadRequest(
+	t *testing.T,
+	body string,
+	wantBody string,
+	call func(w *httptest.ResponseRecorder, r *http.Request),
+	method string,
+) {
+	t.Helper()
+
+	w := httptest.NewRecorder()
+	r := newRequestWithVars(method, "/portforward", bytes.NewBufferString(body), map[string]string{
 		"clusterName": "test-cluster",
 	})
 
-	portforward.StopOrDeletePortForward(ch, w, r)
+	call(w, r)
 
 	res := w.Result()
-
 	defer func() { _ = res.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 
 	respBody, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	assert.Contains(t, string(respBody), "id is required")
+	assert.Contains(t, string(respBody), wantBody)
 }
 
-func TestStopOrDeletePortForward_NotFoundInCache(t *testing.T) {
+func TestStartPortForward_InputValidation(t *testing.T) {
 	t.Parallel()
 
-	ch := cache.New[interface{}]()
-	w := httptest.NewRecorder()
+	oversized := fmt.Sprintf(
+		`{"namespace":"default","pod":"my-pod","targetPort":"80","id":"%s"}`,
+		bytes.Repeat([]byte("a"), 70<<10),
+	)
 
-	payload := map[string]interface{}{
-		"id":           "does-not-exist",
-		"stopOrDelete": true,
+	tests := []struct {
+		name     string
+		body     string
+		wantBody string
+	}{
+		{"oversized body", oversized, "http: request body too large"},
+		{"trailing JSON", `{"namespace":"default","pod":"my-pod","targetPort":"80"}{}`, "single JSON object"},
+		{"bad namespace", `{"namespace":"../kube-system","pod":"my-pod","targetPort":"80"}`, "invalid namespace"},
+		{"bad targetPort", `{"namespace":"default","pod":"my-pod","targetPort":"70000"}`, "targetPort must be a valid"},
+		{"bad port", `{"namespace":"default","pod":"my-pod","targetPort":"80","port":"0"}`, "port must be a valid"},
+		{"bad id", `{"namespace":"default","pod":"my-pod","targetPort":"80","id":"bad/id"}`, "invalid portforward id"},
 	}
 
-	jsonPayload, err := json.Marshal(payload)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		tt := tt
 
-	body := bytes.NewReader(jsonPayload)
-	r := newRequestWithVars(http.MethodDelete, "/portforward", body, map[string]string{
-		"clusterName": "test-cluster",
-	})
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	portforward.StopOrDeletePortForward(ch, w, r)
+			ch := cache.New[interface{}]()
+			store := kubeconfig.NewContextStore()
 
-	res := w.Result()
+			assertPortForwardBadRequest(t, tt.body, tt.wantBody, func(w *httptest.ResponseRecorder, r *http.Request) {
+				portforward.StartPortForward(store, ch, false, "test-cluster", w, r)
+			}, http.MethodPost)
+		})
+	}
+}
 
-	defer func() { _ = res.Body.Close() }()
+func TestStopOrDeletePortForward_StrictJSONAndIDValidation(t *testing.T) {
+	t.Parallel()
 
-	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+	oversized := `{"id":"` + string(bytes.Repeat([]byte("a"), 70<<10)) + `","stopOrDelete":true}`
 
-	respBody, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	assert.Contains(t, string(respBody), "failed to delete port forward")
+	tests := []struct {
+		name     string
+		body     string
+		wantBody string
+	}{
+		{
+			name:     "oversized body",
+			body:     oversized,
+			wantBody: "http: request body too large",
+		},
+		{
+			name:     "trailing JSON object",
+			body:     `{"id":"pf-1","stopOrDelete":true}{"extra":1}`,
+			wantBody: "single JSON object",
+		},
+		{
+			name:     "invalid id format",
+			body:     `{"id":"../bad","stopOrDelete":true}`,
+			wantBody: "must be 1-128 characters matching [A-Za-z0-9._-]",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ch := cache.New[interface{}]()
+			w := httptest.NewRecorder()
+			r := newRequestWithVars(http.MethodDelete, "/portforward", bytes.NewBufferString(tt.body), map[string]string{
+				"clusterName": "test-cluster",
+			})
+
+			portforward.StopOrDeletePortForward(ch, "test-cluster", w, r)
+
+			res := w.Result()
+			defer func() { _ = res.Body.Close() }()
+
+			assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+			respBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(respBody), tt.wantBody)
+		})
+	}
 }

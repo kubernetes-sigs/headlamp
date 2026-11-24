@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import PortForwardingList from './index';
 vi.mock('react-i18next', async importOriginal => {
   const actual: any = await importOriginal();
+  const t = (key: string) => key;
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string) => key,
+      t,
       i18n: {
         changeLanguage: vi.fn(),
       },
@@ -81,6 +82,8 @@ vi.mock('../common/Table', () => ({
   default: (props: any) => {
     mockTable(props);
     const filteredData = props.data || [];
+    const actions = props.columns.find((column: { id: string }) => column.id === 'actions');
+    const status = props.columns.find((column: { id: string }) => column.id === 'status');
     return (
       <div data-testid="mock-table">
         {filteredData.map((item: any) => (
@@ -89,6 +92,8 @@ vi.mock('../common/Table', () => ({
             <span>{item.serviceNamespace || item.namespace}</span>
             <span>{item.status}</span>
             {item.error && <span>Error</span>}
+            {actions.Cell({ row: { original: item } })}
+            {status.Cell({ row: { original: item } })}
           </div>
         ))}
       </div>
@@ -387,5 +392,128 @@ describe('PortForwardingList', () => {
     expect(snackbarCalls).toHaveLength(0);
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('opens running port forward with noopener,noreferrer in window.open', async () => {
+    const pf = makePortForward({ status: PORT_FORWARD_RUNNING_STATUS, port: '8080' });
+    mockListPortForward.mockResolvedValue([pf]);
+    const windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    renderList();
+
+    await waitFor(() => {
+      expect(mockTable).toHaveBeenCalled();
+    });
+
+    const columns = mockTable.mock.calls[0][0].columns;
+    const localPortColumn = columns.find((col: any) => col.id === 'localPort');
+    expect(localPortColumn).toBeDefined();
+
+    const { getByText } = render(localPortColumn.Cell({ row: { original: pf } }));
+    const portLink = getByText('8080');
+    fireEvent.click(portLink);
+
+    expect(windowOpenSpy).toHaveBeenCalledWith(
+      'http://localhost:8080',
+      '_blank',
+      'noopener,noreferrer'
+    );
+  });
+
+  it('deletes a stored forward so a refresh does not resurrect it', async () => {
+    const pf = makePortForward({ status: PORT_FORWARD_STOP_STATUS });
+    mockListPortForward.mockResolvedValueOnce([pf]).mockResolvedValue([]);
+    mockStopOrDeletePortForward.mockResolvedValue(undefined);
+    localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify([pf]));
+    renderList();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'translation|Stop' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Delete' }));
+
+    await waitFor(() => {
+      expect(mockStopOrDeletePortForward).toHaveBeenCalledWith('test-cluster', 'pf-1', false);
+      expect(localStorage.getItem(PORT_FORWARDS_STORAGE_KEY)).toBe('[]');
+    });
+    expect(screen.queryByText('my-pod')).not.toBeInTheDocument();
+  });
+
+  it('starts a stopped forward using the edited port and existing session ID', async () => {
+    mockListPortForward.mockResolvedValue([makePortForward({ status: PORT_FORWARD_STOP_STATUS })]);
+    mockStartPortForward.mockResolvedValue(undefined);
+    renderList();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Start' }));
+    fireEvent.change(screen.getByLabelText('translation|Local Port'), {
+      target: { value: '9090' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+
+    await waitFor(() =>
+      expect(mockStartPortForward).toHaveBeenCalledWith(
+        'test-cluster',
+        'default',
+        'my-pod',
+        '80',
+        '',
+        '',
+        '9090',
+        'localhost',
+        'pf-1'
+      )
+    );
+    expect(mockListPortForward).toHaveBeenCalledTimes(2);
+  });
+
+  it('can cancel restarting a forward without making a start request', async () => {
+    mockListPortForward.mockResolvedValue([makePortForward({ status: PORT_FORWARD_STOP_STATUS })]);
+    renderList();
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Cancel' }));
+
+    expect(mockStartPortForward).not.toHaveBeenCalled();
+  });
+
+  it('reports start failures through the snackbar', async () => {
+    const error = new Error('address already in use');
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockListPortForward.mockResolvedValue([makePortForward({ status: PORT_FORWARD_STOP_STATUS })]);
+    mockStartPortForward.mockRejectedValue(error);
+    renderList();
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+
+    await waitFor(() =>
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        'translation|Error starting port forward: address already in use',
+        expect.objectContaining({ variant: 'error' })
+      )
+    );
+    expect(logError).toHaveBeenCalledWith('Error starting port forward:', error);
+    logError.mockRestore();
+  });
+
+  it('stops a forward, refreshes the list and reports backend errors', async () => {
+    const pf = makePortForward();
+    mockListPortForward
+      .mockResolvedValueOnce([pf])
+      .mockResolvedValue([{ ...pf, Error: 'connection refused' }]);
+    mockStopOrDeletePortForward.mockResolvedValue(undefined);
+    renderList();
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'translation|Start' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Stop' }));
+
+    await waitFor(() =>
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        'connection refused',
+        expect.objectContaining({ variant: 'error', preventDuplicate: true })
+      )
+    );
+    expect(mockStopOrDeletePortForward).toHaveBeenCalledWith('test-cluster', 'pf-1', true);
+    expect(mockListPortForward).toHaveBeenCalledTimes(2);
   });
 });

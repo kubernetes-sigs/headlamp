@@ -20,8 +20,8 @@ import type { OpPatch } from 'json-patch';
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
-import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
@@ -31,6 +31,8 @@ import type { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
+
+export { getClusterAuthType } from '../../clusterAuthType';
 
 /**
  * Options for the request.
@@ -65,18 +67,6 @@ export interface ClusterRequest {
 export interface ClusterRequestParams extends RequestParams {
   cluster?: string | null;
   autoLogoutOnAuthError?: boolean;
-}
-
-/**
- * @returns Auth type of the cluster, or an empty string if the cluster is not found.
- * It could return 'oidc' or '' for example.
- *
- * @param cluster - Name of the cluster.
- */
-export function getClusterAuthType(cluster: string): string {
-  const state = store.getState();
-  const authType: string = state.config?.clusters?.[cluster]?.['auth_type'] || '';
-  return authType;
 }
 
 /**
@@ -141,7 +131,14 @@ export async function clusterRequest(
   } = params;
 
   const userID = getUserIdFromLocalStorage();
-  const opts: { headers: RequestHeaders } = Object.assign({ headers: {} }, otherParams);
+  const headers: RequestHeaders = {};
+  new Headers(otherParams.headers).forEach((value, key) => {
+    headers[key] = value;
+  });
+  Object.entries(getHeadlampAPIHeaders()).forEach(([name, value]) => {
+    headers[name.toLowerCase()] = value;
+  });
+  const opts = { ...otherParams, headers };
   const cluster = paramsCluster || '';
 
   let fullPath = path;
@@ -177,8 +174,6 @@ export async function clusterRequest(
         response = new Response(undefined, { status: 408, statusText: 'Request timed-out' });
       }
     }
-  } finally {
-    clearTimeout(id);
   }
 
   // The backend signals through this header that it wants a reload.
@@ -190,9 +185,11 @@ export async function clusterRequest(
 
   if (!response.ok) {
     const { status, statusText } = response;
-    if (autoLogoutOnAuthError && status === 401 && opts.headers.Authorization) {
+    if (autoLogoutOnAuthError && status === 401 && opts.headers.authorization && cluster) {
       console.error('Logging out due to auth error', { status, statusText, path });
-      logout(cluster);
+      logout(cluster, true).catch(err => {
+        console.error('Auto-logout failed after auth error:', err);
+      });
     }
 
     let message = statusText;
@@ -222,6 +219,8 @@ export async function clusterRequest(
         'with request data:',
         requestData
       );
+    } finally {
+      clearTimeout(id);
     }
 
     const error = new Error(message) as ApiError;
@@ -230,10 +229,15 @@ export async function clusterRequest(
   }
 
   if (!isJSON) {
+    clearTimeout(id);
     return Promise.resolve(response);
   }
 
-  return response.json();
+  try {
+    return await response.json();
+  } finally {
+    clearTimeout(id);
+  }
 }
 
 export function post(

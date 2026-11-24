@@ -17,11 +17,19 @@
 {{- $usePKCE := "" }}
 {{- $useAccessToken := "" }}
 {{- $meUserInfoURL := "" }}
+{{- /* The backend also reads these env names directly. They only feed the
+       discovery OIDC check, so no -oidc-* flag is rendered for them. */}}
+{{- $backendEnvClientID := "" }}
+{{- $backendEnvIssuerURL := "" }}
 {{- $clusterInventory := .Values.config.clusterInventory | default dict }}
 {{- $clusterInventoryEnabled := $clusterInventory.enabled | default false }}
-{{- $clusterInventoryProviderFile := "/etc/cluster-inventory/config.json" }}
-{{- $clusterInventoryProviderMountDir := "/etc/cluster-inventory" }}
-{{- $clusterInventoryProviderConfigPath := "config.json" }}
+{{- $clusterAPI := .Values.config.clusterAPI | default dict }}
+{{- $clusterAPIEnabled := $clusterAPI.enabled | default false }}
+{{- range $key := list "accessProvidersConfig" "plugins" }}
+{{- if not (empty (get $clusterInventory $key)) }}
+{{-   fail (printf "config.clusterInventory.%s is no longer supported; Cluster Inventory requires per-user OIDC" $key) }}
+{{- end }}
+{{- end }}
 {{- $readOnlyRootFs := eq (include "headlamp.readOnlyRootFilesystem" .Values) "true" }}
 {{- $pluginManagerSecurityContext := dict }}
 {{- if .Values.pluginsManager.securityContext }}
@@ -32,12 +40,19 @@
 {{- $readOnlyRootFsPlugins := and .Values.pluginsManager.enabled (eq (include "headlamp.readOnlyRootFilesystem" (dict "securityContext" $pluginManagerSecurityContext)) "true") }}
 {{- $tmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFs "mountName" "headlamp-tmp") | fromYaml }}
 {{- $pluginsTmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.pluginsManager.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFsPlugins "mountName" "headlamp-plugins-tmp") | fromYaml }}
+{{- $oidcAutoLogin := "" }}
 
 # This block of code is used to extract the values from the env.
 # This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
 {{- range $env }}
   {{- if eq .name "OIDC_CLIENT_ID" }}
     {{- $clientID = .value }}
+  {{- end }}
+  {{- if eq .name "HEADLAMP_CONFIG_OIDC_CLIENT_ID" }}
+    {{- $backendEnvClientID = .value }}
+  {{- end }}
+  {{- if eq .name "HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL" }}
+    {{- $backendEnvIssuerURL = .value }}
   {{- end }}
   {{- if eq .name "OIDC_CLIENT_SECRET" }}
     {{- $clientSecret = .value }}
@@ -66,6 +81,15 @@
   {{- if eq .name "ME_USER_INFO_URL" }}
     {{- $meUserInfoURL = .value | toString }}
   {{- end }}
+  {{- if eq .name "OIDC_AUTO_LOGIN" }}
+    {{- $oidcAutoLogin = .value | toString }}
+  {{- end }}
+{{- end }}
+
+{{- $oidcClientConfigured := or (ne $oidc.clientID "") (ne $clientID "") (ne $backendEnvClientID "") }}
+{{- $oidcIssuerConfigured := or (ne $oidc.issuerURL "") (ne $issuerURL "") (ne $backendEnvIssuerURL "") }}
+{{- if and (or $clusterInventoryEnabled $clusterAPIEnabled) (not (or $oidc.externalSecret.enabled (and $oidcClientConfigured $oidcIssuerConfigured))) }}
+{{-   fail "Cluster discovery requires the OIDC client ID and issuer URL; set config.oidc (or OIDC / HEADLAMP_CONFIG_OIDC env vars / externalSecret)" }}
 {{- end }}
 
 apiVersion: apps/v1
@@ -75,6 +99,9 @@ metadata:
   namespace: {{ include "headlamp.namespace" . }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
+    {{- with .Values.deploymentLabels }}
+      {{- tpl (toYaml .) $ | nindent 4 }}
+    {{- end }}
   {{- with .Values.deploymentAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -209,34 +236,38 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: meUserInfoURL
             {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              value: {{ $oidc.autoLogin | quote }}
+            {{- end }}
             {{- else }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
-              value: {{ $oidc.clientID }}
+              value: {{ $oidc.clientID | quote }}
             {{- end }}
             {{- if $oidc.clientSecret }}
             - name: OIDC_CLIENT_SECRET
-              value: {{ $oidc.clientSecret }}
+              value: {{ $oidc.clientSecret | quote }}
             {{- end }}
             {{- if $oidc.issuerURL }}
             - name: OIDC_ISSUER_URL
-              value: {{ $oidc.issuerURL }}
+              value: {{ $oidc.issuerURL | quote }}
             {{- end }}
             {{- if $oidc.scopes }}
             - name: OIDC_SCOPES
-              value: {{ $oidc.scopes }}
+              value: {{ $oidc.scopes | quote }}
             {{- end }}
             {{- if $oidc.callbackURL }}
             - name: OIDC_CALLBACK_URL
-              value: {{ $oidc.callbackURL }}
+              value: {{ $oidc.callbackURL | quote }}
             {{- end }}
             {{- if $oidc.validatorClientID }}
             - name: OIDC_VALIDATOR_CLIENT_ID
-              value: {{ $oidc.validatorClientID }}
+              value: {{ $oidc.validatorClientID | quote }}
             {{- end }}
             {{- if $oidc.validatorIssuerURL }}
             - name: OIDC_VALIDATOR_ISSUER_URL
-              value: {{ $oidc.validatorIssuerURL }}
+              value: {{ $oidc.validatorIssuerURL | quote }}
             {{- end }}
             {{- if $oidc.useAccessToken }}
             - name: OIDC_USE_ACCESS_TOKEN
@@ -248,7 +279,11 @@ spec:
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
-              value: {{ $oidc.meUserInfoURL }}
+              value: {{ $oidc.meUserInfoURL | quote }}
+            {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              value: {{ $oidc.autoLogin | quote }}
             {{- end }}
             {{- end }}
             {{- if .Values.env }}
@@ -297,11 +332,22 @@ spec:
             {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken .Values.config.serviceAccountTokenPath }}
             - "-service-account-token-path={{ .Values.config.serviceAccountTokenPath }}"
             {{- end }}
+            {{- if $clusterAPIEnabled }}
+            - "-enable-cluster-api"
+            {{- with $clusterAPI.labelSelector }}
+            - "-cluster-api-label-selector={{ . }}"
+            {{- end }}
+            {{- with $clusterAPI.namespaces }}
+            - "-cluster-api-namespaces={{ join "," . }}"
+            {{- end }}
+            {{- end }}
             {{- if $clusterInventoryEnabled }}
             - "-enable-cluster-inventory"
-            - "-cluster-inventory-provider-file={{ $clusterInventoryProviderFile }}"
             {{- with $clusterInventory.labelSelector }}
             - "-cluster-inventory-label-selector={{ . }}"
+            {{- end }}
+            {{- with $clusterInventory.namespaces }}
+            - "-cluster-inventory-namespaces={{ join "," . }}"
             {{- end }}
             {{- with $clusterInventory.rootReconcileInterval }}
             - "-cluster-inventory-root-reconcile-interval={{ . }}"
@@ -350,6 +396,9 @@ spec:
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
             {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $oidcAutoLogin "true") }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
+            {{- end }}
             {{- else }}
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
@@ -378,6 +427,13 @@ spec:
             {{- end }}
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
+            {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $oidcAutoLogin "true") }}
+            {{- if eq ($oidc.autoLogin | toString) "true" }}
+            - "-oidc-auto-login=true"
+            {{- else if eq $oidcAutoLogin "true" }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- with .Values.config.baseURL }}
@@ -418,25 +474,11 @@ spec:
             failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumeMounts $tmpCtx.addMount }}
+          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts $tmpCtx.addMount }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
               mountPath: {{ .Values.config.pluginsDir }}
-            {{- end }}
-            {{- if $clusterInventoryEnabled }}
-            - name: cluster-inventory-config
-              mountPath: {{ $clusterInventoryProviderMountDir }}
-              readOnly: true
-            {{- range $index, $plugin := ($clusterInventory.plugins | default list) }}
-            {{- $mountPath := $plugin.mountPath | default "" | toString | clean }}
-            {{- if not (hasPrefix "/" $mountPath) }}
-            {{-   fail (printf "config.clusterInventory.plugins[%d].mountPath must be an absolute path, got %q" $index ($plugin.mountPath | default "" | toString)) }}
-            {{- end }}
-            - name: {{ $plugin.name }}
-              mountPath: {{ $mountPath }}
-              readOnly: true
-            {{- end }}
             {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -523,7 +565,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
+      {{- if or .Values.pluginsManager.enabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -534,19 +576,6 @@ spec:
         {{- if $pluginsTmpCtx.addVolume }}
         - name: headlamp-plugins-tmp
           emptyDir: {}
-        {{- end }}
-        {{- end }}
-        {{- if $clusterInventoryEnabled }}
-        - name: cluster-inventory-config
-          configMap:
-            name: {{ include "headlamp.fullname" . }}-cluster-inventory
-            items:
-              - key: config.json
-                path: {{ $clusterInventoryProviderConfigPath }}
-        {{- range $plugin := ($clusterInventory.plugins | default list) }}
-        - name: {{ $plugin.name }}
-          image:
-            reference: {{ $plugin.image | quote }}
         {{- end }}
         {{- end }}
         {{- if $tmpCtx.addVolume }}

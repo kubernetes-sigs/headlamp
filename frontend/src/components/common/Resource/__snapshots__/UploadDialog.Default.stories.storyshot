@@ -22,6 +22,7 @@
       tabindex="-1"
     >
       <div
+        aria-label="Upload File/URL"
         aria-labelledby=":mock-test-id:"
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
         role="dialog"
@@ -65,7 +66,7 @@
                   class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-1-UploadFile/URL-tabs-id"
                   role="tab"
-                  tabindex="-1"
+                  tabindex="0"
                   type="button"
                 >
                   Load from URL
@@ -82,15 +83,16 @@
           </div>
           <div
             aria-labelledby="full-width-tab-0-UploadFile/URL-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
             id="full-width-tabpanel-0-UploadFile/URL-tabs-id"
             role="tabpanel"
+            tabindex="-1"
           >
             <div
               class="MuiBox-root css-1v3caum"
             >
               <div
-                class="MuiBox-root css-1mcn8zw"
+                class="MuiBox-root css-dcf5ug"
               >
                 <p
                   class="MuiTypography-root MuiTypography-body1 css-3o8n1d-MuiTypography-root"
@@ -143,10 +145,11 @@
           </div>
           <div
             aria-labelledby="full-width-tab-1-UploadFile/URL-tabs-id"
-            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
             hidden=""
             id="full-width-tabpanel-1-UploadFile/URL-tabs-id"
             role="tabpanel"
+            tabindex="-1"
           >
             <div
               class="MuiBox-root css-1v3caum"

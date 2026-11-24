@@ -17,6 +17,7 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import WS from 'vitest-websocket-mock';
+import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
@@ -63,6 +64,7 @@ describe('WebSocket Multiplexer', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
     vi.clearAllMocks();
+    setBackendToken(null);
     onMessage = vi.fn();
     onError = vi.fn();
     (getCluster as ReturnType<typeof vi.fn>).mockReturnValue(clusterName);
@@ -83,6 +85,8 @@ describe('WebSocket Multiplexer', () => {
     WS.clean();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    setBackendToken(null);
     WebSocketManager.socketMultiplexer = null;
     WebSocketManager.connecting = false;
     WebSocketManager.isReconnecting = false;
@@ -94,6 +98,65 @@ describe('WebSocket Multiplexer', () => {
   });
 
   describe('WebSocketManager', () => {
+    it.each([
+      {
+        name: 'with a backend token',
+        token: 'desktop-token',
+        protocols: [
+          'headlamp.multiplexer.k8s.io',
+          'base64url.headlamp.backend.authorization.k8s.io.ZGVza3RvcC10b2tlbg',
+        ],
+      },
+      { name: 'without a backend token', token: null, protocols: null },
+    ])('constructs the multiplexer socket $name', async testCase => {
+      const socket = {
+        readyState: WebSocket.CONNECTING as number,
+        onopen: null as (() => void) | null,
+        onmessage: null,
+        onerror: null,
+        onclose: null,
+      };
+      const WebSocketMock = vi.fn(function () {
+        return socket;
+      });
+      Object.assign(WebSocketMock, {
+        CONNECTING: WebSocket.CONNECTING,
+        OPEN: WebSocket.OPEN,
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+      setBackendToken(testCase.token);
+
+      const connection = WebSocketManager.connect();
+
+      if (testCase.protocols) {
+        expect(WebSocketMock).toHaveBeenCalledWith(
+          `${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`,
+          testCase.protocols
+        );
+      } else {
+        expect(WebSocketMock).toHaveBeenCalledWith(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+      }
+
+      socket.readyState = WebSocket.OPEN;
+      socket.onopen?.();
+      await connection;
+    });
+
+    it('clears the connecting state when socket construction fails', async () => {
+      const error = new Error('socket construction failed');
+      const WebSocketMock = vi.fn(function () {
+        throw error;
+      });
+      Object.assign(WebSocketMock, {
+        CONNECTING: WebSocket.CONNECTING,
+        OPEN: WebSocket.OPEN,
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      await expect(WebSocketManager.connect()).rejects.toThrow(error);
+      expect(WebSocketManager.connecting).toBe(false);
+    });
+
     it('should establish connection and handle messages', async () => {
       const path = '/api/v1/pods';
       const query = 'watch=true';

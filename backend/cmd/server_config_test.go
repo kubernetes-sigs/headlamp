@@ -17,11 +17,16 @@ limitations under the License.
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildHeadlampCFG(t *testing.T) {
@@ -29,10 +34,12 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 	t.Run("maps basic fields and splits proxy urls", func(t *testing.T) {
 		conf := &config.Config{
+			AppName:                "Branded Headlamp",
 			Port:                   4444,
 			InCluster:              true,
 			InClusterContextName:   "test-incluster",
 			InsecureSsl:            true,
+			KubeConfigDir:          "/kubeconfigs",
 			PluginsDir:             "/plugins",
 			UserPluginsDir:         "/user-plugins",
 			AllowKubeconfigChanges: true,
@@ -43,10 +50,12 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 		headlampCFG := buildHeadlampCFG(conf, store)
 
+		assert.Equal(t, "Branded Headlamp", headlampCFG.AppName)
 		assert.Equal(t, uint(4444), headlampCFG.Port)
 		assert.True(t, headlampCFG.UseInCluster)
 		assert.Equal(t, "test-incluster", headlampCFG.InClusterContextName)
 		assert.True(t, headlampCFG.Insecure)
+		assert.Equal(t, "/kubeconfigs", headlampCFG.KubeConfigDir)
 		assert.Equal(t, "/plugins", headlampCFG.PluginDir)
 		assert.Equal(t, "/user-plugins", headlampCFG.UserPluginDir)
 		assert.True(t, headlampCFG.AllowKubeconfigChanges)
@@ -63,4 +72,76 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 		assert.Empty(t, headlampCFG.ProxyURLs)
 	})
+
+	t.Run("trims spaces around proxy urls and drops empty entries", func(t *testing.T) {
+		conf := &config.Config{ProxyURLs: " http://proxy1 , http://proxy2/*,,"}
+
+		headlampCFG := buildHeadlampCFG(conf, store)
+
+		assert.Equal(t, []string{"http://proxy1", "http://proxy2/*"}, headlampCFG.ProxyURLs)
+
+		c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{HeadlampCFG: headlampCFG}}
+
+		allowed, err := c.proxyURLAllowed("http://proxy2/api")
+		require.NoError(t, err)
+		assert.True(t, allowed)
+	})
+}
+
+func TestLoadAdminSettings(t *testing.T) {
+	writeSettings := func(t *testing.T, contents string) string {
+		t.Helper()
+
+		path := filepath.Join(t.TempDir(), "settings.json")
+		require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+
+		return path
+	}
+
+	t.Run("no path yields no settings", func(t *testing.T) {
+		settings, err := loadAdminSettings("")
+
+		require.NoError(t, err)
+		assert.Nil(t, settings)
+	})
+
+	t.Run("valid json is passed through verbatim", func(t *testing.T) {
+		contents := `{"settings":{"tableRowsPerPageOptions":{"$value":[10,20]}}}`
+		settings, err := loadAdminSettings(writeSettings(t, contents))
+
+		require.NoError(t, err)
+		assert.JSONEq(t, contents, string(settings))
+	})
+
+	t.Run("missing file is an error", func(t *testing.T) {
+		_, err := loadAdminSettings(filepath.Join(t.TempDir(), "absent.json"))
+
+		require.ErrorContains(t, err, "reading settings file")
+	})
+
+	t.Run("invalid json is an error", func(t *testing.T) {
+		_, err := loadAdminSettings(writeSettings(t, "{not json"))
+
+		require.ErrorContains(t, err, "not valid JSON")
+	})
+}
+
+func TestBuildHeadlampCFGDiscoverySources(t *testing.T) {
+	conf := &config.Config{DiscoverySources: map[string]clusterdiscovery.Settings{
+		"cluster_inventory": {Enabled: true, Namespaces: "team-a,team-b"},
+		"cluster_api":       {Enabled: true, Namespaces: "workloads"},
+		"third_source":      {Enabled: true, Namespaces: "another"},
+	}}
+
+	headlampCFG := buildHeadlampCFG(conf, kubeconfig.NewContextStore())
+
+	assert.Equal(t, conf.DiscoverySources, headlampCFG.DiscoverySources)
+}
+
+func TestSplitOIDCScopes(t *testing.T) {
+	assert.Equal(t,
+		[]string{"profile", "email", "offline_access"},
+		splitOIDCScopes("profile, email, , offline_access"),
+	)
+	assert.Empty(t, splitOIDCScopes(" ,\t"))
 }

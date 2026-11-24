@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { ClusterChooserProps, K8s, registerClusterChooser } from '@kinvolk/headlamp-plugin/lib';
+import {
+  ClusterChooserProps,
+  ClusterEmptyStateProps,
+  K8s,
+  registerClusterChooser,
+  registerClusterEmptyState,
+} from '@kinvolk/headlamp-plugin/lib';
 import { Button } from '@mui/material';
 
 /** Props for the ClusterChooserButton component. */
@@ -37,8 +43,20 @@ export function ClusterChooserButton({ clickHandler, cluster }: ClusterChooserBu
   );
 }
 
+/** Demonstrates how a product can extend Headlamp's no-cluster experience. */
+export function CustomClusterEmptyState({ defaultContent }: ClusterEmptyStateProps) {
+  return (
+    <section>
+      <p>Choose a cluster provider</p>
+      {defaultContent}
+    </section>
+  );
+}
+
 // Replaces the default cluster chooser in the top bar with a button that shows
 // the current cluster name and total number of configured clusters (e.g. "Cluster: minikube (3 clusters)").
 registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => (
   <ClusterChooserButton clickHandler={clickHandler} cluster={cluster} />
 ));
+
+registerClusterEmptyState(CustomClusterEmptyState);

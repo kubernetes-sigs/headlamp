@@ -75,6 +75,20 @@ describe('getCluster', () => {
 
       expect(getCluster()).toBe('test-cluster');
     });
+
+    it('should decode an opaque logout landing path without normalizing the cluster', () => {
+      vi.mocked(getBaseUrl.getBaseUrl).mockReturnValue('/base');
+      window.location.pathname = '/base/encoded-clusters/dGVhbS8uLi9wcm9k/login';
+
+      expect(getCluster()).toBe('team/../prod');
+    });
+
+    it('should reject a malformed opaque logout landing path', () => {
+      vi.mocked(getBaseUrl.getBaseUrl).mockReturnValue('');
+      window.location.pathname = '/encoded-clusters/not+base64/login';
+
+      expect(getCluster()).toBeNull();
+    });
   });
 
   describe('Electron Environment', () => {
@@ -98,6 +112,12 @@ describe('getCluster', () => {
       window.location.hash = '';
 
       expect(getCluster()).toBeNull();
+    });
+
+    it('should decode an opaque logout landing path from the hash', () => {
+      window.location.hash = '#/encoded-clusters/dGVhbS9jbHVzdGVy/login';
+
+      expect(getCluster()).toBe('team/cluster');
     });
   });
 });

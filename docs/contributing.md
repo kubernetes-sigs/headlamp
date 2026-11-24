@@ -5,7 +5,7 @@ sidebar_position: 4
 ---
 
 This section has information on how to contribute to Headlamp. It assumes you have cloned
-this repository (or your own Github fork).
+this repository (or your own GitHub fork).
 Any contributions to the project are accepted under the terms of the project's
 license ([Apache 2.0](https://github.com/kubernetes-sigs/headlamp/blob/main/LICENSE)).
 
@@ -55,7 +55,8 @@ Follow these steps when submitting a PR to ensure it meets the project’s stand
 Run the following commands from your project directory:
 
 - `npm run frontend:test` - Run the test suite
-- `npm run frontend:lint` - Format your code to match the project
+- `npm run frontend:lint` - Check code for lint and formatting issues
+- `npm run frontend:lint:fix` - Automatically fix lint and formatting issues where possible
 
 These steps ensure your code is functional, well-typed, and formatted consistently.
 
@@ -187,8 +188,12 @@ out Kinvolk's
 
 ## Testing
 
-The frontend is tested via Storybook-related snapshots. So new components should have
-an associated story when possible.
+Major new functionality must include automated tests that exercise the new
+behavior. These tests must be part of the project's automated test suite, and
+reviewers must verify that they are included before approving the pull request.
+
+The frontend test suite includes Storybook-related tests. New components should
+have an associated story when possible.
 
 For running the frontend tests, use the following command:
 
@@ -203,3 +208,27 @@ npm run backend:test
 ```
 
 Tests will run as part of the CI after a Pull Request is open.
+
+## Code review standards
+
+Pull requests are merged through Prow/Tide only after receiving both `lgtm`
+from a `reviewers` member (`headlamp-reviewers` or `headlamp-maintainers` in
+[OWNERS](https://github.com/kubernetes-sigs/headlamp/blob/main/OWNERS)) and
+`approved` from an `approvers` member (`headlamp-maintainers` in `OWNERS`).
+Because a PR author cannot apply `lgtm` to their own PR, every merged change
+requires review by at least one other person in addition to the author.
+
+Before applying `lgtm` or `approve`, reviewers verify that:
+
+- **Correctness and regressions:** The change solves the stated problem, handles
+  edge cases, and does not introduce regressions.
+- **Security and sensitive paths:** Untrusted inputs, authentication/RBAC,
+  credentials, and manual-review-only files (such as `.github/workflows/*`,
+  `Dockerfile*`, `charts/`, `kubernetes-*.yaml`, `SECURITY.md`,
+  `SECURITY_CONTACTS`, `OWNERS`, `OWNERS_ALIASES`, `LICENSE`, `NOTICE`, and
+  `code-of-conduct.md`) are reviewed carefully.
+- **Tests and CI:** Major new behavior and bug fixes include automated tests
+  (see [Testing](#testing)), and required CI, lint, and formatting checks pass.
+- **Scope and commit hygiene:** Changes stay focused on a single purpose without
+  unrelated refactors, and commits follow the [commit guidelines](#2-follow-commit-guidelines)
+  with a linear history.

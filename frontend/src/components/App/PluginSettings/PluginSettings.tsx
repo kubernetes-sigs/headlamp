@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import Accordion from '@mui/material/Accordion';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import AccordionSummary from '@mui/material/AccordionSummary';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip, { ChipProps } from '@mui/material/Chip';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Link from '@mui/material/Link';
 import { SxProps, Theme, useTheme } from '@mui/material/styles';
 import { SwitchProps } from '@mui/material/Switch';
@@ -24,17 +29,17 @@ import Switch from '@mui/material/Switch';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { MRT_Row } from 'material-react-table';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { isElectron } from '../../../helpers/isElectron';
 import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { Link as HeadlampLink } from '../../common/';
 import ActionButton from '../../common/ActionButton';
 import SectionBox from '../../common/SectionBox';
-import SectionFilterHeader from '../../common/SectionFilterHeader';
 import Table from '../../common/Table';
 import { usePluginDelete } from './usePluginDelete';
 
@@ -52,6 +57,9 @@ export interface PluginSettingsPureProps {
   onSave: (plugins: PluginInfo[]) => void;
   onDelete?: (plugin: PluginInfo) => Promise<void> | void;
   saveAlwaysEnable?: boolean;
+  showDevelopmentPluginsSetting?: boolean;
+  developmentPluginsEnabled?: boolean;
+  onDevelopmentPluginsChange?: (enabled: boolean) => void;
 }
 
 /** PluginSettingsProp intentially left empty to remain malleable */
@@ -119,6 +127,16 @@ const EnableSwitch = (props: SwitchProps) => {
 /** PluginSettingsPure is the main component to where we render the plugin data. */
 export function PluginSettingsPure(props: PluginSettingsPureProps) {
   const { t } = useTranslation(['translation']);
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
+  const advancedId = useId();
+  const advancedSummaryRef = useRef<HTMLDivElement>(null);
+
+  function revealDevelopmentSettings() {
+    setAdvancedExpanded(true);
+    requestAnimationFrame(() => {
+      advancedSummaryRef.current?.focus();
+    });
+  }
 
   /** Plugin arr to be rendered to the page from prop data */
   const pluginArr: any = props.plugins ? props.plugins : [];
@@ -142,7 +160,8 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
         displayName: name ?? plugin.name,
         origin: plugin.origin ?? author?.substring(1) ?? t('translation|Unknown'),
         // If the plugin is not loaded, ensure it's disabled
-        isEnabled: plugin.isLoaded === false ? false : plugin.isEnabled,
+        isEnabled:
+          plugin.isLoaded === false && !plugin.isDevelopmentModeBlocked ? false : plugin.isEnabled,
       };
     })
   );
@@ -245,9 +264,31 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
   return (
     <>
       <SectionBox
-        title={<SectionFilterHeader title={t('translation|Plugins')} noNamespaceFilter />}
+        title={t('translation|Plugin Settings')}
+        headerProps={{ headerStyle: 'main' }}
+        backLink
       >
+        {pluginChanges.length === 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '3.5rem', mb: 2 }}>
+            <Typography component="h2" variant="h4" sx={theme => theme.palette.headerStyle.label}>
+              {t('translation|Installed Plugins')}
+            </Typography>
+          </Box>
+        )}
         <Table
+          hideEmptyBottomToolbar
+          muiTopToolbarProps={{
+            sx: { height: '3.5rem', mb: 2, backgroundColor: 'transparent' },
+          }}
+          renderTopToolbarCustomActions={() => (
+            <Typography
+              component="h2"
+              variant="h4"
+              sx={theme => ({ ...theme.palette.headerStyle.label, ml: -1 })}
+            >
+              {t('translation|Installed Plugins')}
+            </Typography>
+          )}
           columns={[
             {
               header: t('translation|Name'),
@@ -351,6 +392,37 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
             {
               header: t('translation|Status'),
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
+                if (plugin.isDevelopmentModeBlocked) {
+                  return (
+                    <Tooltip
+                      title={t(
+                        'translation|Enable "Load development plugins" in Advanced to load this plugin'
+                      )}
+                    >
+                      <Chip
+                        label={t('translation|Not Loaded')}
+                        component={props.showDevelopmentPluginsSetting ? 'button' : 'span'}
+                        role={props.showDevelopmentPluginsSetting ? undefined : 'note'}
+                        onClick={
+                          props.showDevelopmentPluginsSetting
+                            ? revealDevelopmentSettings
+                            : undefined
+                        }
+                        aria-controls={
+                          props.showDevelopmentPluginsSetting ? `${advancedId}-content` : undefined
+                        }
+                        tabIndex={0}
+                        aria-label={`${t('translation|Not Loaded')}. ${t(
+                          'translation|Enable "Load development plugins" in Advanced to load this plugin'
+                        )}`}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                      />
+                    </Tooltip>
+                  );
+                }
+
                 if (plugin.isCompatible === false) {
                   return (
                     <Tooltip
@@ -406,7 +478,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
               header: t('translation|Enable'),
               accessorFn: (plugin: PluginInfo) => plugin.isEnabled,
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
-                if (!plugin.isCompatible || !isElectron()) {
+                if (plugin.isDevelopmentModeBlocked || !plugin.isCompatible || !isElectron()) {
                   return null;
                 }
 
@@ -481,6 +553,79 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
             return {};
           }}
         />
+        {props.showDevelopmentPluginsSetting && (
+          <Accordion
+            expanded={advancedExpanded}
+            onChange={(_event, expanded) => setAdvancedExpanded(expanded)}
+            disableGutters
+            elevation={0}
+            sx={{
+              mt: 4,
+              mb: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              '&:before': { display: 'none' },
+            }}
+          >
+            <AccordionSummary
+              ref={advancedSummaryRef}
+              id={`${advancedId}-header`}
+              aria-controls={`${advancedId}-content`}
+              expandIcon={<ExpandMoreIcon />}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  flexWrap: 'wrap',
+                  columnGap: 2,
+                }}
+              >
+                <Typography component="h2" variant="subtitle1">
+                  {t('translation|Advanced')}
+                </Typography>
+                {props.developmentPluginsEnabled && (
+                  <Typography component="span" variant="body2" color="text.secondary">
+                    {t('translation|Development plugins enabled')}
+                  </Typography>
+                )}
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              <FormControlLabel
+                sx={{ alignItems: 'flex-start', ml: 0, mr: 0 }}
+                control={
+                  <Switch
+                    color="primary"
+                    checked={props.developmentPluginsEnabled === true}
+                    onChange={event => props.onDevelopmentPluginsChange?.(event.target.checked)}
+                    inputProps={{
+                      'aria-labelledby': 'development-plugins-label',
+                      'aria-describedby': 'development-plugins-description',
+                    }}
+                    sx={{ flexShrink: 0 }}
+                  />
+                }
+                label={
+                  <Box sx={{ pt: 0.75 }}>
+                    <Typography id="development-plugins-label">
+                      {t('translation|Load development plugins')}
+                    </Typography>
+                    <Typography
+                      id="development-plugins-description"
+                      variant="body2"
+                      color="text.secondary"
+                    >
+                      {t(
+                        'translation|Load plugins from your local development directory. Only enable this when you trust every plugin in that directory.'
+                      )}
+                    </Typography>
+                  </Box>
+                }
+              />
+            </AccordionDetails>
+          </Accordion>
+        )}
       </SectionBox>
       {enableSave && isElectron() && (
         <Box
@@ -510,10 +655,37 @@ export default function PluginSettings() {
   const dispatch = useDispatch();
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
   const handleDelete = usePluginDelete();
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PLUGIN_LIST_VIEW);
+  const showDevelopmentPluginsSetting = isElectron() && window.desktopApi?.isDevelopment !== true;
+  const [developmentPluginsEnabled, setDevelopmentPluginsEnabled] = useState(false);
+
+  useEffect(() => {
+    dispatchHeadlampEvent({ plugins: pluginSettings });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pluginSettings]);
+
+  useEffect(() => {
+    if (!showDevelopmentPluginsSetting) {
+      return;
+    }
+
+    const unsubscribe = window.desktopApi?.receive(
+      'development-plugins',
+      setDevelopmentPluginsEnabled
+    );
+    window.desktopApi?.send('request-development-plugins');
+    return unsubscribe;
+  }, [showDevelopmentPluginsSetting]);
 
   return (
     <PluginSettingsPure
       plugins={pluginSettings}
+      showDevelopmentPluginsSetting={showDevelopmentPluginsSetting}
+      developmentPluginsEnabled={developmentPluginsEnabled}
+      onDevelopmentPluginsChange={enabled => {
+        setDevelopmentPluginsEnabled(enabled);
+        window.desktopApi?.send('set-development-plugins', enabled);
+      }}
       onSave={plugins => {
         dispatch(setPluginSettings(plugins));
         dispatch(reloadPage());

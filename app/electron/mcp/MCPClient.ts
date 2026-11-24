@@ -15,8 +15,10 @@
  */
 
 import type { DynamicStructuredTool } from '@langchain/core/dist/tools/index';
-import { MultiServerMCPClient } from '@langchain/mcp-adapters';
-import { type BrowserWindow, dialog, ipcMain } from 'electron';
+import { type BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { isTrustedDocumentUrl } from '../secureStorage';
+import { mcpDebugInfo, mcpDebugLog } from './debug';
+import type { MultiServerMCPClient } from './MCPAdapter';
 import {
   hasClusterDependentServers,
   loadMCPSettings,
@@ -32,8 +34,6 @@ import {
   showToolsConfigConfirmationDialog,
   validateToolArgs,
 } from './MCPToolStateStore';
-
-const DEBUG = true;
 
 /**
  * MCPClient
@@ -67,35 +67,89 @@ export default class MCPClient {
   private isInitialized = false;
   /** Promise tracking ongoing initialization to prevent duplicate initializations */
   private initializationPromise: Promise<void> | null = null;
+  /** Promise queue that serializes client cleanup, reset, update, and restart mutations. */
+  private lifecycleMutationPromise: Promise<void> = Promise.resolve();
 
   private settingsPath: string;
   private clusters: string[] = [];
 
   private currentClusters: string[] | null = null;
-  private oldClusters: string[] | null = null;
 
-  constructor(configPath: string, settingsPath: string) {
+  /**
+   * Creates an MCP client whose server adapter remains dormant until first use.
+   *
+   * @param configPath - Path to the persisted MCP tool configuration.
+   * @param settingsPath - Path to the persisted MCP server settings.
+   * @param ensureCertificates - Initializes certificate trust before networking.
+   * @param trustedStartUrl - Exact Headlamp document URL authorized to invoke MCP IPC.
+   */
+  constructor(
+    configPath: string,
+    settingsPath: string,
+    private readonly ensureCertificates: () => void = () => {},
+    private readonly trustedStartUrl?: string
+  ) {
     this.configPath = configPath;
     this.settingsPath = settingsPath;
     this.setupIpcHandlers();
   }
 
+  private summarizeMCPSettings(mcpSettings: MCPSettings) {
+    return {
+      enabled: mcpSettings.enabled,
+      serverCount: mcpSettings.servers.length,
+      enabledServerCount: mcpSettings.servers.filter(server => server.enabled).length,
+    };
+  }
+
+  private summarizeMCPToolsConfig(toolsConfig: MCPToolsConfig) {
+    const serverNames = Object.keys(toolsConfig);
+    let toolCount = 0;
+    let enabledToolCount = 0;
+
+    for (const serverName of serverNames) {
+      const tools = Object.values(toolsConfig[serverName] ?? {});
+
+      toolCount += tools.length;
+      enabledToolCount += tools.filter(tool => tool.enabled).length;
+    }
+
+    return {
+      serverCount: serverNames.length,
+      toolCount,
+      enabledToolCount,
+    };
+  }
+
   /**
-   * Initialize the MCP client.
+   * Runs a client lifecycle mutation after all earlier mutations complete.
+   *
+   * @param mutation - Mutation that may close, reset, or initialize the client.
+   * @returns The mutation result.
+   */
+  private enqueueLifecycleMutation<Result>(mutation: () => Promise<Result>): Promise<Result> {
+    const result = this.lifecycleMutationPromise.then(mutation);
+    this.lifecycleMutationPromise = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
+  }
+
+  /**
+   * Initialize lightweight MCP state only. The adapter and configured servers
+   * stay out of memory until the first tool execution.
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
       return;
     }
     this.mcpToolState = new MCPToolStateStore(this.configPath);
-
-    await this.initializeClient();
+    await this.mcpToolState.initialize();
 
     this.initialized = true;
 
-    if (DEBUG) {
-      console.info('MCPClient: initialized');
-    }
+    mcpDebugInfo('MCPClient: initialized');
   }
 
   /**
@@ -104,12 +158,10 @@ export default class MCPClient {
    * @return Promise that resolves when initialization is complete.
    */
   private async initializeClient(): Promise<void> {
-    if (DEBUG) {
-      console.log('MCPClient: initializeClient: ', {
-        isInitialized: this.isInitialized,
-        initializationPromise: this.initializationPromise,
-      });
-    }
+    mcpDebugLog('MCPClient: initializeClient: ', {
+      isInitialized: this.isInitialized,
+      initializationPromise: this.initializationPromise,
+    });
 
     if (this.isInitialized) {
       return;
@@ -118,12 +170,18 @@ export default class MCPClient {
       return this.initializationPromise;
     }
 
-    if (DEBUG) {
-      console.log('MCPClient: initializeClient: Starting doInitialize()...');
-    }
+    mcpDebugLog('MCPClient: initializeClient: Starting doInitialize()...');
 
-    this.initializationPromise = this.doInitializeClient();
-    return this.initializationPromise;
+    const initializationPromise = this.doInitializeClient();
+    this.initializationPromise = initializationPromise;
+
+    try {
+      await initializationPromise;
+    } finally {
+      if (this.initializationPromise === initializationPromise) {
+        this.initializationPromise = null;
+      }
+    }
   }
 
   /**
@@ -137,19 +195,18 @@ export default class MCPClient {
 
       // If no enabled servers, skip initialization
       if (Object.keys(mcpServers).length === 0) {
-        if (DEBUG) {
-          console.log('MCPClient: doInitialize: No enabled MCP servers found');
-        }
+        mcpDebugLog('MCPClient: doInitialize: No enabled MCP servers found');
         this.isInitialized = true;
         return;
       }
-      if (DEBUG) {
-        console.log(
-          'MCPClient: doInitialize: Initializing MCP client with servers:',
-          Object.keys(mcpServers)
-        );
-      }
-      this.client = new MultiServerMCPClient({
+      mcpDebugLog(
+        'MCPClient: doInitialize: Initializing MCP client with servers:',
+        Object.keys(mcpServers)
+      );
+      this.ensureCertificates();
+      // Importing here keeps the large adapter graph out of startup memory.
+      const { MultiServerMCPClient } = await import('./MCPAdapter');
+      const client = new MultiServerMCPClient({
         throwOnLoadError: false, // Don't throw on load error to allow partial initialization
         prefixToolNameWithServerName: true, // Prefix to avoid name conflicts
         additionalToolNamePrefix: '',
@@ -158,17 +215,15 @@ export default class MCPClient {
         defaultToolTimeout: 2 * 60 * 1000, // 2 minutes
       });
       // Get and cache the tools
-      this.clientTools = await this.client.getTools();
+      const clientTools = await client.getTools();
+      this.client = client;
+      this.clientTools = clientTools;
       this.mcpToolState?.initConfigFromClientTools(this.clientTools);
 
       this.isInitialized = true;
-      if (DEBUG) {
-        console.log(
-          'MCPClient: doInitialize: MCP client initialized successfully with',
-          this.clientTools.length,
-          'tools'
-        );
-      }
+      mcpDebugLog('MCPClient: doInitialize: MCP client initialized successfully with tools:', {
+        count: this.clientTools.length,
+      });
     } catch (error) {
       console.error('Failed to initialize MCP client:', error);
       this.client = null;
@@ -182,11 +237,26 @@ export default class MCPClient {
    * Clean up resources used by the MCP client.
    */
   async cleanup(): Promise<void> {
+    return this.enqueueLifecycleMutation(() => this.applyCleanup());
+  }
+
+  /** Cleans up resources after earlier lifecycle mutations complete. */
+  private async applyCleanup(): Promise<void> {
     if (!this.initialized) {
       return;
     }
     this.mainWindow = null;
     this.initialized = false;
+
+    // A first-use client remains local until tool discovery completes. Wait for
+    // it to publish before closing so cleanup cannot leave an orphaned server.
+    if (this.initializationPromise) {
+      try {
+        await this.initializationPromise;
+      } catch {
+        // Initialization reports its own error; cleanup still resets all state.
+      }
+    }
 
     if (this.client) {
       try {
@@ -200,9 +270,7 @@ export default class MCPClient {
     this.isInitialized = false;
     this.initializationPromise = null;
 
-    if (DEBUG) {
-      console.info('MCPClient: cleaned up');
-    }
+    mcpDebugInfo('MCPClient: cleaned up');
   }
 
   /**
@@ -214,35 +282,69 @@ export default class MCPClient {
     this.mainWindow = win;
   }
 
+  private normalizeClusters(clusters: string[] | null): string[] | null {
+    if (clusters === null) {
+      return null;
+    }
+
+    return [...new Set(clusters)].sort();
+  }
+
   /**
    * Handle clusters change notification.
    *
-   * @param clusters - The new active clusters array, or null if none.
+   * @param newClusters - The new active clusters array, or null if none.
    */
   async handleClustersChange(newClusters: string[] | null): Promise<void> {
-    if (DEBUG) {
-      console.info('MCPClient: clusters changed ->', newClusters);
-    }
+    return this.enqueueLifecycleMutation(() => this.applyClustersChange(newClusters));
+  }
+
+  /**
+   * Applies one cluster context update after earlier updates have completed.
+   *
+   * @param newClusters - The new active clusters array, or null if none.
+   */
+  private async applyClustersChange(newClusters: string[] | null): Promise<void> {
+    mcpDebugInfo('MCPClient: clusters changed ->', newClusters);
 
     if (!this.initialized) {
       throw new Error('MCPClient: not initialized');
     }
 
-    // If cluster hasn't actually changed, do nothing.
-    if (JSON.stringify(this.currentClusters) === JSON.stringify(newClusters)) {
+    const normalizedClusters = this.normalizeClusters(newClusters);
+    const oldConfiguredClusters = this.clusters;
+    this.clusters = [...(newClusters ?? [])];
+
+    // Ignore secondary order, but keep the first/current cluster significant.
+    if (
+      JSON.stringify(this.currentClusters) === JSON.stringify(normalizedClusters) &&
+      oldConfiguredClusters[0] === this.clusters[0]
+    ) {
       return;
     }
 
     const oldClusters = this.currentClusters;
-    this.currentClusters = newClusters;
-
-    // Check if we have any cluster-dependent servers
-    if (!hasClusterDependentServers(this.settingsPath)) {
-      console.log('No cluster-dependent MCP servers found, skipping restart');
-      return;
-    }
+    this.currentClusters = normalizedClusters;
 
     try {
+      // An initialization already captured the previous cluster context. Wait
+      // for it to finish before deciding whether an active client needs restart.
+      if (this.initializationPromise) {
+        await this.initializationPromise;
+      }
+
+      // Recording context must not start configured servers or load the adapter.
+      if (!this.client) {
+        mcpDebugLog('MCP client not yet started, skipping cluster-change restart');
+        return;
+      }
+
+      // Check if we have any cluster-dependent servers
+      if (!hasClusterDependentServers(this.settingsPath)) {
+        mcpDebugLog('No cluster-dependent MCP servers found, skipping restart');
+        return;
+      }
+
       // Reset the client
       if (this.client) {
         if (typeof (this.client as any).close === 'function') {
@@ -254,11 +356,12 @@ export default class MCPClient {
       this.initializationPromise = null;
       // Re-initialize with new cluster context
       await this.initializeClient();
-      console.log('MCP client restarted successfully for new cluster:', newClusters);
+      mcpDebugLog('MCP client restarted successfully for new cluster:', newClusters);
     } catch (error) {
       console.error('Error restarting MCP client for cluster change:', error);
       // Restore previous cluster on error
       this.currentClusters = oldClusters;
+      this.clusters = oldConfiguredClusters;
       throw error;
     }
   }
@@ -273,7 +376,6 @@ export default class MCPClient {
    * @returns Result object containing success status and output or error message
    */
   private async mcpExecuteTool(toolName: string, args: any[], toolCallId: string) {
-    console.log('args in mcp-execute-tool:', args);
     if (!this.mcpToolState) {
       return;
     }
@@ -301,10 +403,14 @@ export default class MCPClient {
       if (!validation.valid) {
         throw new Error(`Parameter validation failed: ${validation.error}`);
       }
-      console.log(`Executing MCP tool: ${toolName} with args:`, args);
+      mcpDebugLog('Executing MCP tool:', {
+        toolName,
+      });
       // Execute the tool directly using LangChain's invoke method
       const result = await tool.invoke(args);
-      console.log(`MCP tool ${toolName} executed successfully`);
+      mcpDebugLog('MCP tool executed successfully:', {
+        toolName,
+      });
       // Record tool usage
       this.mcpToolState.recordToolUsage(serverName, actualToolName);
       return {
@@ -348,23 +454,24 @@ export default class MCPClient {
         };
       }
 
-      console.log('Resetting MCP client...');
-
-      if (this.client) {
-        // If the client has a close/dispose method, call it
-        if (typeof (this.client as any).close === 'function') {
-          await (this.client as any).close();
+      mcpDebugLog('Resetting MCP client...');
+      return await this.enqueueLifecycleMutation(async () => {
+        if (this.client) {
+          // If the client has a close/dispose method, call it
+          if (typeof (this.client as any).close === 'function') {
+            await (this.client as any).close();
+          }
         }
-      }
 
-      this.client = null;
-      this.isInitialized = false;
-      this.initializationPromise = null;
+        this.client = null;
+        this.isInitialized = false;
+        this.initializationPromise = null;
 
-      // Re-initialize
-      await this.initializeClient();
+        // Re-initialize
+        await this.initializeClient();
 
-      return { success: true };
+        return { success: true };
+      });
     } catch (error) {
       console.error('Error resetting MCP client:', error);
       return {
@@ -381,7 +488,7 @@ export default class MCPClient {
       }
       // Get current configuration for comparison
       const currentSettings = loadMCPSettings(this.settingsPath);
-      console.log('Requested MCP configuration update:', mcpSettings);
+      mcpDebugLog('Requested MCP configuration update:', this.summarizeMCPSettings(mcpSettings));
       // Show detailed confirmation dialog with changes
       const userConfirmed = await showSettingsChangeDialog(
         this.mainWindow,
@@ -396,22 +503,30 @@ export default class MCPClient {
         };
       }
 
-      console.log('Updating MCP configuration with user confirmation...');
-      saveMCPSettings(this.settingsPath, mcpSettings);
+      mcpDebugLog('Updating MCP configuration with user confirmation...');
+      return await this.enqueueLifecycleMutation(async () => {
+        if (this.initializationPromise) {
+          await this.initializationPromise;
+        }
+        saveMCPSettings(this.settingsPath, mcpSettings);
 
-      // Reset and reinitialize client with new config
-      if (this.client && typeof this.client.close === 'function') {
-        await this.client.close();
-      }
-      this.client = null;
-      this.isInitialized = false;
-      this.initializationPromise = null;
+        const wasActive = this.client !== null;
+        if (this.client && typeof this.client.close === 'function') {
+          await this.client.close();
+        }
+        this.client = null;
+        this.clientTools = [];
+        this.isInitialized = false;
+        this.initializationPromise = null;
 
-      // Re-initialize with new config
-      await this.initializeClient();
+        // Keep unused servers out of memory; only reconnect a client that was already active.
+        if (wasActive) {
+          await this.initializeClient();
+        }
 
-      console.log('MCP configuration updated successfully');
-      return { success: true };
+        mcpDebugLog('MCP configuration updated successfully');
+        return { success: true };
+      });
     } catch (error) {
       console.error('Error updating MCP configuration:', error);
       return {
@@ -441,6 +556,9 @@ export default class MCPClient {
 
   private async mcpGetToolsConfig() {
     try {
+      // Tool inventory is an explicit MCP use, so discover configured tools on
+      // demand while keeping the adapter out of ordinary application startup.
+      await this.initializeClient();
       const toolsConfig = this.mcpToolState?.getConfig();
       return {
         success: true,
@@ -457,8 +575,11 @@ export default class MCPClient {
   }
 
   private async mcpUpdateToolsConfig(toolsConfig: MCPToolsConfig) {
-    console.log('Requested MCP tools configuration update:', toolsConfig);
     try {
+      mcpDebugLog(
+        'Requested MCP tools configuration update:',
+        this.summarizeMCPToolsConfig(toolsConfig)
+      );
       if (!this.mainWindow) {
         throw new Error('Main window not set for MCP client');
       }
@@ -520,11 +641,9 @@ export default class MCPClient {
 
   private async mcpClusterChange(cluster: string | null) {
     try {
-      console.log('Received cluster change event:', cluster);
-      if (cluster !== null) {
-        // @todo: support multiple clusters
-        await this.handleClustersChange([cluster]);
-      }
+      mcpDebugLog('Received cluster change event:', cluster);
+      // @todo: support multiple clusters
+      await this.handleClustersChange(cluster === null ? null : [cluster]);
       return {
         success: true,
       };
@@ -537,32 +656,50 @@ export default class MCPClient {
     }
   }
 
+  private assertTrustedIpcEvent(event: IpcMainInvokeEvent): void {
+    if (
+      !this.mainWindow ||
+      event.sender !== this.mainWindow.webContents ||
+      event.senderFrame !== this.mainWindow.webContents.mainFrame ||
+      (this.trustedStartUrl !== undefined &&
+        !isTrustedDocumentUrl(event.senderFrame.url, this.trustedStartUrl))
+    ) {
+      throw new Error('MCP IPC request rejected');
+    }
+  }
+
   /**
    * Setup IPC handlers for MCP operations.
    */
   private setupIpcHandlers(): void {
-    ipcMain?.handle('mcp-execute-tool', async (event, { toolName, args, toolCallId }) =>
+    const handle = <Arguments extends unknown[], Result>(
+      channel: string,
+      handler: (...args: Arguments) => Result
+    ) => {
+      ipcMain?.handle(channel, (event, ...args: Arguments) => {
+        this.assertTrustedIpcEvent(event);
+        return handler(...args);
+      });
+    };
+
+    handle('mcp-execute-tool', ({ toolName, args, toolCallId }) =>
       this.mcpExecuteTool(toolName, args, toolCallId)
     );
-    ipcMain?.handle('mcp-get-status', async () => this.mcpGetStatus());
-    ipcMain?.handle('mcp-reset-client', async () => this.mcpResetClient());
-    ipcMain?.handle('mcp-update-config', async (event, mcpSettings: MCPSettings) =>
-      this.mcpUpdateConfig(mcpSettings)
-    );
-    ipcMain?.handle('mcp-get-config', async () => this.mcpGetConfig());
-    ipcMain?.handle('mcp-get-tools-config', async () => this.mcpGetToolsConfig());
-    ipcMain?.handle('mcp-update-tools-config', async (event, toolsConfig: MCPToolsConfig) =>
+    handle('mcp-get-status', () => this.mcpGetStatus());
+    handle('mcp-reset-client', () => this.mcpResetClient());
+    handle('mcp-update-config', (mcpSettings: MCPSettings) => this.mcpUpdateConfig(mcpSettings));
+    handle('mcp-get-config', () => this.mcpGetConfig());
+    handle('mcp-get-tools-config', () => this.mcpGetToolsConfig());
+    handle('mcp-update-tools-config', (toolsConfig: MCPToolsConfig) =>
       this.mcpUpdateToolsConfig(toolsConfig)
     );
-    ipcMain?.handle('mcp-set-tool-enabled', async (event, { serverName, toolName, enabled }) =>
+    handle('mcp-set-tool-enabled', ({ serverName, toolName, enabled }) =>
       this.mcpSetToolEnabled(serverName, toolName, enabled)
     );
-    ipcMain?.handle('mcp-get-tool-stats', async (event, { serverName, toolName }) =>
+    handle('mcp-get-tool-stats', ({ serverName, toolName }) =>
       this.mcpGetToolStats(serverName, toolName)
     );
-    ipcMain?.handle('mcp-cluster-change', async (event, { cluster }) =>
-      this.mcpClusterChange(cluster)
-    );
+    handle('mcp-cluster-change', ({ cluster }) => this.mcpClusterChange(cluster));
   }
 }
 

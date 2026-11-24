@@ -1,9 +1,35 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import chalk from 'chalk';
-import { getRelease, checkArtifactsForRelease, checkExtendedAssets } from '../utils/github.js';
-import { sanitizeVersion } from '../utils/version.js';
+import {
+  getRelease,
+  checkArtifactsForRelease,
+  checkExtendedAssets,
+  getTagVerification,
+  evaluateReleaseTag,
+} from '../utils/github.js';
+import { sanitizeVersion, isValidVersion } from '../utils/version.js';
 
 export async function checkRelease(releaseVersion: string): Promise<void> {
   const version = sanitizeVersion(releaseVersion);
+  if (!isValidVersion(version)) {
+    console.error(chalk.red(`Error: Invalid semantic version format "${version}".`));
+    process.exit(1);
+  }
   console.log(chalk.blue(`Checking release for version ${version}...`));
 
   try {
@@ -34,9 +60,17 @@ export async function checkRelease(releaseVersion: string): Promise<void> {
     const artifactsComplete = await checkArtifactsForRelease(release);
 
     if (artifactsComplete) {
-      console.log(chalk.green('✅ All required artifacts (Mac, Linux, Windows) are present'));
+      console.log(chalk.green('✅ All required artifacts (Mac, Linux, Windows, the checksums signature, and provenance) are present'));
     } else {
       console.error(chalk.red('❌ Some required artifacts are missing from the release'));
+    }
+
+    const tagCheck = evaluateReleaseTag(version, await getTagVerification(version), release.draft);
+    const tagColors = { ok: chalk.green, info: chalk.blue, warn: chalk.yellow, error: chalk.red };
+    const tagIcons = { ok: '✅', info: 'ℹ️ ', warn: '⚠️ ', error: '❌' };
+    console.log(tagColors[tagCheck.level](`${tagIcons[tagCheck.level]} ${tagCheck.message}`));
+
+    if (!artifactsComplete || tagCheck.level === 'error') {
       process.exit(1);
     }
 

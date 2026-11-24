@@ -94,13 +94,14 @@ function copyPackageLock() {
   // Use a replacer function so the replacement string is inserted literally as $${name}
   packageLockContent = packageLockContent.replace(new RegExp(packageName, 'g'), () => '$${name}');
 
-  // replace in template/package-lock.json  "@kinvolk/headlamp-plugin": "file:../kinvolk-headlamp-plugin-<version>.tgz"
-  // with the version field of from ./package.json with a ^ in front
+  // Replace the packed dependency with the version placeholder used by generated plugins.
   const mainPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const pluginVersion = mainPackageJson.version;
   const tgzPattern = new RegExp(`"@kinvolk/headlamp-plugin": "file:\\.\\./${tgzFile.replace(/\./g, '\\.')}"`, 'g');
-  const replacementString = `"@kinvolk/headlamp-plugin": "^${pluginVersion}"`;
-  packageLockContent = packageLockContent.replace(tgzPattern, replacementString);
+  packageLockContent = packageLockContent.replace(
+    tgzPattern,
+    () => '"@kinvolk/headlamp-plugin": "^$${headlamp-plugin-version}"'
+  );
 
   // Also replace the resolved fields for @kinvolk/headlamp-plugin in 
   // template/package-lock.json to match the version from main package.json
@@ -115,7 +116,18 @@ function copyPackageLock() {
   const resolvedPattern = new RegExp(`"resolved": "file:\\.\\./${tgzFile.replace(/\./g, '\\.')}"`, 'g');
   const resolvedReplacement = `"resolved": "https://registry.npmjs.org/@kinvolk/headlamp-plugin/-/headlamp-plugin-${pluginVersion}.tgz"`;
   packageLockContent = packageLockContent.replace(resolvedPattern, resolvedReplacement);
-    
+
+  // Leave out the integrity of @kinvolk/headlamp-plugin. It's the one of the local
+  // "npm pack" above, and the published package never matches it (it even contains
+  // this file), so "npm ci" would fail with EINTEGRITY after "create --noinstall".
+  // "create" sets the integrity from the npm registry when it installs.
+  const packageLock = JSON.parse(packageLockContent);
+  const headlampPluginLock = packageLock.packages?.['node_modules/@kinvolk/headlamp-plugin'];
+  if (headlampPluginLock) {
+    delete headlampPluginLock.integrity;
+  }
+  packageLockContent = JSON.stringify(packageLock, null, 2) + '\n';
+
   fs.writeFileSync('template/package-lock.json', packageLockContent);
   console.log('copy_package_lock: Updated template/package-lock.json');
 }

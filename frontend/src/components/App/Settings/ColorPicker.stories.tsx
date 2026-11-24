@@ -30,6 +30,11 @@ const meta: Meta<typeof ColorPicker> = {
       </I18nextProvider>
     ),
   ],
+  parameters: {
+    // The first story pays the picker's warm-up cost (about 0.5s alone), which can exceed the
+    // default 5s storyshot timeout when the whole frontend suite runs in parallel.
+    storyshots: { timeout: 30_000 },
+  },
 };
 
 export default meta;

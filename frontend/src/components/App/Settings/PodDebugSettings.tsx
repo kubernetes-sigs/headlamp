@@ -49,6 +49,7 @@ export default function PodDebugSettings(props: SettingsProps) {
     useTypedSelector(state => state.config?.defaultPodDebugImage) || DEFAULT_POD_DEBUG_IMAGE;
 
   const podDebugLabelID = 'pod-debug-enabled-label';
+  const debugImageLabelID = 'debug-image-label';
 
   const image = clusterSettings.podDebugTerminal?.debugImage ?? '';
   const isEnabled = clusterSettings.podDebugTerminal?.isEnabled ?? true;
@@ -67,7 +68,7 @@ export default function PodDebugSettings(props: SettingsProps) {
           {
             name: (
               <HoverInfoLabel
-                label={<span id={podDebugLabelID}>Enable Pod Debug</span>}
+                label={<span id={podDebugLabelID}>{t('translation|Enable Pod Debug')}</span>}
                 hoverInfo={t(
                   'translation|Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.'
                 )}
@@ -82,15 +83,18 @@ export default function PodDebugSettings(props: SettingsProps) {
             ),
           },
           {
-            name: 'Debug Image',
+            name: <span id={debugImageLabelID}>{t('translation|Debug Image')}</span>,
             value: (
               <TextField
                 onChange={event => {
-                  const value = event.target.value.replace(' ', '');
+                  const value = event.target.value.replace(/\s/g, '');
                   updatePodDebug({ debugImage: value });
                 }}
                 value={image}
                 placeholder={defaultPodDebugImage}
+                inputProps={{
+                  'aria-labelledby': debugImageLabelID,
+                }}
                 helperText={t(
                   'translation|The default image is used for creating ephemeral debug containers.'
                 )}

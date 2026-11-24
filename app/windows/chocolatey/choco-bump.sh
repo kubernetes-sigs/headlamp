@@ -1,4 +1,19 @@
 #!/bin/bash -e
+
+# Copyright 2025 The Kubernetes Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #
 # This script helps updating the version of Headlamp for the Chocolatey repository.
 #
@@ -14,7 +29,7 @@ Bump Headlamp's version for the chocolatey entry.
   VERSION             Headlamp's new version
   CHECKSUM            The Windows binary SHA256 checksum
 
-The VERSION and CHECKSUM can be ommitted if the --file option is used.
+The VERSION and CHECKSUM can be omitted if the --file option is used.
 
 Optional:
 

@@ -15,13 +15,13 @@
  */
 
 import { useMemo } from 'react';
-import { ResourceClasses } from '.';
 import { request } from './api/v1/clusterRequests';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import type { KubeMetadata } from './KubeMetadata';
 import type { KubeObjectClass } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import { ResourceClasses } from './resourceClasses';
 
 export interface KubeEvent {
   type: string;

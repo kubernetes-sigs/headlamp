@@ -9,6 +9,7 @@ DOCKER_EXT_REPO ?= docker.io/headlamp
 DOCKER_IMAGE_NAME ?= headlamp
 DOCKER_PLUGINS_IMAGE_NAME ?= plugins
 DOCKER_IMAGE_VERSION ?= $(shell git describe --tags --match 'v*' --always --dirty)
+HEADLAMP_SOURCE_COMMIT ?= $(shell git rev-parse HEAD)
 DOCKER_IMAGE_EXTRA_TAG ?=
 # Detect platform (Windows, macOS, Linux)
 ifeq ($(OS),Windows_NT)
@@ -26,15 +27,21 @@ else
         DOCKER_PLATFORM ?= local
     endif
 endif
+# The plugins container follows the host platform by default, like the main
+# image. Override to cross-build, e.g. DOCKER_PLUGINS_PLATFORM=linux/amd64.
+DOCKER_PLUGINS_PLATFORM ?= $(DOCKER_PLATFORM)
 DOCKER_PUSH ?= false
 EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
 APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
 APP_NAME ?= $(shell node -p "require('./app/package.json').productName" 2>/dev/null || echo "Headlamp")
-# Build flags with version and app name
-BUILD_VERSION_FLAGS := -ldflags="-X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
+APP_VERSION := $(APP_VERSION)
+APP_NAME := $(APP_NAME)
+export APP_VERSION APP_NAME
+# The shared driver combines version metadata with caller-supplied Go flags.
+BUILD_VERSION_FLAGS := --version-metadata
 # embed build flags
-EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'" -tags embed
+EMBED_BUILD_FLAGS := $(BUILD_VERSION_FLAGS) --embed
 
 ifeq ($(OS), Windows_NT)
 	SERVER_EXE_EXT = .exe
@@ -50,6 +57,46 @@ ifeq ($(OS), Windows_NT)
 	endif
 else
 	UNIXSHELL = true
+endif
+
+# Bootstrap the stdlib-only driver for the host, never for a caller's cross-build
+# target. Only these Go subprocesses receive the sanitized environment.
+# Probe the executing shell: cmd.exe retains single quotes; POSIX shells remove
+# them. Windows Make may fall back to cmd.exe while SHELL still names sh.exe.
+# The semicolon prevents Make from launching an external echo directly.
+BACKEND_POSIX_SHELL := $(shell echo 'headlamp-posix-shell';)
+BACKEND_BOOTSTRAP_SETTINGS = GOENV=off GO111MODULE=off GOTOOLCHAIN=local GOFLAGS= GOWORK=off CGO_ENABLED=0 GOOS= GOARCH= GOEXPERIMENT= GO386= GOAMD64= GOARM= GOARM64= GOMIPS= GOMIPS64= GOPPC64= GORISCV64= GOWASM= GOFIPS140=off
+# Resolve once on first use, so unrelated targets do not invoke Go.
+ifeq ($(BACKEND_POSIX_SHELL),headlamp-posix-shell)
+	BACKEND_BOOTSTRAP_ENV = $(BACKEND_BOOTSTRAP_SETTINGS)
+	BACKEND_BUILD_HOST = $(eval BACKEND_BUILD_HOST := $(shell $(BACKEND_BOOTSTRAP_ENV) go env GOHOSTOS GOHOSTARCH))$(BACKEND_BUILD_HOST)
+else
+	BACKEND_BOOTSTRAP_CMD = $(foreach setting,$(BACKEND_BOOTSTRAP_SETTINGS),set "$(setting)"&&)
+	BACKEND_BUILD_HOST = $(eval BACKEND_BUILD_HOST := $(shell $(BACKEND_BOOTSTRAP_CMD) go env GOHOSTOS GOHOSTARCH))$(BACKEND_BUILD_HOST)
+	BACKEND_BUILD_ID := $(shell echo %RANDOM%-%RANDOM%-%RANDOM%)
+endif
+BACKEND_BUILD_TOOL = $(CURDIR)/backend/.build/backend-build-$(word 1,$(BACKEND_BUILD_HOST))-$(word 2,$(BACKEND_BUILD_HOST))
+BACKEND_BUILD_EXE_EXT = $(if $(filter windows,$(word 1,$(BACKEND_BUILD_HOST))),.exe)
+BACKEND_BUILD_TOOL_WINDOWS = $(BACKEND_BUILD_TOOL)-$(BACKEND_BUILD_ID)-$@$(BACKEND_BUILD_EXE_EXT)
+
+# Use a distinct executable for each recipe so concurrent builds never replace
+# a running Windows executable. Go's cache handles unchanged source/toolchains.
+ifeq ($(BACKEND_POSIX_SHELL),headlamp-posix-shell)
+define build-backend
+	@set -e; \
+	tool="$(BACKEND_BUILD_TOOL)-$$$$$(BACKEND_BUILD_EXE_EXT)"; \
+	trap 'status=$$?; if command -v rm >/dev/null 2>&1; then if ! rm -f "$$tool"; then printf "Failed to remove bootstrap: %s\n" "$$tool" >&2; if [ "$$status" -eq 0 ]; then status=1; fi; fi; else printf "Bootstrap retained (rm unavailable): %s\n" "$$tool" >&2; fi; exit "$$status"' 0; \
+	trap 'exit 130' INT; trap 'exit 129' HUP; trap 'exit 143' TERM; \
+	$(BACKEND_BOOTSTRAP_ENV) go build -o "$$tool" tools/build-backend.go; \
+	cd backend; \
+	$(2) "$$tool" $(1)
+endef
+else
+# Separate recipe shells keep bootstrap-only set commands out of the backend.
+define build-backend
+	$(BACKEND_BOOTSTRAP_CMD) go build -o "$(BACKEND_BUILD_TOOL_WINDOWS)" tools/build-backend.go
+	cd backend && $(foreach setting,$(2),set "$(setting)"&&) "$(BACKEND_BUILD_TOOL_WINDOWS)" $(1) && (del /Q "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" & if exist "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" (echo Failed to remove backend bootstrap: "$(BACKEND_BUILD_TOOL_WINDOWS)" >&2 & exit /B 1)) || (if exist "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" del /Q "$(subst /,\,$(BACKEND_BUILD_TOOL_WINDOWS))" & exit /B 1)
+endef
 endif
 
 all: backend frontend
@@ -75,30 +122,31 @@ else
 	cd backend && tools\golangci-lint.exe run --fix
 endif
 
-frontend/build:
-	make frontend
+frontend/build: frontend
 
 .PHONY: app
-app-build: frontend/build
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run build
-app: app-build
+app-prepare: frontend/build
+	cd app && npm ci && node --experimental-strip-types ./scripts/setup-plugins.ts
+app-build: app-prepare
+	cd app && npm run build
+app: app-prepare
 	cd app && npm run package -- --win --linux --mac
-app-win: app-build
+app-win: app-prepare
 	cd app && npm run package -- --win --x64 --arm64
-app-win-x64: app-build
+app-win-x64: app-prepare
 	cd app && npm run package -- --win --x64
-app-win-arm64: app-build
+app-win-arm64: app-prepare
 	cd app && npm run package -- --win --arm64
 app-win-msi: app-win-msi-x64
-app-win-msi-x64: app-build
+app-win-msi-x64: app-prepare
 	cd app && npm run package -- --win --x64
 	cd app && MSI_ARCH="x64" node windows/msi/build.js
-app-win-msi-arm64: app-build
+app-win-msi-arm64: app-prepare
 	cd app && npm run package -- --win --arm64
 	cd app && MSI_ARCH="arm64" node windows/msi/build.js
-app-linux: app-build
+app-linux: app-prepare
 	cd app && npm run package -- --linux
-app-mac: app-build
+app-mac: app-prepare
 	cd app && npm run package -- --mac
 app-test:
 	cd app && npm install
@@ -117,13 +165,13 @@ app-i18n-check: app/node_modules/.package-lock.json
 
 .PHONY: backend
 backend:
-	cd backend && go build $(BUILD_VERSION_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+	$(call build-backend,$(BUILD_VERSION_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd)
 
 .PHONY: backend-embed
 backend-embed:
 	REACT_APP_HEADLAMP_SIDEBAR_DEFAULT_OPEN=false $(MAKE) frontend-build
 	$(MAKE) backend-embed-prepare
-	cd backend && go build $(EMBED_BUILD_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o ./headlamp-server${SERVER_EXE_EXT} ./cmd)
 
 # New multi-platform build targets
 .PHONY: backend-embed-all
@@ -180,17 +228,17 @@ backend-embed-windows:
 
 backend-embed-windows-arm64:
 	@echo "Building for windows/arm64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe ./cmd,CGO_ENABLED=0 GOOS=windows GOARCH=arm64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_arm64.exe"
 
 backend-embed-windows-amd64:
 	@echo "Building for windows/amd64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe ./cmd,CGO_ENABLED=0 GOOS=windows GOARCH=amd64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_amd64.exe"
 
 backend-embed-windows-386:
 	@echo "Building for windows/386 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=386 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe ./cmd,CGO_ENABLED=0 GOOS=windows GOARCH=386)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_windows_386.exe"
 
 # macOS(darwin) builds
@@ -203,12 +251,12 @@ backend-embed-darwin:
 
 backend-embed-darwin-amd64:
 	@echo "Building for darwin/amd64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64 ./cmd,CGO_ENABLED=0 GOOS=darwin GOARCH=amd64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_darwin_amd64"
 
 backend-embed-darwin-arm64:
 	@echo "Building for darwin/arm64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64 ./cmd,CGO_ENABLED=0 GOOS=darwin GOARCH=arm64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_darwin_arm64"
 
 # Linux builds
@@ -222,17 +270,17 @@ backend-embed-linux:
 
 backend-embed-linux-amd64:
 	@echo "Building for linux/amd64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64 ./cmd,CGO_ENABLED=0 GOOS=linux GOARCH=amd64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_amd64"
 
 backend-embed-linux-arm64:
 	@echo "Building for linux/arm64 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64 ./cmd,CGO_ENABLED=0 GOOS=linux GOARCH=arm64)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_arm64"
 
 backend-embed-linux-386:
 	@echo "Building for linux/386 with version $(VERSION)..."
-	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_386 ./cmd
+	$(call build-backend,$(EMBED_BUILD_FLAGS) -o dist/$(EMBED_BINARY_NAME)_$(VERSION)_linux_386 ./cmd,CGO_ENABLED=0 GOOS=linux GOARCH=386)
 	@echo "✓ Built: $(EMBED_BINARY_NAME)_$(VERSION)_linux_386"
 
 .PHONY: backend-test
@@ -271,9 +319,9 @@ frontend: frontend-install
 frontend-build:
 	cd frontend && npm run build
 
-.PHONY: frontend-build-rsbuild
-frontend-build-rsbuild:
-	cd frontend && npm run build:rsbuild
+.PHONY: frontend-build-vite
+frontend-build-vite:
+	cd frontend && npm run build:vite
 
 .PHONY: frontend-build-storybook
 frontend-build-storybook:
@@ -283,10 +331,10 @@ run-backend:
 	@echo "**** Warning: Running with Helm and dynamic-clusters endpoints enabled. ****"
 
 ifeq ($(UNIXSHELL),true)
-	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-dev:
@@ -301,10 +349,10 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
     HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
-    ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_METRICS_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-backend-with-traces:
@@ -315,10 +363,10 @@ ifeq ($(UNIXSHELL),true)
     HEADLAMP_CONFIG_ENABLE_HELM=true \
     HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
     HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true \
-    ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost
+	./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1
 else
 	@echo "**** Running on Windows without bash or zsh. ****"
-	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost"
+	@cmd /c "set HEADLAMP_BACKEND_TOKEN=headlamp&& set HEADLAMP_CONFIG_TRACING_ENABLED=true&& set HEADLAMP_CONFIG_ENABLE_HELM=true&& set HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true&& set HEADLAMP_CONFIG_ALLOW_KUBECONFIG_CHANGES=true&& backend\headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=127.0.0.1"
 endif
 
 run-frontend:
@@ -329,10 +377,10 @@ else
 endif
 
 run-app:
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run start
+	cd app && npm install && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run start
 
 run-only-app:
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run dev-only-app
+	cd app && npm install && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run dev-only-app
 
 frontend-lint:
 	cd frontend && npm run lint && npm run format-check
@@ -352,18 +400,29 @@ frontend-i18n-check:
 frontend-test:
 	cd frontend && npm run test -- --coverage
 
+frontend-test-a11y:
+	cd frontend && npm run test:a11y
+
+# Runs the browser-level Playwright checks for the global Storybook MSW mocks.
+# The Playwright config boots `storybook dev` itself, so frontend deps must be
+# installed before this target runs.
+.PHONY: e2e-test-storybook
+e2e-test-storybook:
+	cd e2e-tests && npm run test:storybook
+
 .PHONY: lint
 lint: backend-lint frontend-lint
 
 .PHONY: lint-fix
 lint-fix: backend-lint-fix frontend-lint-fix
 
+.PHONY: plugins-test
 plugins-test:
-	cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js
+	cd plugins/headlamp-plugin && ./test-headlamp-plugin.js
 	cd plugins/headlamp-plugin && ./test-plugins-examples.sh
-	cd plugins/pluginctl/src && npm install && node ./plugin-management.e2e.js
-	cd plugins/pluginctl && npx jest src/multi-plugin-management.test.js
-	cd plugins/pluginctl && npx jest src/plugin-management.test.js
+	cd plugins/pluginctl && npm ci
+	cd plugins/pluginctl/src && node ./plugin-management.e2e.js
+	cd plugins/pluginctl && npx jest --runInBand src/multi-plugin-management.test.js src/plugin-management.test.js
 	cd plugins/pluginctl && npm run test
 
 # IMAGE_BASE can be used to specify a base final image.
@@ -382,6 +441,7 @@ image:
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
 	--platform=$(DOCKER_PLATFORM) \
+	--build-arg HEADLAMP_SOURCE_COMMIT=$(HEADLAMP_SOURCE_COMMIT) \
 	$$BUILD_ARG \
 	--push=$(DOCKER_PUSH) \
 	-t $(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) \
@@ -396,11 +456,13 @@ image-verify-digests:
 	@npm run image:verify-image-digests
 
 .PHONY: build-plugins-container
+# Set INSTALL_JOBS to limit how many example plugins install their dependencies in parallel.
 build-plugins-container:
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
-	--platform=linux/amd64 \
+	--platform=$(DOCKER_PLUGINS_PLATFORM) \
 	--push=$(DOCKER_PUSH) \
+	$(if $(INSTALL_JOBS),--build-arg INSTALL_JOBS=$(INSTALL_JOBS)) \
 	-t $(DOCKER_REPO)/$(DOCKER_PLUGINS_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) -f \
 	Dockerfile.plugins \
 	.
@@ -427,8 +489,22 @@ i18n:
 	cd app && npm run i18n
 	cd frontend && npm run i18n
 
+HELM_VERSION ?= v4.3.1
+YQ_VERSION ?= v4.54.1
+HELM = $(CURDIR)/bin/helm
+YQ = $(CURDIR)/bin/yq
+
+.PHONY: helm
+helm: ## Download helm locally if necessary.
+	GOBIN=$(CURDIR)/bin go install helm.sh/helm/v4/cmd/helm@$(HELM_VERSION)
+
+.PHONY: yq
+yq: ## Download yq locally if necessary.
+	GOBIN=$(CURDIR)/bin go install github.com/mikefarah/yq/v4@$(YQ_VERSION)
+
 .PHONY: helm-chart-package
-helm-chart-package: ## Package a chart into a versioned chart archive file.
+helm-chart-package: helm yq ## Package a chart into a versioned chart archive file.
+	HELM="$(HELM)" YQ="$(YQ)" \
 	DEST_CHART_DIR=$(DEST_CHART_DIR) \
 	GIT_TAG="$(DOCKER_IMAGE_VERSION)" \
 	IMAGE_REGISTRY="$(DOCKER_REPO)" \

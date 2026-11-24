@@ -57,6 +57,9 @@ linters:
       ignore-tests: true
       min-len: 4
       min-occurrences: 5
+    nolintlint:
+      require-explanation: true
+      require-specific: true
 
 formatters:
   enable:

@@ -71,7 +71,8 @@ vi.mock('../common/Resource/AuthVisible', () => ({
   default: ({ children }: any) => <div>{children}</div>,
 }));
 
-import { TestContext } from '../../test';
+import { EventStatus, HeadlampEventType } from '../../redux/headlampEventSlice';
+import { recordHeadlampEvents, TestContext } from '../../test';
 import { ProjectDeleteDialog } from './ProjectDeleteDialog';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
@@ -97,6 +98,16 @@ describe('ProjectDeleteDialog', () => {
         jsonData: { metadata: { name: 'ns2', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
       },
     ] as any;
+
+  const makePairedProject = () => ({
+    id: 'test-project',
+    namespaces: ['ns1', 'ns2'],
+    clusters: ['cluster-a', 'cluster-b'],
+    namespaceRefs: [
+      { name: 'ns1', cluster: 'cluster-a' },
+      { name: 'ns2', cluster: 'cluster-b' },
+    ],
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -180,6 +191,48 @@ describe('ProjectDeleteDialog', () => {
     expect(mockOnClose).toHaveBeenCalled();
   });
 
+  test('does not remove labels from cross-cluster namespace siblings', async () => {
+    let capturedActionFn: (() => Promise<void>) | null = null;
+    mockClusterAction.mockImplementation((actionFn: () => Promise<void>) => {
+      capturedActionFn = actionFn;
+      return { type: 'clusterAction/mock' };
+    });
+
+    const namespaces = [
+      {
+        metadata: { name: 'ns1' },
+        cluster: 'cluster-a',
+        update: vi.fn().mockResolvedValue(undefined),
+        jsonData: { metadata: { name: 'ns1', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
+      },
+      {
+        metadata: { name: 'ns1' },
+        cluster: 'cluster-b',
+        update: vi.fn().mockResolvedValue(undefined),
+        jsonData: { metadata: { name: 'ns1', labels: { [PROJECT_ID_LABEL]: 'test-project' } } },
+      },
+    ] as any;
+
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={makePairedProject()}
+          onClose={mockOnClose}
+          namespaces={namespaces}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+    if (capturedActionFn) {
+      await (capturedActionFn as () => Promise<void>)();
+    }
+
+    expect(namespaces[0].update).toHaveBeenCalledTimes(1);
+    expect(namespaces[1].update).not.toHaveBeenCalled();
+  });
+
   test('calls clusterAction (namespace delete) when checkbox is checked and confirmed', async () => {
     let capturedActionFn: (() => Promise<void>) | null = null;
     // eslint-disable-next-line no-unused-vars
@@ -216,6 +269,63 @@ describe('ProjectDeleteDialog', () => {
     expect(namespaces[0].update).not.toHaveBeenCalled();
     expect(namespaces[1].update).not.toHaveBeenCalled();
     expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  test('dispatches DELETE_PROJECT with deleteNamespaces false when only the label is removed', () => {
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={makeMockNamespaces()}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+
+    expect(events.filter(e => e.type === HeadlampEventType.DELETE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.DELETE_PROJECT,
+        data: {
+          project: mockProject,
+          deleteNamespaces: false,
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
+  });
+
+  test('dispatches DELETE_PROJECT with deleteNamespaces true when namespaces are deleted', () => {
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={makeMockNamespaces()}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project & Namespaces' }));
+
+    expect(events.filter(e => e.type === HeadlampEventType.DELETE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.DELETE_PROJECT,
+        data: {
+          project: mockProject,
+          deleteNamespaces: true,
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
   });
 
   test('shows irreversible warning when namespace deletion checkbox is checked', () => {

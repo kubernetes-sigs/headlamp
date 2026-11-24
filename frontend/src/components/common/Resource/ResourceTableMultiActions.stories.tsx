@@ -32,17 +32,10 @@ import ResourceTableMultiActions from './ResourceTableMultiActions';
 export default {
   title: 'Resource/ResourceTableMultiActions',
   component: ResourceTableMultiActions,
-  decorators: [
-    Story => (
-      <TestContext>
-        <SnackbarProvider>
-          <ActionsNotifier />
-          <Story />
-        </SnackbarProvider>
-      </TestContext>
-    ),
-  ],
   parameters: {
+    axe: {
+      timeout: 10000,
+    },
     msw: {
       handlers: {
         story: [
@@ -57,6 +50,16 @@ export default {
       },
     },
   },
+  decorators: [
+    Story => (
+      <TestContext>
+        <SnackbarProvider>
+          <ActionsNotifier />
+          <Story />
+        </SnackbarProvider>
+      </TestContext>
+    ),
+  ],
 } as Meta;
 
 const MOCK_CLUSTER = 'local';
@@ -206,7 +209,7 @@ export const ScaleDialogCancel: StoryObj = {
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Scale items' })).toBeVisible());
 
-    await userEvent.click(screen.getByRole('button', { name: 'cancel-button' }));
+    await userEvent.click(screen.getByTestId('cancel-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Scale items' })).not.toBeInTheDocument()
@@ -235,7 +238,7 @@ export const ScaleMultipleConfirm: StoryObj = {
     expect(screen.getByText(/statefulset/i)).toBeVisible();
     expect(screen.getByText(/replicaset/i)).toBeVisible();
 
-    await userEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+    await userEvent.click(screen.getByTestId('confirm-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Scale items' })).not.toBeInTheDocument()
@@ -273,7 +276,7 @@ export const DeleteConfirmationDialogCancel: StoryObj = {
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Delete items' })).toBeVisible());
 
-    await userEvent.click(screen.getByLabelText('cancel-button'));
+    await userEvent.click(screen.getByTestId('cancel-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Delete items' })).not.toBeInTheDocument()
@@ -294,7 +297,7 @@ export const DeleteConfirmationDialogConfirm: StoryObj = {
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Delete items' })).toBeVisible());
 
-    await userEvent.click(screen.getByLabelText('confirm-button'));
+    await userEvent.click(screen.getByTestId('confirm-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Delete items' })).not.toBeInTheDocument()
@@ -336,7 +339,7 @@ export const RestartConfirmationDialogCancel: StoryObj = {
       expect(screen.getByRole('dialog', { name: 'Restart items' })).toBeVisible()
     );
 
-    await userEvent.click(screen.getByLabelText('cancel-button'));
+    await userEvent.click(screen.getByTestId('cancel-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Restart items' })).not.toBeInTheDocument()
@@ -367,7 +370,7 @@ export const RestartMultipleConfirm: StoryObj = {
     expect(screen.getByText(/statefulset/i)).toBeVisible();
     expect(screen.getByText(/daemonset/i)).toBeVisible();
 
-    await userEvent.click(screen.getByLabelText('confirm-button'));
+    await userEvent.click(screen.getByTestId('confirm-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Restart items' })).not.toBeInTheDocument()
@@ -388,7 +391,7 @@ export const DeleteConfirmationDialogError: StoryObj = {
 
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Delete items' })).toBeVisible());
 
-    await userEvent.click(screen.getByLabelText('confirm-button'));
+    await userEvent.click(screen.getByTestId('confirm-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Delete items' })).not.toBeInTheDocument()
@@ -418,7 +421,7 @@ export const RestartConfirmationDialogError: StoryObj = {
       expect(screen.getByRole('dialog', { name: 'Restart items' })).toBeVisible()
     );
 
-    await userEvent.click(screen.getByLabelText('confirm-button'));
+    await userEvent.click(screen.getByTestId('confirm-button'));
 
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Restart items' })).not.toBeInTheDocument()

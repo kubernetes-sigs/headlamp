@@ -2,6 +2,19 @@
 
 ## Quickstart
 
+Desktop development requires Node.js 22.12 or newer and npm 11 or newer.
+Electron's binary is installed automatically before desktop builds, development
+launches, packaging, and tests. Run `npm run electron:install` to install it
+explicitly after installing dependencies.
+
+For proxied downloads, set `ELECTRON_GET_USE_PROXY=1` and configure `HTTP_PROXY`,
+`HTTPS_PROXY`, and `NO_PROXY` (or their lowercase equivalents). The installer also
+accepts legacy `GLOBAL_AGENT_HTTP_PROXY`, `GLOBAL_AGENT_HTTPS_PROXY`, and
+`GLOBAL_AGENT_NO_PROXY` settings as fallbacks. Explicit standard settings,
+including empty values, take precedence.
+When no standard HTTPS proxy is set, a standard HTTP proxy is left available for
+the downloader's HTTPS fallback instead of injecting a legacy HTTPS setting.
+
 ### Running the app on Ubuntu WSL
 
 Headlamp on WSL requires some packages installed (maybe it requires more) to run the app.
@@ -40,6 +53,91 @@ Note, it runs the development servers for the backend and the frontend as well. 
 - `npm run verify-build-linux`: Verifies the Linux build artifacts and binaries (requires built app in dist/).
 - `npm run verify-build-mac`: Verifies the macOS build artifacts and binaries (requires built app in dist/).
 - `npm run verify-build-windows`: Verifies the Windows build artifacts and binaries (requires built app in dist/).
+
+## MCP debug logging
+
+MCP debug logging is disabled by default. Set `HEADLAMP_MCP_DEBUG=true` when
+starting the desktop app to enable it. Debug details redact string values,
+including server names and cluster identifiers; tool arguments are not logged.
+Error reporting remains enabled independently of the debug flag.
+
+## Build manifest
+
+Desktop packages use `app-build-manifest.json` to configure product-specific
+build behavior. Set `HEADLAMP_BUILD_MANIFEST` to select another manifest; relative
+paths are resolved from the current working directory. The selected file is also
+copied into the packaged app as `app-build-manifest.json` for runtime features.
+
+When a manifest omits `targets`, Electron Builder uses the targets from
+`app/package.json`. A manifest can replace the target list for one or more
+platforms while preserving the other platform settings:
+
+```json
+{
+  "targets": {
+    "linux": ["AppImage"],
+    "mac": [{ "target": "dmg", "arch": ["arm64"] }],
+    "win": [{ "target": "nsis", "arch": ["x64"] }]
+  }
+}
+```
+
+Only `linux`, `mac`, and `win` platform keys are supported. Each configured
+platform must have a non-empty array whose entries are either a non-blank target
+name or an object containing a non-blank `target` and a non-empty `arch` array.
+Supported architectures depend on the platform: Linux supports `arm64`, `armv7l`,
+and `x64`; macOS supports `arm64`, `universal`, and `x64`; and Windows supports
+`arm64`, `ia32`, and `x64`. Invalid target configuration stops the build before
+Electron Builder packaging.
+
+A manifest can also append files and directories to Electron Builder's common
+or platform-specific `extraResources`. Resource `from` paths are resolved
+relative to the selected manifest file, so product assets can live beside their
+manifest:
+
+```json
+{
+  "resources": {
+    "common": [{ "from": "./shared", "to": "shared" }],
+    "linux": [{ "from": "./tools/linux", "to": "tools" }],
+    "mac": [{ "from": "./tools/mac", "to": "tools", "filter": ["**/*"] }],
+    "win": [{ "from": "./tools/windows.exe", "to": "tools/tool.exe" }]
+  }
+}
+```
+
+Only `common`, `linux`, `mac`, and `win` resource groups are supported. Each
+group must be an array of objects containing a `from` string and optional `to`
+string or `filter` string array. Manifest resources are appended to Headlamp's
+existing resources rather than replacing them. Invalid resource configuration
+stops the build before Electron Builder packaging.
+
+Packagers can also require selected files to match SHA-256 digests after
+Electron Builder copies them. Verification paths are relative to the packaged
+resources directory and must resolve to regular files beneath that directory:
+
+```json
+{
+  "verify": [
+    {
+      "path": "tools/helper",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "platforms": ["linux", "mac"]
+    }
+  ]
+}
+```
+
+The optional `platforms` array accepts `linux`, `mac`, and `win`; entries without
+it apply to every package. Verification runs from Electron Builder's `afterPack`
+hook and stops packaging when a resource is missing, outside the resources
+directory, not a regular file, or does not match its declared digest.
+
+For example, from the repository root:
+
+```bash
+HEADLAMP_BUILD_MANIFEST=../product/app-build-manifest.json npm --prefix app run package
+```
 
 ## Verifying Builds
 

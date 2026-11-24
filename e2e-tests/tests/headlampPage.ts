@@ -15,8 +15,8 @@
  */
 
 /// <reference types="node" />
-import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class HeadlampPage {
   private testURL: string;
@@ -26,9 +26,7 @@ export class HeadlampPage {
   }
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+    await runA11yScan(this.page, expect);
   }
 
   async authenticate(token?: string) {
@@ -49,9 +47,58 @@ export class HeadlampPage {
     }
   }
 
+  /**
+   * Opens a cluster, authenticating with the token when one is given.
+   *
+   * The token is stored as the backend's per-cluster auth cookie instead of being submitted
+   * through the login form, which keeps tests fast. The login form itself is covered by the
+   * multi-cluster login/logout tests and the Helm test, which call authenticate() directly.
+   */
   async navigateToCluster(name: string, token?: string) {
-    await this.navigateTopage(`/c/${name}`);
-    await this.authenticate(token);
+    const authHeading = this.page.getByRole('heading', { level: 1, name: 'Authentication' });
+    const overviewHeading = this.page.getByRole('heading', { name: 'Overview' });
+
+    if (!token) {
+      await this.navigateTopage(`/c/${name}`);
+      // Clusters that authenticate with a client certificate open straight to the Overview.
+      await expect(authHeading.or(overviewHeading).first()).toBeVisible();
+      if (await authHeading.isVisible()) {
+        await this.authenticate(token);
+      }
+      return;
+    }
+
+    await this.setAuthCookie(name, token);
+    // Authenticated cluster pages keep polling, so wait for the page itself instead of
+    // network idle.
+    await this.page.goto(`${this.testURL}/c/${name}`);
+
+    await expect(authHeading.or(overviewHeading).first()).toBeVisible();
+    await expect(authHeading, `the auth cookie for cluster "${name}" was rejected`).toBeHidden();
+  }
+
+  /**
+   * Stores a token the same way the backend does after a successful login (see
+   * backend/pkg/auth/cookies.go): the cookie name uses the sanitized cluster name, the path uses
+   * the raw one, and long tokens are split across numbered cookies.
+   */
+  async setAuthCookie(cluster: string, token: string) {
+    const testURL = new URL(process.env.HEADLAMP_TEST_URL || 'http://localhost:3000');
+    const basePath = testURL.pathname.replace(/\/+$/, '');
+    const cookieCluster = cluster.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 50);
+    const chunks = token.match(/[\s\S]{1,3800}/g) ?? [];
+
+    await this.page.context().addCookies(
+      chunks.map((value, index) => ({
+        name: `headlamp-auth-${cookieCluster}.${index}`,
+        value,
+        domain: testURL.hostname,
+        path: `${basePath}/clusters/${cluster}`,
+        httpOnly: true,
+        secure: testURL.protocol === 'https:',
+        sameSite: 'Strict' as const,
+      }))
+    );
   }
 
   async hasURLContaining(pattern: RegExp) {
@@ -109,11 +156,13 @@ export class HeadlampPage {
 
   async logout() {
     // Click on the account button to open the user menu
-    await this.page.click('button[aria-label="Account of current user"]');
+    await this.page.click('button[aria-controls="primary-user-menu"]');
 
     // Wait for the logout option to be visible and click on it
-    await this.page.waitForSelector('.MuiMenuItem-root:has-text("Log out")');
-    await this.page.click('.MuiMenuItem-root:has-text("Log out")');
+    // Use .first() instead of a text match to avoid locale-dependent failures on non-English runs
+    const logoutMenuItem = this.page.locator('#primary-user-menu').getByRole('menuitem').first();
+    await logoutMenuItem.waitFor({ state: 'visible' });
+    await logoutMenuItem.click();
     await this.page.waitForLoadState('load');
 
     // Expects the URL to contain c/test/token
@@ -137,6 +186,10 @@ export class HeadlampPage {
         throw new Error(`Table does not contain header: ${header}`);
       }
     }
+  }
+
+  async tableContains(text: string | RegExp, options?: { timeout?: number }) {
+    await expect(this.page.locator('table')).toContainText(text, options);
   }
 
   async clickOnPlugin(pluginName: string) {

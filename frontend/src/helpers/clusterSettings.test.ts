@@ -14,7 +14,18 @@
  * limitations under the License.
  */
 
-import { ClusterSettings, loadClusterSettings, storeClusterSettings } from './clusterSettings';
+import {
+  ALLOWED_NAMESPACES_SELECTOR_MAX_AGE_MS,
+  clearResolvedAllowedNamespaces,
+  ClusterSettings,
+  getCombinedAllowedNamespaces,
+  hasAllowedNamespacesRestriction,
+  isResolvedAllowedNamespacesStale,
+  loadClusterSettings,
+  loadResolvedAllowedNamespaces,
+  storeClusterSettings,
+  storeResolvedAllowedNamespaces,
+} from './clusterSettings';
 
 describe('clusterSettings', () => {
   beforeEach(() => {
@@ -118,13 +129,165 @@ describe('clusterSettings', () => {
       expect(loadClusterSettings('prod.extra')).toEqual({});
     });
 
-    // Documents current behaviour: corrupted localStorage payloads surface as
-    // a parse error rather than silently falling back to {}. A future change
-    // could add defensive recovery; this test should be updated alongside it.
-    it('throws when the stored payload is not valid JSON', () => {
+    it('returns empty object and logs console warning when the stored payload is not valid JSON', () => {
       localStorage.setItem('cluster_settings.prod', '{not json');
 
-      expect(() => loadClusterSettings('prod')).toThrow(SyntaxError);
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = loadClusterSettings('prod');
+
+      expect(result).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('returns empty object and logs console warning when the stored payload is not an object', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Test null
+      localStorage.setItem('cluster_settings.prod', 'null');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+
+      // Test array
+      localStorage.setItem('cluster_settings.prod', '[1, 2, 3]');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
+
+      // Test string
+      localStorage.setItem('cluster_settings.prod', '"some string"');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(3);
+
+      consoleWarnSpy.mockRestore();
+    });
+  });
+
+  describe('resolved allowed namespaces cache', () => {
+    it('round-trips the selector, sorted/deduplicated namespaces and a timestamp', () => {
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['b', 'a', 'b']);
+
+      const cache = loadResolvedAllowedNamespaces('prod');
+      expect(cache?.selector).toBe('team=frontend');
+      expect(cache?.namespaces).toEqual(['a', 'b']);
+      expect(typeof cache?.resolvedAt).toBe('number');
+    });
+
+    it('returns null when nothing is stored', () => {
+      expect(loadResolvedAllowedNamespaces('never-stored')).toBeNull();
+    });
+
+    it('returns null and does not throw when the stored payload is malformed', () => {
+      localStorage.setItem('cluster_allowed_namespaces_selector_cache.prod', '{not json');
+      expect(loadResolvedAllowedNamespaces('prod')).toBeNull();
+
+      localStorage.setItem(
+        'cluster_allowed_namespaces_selector_cache.prod',
+        JSON.stringify({ selector: 'team=frontend' })
+      );
+      expect(loadResolvedAllowedNamespaces('prod')).toBeNull();
+    });
+
+    it('is a no-op when the cluster name is empty', () => {
+      storeResolvedAllowedNamespaces('', 'team=frontend', ['a']);
+      expect(localStorage.getItem('cluster_allowed_namespaces_selector_cache.')).toBeNull();
+    });
+
+    it('clears the cache', () => {
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
+      clearResolvedAllowedNamespaces('prod');
+      expect(loadResolvedAllowedNamespaces('prod')).toBeNull();
+    });
+  });
+
+  describe('getCombinedAllowedNamespaces', () => {
+    it('returns an empty list when nothing is configured', () => {
+      expect(getCombinedAllowedNamespaces('prod')).toEqual([]);
+    });
+
+    it('returns the manually configured namespaces', () => {
+      storeClusterSettings('prod', { allowedNamespaces: ['b', 'a'] });
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a', 'b']);
+    });
+
+    it('includes the resolved namespaces when the cache matches the configured selector', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['b', 'a']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a', 'b']);
+    });
+
+    it('merges, deduplicates and sorts the manual and resolved lists', () => {
+      storeClusterSettings('prod', {
+        allowedNamespaces: ['c', 'a'],
+        allowedNamespacesSelector: 'team=frontend',
+      });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['b', 'a']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a', 'b', 'c']);
+    });
+
+    it('ignores a cache that was resolved for a different selector', () => {
+      storeClusterSettings('prod', {
+        allowedNamespaces: ['a'],
+        allowedNamespacesSelector: 'team=backend',
+      });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['x', 'y']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a']);
+    });
+
+    it('ignores the cache when no selector is configured', () => {
+      storeClusterSettings('prod', { allowedNamespaces: ['a'] });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['x', 'y']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a']);
+    });
+  });
+
+  describe('hasAllowedNamespacesRestriction', () => {
+    it('is false when no allowed namespaces are configured', () => {
+      storeClusterSettings('prod', { allowedNamespaces: [] });
+      expect(hasAllowedNamespacesRestriction('prod')).toBe(false);
+    });
+
+    it('is true when allowed namespaces are configured explicitly', () => {
+      storeClusterSettings('prod', { allowedNamespaces: ['team-a'] });
+      expect(hasAllowedNamespacesRestriction('prod')).toBe(true);
+    });
+
+    it('is true when a selector is configured but resolves to no namespaces', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', []);
+      expect(hasAllowedNamespacesRestriction('prod')).toBe(true);
+    });
+  });
+
+  describe('isResolvedAllowedNamespacesStale', () => {
+    it('is false when no selector is configured', () => {
+      storeClusterSettings('prod', {});
+      expect(isResolvedAllowedNamespacesStale('prod')).toBe(false);
+    });
+
+    it('is true when a selector is configured but nothing is cached', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      expect(isResolvedAllowedNamespacesStale('prod')).toBe(true);
+    });
+
+    it('is true when the cache was resolved for a different selector', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=backend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
+      expect(isResolvedAllowedNamespacesStale('prod')).toBe(true);
+    });
+
+    it('is false for a fresh, matching cache and true once it is too old', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
+      const resolvedAt = loadResolvedAllowedNamespaces('prod')!.resolvedAt;
+
+      expect(isResolvedAllowedNamespacesStale('prod', resolvedAt + 1000)).toBe(false);
+      expect(
+        isResolvedAllowedNamespacesStale(
+          'prod',
+          resolvedAt + ALLOWED_NAMESPACES_SELECTOR_MAX_AGE_MS + 1
+        )
+      ).toBe(true);
     });
   });
 });

@@ -46,6 +46,7 @@ const ourState = {
   clusterProvider: {
     dialogs: {},
     menuItems: [],
+    deleteHandlers: [],
     clusterProviders: [],
     clusterStatuses: [],
   },

@@ -15,7 +15,7 @@
  */
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ResourceTableProps } from './ResourceTable';
+import type { ResourceTableProps } from './ResourceTable';
 
 export interface ResourceTableState {
   /**

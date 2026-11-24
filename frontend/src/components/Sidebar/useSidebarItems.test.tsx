@@ -16,10 +16,15 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook } from '@testing-library/react';
+import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
+import { request } from '../../lib/k8s/api/v1/clusterRequests';
+import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
+import CRD from '../../lib/k8s/crd';
+import DeviceClass from '../../lib/k8s/deviceClass';
+import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -30,6 +35,42 @@ import { useSidebarItems } from './useSidebarItems';
 // And assigning it to a value will make sure it's not tree-shaken and removed
 // eslint-disable-next-line no-unused-vars
 const DontDeleteMe = App;
+
+vi.mock('../../lib/k8s/api/v1/hooks', async importOriginal => {
+  type HooksModule = typeof import('../../lib/k8s/api/v1/hooks');
+  const actual = await importOriginal<HooksModule>();
+  return { ...actual, useSelectedClusters: vi.fn(actual.useSelectedClusters) };
+});
+
+const { servedSchedulingVersions } = vi.hoisted(() => ({
+  servedSchedulingVersions: { current: [] as string[] },
+}));
+
+vi.mock('../../lib/k8s/api/v1/clusterRequests', async importOriginal => {
+  type ClusterRequestsModule = typeof import('../../lib/k8s/api/v1/clusterRequests');
+  const actual = await importOriginal<ClusterRequestsModule>();
+  return {
+    ...actual,
+    request: vi.fn(async (path: string, ...rest: any[]) => {
+      if (!path.startsWith('/apis/scheduling.k8s.io/')) {
+        return (actual.request as any)(path, ...rest);
+      }
+      const version = path.replace('/apis/', '');
+      if (!servedSchedulingVersions.current.includes(version)) {
+        throw new Error('404');
+      }
+      const resources = ['workloads', 'podgroups'];
+      if (version === 'scheduling.k8s.io/v1alpha3') {
+        resources.push('compositepodgroups');
+      }
+      return { resources: resources.map(name => ({ name })) };
+    }),
+  };
+});
+
+vi.mock('../../lib/k8s/gatewayL4RouteAvailability', () => ({
+  useGatewayL4RouteAvailability: vi.fn(),
+}));
 
 describe('useSidebarItems', () => {
   const mockStore = (
@@ -62,6 +103,143 @@ describe('useSidebarItems', () => {
           </Provider>
         </TestContext>
       );
+
+  beforeEach(() => {
+    queryClient.clear();
+    vi.mocked(useSelectedClusters).mockReturnValue([]);
+    servedSchedulingVersions.current = [];
+    vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
+    const emptyCRDs: [CRD[], null] = [[], null];
+    vi.spyOn(CRD, 'useList').mockReturnValue(
+      Object.assign(emptyCRDs, {
+        data: null,
+        items: emptyCRDs[0],
+        error: null,
+        errors: null,
+        isError: false,
+        isLoading: false,
+        isFetching: false,
+        isSuccess: true,
+        status: 'success' as const,
+      })
+    );
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+      new Error('Sidebar unit tests must not make network requests')
+    );
+    vi.mocked(useGatewayL4RouteAvailability).mockReturnValue({ data: [] } as unknown as ReturnType<
+      typeof useGatewayL4RouteAvailability
+    >);
+  });
+
+  afterEach(async () => {
+    cleanup();
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    try {
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it.each([
+    { label: 'neither route kind', kinds: [], tcpVisible: false, udpVisible: false },
+    {
+      label: 'only TCPRoute',
+      kinds: ['TCPRoute'],
+      tcpVisible: true,
+      udpVisible: false,
+    },
+    {
+      label: 'only UDPRoute',
+      kinds: ['UDPRoute'],
+      tcpVisible: false,
+      udpVisible: true,
+    },
+    {
+      label: 'both route kinds',
+      kinds: ['TCPRoute', 'UDPRoute'],
+      tcpVisible: true,
+      udpVisible: true,
+    },
+  ])(
+    'independently gates Gateway API L4 routes when focused discovery returns $label',
+    ({ kinds, tcpVisible, udpVisible }) => {
+      queryClient.setQueryData(
+        ['api-discovery'],
+        [
+          { groupName: 'gateway.networking.k8s.io', kind: 'TCPRoute' },
+          { groupName: 'gateway.networking.k8s.io', kind: 'UDPRoute' },
+        ]
+      );
+      vi.mocked(useGatewayL4RouteAvailability).mockReturnValue({
+        data: kinds,
+      } as unknown as ReturnType<typeof useGatewayL4RouteAvailability>);
+      const store = mockStore({}, []);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(store),
+      });
+
+      const gatewayItems = result.current.find(item => item.name === 'gatewayapi')?.subList ?? [];
+      expect(gatewayItems.some(item => item.name === 'gateways')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'gatewayclasses')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'httproutes')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'grpcroutes')).toBe(true);
+      expect(gatewayItems.some(item => item.name === 'tcproutes')).toBe(tcpVisible);
+      expect(gatewayItems.some(item => item.name === 'udproutes')).toBe(udpVisible);
+    }
+  );
+
+  describe('the Scheduling (alpha) section', () => {
+    const schedulingItems = (items: ReturnType<typeof useSidebarItems>) =>
+      items.find(item => item.name === 'scheduling')?.subList?.map(item => item.name);
+
+    beforeEach(() => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+    });
+
+    it('keeps the section but leaves out Composite Pod Groups when only its gate is off', async () => {
+      // CompositePodGroup needs a feature gate on top of the ones PodGroup needs, so a
+      // cluster can serve pod groups without serving it.
+      servedSchedulingVersions.current = ['scheduling.k8s.io/v1beta1'];
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() =>
+        expect(schedulingItems(result.current)).toEqual(['podGroups', 'schedulingWorkloads'])
+      );
+    });
+
+    it('lists Composite Pod Groups when the cluster serves both', async () => {
+      servedSchedulingVersions.current = ['scheduling.k8s.io/v1alpha3'];
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() =>
+        expect(schedulingItems(result.current)).toEqual([
+          'podGroups',
+          'compositePodGroups',
+          'schedulingWorkloads',
+        ])
+      );
+    });
+
+    it('hides the section when the cluster serves neither', async () => {
+      servedSchedulingVersions.current = [];
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() =>
+        expect(request).toHaveBeenCalledWith('/apis/scheduling.k8s.io/v1alpha2', {
+          cluster: 'test-cluster',
+        })
+      );
+      expect(schedulingItems(result.current)).toBeUndefined();
+    });
+  });
 
   it('should include customSidebarEntries', () => {
     const customEntries = {

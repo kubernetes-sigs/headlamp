@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package serviceproxy
 
 import (
@@ -15,16 +31,18 @@ import (
 // never fully buffered, so an upstream that returns an arbitrarily large
 // response cannot exhaust server memory.
 func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error {
+	setResponseSecurityHeaders(w)
+
 	cli := &http.Client{Timeout: 10 * time.Second}
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
 
-	resp, err := cli.Do(req) //nolint:gosec
+	resp, err := cli.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed HTTP GET: %w", err)
 	}
@@ -36,6 +54,12 @@ func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error
 	}
 
 	return nil
+}
+
+func setResponseSecurityHeaders(w http.ResponseWriter) {
+	// Service-controlled documents must not inherit Headlamp's authenticated origin.
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 }
 
 func streamResponseBody(body io.Reader, w http.ResponseWriter, statusCode int, contentType string) error {

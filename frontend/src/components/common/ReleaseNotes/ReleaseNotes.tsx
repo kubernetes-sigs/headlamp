@@ -16,8 +16,10 @@
 
 import React from 'react';
 import semver from 'semver';
-import ReleaseNotesModal from './ReleaseNotesModal';
 import UpdatePopup from './UpdatePopup';
+
+// Keep the markdown renderer and its dependency graph out of memory until the modal opens.
+const ReleaseNotesModal = React.lazy(() => import('./ReleaseNotesModal'));
 
 function getAppVersion() {
   return localStorage.getItem('app_version');
@@ -193,7 +195,9 @@ export default function ReleaseNotes() {
         />
       }
       {releaseNotes && (
-        <ReleaseNotesModal releaseNotes={releaseNotes} appVersion={getAppVersion()} />
+        <React.Suspense fallback={null}>
+          <ReleaseNotesModal releaseNotes={releaseNotes} appVersion={getAppVersion()} />
+        </React.Suspense>
       )}
     </>
   );

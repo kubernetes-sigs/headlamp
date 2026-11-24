@@ -20,7 +20,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
-import { useEndpoints, useKubeObject } from './hooks';
+import { kubeObjectQueryKey, useEndpoints, useKubeObject } from './hooks';
 import type { KubeObjectEndpoint } from './KubeObjectEndpoint';
 
 vi.mock('./fetch', () => ({
@@ -51,17 +51,19 @@ const mockJsonResponse = (data: unknown) =>
     json: () => Promise.resolve(data),
   } as Response);
 
-const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
-        refetchOnReconnect: false,
+const createWrapper = (providedQueryClient?: QueryClient) => {
+  const queryClient =
+    providedQueryClient ??
+    new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          refetchOnWindowFocus: false,
+          refetchOnMount: false,
+          refetchOnReconnect: false,
+        },
       },
-    },
-  });
+    });
 
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -302,6 +304,43 @@ describe('useKubeObject watch wiring', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.unstubAllEnvs());
 
+  it('seeds a stale cached query with explicitly provided initial data', async () => {
+    const endpoint: KubeObjectEndpoint = { version: 'v1', resource: 'pods' };
+    const queryClient = new QueryClient();
+    const queryKey = kubeObjectQueryKey({
+      cluster: 'test',
+      endpoint,
+      namespace: 'my-ns',
+      name: 'my-pod',
+      queryParams: {},
+    });
+    const cachedPod = new MockPod(
+      { metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '1' } },
+      'test'
+    );
+    const initialPod = new MockPod(
+      { metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '2' } },
+      'test'
+    );
+    queryClient.setQueryData(queryKey, cachedPod);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'test',
+          initialData: initialPod,
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    expect(result.current.data).toBe(initialPod);
+    await waitFor(() => expect(queryClient.getQueryData(queryKey)).toBe(initialPod));
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
   it('disables multiplexer WebSocket when feature flag is off', async () => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
     mockClusterFetch.mockResolvedValue(
@@ -395,6 +434,54 @@ describe('useKubeObject watch wiring', () => {
       expect(lastCall.enabled).toBe(true);
       expect(lastCall.url()).toContain('namespaces/my-ns');
     });
+  });
+
+  it('keeps the requested cluster when a watch update replaces the object', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '1' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'owner-cluster',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data?.cluster).toBe('owner-cluster');
+      expect(mockUseWebSockets.mock.calls.length).toBeGreaterThan(0);
+    });
+
+    const { connections } =
+      mockUseWebSockets.mock.calls[mockUseWebSockets.mock.calls.length - 1][0];
+    const onMessage = connections[0].onMessage;
+
+    // A MODIFIED event rebuilds the object. It has to carry the cluster the hook
+    // was asked for; otherwise it falls back to getCluster(), which reads the URL
+    // and does not know about the cluster passed in explicitly here.
+    onMessage({
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '2' },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.jsonData?.metadata?.resourceVersion).toBe('2');
+    });
+    expect(result.current.data?.cluster).toBe('owner-cluster');
   });
 
   it('re-subscribes to the new resource when navigating between resources of the same kind', async () => {

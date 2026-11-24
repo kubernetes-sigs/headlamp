@@ -46,3 +46,11 @@ NoInitialValue.args = {
     console.log('Timezone changed:', timezone);
   },
 };
+
+export const HalfHourOffset = Template.bind({});
+HalfHourOffset.args = {
+  initialTimezone: 'Asia/Kolkata',
+  onChange: (timezone: string) => {
+    console.log('Timezone changed:', timezone);
+  },
+};

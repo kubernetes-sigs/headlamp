@@ -198,6 +198,8 @@ func (c *cache[T]) SetOnEvicted(f func(key string, value T)) {
 }
 
 // UpdateTTL updates the TTL of a value in the cache.
+// It returns ErrNotFound if the key is missing or already expired, matching Get.
+// A ttl of 0 clears the expiry, matching SetWithTTL.
 func (c *cache[T]) UpdateTTL(ctx context.Context, key string, ttl time.Duration) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -207,10 +209,18 @@ func (c *cache[T]) UpdateTTL(ctx context.Context, key string, ttl time.Duration)
 		return ErrNotFound
 	}
 
-	if value.expiresAt.IsZero() || value.expiresAt.After(time.Now()) {
-		value.expiresAt = time.Now().Add(ttl)
-		c.store[key] = value
+	// Expired entries stay in the map until cleanup; treat them as missing.
+	if !value.expiresAt.IsZero() && !value.expiresAt.After(time.Now()) {
+		return ErrNotFound
 	}
+
+	expiresAt := time.Time{}
+	if ttl != 0 {
+		expiresAt = time.Now().Add(ttl)
+	}
+
+	value.expiresAt = expiresAt
+	c.store[key] = value
 
 	return nil
 }

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /// <reference types="vitest" />
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -39,6 +55,8 @@ const externalModules = {
   '@kinvolk/headlamp-plugin/lib/k8s': 'pluginLib.K8s',
   '@kinvolk/headlamp-plugin/lib': 'pluginLib',
   '@kinvolk/headlamp-plugin/lib/components/common': 'pluginLib.CommonComponents',
+  '@kinvolk/headlamp-plugin/lib/components/resourceMap': 'pluginLib.ResourceMap',
+  '@kinvolk/headlamp-plugin/lib/ResourceMap': 'pluginLib.ResourceMap',
 };
 
 const noSubmodules = [
@@ -83,6 +101,18 @@ export default defineConfig({
           const resolved = import.meta.resolve(source);
           return fileURLToPath(resolved);
         },
+      },
+      // Runtime resolution for plugin sources that import `lib/K8s/*` or
+      // `lib/k8s/*` values (not just types) at test time. Build treats these
+      // as externals via `rollupOptions.external`, and the type checker
+      // resolves them via `plugins-tsconfig.json` paths. Vitest and any
+      // other runner that actually loads the module needs an alias to find
+      // the on-disk file, since the published tree has an extra `lib/`
+      // prefix (src/lib/k8s/* is emitted at lib/lib/k8s/*).
+      // See kubernetes-sigs/headlamp#7036.
+      {
+        find: /^@kinvolk\/headlamp-plugin\/lib\/[Kk]8s(\/.+)?$/,
+        replacement: fileURLToPath(new URL('../lib/lib/k8s', import.meta.url)) + '$1',
       },
     ],
   },

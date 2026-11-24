@@ -1,0 +1,121 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h2
+              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+            >
+              Diagnostics
+            </h2>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <div
+          class="MuiBox-root css-j7qwjs"
+        >
+          <div
+            class="MuiBox-root css-k1dapx"
+          >
+            <div
+              class="MuiBox-root css-1qocved"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
+              >
+                Warning
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
+              >
+                ReplicaSet has unavailable replicas
+              </p>
+            </div>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Desired: 1
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Available: 0
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Ready: 0
+                </span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="MuiBox-root css-pbze50"
+          >
+            <div
+              class="MuiBox-root css-1qocved"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+              >
+                Critical
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
+              >
+                ReplicaSet condition ReplicaFailure is True
+              </p>
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+            >
+              pods "quota-blocked-hqj5l" is forbidden: exceeded quota: no-pods, requested: pods=1, used: pods=0, limited: pods=0
+            </p>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Reason: FailedCreate
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

@@ -58,17 +58,21 @@ import AuthVisible from '../common/Resource/AuthVisible';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
 import { NodeShellAction } from './NodeShellAction';
-import { NodeTaintsLabel } from './utils';
+import { isNodeCordoned, isNodeDrained, NodeTaintsLabel } from './utils';
 
-function NodeConditionsLabel(props: { node: Node }) {
-  const { node } = props;
-  const unschedulable = node?.jsonData?.spec?.unschedulable;
+function NodeConditionsLabel(props: { node: Node; pods?: Pod[] | null; podsLoaded?: boolean }) {
+  const { node, pods, podsLoaded } = props;
   const { t } = useTranslation();
-  return unschedulable ? (
-    <StatusLabel status="warning">{t('translation|Scheduling Disabled')}</StatusLabel>
-  ) : (
-    <StatusLabel status="success">{t('translation|Scheduling Enabled')}</StatusLabel>
-  );
+  if (!isNodeCordoned(node)) {
+    return <StatusLabel status="success">{t('translation|Scheduling Enabled')}</StatusLabel>;
+  }
+  // Only claim "Drained" once the pod query has succeeded. An empty list while
+  // loading or after an error should not be mistaken for a node without workloads.
+  const label =
+    podsLoaded && isNodeDrained(node, pods ?? [])
+      ? t('translation|Scheduling Disabled (Drained)')
+      : t('translation|Scheduling Disabled');
+  return <StatusLabel status="warning">{label}</StatusLabel>;
 }
 
 export default function NodeDetails(props: { name?: string; cluster?: string }) {
@@ -86,7 +90,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
   const [pollingDrainNodeName, setPollingDrainNodeName] = React.useState<string | null>(null);
   const [nodeFromAPI, nodeError] = Node.useGet(name, undefined, { cluster });
-  const { items: nodePods } = Pod.useList({
+  const { items: nodePods, isSuccess: nodePodsLoaded } = Pod.useList({
     fieldSelector: name
       ? `spec.nodeName=${name},status.phase!=Succeeded,status.phase!=Failed`
       : undefined,
@@ -299,6 +303,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             pods={nodePods}
             metrics={nodeMetrics}
             noMetrics={noMetrics}
+            metricsError={metricsError}
             summaryStats={nodeSummaryStats}
             summaryError={nodeSummaryError}
           />
@@ -349,13 +354,10 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
           if (!item) return [];
           const roles = item.getRoles();
           const nodePool = item.getNodePool();
-          // The keys of interest are reported by the API in kebab-case.
-          const reportedKeys = ['cpu', 'memory', 'pods', 'ephemeral-storage'];
-          const pickResources = (res: { [key: string]: string } = {}) =>
-            Object.fromEntries(reportedKeys.filter(key => res[key]).map(key => [key, res[key]]));
+          const pickResources = (res: { [key: string]: string } = {}) => res;
+
           const capacity = pickResources(item.status?.capacity);
           const allocatable = pickResources(item.status?.allocatable);
-
           return [
             {
               name: t('translation|Roles'),
@@ -372,7 +374,9 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             },
             {
               name: t('translation|Conditions'),
-              value: <NodeConditionsLabel node={item} />,
+              value: (
+                <NodeConditionsLabel node={item} pods={nodePods} podsLoaded={nodePodsLoaded} />
+              ),
             },
             {
               name: t('Node Pool'),
@@ -428,10 +432,11 @@ interface ChartsSectionProps {
   summaryStats: KubeNodeSummaryStats | null;
   summaryError: ApiError | null;
   noMetrics?: boolean;
+  metricsError?: ApiError | null;
 }
 
 function ChartsSection(props: ChartsSectionProps) {
-  const { node, pods, metrics, summaryStats, summaryError, noMetrics } = props;
+  const { node, pods, metrics, summaryStats, summaryError, noMetrics, metricsError } = props;
   const { t } = useTranslation('glossary');
 
   function getUptime() {
@@ -472,13 +477,19 @@ function ChartsSection(props: ChartsSectionProps) {
           </Paper>
         </Box>
         <Box>
-          <CpuCircularChart items={node && [node]} itemsMetrics={metrics} noMetrics={noMetrics} />
+          <CpuCircularChart
+            items={node && [node]}
+            itemsMetrics={metrics}
+            noMetrics={noMetrics}
+            metricsError={metricsError}
+          />
         </Box>
         <Box>
           <MemoryCircularChart
             items={node && [node]}
             itemsMetrics={metrics}
             noMetrics={noMetrics}
+            metricsError={metricsError}
           />
         </Box>
         <Box>

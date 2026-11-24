@@ -1,0 +1,18 @@
+global:
+  ingress:
+    hostAlias: headlamp-alias.example.com
+    host: headlamp.example.com
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: '{{ .Values.global.ingress.host }}'
+      paths:
+        - path: /
+          type: ImplementationSpecific
+  tls:
+    - hosts:
+        - '{{ .Values.global.ingress.host }}'
+        - '{{ .Values.global.ingress.hostAlias }}'
+      secretName: headlamp-cert

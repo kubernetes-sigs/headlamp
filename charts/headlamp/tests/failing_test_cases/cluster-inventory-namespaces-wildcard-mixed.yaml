@@ -1,0 +1,9 @@
+config:
+  oidc:
+    clientID: headlamp
+    issuerURL: https://idp.example.com
+  clusterInventory:
+    enabled: true
+    namespaces:
+      - "*"
+      - inventory-e2e

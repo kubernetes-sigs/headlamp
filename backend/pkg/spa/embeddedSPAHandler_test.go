@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package spa_test
 
 import (
@@ -5,6 +21,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -23,7 +40,8 @@ func getTestHTML() string {
 	return `<!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Headlamp</title>
+		<base href="./">
+		<title data-headlamp-product-name></title>
     <script>
         // handles both webpack and rspack build systems
         __baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');
@@ -45,6 +63,15 @@ func TestEmbeddedSpaHandler(t *testing.T) {
 		testHeadlampBaseURLWithBaseURL(t, testHTML)
 	})
 
+	t.Run("check_rsbuild_headlampBaseUrl_is_set_to_baseURL", func(t *testing.T) {
+		rsbuildHTML := strings.Replace(testHTML, "./<%= BASE_URL %>", "%BASE_URL%./", 1)
+		testHeadlampBaseURLWithBaseURL(t, rsbuildHTML)
+	})
+
+	t.Run("check_product_name_is_escaped_in_title", func(t *testing.T) {
+		testProductNameInTitle(t, testHTML)
+	})
+
 	t.Run("check_empty_path_returns_index.html", func(t *testing.T) {
 		testEmptyPathReturnsIndex(t, testHTML)
 	})
@@ -56,6 +83,22 @@ func TestEmbeddedSpaHandler(t *testing.T) {
 	t.Run("file_not_found_uses_index_content_type", func(t *testing.T) {
 		testFileNotFoundUsesIndexContentType(t, testHTML)
 	})
+}
+
+func testProductNameInTitle(t *testing.T, testHTML string) {
+	handler := spa.NewEmbeddedHandlerWithProductName(createTestFS(map[string]*fstest.MapFile{
+		"static/index.html": {Data: []byte(testHTML)},
+	}), "index.html", "/headlamp", "Branded & Headlamp")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/not-found", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "<title>Branded &amp; Headlamp</title>")
+	assert.NotContains(t, rr.Body.String(), "data-headlamp-product-name")
 }
 
 func testHeadlampBaseURLWithBaseURL(t *testing.T, testHTML string) {
@@ -73,6 +116,7 @@ func testHeadlampBaseURLWithBaseURL(t *testing.T, testHTML string) {
 	// Check that the __baseUrl__ assignment was replaced
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
 	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+	assert.Contains(t, rr.Body.String(), `<base href="/headlamp/">`)
 }
 
 func testEmptyPathReturnsIndex(t *testing.T, testHTML string) {
@@ -107,6 +151,7 @@ func testFileNotFound(t *testing.T, testHTML string) {
 	// Check that the __baseUrl__ assignment was replaced in fallback case
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
 	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+	assert.Contains(t, rr.Body.String(), `<base href="/headlamp/">`)
 }
 
 func testFileNotFoundUsesIndexContentType(t *testing.T, testHTML string) {
@@ -123,4 +168,40 @@ func testFileNotFoundUsesIndexContentType(t *testing.T, testHTML string) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Header().Get("Content-Type"), "text/html")
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
+}
+
+// TestEmbeddedSpaHandlerTraversal verifies that the embedded handler rejects
+// paths containing ".." components or backslashes with 400, consistent with
+// the on-disk spaHandler.
+func TestEmbeddedSpaHandlerTraversal(t *testing.T) {
+	testHTML := getTestHTML()
+
+	files := map[string]*fstest.MapFile{
+		"static/index.html": {Data: []byte(testHTML)},
+	}
+
+	handler := spa.NewEmbeddedHandler(createTestFS(files), "index.html", "/headlamp")
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"dotdot escape", "/headlamp/../../etc/passwd"},
+		{"dotdot in segment", "/headlamp/../secret"},
+		{"backslash in path", `/headlamp\..\secret`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(
+				context.Background(), "GET", tt.path, nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusBadRequest, rr.Code,
+				"path %q should be rejected with 400", tt.path)
+		})
+	}
 }

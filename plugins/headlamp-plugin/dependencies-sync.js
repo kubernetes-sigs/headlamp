@@ -44,6 +44,7 @@ const dependenciesFrontDoesNotHave = new Set([
   '@storybook/addon-webpack5-compiler-swc',
   '@storybook/react-webpack5',
   'ts-loader',
+  '@typescript-eslint/parser',
   '@headlamp-k8s/pluginctl',
   'path-browserify',
   'process',
@@ -75,10 +76,26 @@ const dependenciesToNotCopy = [
   '@tanstack/react-query-devtools',
   'remark-gfm',
   '@typescript/native-preview',
+  '@chanzuckerberg/axe-storybook-testing',
+  'tsx',
 ];
 
 // Dependencies that can have different versions
-const differentlyVersionedDependencies = ['eslint-plugin-react-hooks'];
+// vitest 4 crashes npm 10 on fresh installs, so plugin authors use vitest 5,
+// which needs @types/node 22 or newer.
+// The toolkit uses Storybook 10 to remove Storybook 9's pinned mocker dependency.
+const differentlyVersionedDependencies = [
+  // Plugin projects can opt into a TS6 compiler API alongside the TS7 CLI.
+  '@typescript-eslint/eslint-plugin',
+  'eslint-plugin-react-hooks',
+  'vitest',
+  '@vitest/coverage-istanbul',
+  '@types/node',
+  'storybook',
+  '@storybook/addon-docs',
+  '@storybook/addon-links',
+  '@storybook/react-vite',
+];
 
 const yargs = require('yargs/yargs');
 const fs = require('fs-extra');

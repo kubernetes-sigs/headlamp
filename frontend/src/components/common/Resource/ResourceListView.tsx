@@ -20,6 +20,7 @@ import { BackLinkProps } from '../BackLink';
 import { CreateResourceButton } from '../CreateResourceButton';
 import SectionBox from '../SectionBox';
 import SectionFilterHeader, { SectionFilterHeaderProps } from '../SectionFilterHeader';
+import { EmptyStateActions } from './EmptyStateActions';
 import ResourceTable, { ResourceTableProps } from './ResourceTable';
 
 export interface ResourceListViewProps<Item extends KubeObject>
@@ -38,6 +39,13 @@ export interface ResourceListViewWithResourceClassProps<ItemClass extends KubeOb
   backLink?: BackLinkProps['to'] | boolean;
   headerProps?: Omit<SectionFilterHeaderProps, 'title'>;
   resourceClass: ItemClass;
+  /**
+   * The clusters to list from. Defaults to every selected cluster; a resource
+   * served by only some of them passes the subset that serves it, so the others
+   * are not queried. An empty list queries no cluster and shows an empty table.
+   * The create action targets the first of them, and is left out when there is none.
+   */
+  clusters?: string[];
 }
 
 export default function ResourceListView<ItemClass extends KubeObjectClass>(
@@ -53,6 +61,29 @@ export default function ResourceListView(
   const withNamespaceFilter = 'resourceClass' in props && props.resourceClass?.isNamespaced;
   const resourceClass = (props as ResourceListViewWithResourceClassProps<any>)
     .resourceClass as KubeObjectClass;
+  const clusters = (props as ResourceListViewWithResourceClassProps<any>).clusters;
+  const createActions =
+    resourceClass && clusters?.length !== 0
+      ? [<CreateResourceButton resourceClass={resourceClass} cluster={clusters?.[0]} />]
+      : undefined;
+
+  // Default the empty-state actions to a Create + Refresh row on top-level
+  // resource list views (identified by a `resourceClass` prop). Nested
+  // embedded lists on Details pages don't get the auto-default; they can
+  // still opt in by passing `emptyActions` explicitly. Passing
+  // `emptyActions={null}` opts out even when a class is present.
+  let emptyActions = tableProps.emptyActions;
+  if (emptyActions === undefined && resourceClass) {
+    // Like the header create action above, the empty-state Create button
+    // targets the first of the clusters the list is limited to, and is left
+    // out when the list is limited to no cluster (only Refresh remains).
+    emptyActions = (
+      <EmptyStateActions
+        resourceClass={clusters?.length !== 0 ? resourceClass : undefined}
+        cluster={clusters?.[0]}
+      />
+    );
+  }
 
   return (
     <SectionBox
@@ -62,10 +93,7 @@ export default function ResourceListView(
           <SectionFilterHeader
             title={title}
             noNamespaceFilter={!withNamespaceFilter}
-            titleSideActions={
-              headerProps?.titleSideActions ||
-              (resourceClass ? [<CreateResourceButton resourceClass={resourceClass} />] : undefined)
-            }
+            titleSideActions={headerProps?.titleSideActions || createActions}
             {...headerProps}
           />
         ) : (
@@ -75,6 +103,7 @@ export default function ResourceListView(
     >
       <ResourceTable
         {...tableProps}
+        emptyActions={emptyActions}
         enableRowActions={tableProps.enableRowActions ?? true}
         enableRowSelection={tableProps.enableRowSelection ?? true}
       />

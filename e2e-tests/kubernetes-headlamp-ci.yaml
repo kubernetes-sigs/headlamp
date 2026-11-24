@@ -22,6 +22,7 @@ spec:
   ports:
     - port: 80
       targetPort: 4466
+      nodePort: 30466
   selector:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
@@ -60,6 +61,128 @@ data:
       user:
     current-context: test
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+rules:
+- apiGroups:
+  - multicluster.x-k8s.io
+  resources:
+  - clusterprofiles
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups: [cluster.x-k8s.io]
+  resources: [clusters]
+  verbs: [get, list, watch]
+- apiGroups: [""]
+  resources: [secrets]
+  verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: headlamp-cluster-inventory
+subjects:
+- kind: ServiceAccount
+  name: headlamp-cluster-inventory
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headlamp-inventory-dex
+  namespace: kube-system
+data:
+  config.yaml: |
+    issuer: ${INVENTORY_OIDC_ISSUER_URL}
+    storage:
+      type: memory
+    web:
+      https: 0.0.0.0:5556
+      tlsCert: /etc/dex/tls/tls.crt
+      tlsKey: /etc/dex/tls/tls.key
+    oauth2:
+      skipApprovalScreen: true
+    staticClients:
+      - id: headlamp-e2e
+        name: Headlamp Inventory E2E
+        secret: headlamp-e2e-secret
+        redirectURIs:
+          - ${INVENTORY_OIDC_CALLBACK_URL}
+    enablePasswordDB: true
+    staticPasswords:
+      - email: headlamp-e2e@example.com
+        hash: $2y$10$r7HzjBw5FYu9cDE6WwW2/eNL4Y2fenjew.9Jik91uzovWbzTMENtO
+        username: headlamp-e2e
+        userID: headlamp-e2e
+      - email: forbidden-e2e@example.com
+        hash: $2y$10$r7HzjBw5FYu9cDE6WwW2/eNL4Y2fenjew.9Jik91uzovWbzTMENtO
+        username: forbidden-e2e
+        userID: forbidden-e2e
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp-inventory-dex
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: headlamp-inventory-dex
+  template:
+    metadata:
+      labels:
+        app: headlamp-inventory-dex
+    spec:
+      hostNetwork: true
+      containers:
+        - name: dex
+          image: ghcr.io/dexidp/dex:v2.45.1
+          command: ["/usr/local/bin/dex", "serve", "/etc/dex/config.yaml"]
+          readinessProbe:
+            httpGet:
+              path: /dex/.well-known/openid-configuration
+              port: 5556
+              scheme: HTTPS
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dex
+            - name: tls
+              mountPath: /etc/dex/tls
+      volumes:
+        - name: config
+          configMap:
+            name: headlamp-inventory-dex
+        - name: tls
+          secret:
+            secretName: headlamp-inventory-oidc-tls
+---
+apiVersion: multicluster.x-k8s.io/v1alpha1
+kind: ClusterProfile
+metadata:
+  name: inventory-test2
+  namespace: kube-system
+spec:
+  displayName: inventory-test2
+  clusterManager:
+    name: headlamp-e2e
+---
 # Source: headlamp/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -81,6 +204,7 @@ spec:
         app.kubernetes.io/name: headlamp
         app.kubernetes.io/instance: headlamp
     spec:
+      serviceAccountName: headlamp-cluster-inventory
       initContainers:
       - command:
         - /bin/sh
@@ -103,6 +227,18 @@ spec:
         imagePullPolicy: Never
         args:
         - "-enable-dynamic-clusters"
+        - "-in-cluster"
+        - "-in-cluster-context-name=main"
+        - "-enable-cluster-inventory"
+        - "-enable-cluster-api"
+        - "-oidc-client-id=headlamp-e2e"
+        - "-oidc-client-secret=headlamp-e2e-secret"
+        - "-oidc-idp-issuer-url=${INVENTORY_OIDC_ISSUER_URL}"
+        - "-oidc-ca-file=/etc/inventory-oidc/tls.crt"
+        - "-oidc-use-cookie"
+        - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
+        - "-cluster-inventory-root-reconcile-interval=2s"
+        - "-cluster-inventory-no-crd-cache-ttl=2s"
         - "-plugins-dir=/build/plugins"
         env:
         - name: KUBECONFIG
@@ -116,6 +252,9 @@ spec:
           name: headlamp-plugins
         - mountPath: "/home/headlamp/.config/Headlamp/kubeconfigs"
           name: kubeconfig
+        - mountPath: /etc/inventory-oidc
+          name: inventory-oidc
+          readOnly: true
       nodeSelector:
         'kubernetes.io/os': linux
       volumes:
@@ -128,6 +267,9 @@ spec:
           items:
           - key: config
             path: config
+      - name: inventory-oidc
+        secret:
+          secretName: headlamp-inventory-oidc-tls
 ---
 kind: Secret
 apiVersion: v1

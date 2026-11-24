@@ -30,16 +30,28 @@ import { useTranslation } from 'react-i18next';
 import { generatePath } from 'react-router';
 import { useHistory } from 'react-router-dom';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
+import {
+  ClusterLabel,
+  getClusterDisplayName,
+  getClusterSearchText,
+} from '../../helpers/clusterPresentation';
 import { isElectron } from '../../helpers/isElectron';
 import { getRecentClusters, setRecentCluster } from '../../helpers/recentClusters';
+import { useClusterPresentation } from '../../helpers/useClusterPresentation';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 import ClusterBadge from '../Sidebar/ClusterBadge';
 
-function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selected?: boolean }) {
-  const { cluster, selected, onClick } = props;
+function ClusterListItem(props: {
+  cluster: Cluster;
+  /** Name and source summary to show for the cluster. */
+  label: ClusterLabel;
+  onClick: () => void;
+  selected?: boolean;
+}) {
+  const { cluster, label, selected, onClick } = props;
   const { t } = useTranslation();
   const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
 
@@ -56,7 +68,8 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
       })}
     >
       <ClusterBadge
-        name={cluster.name}
+        name={label.name}
+        secondary={label.secondary}
         icon={appearance.icon}
         accentColor={appearance.accentColor}
       />
@@ -86,6 +99,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   const { anchor, onClose, ...otherProps } = props;
   const [filter, setFilter] = React.useState('');
   const clusters = useClustersConf();
+  const { sources, getLabel } = useClusterPresentation();
   const history = useHistory();
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
@@ -110,7 +124,10 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     let allClusters = Object.values(clusters || {});
     if (filter !== '') {
       allClusters = allClusters.filter(cluster =>
-        cluster.name.toLowerCase().includes(filter.toLowerCase())
+        [getClusterSearchText(cluster, sources), getLabel(cluster).text]
+          .join(' ')
+          .toLowerCase()
+          .includes(filter.toLowerCase())
       );
     }
 
@@ -139,7 +156,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         return 1;
       }
 
-      return 0;
+      return recentClustersNames.indexOf(a.name) - recentClustersNames.indexOf(b.name);
     });
 
     clustersToShow.sort((a, b) => {
@@ -149,12 +166,12 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         return 1;
       }
 
-      return a.name.localeCompare(b.name);
+      return getClusterDisplayName(a).localeCompare(getClusterDisplayName(b));
     });
 
     return [recentClusters, clustersToShow];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusters, selectedClusters.join(','), filter]);
+  }, [clusters, selectedClusters.join(','), filter, sources, getLabel]);
 
   React.useEffect(() => {
     setActiveDescendantIndex(-1);
@@ -260,7 +277,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       <Box p={2} pb={1}>
         <TextField
           label={t('Choose cluster')}
-          id="filled-size-small"
+          id="cluster-chooser-filter"
           placeholder={t('translation|Name')}
           variant="outlined"
           size="small"
@@ -278,6 +295,9 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         <MenuList
           id="cluster-chooser-list"
           role="listbox"
+          // A listbox is an ARIA input field, so it needs its own name: reuse
+          // the filter field's label.
+          aria-labelledby="cluster-chooser-filter-label"
           tabIndex={0}
           sx={{
             width: '280px',
@@ -317,17 +337,21 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
                 <ClusterListItem
                   key={`recent_cluster_${cluster.name}`}
                   cluster={cluster}
+                  label={getLabel(cluster)}
                   onClick={() => selectCluster(cluster)}
                   selected={cluster.name === getActiveDescendantCluster()?.name}
                 />
               ))}
             </>
           )}
-          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider role="separator" />}
+          {clustersToShow.length > 0 && recentClusters.length > 0 && (
+            <Divider role="presentation" />
+          )}
           {clustersToShow.map(cluster => (
             <ClusterListItem
               key={`cluster_button_${cluster.name}`}
               cluster={cluster}
+              label={getLabel(cluster)}
               onClick={() => selectCluster(cluster)}
               selected={cluster.name === getActiveDescendantCluster()?.name}
             />

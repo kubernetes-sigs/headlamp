@@ -15,6 +15,7 @@
  */
 
 import { KubeContainer, LabelSelector } from './cluster';
+import { isConditionTrue } from './conditions';
 import { KubeMetadata } from './KubeMetadata';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -75,19 +76,15 @@ class Job extends KubeObject<KubeJob> {
    * condition yet is still running and treated as transitional.
    */
   getHealth(): WorkloadHealthCategory {
-    const conditions = this.status?.conditions || [];
-    const isTrue = (type: string) =>
-      conditions.some(
-        (c: { type: string; status: string }) => c.type === type && c.status === 'True'
-      );
+    const conditions = this.status?.conditions;
 
-    if (isTrue('Failed')) {
+    if (isConditionTrue(conditions, 'Failed')) {
       return 'failed';
     }
-    if (isTrue('Complete')) {
+    if (isConditionTrue(conditions, 'Complete')) {
       return 'healthy';
     }
-    if (isTrue('Suspended')) {
+    if (isConditionTrue(conditions, 'Suspended')) {
       return 'degraded';
     }
     return 'transitional';

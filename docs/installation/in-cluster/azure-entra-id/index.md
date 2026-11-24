@@ -162,14 +162,14 @@ helm install headlamp-oidc headlamp/headlamp -f values.yaml --namespace=headlamp
 
 This will install Headlamp in the headlamp namespace with the OIDC configuration from the values.yaml file.
 
-7. After a successful installation, you can access Headlamp by port-forwarding to the pod:
+5. After a successful installation, you can access Headlamp by port-forwarding to the pod:
 
-Make sure the portforwarding is done to the port that you set as the callback URL in the Azure App Registration configuration. So in our case if you followed the steps above, the callback URL is <http://localhost:8000/oidc-callback>, and we should port forward to 8000.
+Make sure the port-forwarding is done to the port that you set as the callback URL in the Azure App Registration configuration. So in our case if you followed the steps above, the callback URL is <http://localhost:8000/oidc-callback>, and we should port forward to 8000.
 
 ```shell
 kubectl port-forward svc/headlamp-oidc 8000:80 -n headlamp
 ```
 
-8. Open your web browser and go to <http://localhost:8000>. Click on "sign-in." After completing the login flow successfully, you'll gain access to your Kubernetes cluster using Headlamp.
+6. Open your web browser and go to <http://localhost:8000>. Click on "sign-in." After completing the login flow successfully, you'll gain access to your Kubernetes cluster using Headlamp.
 
 ![Headlamp Login](./headlamp_auth_screen.png)

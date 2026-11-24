@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class podsPage {
   constructor(private page: Page) {}
 
-  async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+  /** Checks the pods page while ignoring tooltip landmark placement. */
+  async a11y(): Promise<void> {
+    await runA11yScan(this.page, expect, ['[role="tooltip"]']);
   }
 
   async navigateToPods() {
@@ -38,56 +37,6 @@ export class podsPage {
     console.log('Now on the pods page');
   }
 
-  async createPod(name) {
-    const yaml = `
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ${name}
-spec:
-  containers:
-  - name: nginx
-    image: nginx:1.14.2
-    ports:
-    - containerPort: 80
-    `;
-    const page = this.page;
-
-    // If the pod already exists, return.
-    // This makes it a bit more resilient to flakiness.
-    const pageContent = await this.page.content();
-    if (pageContent.includes(name)) {
-      return;
-    }
-
-    await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Create', exact: true }).click();
-
-    await page.waitForLoadState('load');
-
-    await expect(page.getByText('Use minimal editor')).toBeVisible();
-    await page.getByText('Use minimal editor').click();
-
-    await page.waitForLoadState('load');
-    await page.fill('textarea[aria-label="yaml Code"]', yaml);
-
-    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Apply', exact: true }).click();
-
-    await page.waitForSelector(`text=Applied ${name}`);
-
-    const podLink = page.getByRole('link', { name: name });
-    try {
-      await podLink.waitFor({ state: 'visible', timeout: 10000 });
-    } catch (error) {
-      await page.reload({ waitUntil: 'networkidle' });
-    }
-    await expect(podLink).toBeVisible();
-
-    console.log(`Created pod ${name}`);
-    await this.a11y();
-  }
-
   async deletePod(name) {
     const page = this.page;
 
@@ -99,27 +48,14 @@ spec:
     await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
     await page.getByRole('button', { name: 'Delete' }).click();
 
-    await page.waitForSelector(`text=Are you sure you want to delete item ${name}?`);
+    await expect(page.getByRole('dialog')).toBeVisible();
 
-    await expect(page.getByRole('button', { name: 'Yes' })).toBeVisible();
-    await page.getByRole('button', { name: 'Yes' }).click();
+    await expect(page.locator('button[aria-label="confirm-button"]')).toBeVisible();
+    await page.locator('button[aria-label="confirm-button"]').click();
 
     await page.waitForSelector(`text=Deleted item ${name}`);
 
     console.log(`Deleted pod ${name}`);
-    await this.a11y();
-  }
-
-  async confirmPodCreation(name) {
-    const podLink = this.page.locator(`a:has-text("${name}")`);
-    try {
-      await podLink.waitFor({ state: 'visible', timeout: 10000 });
-    } catch (error) {
-      await this.page.reload({ waitUntil: 'networkidle' });
-    }
-    await expect(podLink).toBeVisible();
-
-    console.log(`Pod ${name} is running`);
     await this.a11y();
   }
 }

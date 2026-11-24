@@ -55,7 +55,10 @@ import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
 import { ALL_SEVERITIES, filterLogsBySeverity, LogSeverity } from './logSeverityFilter';
 
-// Component props interface
+export interface WorkloadLogsProps {
+  item: KubeObject;
+}
+
 interface LogsButtonProps {
   item: KubeObject | null;
 }
@@ -92,7 +95,10 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   paddingRight: theme.spacing(2),
 }));
 
-function LogsButtonContent({ item }: LogsButtonProps) {
+/**
+ * Workload log controls and output for embedding outside the Activity view.
+ */
+export function WorkloadLogs({ item }: WorkloadLogsProps) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [selectedPodIndex, setSelectedPodIndex] = useState<number | 'all'>('all');
   const [selectedContainer, setSelectedContainer] = useState('');
@@ -109,26 +115,25 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   );
   const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [lines, setLines] = useState<number>(100);
+  // Time window in seconds. 0 means all time (no limit).
+  const [sinceSeconds, setSinceSeconds] = useState<number>(0);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
-  const [selectedSeverities, setSelectedSeverities] = useState<LogSeverity[]>(() => {
-    try {
-      const stored = localStorage.getItem('headlamp.logs.severityFilter');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Normalize and validate against ALL_SEVERITIES
-          const validSeverities = parsed.filter(s => ALL_SEVERITIES.includes(s as LogSeverity));
-          if (validSeverities.length > 0) {
-            return validSeverities as LogSeverity[];
-          }
-        }
+  const [reconnectCount, setReconnectCount] = useState(0);
+  const [storedSeverities, setStoredSeverities] = useLocalStorageState<LogSeverity[]>(
+    'headlamp.logs.severityFilter',
+    [...ALL_SEVERITIES]
+  );
+
+  const selectedSeverities = React.useMemo(() => {
+    if (Array.isArray(storedSeverities) && storedSeverities.length > 0) {
+      const validSeverities = storedSeverities.filter(s => ALL_SEVERITIES.includes(s));
+      if (validSeverities.length > 0) {
+        return validSeverities;
       }
-    } catch {
-      // ignore parse errors
     }
     return [...ALL_SEVERITIES];
-  });
+  }, [storedSeverities]);
 
   const xtermRef = React.useRef<XTerminal | null>(null);
   const processLogsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -187,7 +192,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           throw new Error(t('translation|Invalid response from server'));
         }
 
-        return response.items.map((podData: any) => new Pod(podData));
+        return response.items.map((podData: any) => new Pod(podData, item.cluster));
       } catch (error) {
         console.error('Error in getRelatedPods:', error);
         throw new Error(
@@ -201,6 +206,11 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   // Event handlers for log viewing options
   function handleLinesChange(event: any) {
     setLines(event.target.value);
+  }
+
+  function handleSinceChange(event: any) {
+    setSinceSeconds(event.target.value);
+    clearLogs();
   }
 
   function handleTimestampsChange() {
@@ -278,6 +288,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     if (pods.length && selectedContainer) {
       setShowReconnectButton(false);
       setLogs({ logs: [], lastLineShown: -1 });
+      setReconnectCount(count => count + 1);
     }
   }
 
@@ -335,6 +346,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           },
           {
             tailLines: lines,
+            sinceSeconds: sinceSeconds || undefined,
             showPrevious,
             showTimestamps,
             follow,
@@ -348,7 +360,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       return () => cleanups.forEach(cleanup => cleanup());
     },
-    [clearLogs, lines, showPrevious, showTimestamps, follow]
+    [clearLogs, lines, sinceSeconds, showPrevious, showTimestamps, follow]
   );
 
   // Effect for fetching and updating logs
@@ -417,6 +429,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           },
           {
             tailLines: lines,
+            sinceSeconds: sinceSeconds || undefined,
             showPrevious,
             showTimestamps,
             follow,
@@ -440,7 +453,9 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   }, [
     selectedPodIndex,
     selectedContainer,
+    reconnectCount,
     lines,
+    sinceSeconds,
     showPrevious,
     showTimestamps,
     follow,
@@ -559,6 +574,25 @@ function LogsButtonContent({ item }: LogsButtonProps) {
         </Select>
       </FormControl>
 
+      {/* Since (time window) selector */}
+      <FormControl sx={{ minWidth: 140 }}>
+        <InputLabel id={`${selectLabelId}-since-label`}>{t('translation|Since')}</InputLabel>
+        <Select
+          labelId={`${selectLabelId}-since-label`}
+          id={`${selectLabelId}-since`}
+          label={t('translation|Since')}
+          value={sinceSeconds}
+          onChange={handleSinceChange}
+        >
+          <MenuItem value={0}>{t('translation|All time')}</MenuItem>
+          <MenuItem value={300}>{t('translation|Last 5 minutes')}</MenuItem>
+          <MenuItem value={900}>{t('translation|Last 15 minutes')}</MenuItem>
+          <MenuItem value={3600}>{t('translation|Last hour')}</MenuItem>
+          <MenuItem value={21600}>{t('translation|Last 6 hours')}</MenuItem>
+          <MenuItem value={86400}>{t('translation|Last 24 hours')}</MenuItem>
+        </Select>
+      </FormControl>
+
       {/* Severity filter dropdown */}
       <FormControl sx={{ minWidth: 140 }}>
         <InputLabel id={`${selectLabelId}-severity-label`}>{t('translation|Severity')}</InputLabel>
@@ -570,8 +604,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           onChange={event => {
             const value = event.target.value as LogSeverity[];
             if (value.length > 0) {
-              setSelectedSeverities(value);
-              localStorage.setItem('headlamp.logs.severityFilter', JSON.stringify(value));
+              setStoredSeverities(value);
             }
           }}
           label={t('translation|Severity')}
@@ -691,7 +724,7 @@ export function launchWorkloadLogs(
     icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
     cluster: item.cluster,
     location: 'full',
-    content: <LogsButtonContent item={item} />,
+    content: <WorkloadLogs item={item} />,
   });
   dispatchHeadlampEvent?.({
     type: HeadlampEventType.LOGS,

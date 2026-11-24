@@ -47,14 +47,16 @@ vi.mock('../common/Resource', async importOriginal => {
     MainInfoSection: ({ resource, extraInfo }: any) => (
       <div data-testid="mock-main-info">
         <span data-testid="resource-name">{resource.metadata.name}</span>
-        {extraInfo.map((info: any, i: number) => (
-          <div key={i} data-testid={`extra-info-${info.name}`}>
-            <span className="info-name">{info.name}</span>
-            <span className="info-value">
-              {typeof info.value === 'string' ? info.value : 'complex-value'}
-            </span>
-          </div>
-        ))}
+        {extraInfo
+          .filter((info: any) => !info.hide)
+          .map((info: any, i: number) => (
+            <div key={i} data-testid={`extra-info-${info.name}`}>
+              <span className="info-name">{info.name}</span>
+              <span className="info-value">
+                {typeof info.value === 'string' ? info.value : 'complex-value'}
+              </span>
+            </div>
+          ))}
       </div>
     ),
     PageGrid: ({ children }: any) => <div>{children}</div>,
@@ -68,6 +70,10 @@ vi.mock('../DetailsViewSection', () => ({
 
 vi.mock('../common/ObjectEventList', () => ({
   default: () => <div data-testid="mock-event-list" />,
+}));
+
+vi.mock('../common/Loader', () => ({
+  default: ({ title }: { title: string }) => <div data-testid="mock-loader">{title}</div>,
 }));
 
 describe('CustomResourceDetails', () => {
@@ -94,7 +100,7 @@ describe('CustomResourceDetails', () => {
           ],
         },
       },
-      makeCRClass: () => ({
+      makeCRClassOrNull: () => ({
         useGet: vi.fn(() => [
           {
             metadata: { name: 'my-resource', namespace: 'default' },
@@ -150,5 +156,50 @@ describe('CustomResourceDetails', () => {
     const statusRow = await screen.findByTestId('extra-info-Status');
     expect(statusRow).toBeInTheDocument();
     expect(statusRow.querySelector('.info-value')).toHaveTextContent('Running');
+  });
+
+  it('does not show "Invalid Date" for a date printer column whose field is missing', async () => {
+    const mockCrd = setupMocks('v1');
+    mockCrd.jsonData.spec.versions[0].additionalPrinterColumns.push({
+      name: 'Finished',
+      jsonPath: '.status.completionTime',
+      type: 'date',
+    });
+
+    render(
+      <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+        <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+      </TestContext>
+    );
+
+    // The other printer column still renders, so the details view has loaded.
+    expect(await screen.findByTestId('extra-info-Status')).toBeInTheDocument();
+    // The unset date column is hidden rather than shown as "Invalid Date".
+    expect(screen.queryByTestId('extra-info-Finished')).not.toBeInTheDocument();
+    expect(screen.queryByText('Invalid Date')).not.toBeInTheDocument();
+  });
+
+  it('renders an empty state when makeCRClassOrNull() returns null (incomplete CRD spec, #4824)', async () => {
+    const mockCrd = {
+      metadata: { name: 'my-crd' },
+      jsonData: { spec: {} },
+      makeCRClassOrNull: () => null,
+    };
+    (CustomResourceDefinition.useGet as any).mockReturnValue([mockCrd, null]);
+
+    render(
+      <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+        <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+      </TestContext>
+    );
+
+    expect(
+      await screen.findByText(/This CustomResourceDefinition has an incomplete spec/i)
+    ).toBeInTheDocument();
+    // Verify the data path did NOT render by checking for text the data
+    // path would emit, rather than relying on a mocked `data-testid` whose
+    // absence is true even if the mock weren't applied.
+    expect(screen.queryByTestId('mock-main-info')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Loading custom resource details/i)).not.toBeInTheDocument();
   });
 });
