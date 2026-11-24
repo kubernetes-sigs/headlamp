@@ -340,22 +340,43 @@ func TestGetAuthToken(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:        "cookie takes precedence over Authorization header",
+			// The OIDC refresh middleware puts a renewed token in Authorization
+			// while the request cookie still holds the expired one.
+			name:        "Authorization header takes precedence over cookie",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
 					Name:     "headlamp-auth-test-cluster.0",
-					Value:    "cookie-token-wins",
+					Value:    "cookie-token-loses",
 					HttpOnly: true,
 					Secure:   true,
 					SameSite: http.SameSiteStrictMode,
 				})
-				req.Header.Set("Authorization", "Bearer header-token-loses")
+				req.Header.Set("Authorization", "Bearer header-token-wins")
 
 				return req
 			},
-			expectedToken: "cookie-token-wins",
+			expectedToken: "header-token-wins",
+			expectError:   false,
+		},
+		{
+			name:        "empty bearer token in Authorization header falls back to cookie",
+			clusterName: "test-cluster",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+				req.AddCookie(&http.Cookie{
+					Name:     "headlamp-auth-test-cluster.0",
+					Value:    "cookie-token-xyz",
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
+				})
+				req.Header.Set("Authorization", "Bearer ")
+
+				return req
+			},
+			expectedToken: "cookie-token-xyz",
 			expectError:   false,
 		},
 		{

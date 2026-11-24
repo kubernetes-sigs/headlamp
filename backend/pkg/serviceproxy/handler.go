@@ -103,24 +103,20 @@ func parseInfoFromRequest(r *http.Request) (string, string, string, string) {
 }
 
 func getAuthToken(r *http.Request, clusterName string) (string, error) {
-	// Try to get token from cookie first
+	// Prefer the Authorization header. When the OIDC refresh middleware renews
+	// an expired token it sets Authorization, while the request cookie still
+	// holds the old one.
+	if bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization")); bearerToken != "" {
+		return bearerToken, nil
+	}
+
+	// Fall back to the cluster cookie
 	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
 	if err == nil && tokenFromCookie != "" {
 		return tokenFromCookie, nil
 	}
 
-	// Fall back to Authorization header
-	authToken := r.Header.Get("Authorization")
-	if len(authToken) == 0 {
-		return "", fmt.Errorf("unauthorized")
-	}
-
-	bearerToken := auth.BearerTokenValue(authToken)
-	if bearerToken == "" {
-		return "", fmt.Errorf("unauthorized")
-	}
-
-	return bearerToken, nil
+	return "", fmt.Errorf("unauthorized")
 }
 
 func getServiceFromCluster(
