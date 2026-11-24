@@ -1050,6 +1050,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Minimalna dostępna",
+  "All pods in the namespace": "",
   "Allowed disruptions": "Dozwolone zakłócenia",
   "Current//context:pods": "Bieżący",
   "Total": "Łącznie",

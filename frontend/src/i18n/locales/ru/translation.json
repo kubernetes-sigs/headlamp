@@ -1050,6 +1050,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Минимальный доступный",
+  "All pods in the namespace": "",
   "Allowed disruptions": "Разрешённые сбои",
   "Current//context:pods": "Текущие",
   "Total": "Общий",

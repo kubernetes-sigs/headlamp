@@ -1026,6 +1026,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Menit Tersedia",
+  "All pods in the namespace": "",
   "Allowed disruptions": "Gangguan yang diizinkan",
   "Current//context:pods": "Saat ini",
   "Total": "Total",

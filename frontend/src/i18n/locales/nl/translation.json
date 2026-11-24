@@ -1034,6 +1034,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Minimum is beschikbaar",
+  "All pods in the namespace": "",
   "Allowed disruptions": "Toegestane onderbrekingen",
   "Current//context:pods": "Huidig",
   "Total": "Totaal",

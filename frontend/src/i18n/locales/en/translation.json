@@ -1034,6 +1034,7 @@
   "Not generated yet": "Not generated yet",
   "Source": "Source",
   "Min Available": "Min Available",
+  "All pods in the namespace": "All pods in the namespace",
   "Allowed disruptions": "Allowed disruptions",
   "Current//context:pods": "Current",
   "Total": "Total",
