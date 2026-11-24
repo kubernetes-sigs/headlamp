@@ -27,15 +27,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// createGzipPayload creates a gzip-compressed byte slice of the specified uncompressed size using repeated zeros.
+func createGzipPayload(size int) []byte {
+	var buf bytes.Buffer
+
+	gz := gzip.NewWriter(&buf)
+	chunk := make([]byte, 64*1024)
+
+	for written := 0; written < size; {
+		toWrite := len(chunk)
+		if size-written < toWrite {
+			toWrite = size - written
+		}
+
+		_, _ = gz.Write(chunk[:toWrite])
+		written += toWrite
+	}
+
+	_ = gz.Close()
+
+	return buf.Bytes()
+}
+
 // TestGetResponseBody checks that the response body is correctly decoded
 // based on the content encoding (e.g., gzip).
+//
+//nolint:funlen // Table-driven test cases exceed default function length.
 func TestGetResponseBody(t *testing.T) {
 	tests := []struct {
 		name            string
 		bodyBytes       []byte
 		contentEncoding string
 		expectedBody    string
+		expectedLen     int
 		expectError     bool
+		expectedError   string
 	}{
 		{
 			name: "valid gzip response",
@@ -74,6 +100,20 @@ func TestGetResponseBody(t *testing.T) {
 			expectedBody:    "",
 			expectError:     true,
 		},
+		{
+			name:            "gzip response exceeding 50MB limit returns error",
+			bodyBytes:       createGzipPayload(50*1024*1024 + 1),
+			contentEncoding: "gzip",
+			expectError:     true,
+			expectedError:   "response body exceeds maximum allowed size (50MB)",
+		},
+		{
+			name:            "gzip response exactly at 50MB limit succeeds",
+			bodyBytes:       createGzipPayload(50 * 1024 * 1024),
+			contentEncoding: "gzip",
+			expectedLen:     50 * 1024 * 1024,
+			expectError:     false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -82,9 +122,18 @@ func TestGetResponseBody(t *testing.T) {
 
 			if tc.expectError {
 				assert.Error(t, err)
+
+				if tc.expectedError != "" {
+					assert.EqualError(t, err, tc.expectedError)
+				}
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedBody, body)
+
+				if tc.expectedLen > 0 {
+					assert.Len(t, body, tc.expectedLen)
+				} else {
+					assert.Equal(t, tc.expectedBody, body)
+				}
 			}
 		})
 	}
