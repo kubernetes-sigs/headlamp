@@ -1971,6 +1971,188 @@ describe('useKubeObjectList', () => {
         });
     }
   });
+  it('should not invalidate a remounted list when an old pagination request fails with HTTP 410', async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue(undefined);
+    let rejectOldAPage!: (reason?: unknown) => void;
+    const oldAPagePromise = new Promise<Response>((_, reject) => {
+      rejectOldAPage = reject;
+    });
+    let pageFetches = 0;
+
+    mockClusterFetch.mockImplementation((url, options) => {
+      const cluster = options?.cluster;
+      if (String(url).includes('continue=a-next')) {
+        pageFetches++;
+        if (pageFetches === 1) return oldAPagePromise;
+        return Promise.resolve({
+          json: () =>
+            Promise.resolve(
+              makeListResponse({
+                items: [makePod('pod-a2', '2')],
+                resourceVersion: '2',
+              })
+            ),
+        } as Response);
+      }
+      if (cluster === 'cluster-a') {
+        return Promise.resolve({
+          json: () =>
+            Promise.resolve(
+              makeListResponse({
+                items: [makePod('pod-a1', '1')],
+                continueToken: 'a-next',
+              })
+            ),
+        } as Response);
+      }
+      if (cluster === 'cluster-b') {
+        return Promise.resolve({
+          json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-b1', '1')] })),
+        } as Response);
+      }
+      return Promise.reject(new Error(`Unexpected cluster: ${cluster}`));
+    });
+
+    const mount = (cluster: string) =>
+      renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: mockClass,
+            requests: [{ cluster }],
+            queryParams: { limit: DEFAULT_LIST_LIMIT },
+          }),
+        { wrapper: queryClientWrapper(queryClient) }
+      );
+
+    const firstA = mount('cluster-a');
+    let pendingOldLoad: Promise<void> | undefined;
+    try {
+      await waitFor(() =>
+        expect(firstA.result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1')
+      );
+      act(() => {
+        pendingOldLoad = firstA.result.current.loadMore?.();
+      });
+      await waitFor(() => expect(pageFetches).toBe(1));
+      firstA.unmount();
+
+      const b = mount('cluster-b');
+      await waitFor(() =>
+        expect(b.result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-b1')
+      );
+      b.unmount();
+
+      const secondA = mount('cluster-a');
+      try {
+        await waitFor(() =>
+          expect(secondA.result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a1')
+        );
+        await act(async () => {
+          await secondA.result.current.loadMore?.();
+        });
+        await waitFor(() =>
+          expect(secondA.result.current.items?.map(item => item.jsonData.metadata.name)).toEqual([
+            'pod-a1',
+            'pod-a2',
+          ])
+        );
+
+        invalidate.mockClear();
+        rejectOldAPage(new ApiError('continue token expired', { status: 410 }));
+        await act(async () => {
+          await pendingOldLoad;
+        });
+
+        expect(invalidate).not.toHaveBeenCalled();
+        expect(secondA.result.current.error).toBeNull();
+      } finally {
+        secondA.unmount();
+      }
+    } finally {
+      rejectOldAPage(new Error('cleanup'));
+      if (pendingOldLoad) {
+        await act(async () => {
+          await pendingOldLoad;
+        });
+      }
+    }
+  });
+
+  it('should refresh preseeded stale namespace queries when revisiting a cluster', async () => {
+    const queryClient = new QueryClient();
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const staleQueryKey = kubeObjectListQuery(mockClass, endpoint, 'ns-b', 'cluster-a', {
+      limit: DEFAULT_LIST_LIMIT,
+    }).queryKey;
+
+    queryClient.setQueryData(
+      staleQueryKey,
+      {
+        list: makeListResponse({ items: [makePod('stale-pod', '1')], resourceVersion: '1' }),
+        cluster: 'cluster-a',
+        namespace: 'ns-b',
+      },
+      { updatedAt: Date.now() - 60_000 }
+    );
+    await queryClient.invalidateQueries({ queryKey: staleQueryKey, refetchType: 'none' });
+
+    mockClusterFetch.mockImplementation((url, options) => {
+      const cluster = options?.cluster;
+      if (cluster === 'cluster-a' && String(url).includes('/namespaces/ns-a/')) {
+        return Promise.resolve({
+          json: () =>
+            Promise.resolve(
+              makeListResponse({ items: [makePod('pod-a', '1')], resourceVersion: '1' })
+            ),
+        } as Response);
+      }
+      if (cluster === 'cluster-a' && String(url).includes('/namespaces/ns-b/')) {
+        return Promise.resolve({
+          json: () =>
+            Promise.resolve(
+              makeListResponse({ items: [makePod('fresh-pod-b', '2')], resourceVersion: '2' })
+            ),
+        } as Response);
+      }
+      if (cluster === 'cluster-b') {
+        return Promise.resolve({
+          json: () =>
+            Promise.resolve(
+              makeListResponse({ items: [makePod('pod-other-cluster', '1')], resourceVersion: '1' })
+            ),
+        } as Response);
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}, cluster: ${cluster}`));
+    });
+
+    const { result, rerender } = renderHook(
+      ({ requests }: { requests: Array<{ cluster: string; namespaces?: string[] }> }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests,
+          queryParams: { limit: DEFAULT_LIST_LIMIT },
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: {
+          requests: [{ cluster: 'cluster-a', namespaces: ['ns-a'] }],
+        },
+      }
+    );
+
+    await waitFor(() => expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-a'));
+
+    rerender({ requests: [{ cluster: 'cluster-b', namespaces: ['ns-a'] }] });
+    await waitFor(() =>
+      expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('pod-other-cluster')
+    );
+
+    rerender({ requests: [{ cluster: 'cluster-a', namespaces: ['ns-b'] }] });
+    await waitFor(() =>
+      expect(result.current.items?.[0]?.jsonData.metadata.name).toBe('fresh-pod-b')
+    );
+  });
 
   it('should invalidate an active list when pagination returns HTTP 410', async () => {
     const queryClient = new QueryClient();

@@ -928,6 +928,12 @@ export function useKubeObjectList<K extends KubeObject>({
     loadMoreGenerationRef.current += 1;
   }
 
+  useEffect(() => {
+    return () => {
+      loadMoreGenerationRef.current += 1;
+    };
+  }, []);
+
   const loadMorePromiseRef = useRef<{
     generation: number;
     promise: Promise<void>;
@@ -970,7 +976,7 @@ export function useKubeObjectList<K extends KubeObject>({
         );
 
         const results = await Promise.allSettled(
-          nextQueries.map(q => queryClient.ensureQueryData(q as any))
+          nextQueries.map(q => queryClient.fetchQuery(q as any))
         );
 
         if (!isCurrentLoadMore()) {
