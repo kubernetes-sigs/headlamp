@@ -22,6 +22,36 @@
           }
         }
       ]
+    },
+    "customProbe": {
+      "type": "object",
+      "description": "Optional complete Kubernetes probe; replaces the default HTTP probe when nonempty",
+      "default": {},
+      "oneOf": [
+        { "maxProperties": 0 },
+        { "required": ["exec"] },
+        { "required": ["httpGet"] },
+        { "required": ["tcpSocket"] },
+        { "required": ["grpc"] }
+      ],
+      "properties": {
+        "exec": {
+          "type": "object",
+          "required": ["command"],
+          "properties": {
+            "command": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          }
+        },
+        "httpGet": { "type": "object", "required": ["port"] },
+        "tcpSocket": { "type": "object", "required": ["port"] },
+        "grpc": { "type": "object", "required": ["port"] },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 }
+      }
     }
   },
   "properties": {
@@ -912,6 +942,12 @@
           "type": "object",
           "description": "Liveness probe settings",
           "properties": {
+            "custom": {
+              "allOf": [
+                { "$ref": "#/definitions/customProbe" },
+                { "properties": { "successThreshold": { "const": 1 } } }
+              ]
+            },
             "initialDelaySeconds": {
               "type": "integer",
               "description": "Initial delay in seconds before starting liveness probe",
@@ -950,6 +986,7 @@
           "type": "object",
           "description": "Readiness probe settings",
           "properties": {
+            "custom": { "$ref": "#/definitions/customProbe" },
             "initialDelaySeconds": {
               "type": "integer",
               "description": "Initial delay in seconds before starting readiness probe",

@@ -1,0 +1,4 @@
+probes:
+  readinessProbe:
+    custom:
+      timeoutSeconds: 5

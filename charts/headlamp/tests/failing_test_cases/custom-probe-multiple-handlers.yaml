@@ -1,0 +1,7 @@
+probes:
+  livenessProbe:
+    custom:
+      exec:
+        command: ["true"]
+      httpGet:
+        port: 8080

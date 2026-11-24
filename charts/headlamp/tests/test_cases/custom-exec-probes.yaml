@@ -1,0 +1,18 @@
+# A proxy-fronted deployment may keep Headlamp on loopback and check it locally.
+probes:
+  scheme: HTTPS
+  livenessProbe:
+    initialDelaySeconds: 99 # ignored because custom replaces the whole probe
+    custom:
+      exec:
+        command: ["/usr/bin/wget", "-q", "--spider", "-T", "3", "http://127.0.0.1:4467/"]
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+  readinessProbe:
+    custom:
+      exec:
+        command: ["/usr/bin/wget", "-q", "--spider", "-T", "3", "http://127.0.0.1:4467/"]
+      initialDelaySeconds: 5
+      timeoutSeconds: 5

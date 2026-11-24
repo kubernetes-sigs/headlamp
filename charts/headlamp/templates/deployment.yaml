@@ -453,6 +453,9 @@ spec:
               containerPort: 4466
               protocol: TCP
           livenessProbe:
+            {{- if .Values.probes.livenessProbe.custom }}
+            {{- toYaml .Values.probes.livenessProbe.custom | nindent 12 }}
+            {{- else }}
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
               port: http
@@ -462,7 +465,11 @@ spec:
             timeoutSeconds: {{ .Values.probes.livenessProbe.timeoutSeconds | default 1 }}
             successThreshold: 1
             failureThreshold: {{ .Values.probes.livenessProbe.failureThreshold | default 3 }}
+            {{- end }}
           readinessProbe:
+            {{- if .Values.probes.readinessProbe.custom }}
+            {{- toYaml .Values.probes.readinessProbe.custom | nindent 12 }}
+            {{- else }}
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
               port: http
@@ -472,6 +479,7 @@ spec:
             timeoutSeconds: {{ .Values.probes.readinessProbe.timeoutSeconds | default 1 }}
             successThreshold: {{ .Values.probes.readinessProbe.successThreshold | default 1 }}
             failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           {{- if or .Values.pluginsManager.enabled .Values.volumeMounts $tmpCtx.addMount }}
