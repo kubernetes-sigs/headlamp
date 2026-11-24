@@ -39,10 +39,12 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
         item && [
           {
             name: t('translation|Reference'),
-            value: (
+            value: item.referenceObject ? (
               <Link kubeObject={item.referenceObject}>
-                {item.referenceObject?.kind}/{item.referenceObject?.metadata.name}
+                {item.referenceObject?.kind}/{item.referenceObject?.metadata?.name}
               </Link>
+            ) : (
+              '-'
             ),
           },
           {
@@ -59,23 +61,23 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
           },
           {
             name: t('translation|MinReplicas'),
-            value: item.spec.minReplicas,
+            value: item.spec?.minReplicas,
           },
           {
             name: t('translation|MaxReplicas'),
-            value: item.spec.maxReplicas,
+            value: item.spec?.maxReplicas,
           },
           {
             name: t('translation|Deployment pods'),
             value: t(`translation|{{ currentReplicas }} current / {{ desiredReplicas }} desired`, {
-              currentReplicas: item.status.currentReplicas,
-              desiredReplicas: item.status.desiredReplicas,
+              currentReplicas: item.status?.currentReplicas ?? 0,
+              desiredReplicas: item.status?.desiredReplicas ?? 0,
             }),
           },
           {
             name: t('translation|Last Scale Time'),
-            value: item.status.lastScaleTime ? localeDate(item.status.lastScaleTime) : '',
-            hide: !item.status.lastScaleTime,
+            value: item.status?.lastScaleTime ? localeDate(item.status.lastScaleTime) : '',
+            hide: !item.status?.lastScaleTime,
           },
         ]
       }

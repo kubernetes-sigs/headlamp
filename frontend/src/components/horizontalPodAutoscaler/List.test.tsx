@@ -92,4 +92,23 @@ describe('HpaList', () => {
     expect(getColumn('currentReplicas').getValue(hpa)).toBe(2);
     expect(getColumn('targets').getValue(hpa)).toBe('50%/80%, 10/20');
   });
+
+  it('safely handles resources with undefined status and spec without throwing', () => {
+    render(
+      <TestContext>
+        <HpaList />
+      </TestContext>
+    );
+
+    const emptyHpa = {
+      metrics: () => [],
+    } as any;
+
+    expect(getColumn('reference').getValue(emptyHpa)).toBeUndefined();
+    expect(getColumn('minReplicas').getValue(emptyHpa)).toBeUndefined();
+    expect(getColumn('maxReplicas').getValue(emptyHpa)).toBeUndefined();
+    expect(getColumn('currentReplicas').getValue(emptyHpa)).toBe(0);
+    expect(getColumn('targets').getValue(emptyHpa)).toBe('');
+    expect(getColumn('reference').render(emptyHpa)).toBeNull();
+  });
 });
