@@ -235,6 +235,8 @@
   "Scheduling (alpha)": "शेड्यूलिंग (अल्फ़ा)",
   "TCP Routes": "",
   "UDP Routes": "",
+  "Scopes": "",
+  "Scope Selector": "",
   "Resource Quotas": "रिसोर्स कोटा",
   "Reference Kind": "रेफरेंस काइंड",
   "Reference Name": "रेफरेंस नाम",
