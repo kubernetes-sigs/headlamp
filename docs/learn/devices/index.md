@@ -33,8 +33,8 @@ A ResourceClaim is a request for devices. After scheduling, it records the devic
 The **Resource Claims** list shows each claim's status:
 
 - **Pending**: no device is allocated yet.
-- **Allocated**: a device is picked, but no Pod uses the claim yet.
-- **In use by N**: N Pods use the claim.
+- **Allocated**: a device is picked, but no consumer has reserved the claim yet.
+- **In use by N**: N consumers, usually Pods, have reserved the claim. A Pod can reserve a claim before it starts.
 
 A claim's page shows:
 
@@ -42,7 +42,7 @@ A claim's page shows:
 - **Requests**: each request, its device class, and how many devices it asks for.
 - **Allocated Devices**: each device the claim got, with its pool and driver. If the request listed alternatives, **Chosen Alternative** shows which one was used.
 - **Health**: **Healthy**, **Unhealthy**, or **Unknown**, as reported by the kubelet. Hover over the label to see the reason.
-- **Used By**: the Pods using the claim.
+- **Used By**: the consumers that reserved the claim, usually Pods.
 
 ![The page of claim pod0-gpu-5rbv9. It requests one device from class gpu.example.com, got device gpu-3 from driver gpu.example.com with health Healthy, and is used by Pod pod0.](./claim-details.png)
 
@@ -88,11 +88,11 @@ It needs:
 
 Headlamp shows **Pool Availability** in the sidebar only for clusters that serve this API.
 
-To open it, select **Pool Availability** and pick a driver, or click a pool name in the **Resource Slices** list to open it for that pool. Select **Show all pools** to remove the pool filter, and **Refresh** to count again. Results are limited to 100 pools; if they are truncated, open a specific pool from the **Resource Slices** list.
+To open it, select **Pool Availability** and pick a driver, or click a pool name in the **Resource Slices** list to filter the results to that pool. Select **Show all pools** to remove the pool filter, and **Refresh** to count again. Results are limited to 100 pools; opening a specific pool only filters the returned results and cannot retrieve a pool omitted by this limit.
 
 ![Pool Availability for driver gpu.example.com and pool dra-pool-status-control-plane: 1 available, 7 allocated, and 0 unavailable devices out of 8.](./pool-availability.png)
 
-A pool that the cluster could not count shows **Incomplete** or **Not counted** instead of a number. Hover over the label to see the reason. While a driver is still publishing a pool, the page says so and waits.
+A pool that the cluster could not count shows **Incomplete** or **Not counted** instead of a number. Hover over the label to see the reason. On Kubernetes v1.38 or later, the page says when a driver is still publishing a pool and waits. On earlier versions, the request can stay pending instead. If there is no result after 30 seconds, Headlamp says that the pool may still be publishing or be incomplete.
 
 ## Map
 
@@ -104,10 +104,10 @@ Open the **Map** and turn on the **Devices (alpha)** group. The Map then shows e
 
 **The Devices (alpha) section is missing.** Check that the cluster runs Kubernetes v1.34 or later and serves `deviceclasses` in `resource.k8s.io/v1`. Also check that Headlamp can reach the cluster and access API discovery; a failed discovery request hides the section.
 
-**A list is empty.** Each empty list says why. For example, no device classes usually means no DRA driver is installed.
+**A list is empty.** For device classes and resource slices, check that a DRA driver is installed and running. For resource claims and templates, check the selected namespaces.
 
 **Health shows Unknown.** Headlamp has no known health report from the Pods using the claim. Check that a Pod uses the claim, that you can read it, and that the driver reports health to the kubelet. Also check that `ResourceHealthStatus` is enabled on the API server and kubelets; it is disabled by default on Kubernetes v1.34–v1.35.
 
-**Pool Availability is missing from the sidebar.** The cluster does not serve `resource.k8s.io/v1alpha3`. Enable the `DRAResourcePoolStatus` feature gate for the API server and controller manager, and enable the API with `--runtime-config=resource.k8s.io/v1alpha3=true`.
+**Pool Availability is missing from the sidebar.** Check that Headlamp can reach the cluster and access API discovery; a failed discovery request hides the entry. Then check that the cluster serves `resourcepoolstatusrequests` in `resource.k8s.io/v1alpha3`. If it does not, enable the `DRAResourcePoolStatus` feature gate for the API server and controller manager, and enable the API with `--runtime-config=resource.k8s.io/v1alpha3=true`.
 
 **Pool Availability says you are not allowed.** By default, only cluster admins can create ResourcePoolStatusRequests. A role also needs to list ResourceSlices and get the requests it creates.
