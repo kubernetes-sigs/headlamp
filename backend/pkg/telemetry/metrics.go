@@ -192,7 +192,7 @@ func newResponseWriter(w http.ResponseWriter) *responseWriter {
 
 // WriteHeader overrides the http.ResponseWriter WriteHeader method to
 // capture the response status code before delegating to the wrapped ResponseWriter.
-// This method updates the internal statusCode field and then calls ethe wrapped ResponseWriter's WriteHeader method.
+// This method updates the internal statusCode field and then calls the wrapped ResponseWriter's WriteHeader method.
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
