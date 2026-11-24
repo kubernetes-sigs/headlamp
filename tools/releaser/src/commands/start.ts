@@ -28,7 +28,7 @@ import {
 import { sanitizeVersion, isValidVersion } from '../utils/version.js';
 
 interface StartOptions {
-  noBranch?: boolean;
+  branch?: boolean;
 }
 
 export function startRelease(
@@ -53,7 +53,7 @@ export function startRelease(
 
   try {
     // Create branch unless --no-branch is specified
-    if (!options.noBranch) {
+    if (options.branch !== false) {
       if (branchExists(branchName)) {
         console.log(
           chalk.yellow(
