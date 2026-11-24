@@ -23,6 +23,7 @@ import {
   resolvePreferredDarkThemeName,
   resolvePreferredLightThemeName,
   useFollowSystemAppearance,
+  useIsThemeLocked,
 } from './ThemeToggleButton';
 
 /**
@@ -37,13 +38,13 @@ export function SystemAppearanceSync() {
   const scheme = usePrefersColorScheme();
   const appThemes = useAppThemes();
   const currentThemeName = useTypedSelector(state => state.theme.name);
-  const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const themeLocked = useIsThemeLocked();
   const configuredLight = useTypedSelector(state => state.config.defaultLightTheme);
   const configuredDark = useTypedSelector(state => state.config.defaultDarkTheme);
 
   const backendConfigReady = useTypedSelector(state => state.theme.backendConfigReady);
   let targetThemeName: string | undefined;
-  if (backendConfigReady && following && !forceTheme) {
+  if (backendConfigReady && following && !themeLocked) {
     targetThemeName =
       scheme === 'dark'
         ? resolvePreferredDarkThemeName(appThemes, configuredDark)

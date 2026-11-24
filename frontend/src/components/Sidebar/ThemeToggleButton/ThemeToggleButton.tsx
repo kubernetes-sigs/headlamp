@@ -27,6 +27,7 @@ import {
   REMEMBER_THEME_CHOICES_KEY,
 } from '../../../lib/themes';
 import { useTypedSelector } from '../../../redux/hooks';
+import { useSetting } from '../../../settings/useAdminSettings';
 import { setTheme, useAppThemes } from '../../App/themeSlice';
 import ActionButton from '../../common/ActionButton';
 
@@ -233,6 +234,17 @@ export function resolvePreferredDarkThemeName(
 }
 
 /**
+ * Whether the user can't change the theme: it is forced with `--force-theme`, or the
+ * administrator restricted it in the settings file (`$display` disabled or hidden).
+ * Theme shortcuts (quick swap, follow system appearance, global search) check this.
+ */
+export function useIsThemeLocked(): boolean {
+  const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const adminTheme = useSetting('theme');
+  return !!forceTheme || adminTheme.disabled || adminTheme.hidden;
+}
+
+/**
  * Sidebar button that flips between the user's preferred light and dark themes.
  */
 export default function ThemeToggleButton() {
@@ -240,7 +252,7 @@ export default function ThemeToggleButton() {
   const theme = useTheme();
   const appThemes = useAppThemes();
   const currentThemeName = useTypedSelector(state => state.theme.name);
-  const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const themeLocked = useIsThemeLocked();
   const configuredLight = useTypedSelector(state => state.config.defaultLightTheme);
   const configuredDark = useTypedSelector(state => state.config.defaultDarkTheme);
   const quickSwapEnabled = useQuickSwapEnabled();
@@ -248,7 +260,7 @@ export default function ThemeToggleButton() {
   const { t } = useTranslation();
 
   // While following the system appearance, the OS setting picks light or dark instead.
-  if (forceTheme || !quickSwapEnabled || followSystemAppearance) {
+  if (themeLocked || !quickSwapEnabled || followSystemAppearance) {
     return null;
   }
 
