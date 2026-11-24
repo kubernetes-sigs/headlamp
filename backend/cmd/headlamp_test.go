@@ -5351,6 +5351,398 @@ func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
 		"clientConfig bearer token should be set from cookie in non-OIDC in-cluster deployment")
 }
 
+func newTestInClusterHeadlampConfig(t *testing.T, clusterName string, authInfo *api.AuthInfo) *HeadlampConfig {
+	t.Helper()
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://test-cluster.example.com",
+		},
+		AuthInfo: authInfo,
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	return &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    true,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+}
+
+// TestHelmRouteReleaseHandlerRejectsMissingTokenInCluster verifies that
+// helmRouteReleaseHandler returns 401 Unauthorized in in-cluster mode when
+// no authentication token, cookie, or only empty/whitespace bearer tokens are provided.
+func TestHelmRouteReleaseHandlerRejectsMissingTokenInCluster(t *testing.T) {
+	clusterName := "test-cluster"
+
+	// #nosec G101 -- test credential, not a real secret
+	c := newTestInClusterHeadlampConfig(t, clusterName, &api.AuthInfo{Token: "saved-kubeconfig-token"})
+
+	testCases := []struct {
+		name       string
+		authHeader string
+	}{
+		{
+			name:       "no header",
+			authHeader: "",
+		},
+		{
+			name:       "empty bearer token with whitespace",
+			authHeader: "Bearer \u00a0",
+		},
+		{
+			name:       "bearer only",
+			authHeader: "Bearer ",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			handlerCalled := false
+
+			handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+				handlerCalled = true
+
+				w.WriteHeader(http.StatusOK)
+			}
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/releases/uninstall", nil)
+			require.NoError(t, err)
+
+			if tc.authHeader != "" {
+				req.Header.Set("Authorization", tc.authHeader)
+			}
+
+			w := httptest.NewRecorder()
+
+			ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+
+			defer span.End()
+
+			c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/releases/uninstall", "UninstallRelease", handler)
+
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+			assert.False(t, handlerCalled)
+		})
+	}
+}
+
+// TestHelmRouteReleaseHandlerRejectsMissingTokenForMountedKubeConfigInCluster verifies that
+// in safe in-cluster mode, shared mounted kubeconfig contexts (Source == kubeconfig.KubeConfig)
+// reject requests without a token with 401 Unauthorized, preventing backend credential reuse.
+func TestHelmRouteReleaseHandlerRejectsMissingTokenForMountedKubeConfigInCluster(t *testing.T) {
+	clusterName := "mounted-cluster"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://mounted-cluster.example.com",
+		},
+		AuthInfo: &api.AuthInfo{
+			ClientCertificate: "/path/to/cert.pem",
+		},
+		Source: kubeconfig.KubeConfig,
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    true,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handlerCalled := false
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/releases/uninstall", nil)
+	require.NoError(t, err)
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	w := httptest.NewRecorder()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/releases/uninstall", "UninstallRelease", handler)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.False(t, handlerCalled)
+}
+
+// TestHelmRouteReleaseHandlerAllowsDynamicClusterWithoutTokenInCluster verifies that
+// explicitly user-supplied dynamic clusters (Source == kubeconfig.DynamicCluster)
+// are not rejected by the in-cluster shared token guard when no bearer token is supplied.
+func TestHelmRouteReleaseHandlerAllowsDynamicClusterWithoutTokenInCluster(t *testing.T) {
+	clusterName := "dynamic-cluster"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://dynamic-cluster.example.com",
+		},
+		AuthInfo: &api.AuthInfo{
+			Token: "user-supplied-dynamic-token",
+		},
+		Source: kubeconfig.DynamicCluster,
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    true,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handlerCalled := false
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/releases/uninstall", nil)
+	require.NoError(t, err)
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	w := httptest.NewRecorder()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/releases/uninstall", "UninstallRelease", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, handlerCalled)
+}
+
+// TestHelmRouteReleaseHandlerAllowsStandaloneWithoutToken verifies that in standalone
+// mode (UseInCluster == false), requests without an Authorization token are permitted.
+func TestHelmRouteReleaseHandlerAllowsStandaloneWithoutToken(t *testing.T) {
+	clusterName := "standalone-cluster"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://standalone-cluster.example.com",
+		},
+		AuthInfo: &api.AuthInfo{
+			ClientCertificate: "/path/to/cert.pem",
+		},
+		Source: kubeconfig.KubeConfig,
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handlerCalled := false
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/releases/uninstall", nil)
+	require.NoError(t, err)
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	w := httptest.NewRecorder()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/releases/uninstall", "UninstallRelease", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, handlerCalled)
+}
+
+// TestHelmRouteReleaseHandlerPreventsCertificateFallback verifies that in safe in-cluster
+// mode, request-only credentials are used and backend client certificates are not retained.
+func TestHelmRouteReleaseHandlerPreventsCertificateFallback(t *testing.T) {
+	clusterName := "cert-cluster"
+
+	// #nosec G101 -- test credential, not a real secret
+	callerToken := "caller-bearer-token"
+
+	authInfo := &api.AuthInfo{
+		ClientCertificate: "/etc/kubernetes/pki/admin.crt",
+		ClientKey:         "/etc/kubernetes/pki/admin.key",
+	}
+
+	c := newTestInClusterHeadlampConfig(t, clusterName, authInfo)
+
+	var (
+		capturedBearerToken string
+		capturedCertFile    string
+		capturedKeyFile     string
+	)
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		restConfig, _ := clientConfig.ClientConfig()
+		if restConfig != nil {
+			capturedBearerToken = restConfig.BearerToken
+			capturedCertFile = restConfig.CertFile
+			capturedKeyFile = restConfig.KeyFile
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/releases/uninstall", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("Authorization", "Bearer "+callerToken)
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	w := httptest.NewRecorder()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/releases/uninstall", "UninstallRelease", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, callerToken, capturedBearerToken)
+	assert.Empty(t, capturedCertFile)
+	assert.Empty(t, capturedKeyFile)
+}
+
+// TestHelmRouteReleaseHandlerAcceptsProxyTokenInCluster verifies that
+// in safe in-cluster mode, the configured proxy token header is accepted
+// and used in the request-only AuthInfo.
+func TestHelmRouteReleaseHandlerAcceptsProxyTokenInCluster(t *testing.T) {
+	clusterName := "proxy-cluster"
+
+	// #nosec G101 -- test credential, not a real secret
+	proxyToken := "trusted-proxy-bearer-token"
+	proxyHeader := "X-Custom-Proxy-Token"
+
+	authInfo := &api.AuthInfo{
+		ClientCertificate: "/etc/kubernetes/pki/admin.crt",
+	}
+
+	c := newTestInClusterHeadlampConfig(t, clusterName, authInfo)
+	c.ProxyAuthEnabled = true
+	c.ProxyAuthTokenHeader = proxyHeader
+
+	var (
+		capturedBearerToken string
+		capturedCertFile    string
+	)
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		restConfig, _ := clientConfig.ClientConfig()
+		if restConfig != nil {
+			capturedBearerToken = restConfig.BearerToken
+			capturedCertFile = restConfig.CertFile
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/releases/uninstall", nil)
+	require.NoError(t, err)
+
+	req.Header.Set(proxyHeader, proxyToken)
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	w := httptest.NewRecorder()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/releases/uninstall", "UninstallRelease", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, proxyToken, capturedBearerToken)
+	assert.Empty(t, capturedCertFile)
+}
+
+func TestHelmRouteReleaseHandlerPreservesAPIProxy(t *testing.T) {
+	clusterName := "main"
+	proxyURL := "https://api-proxy.example.com"
+
+	c := newTestInClusterHeadlampConfig(t, clusterName, &api.AuthInfo{
+		AuthProvider: &api.AuthProviderConfig{
+			Name: "oidc",
+			Config: map[string]string{
+				"api-proxy": proxyURL,
+			},
+		},
+	})
+
+	var (
+		capturedBearerToken string
+		capturedServerHost  string
+	)
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		restConfig, restErr := clientConfig.ClientConfig()
+		if restErr == nil && restConfig != nil {
+			capturedBearerToken = restConfig.BearerToken
+			capturedServerHost = restConfig.Host
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/releases/uninstall", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("Authorization", "Bearer caller-token")
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	w := httptest.NewRecorder()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/releases/uninstall", "UninstallRelease", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "caller-token", capturedBearerToken)
+	assert.Equal(t, proxyURL, capturedServerHost)
+}
+
 //nolint:funlen // Test verifies Helm release handling with service account token
 func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
 	clusterName := "main"
@@ -5409,10 +5801,10 @@ func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	w := httptest.NewRecorder()
-
 	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
 	defer span.End()
+
+	w := httptest.NewRecorder()
 
 	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/release/test", "test", handler)
 
@@ -5451,10 +5843,10 @@ func TestHelmRouteRepositoryHandlerUsesServiceAccountToken(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer proxy-token")
 
-	w := httptest.NewRecorder()
-
 	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
 	defer span.End()
+
+	w := httptest.NewRecorder()
 
 	var capturedAuthHeader string
 
@@ -5468,6 +5860,111 @@ func TestHelmRouteRepositoryHandlerUsesServiceAccountToken(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Empty(t, capturedAuthHeader)
+}
+
+func runHelmRouteRepoTokenTest(
+	t *testing.T,
+	c *HeadlampConfig,
+	clusterName, authHeader string,
+) (int, bool) {
+	t.Helper()
+
+	handlerCalled := false
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		handlerCalled = true
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/helm/repositories", nil)
+	require.NoError(t, err)
+
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	w := httptest.NewRecorder()
+
+	c.helmRouteRepositoryHandler(ctx, span, req, w, clusterName, "/helm/repositories", "test", handler)
+
+	return w.Code, handlerCalled
+}
+
+// TestHelmRouteRepositoryHandlerRejectsMissingTokenInCluster verifies that
+// in safe in-cluster mode, repository mutation requests without a token are rejected
+// with 401 Unauthorized regardless of whether the cluster exists or what source it uses.
+func TestHelmRouteRepositoryHandlerRejectsMissingTokenInCluster(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:   "in-cluster",
+		Source: kubeconfig.InCluster,
+	}))
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:   "mounted-kubeconfig",
+		Source: kubeconfig.KubeConfig,
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    true,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		clusterName string
+		authHeader  string
+		wantCode    int
+		wantCalled  bool
+	}{
+		{
+			name:        "unknown cluster without token rejected",
+			clusterName: "unknown-cluster",
+			authHeader:  "",
+			wantCode:    http.StatusUnauthorized,
+			wantCalled:  false,
+		},
+		{
+			name:        "mounted kubeconfig context without token rejected",
+			clusterName: "mounted-kubeconfig",
+			authHeader:  "",
+			wantCode:    http.StatusUnauthorized,
+			wantCalled:  false,
+		},
+		{
+			name:        "in-cluster context without token rejected",
+			clusterName: "in-cluster",
+			authHeader:  "",
+			wantCode:    http.StatusUnauthorized,
+			wantCalled:  false,
+		},
+		{
+			name:        "mounted kubeconfig context with valid token accepted",
+			clusterName: "mounted-kubeconfig",
+			authHeader:  "Bearer valid-token",
+			wantCode:    http.StatusOK,
+			wantCalled:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotCode, gotCalled := runHelmRouteRepoTokenTest(t, c, tt.clusterName, tt.authHeader)
+
+			assert.Equal(t, tt.wantCode, gotCode)
+			assert.Equal(t, tt.wantCalled, gotCalled)
+		})
+	}
 }
 
 func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:funlen // test scaffolding.

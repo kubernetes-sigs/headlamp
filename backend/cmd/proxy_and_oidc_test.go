@@ -856,6 +856,14 @@ func newTestHelmHandlerAndServer(t *testing.T) http.Handler {
 			return
 		}
 
+		if r.URL.Path == "/apis/authentication.k8s.io/v1/selfsubjectreviews" {
+			_, _ = w.Write([]byte(
+				`{"kind":"SelfSubjectReview","apiVersion":"authentication.k8s.io/v1",` +
+					`"status":{"userInfo":{"username":"alice"}}}`,
+			))
+			return
+		}
+
 		if r.URL.Path == "/api/v1/namespaces/default/secrets/sh.helm.release.v1.my-rel.v1" {
 			_, _ = w.Write([]byte(secretJSON))
 			return
