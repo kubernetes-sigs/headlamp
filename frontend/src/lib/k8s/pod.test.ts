@@ -146,6 +146,37 @@ describe('Pod class', () => {
     expect(status.reason).toBe('ExitCode:1');
   });
 
+  // The API server omits an empty reason, so it arrives as undefined rather than ''.
+  it('returns Signal when a container terminated by a signal has no reason', () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    data.status.phase = 'Failed';
+    data.status.containerStatuses = [
+      {
+        name: 'container-1',
+        ready: false,
+        restartCount: 0,
+        state: { terminated: { exitCode: 137, signal: 9 } },
+      },
+    ];
+    const pod = new Pod(data);
+    expect(pod.getDetailedStatus().reason).toBe('Signal:9');
+  });
+
+  it('returns ExitCode when a container terminated with no reason and no signal', () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    data.status.phase = 'Failed';
+    data.status.containerStatuses = [
+      {
+        name: 'container-1',
+        ready: false,
+        restartCount: 0,
+        state: { terminated: { exitCode: 2 } },
+      },
+    ];
+    const pod = new Pod(data);
+    expect(pod.getDetailedStatus().reason).toBe('ExitCode:2');
+  });
+
   describe('getHealth', () => {
     const makePod = (status: any, metadata: any = {}) =>
       new Pod({
