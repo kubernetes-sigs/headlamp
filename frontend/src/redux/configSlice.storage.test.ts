@@ -85,6 +85,35 @@ describe('configSlice storage initialization', () => {
     expect(initialState.settings.useEvict).toBe(false);
   });
 
+  it('ignores built-in values in settings saved by older versions', async () => {
+    localStorage.setItem('settings', JSON.stringify({ useEvict: true, expandLargeGraph: true }));
+
+    const { initialState } = await import('./configSlice');
+
+    expect(initialState.userSettings).toEqual({ expandLargeGraph: true });
+  });
+
+  it('keeps built-in values the user saved, so they beat admin defaults after a reload', async () => {
+    const first = await import('./configSlice');
+    first.default(first.initialState, first.setAppSettings({ useEvict: true }));
+    expect(localStorage.getItem(first.SETTINGS_VERSION_KEY)).toBe('2');
+
+    vi.resetModules();
+    const { initialState } = await import('./configSlice');
+
+    expect(initialState.userSettings).toEqual({ useEvict: true });
+  });
+
+  it('keeps only real choices when a legacy user saves a setting', async () => {
+    localStorage.setItem('settings', JSON.stringify({ useEvict: true, timezone: 'UTC' }));
+    const first = await import('./configSlice');
+    first.default(first.initialState, first.setAppSettings({ expandLargeGraph: true }));
+
+    expect(JSON.parse(localStorage.getItem('settings') || '{}')).toEqual({
+      expandLargeGraph: true,
+    });
+  });
+
   it('falls back to default timezone when stored timezone is an invalid IANA string', async () => {
     localStorage.setItem(
       'settings',
