@@ -1083,13 +1083,13 @@ func TestGetKubeClientAndConfig(t *testing.T) {
 		KubeContext: &api.Context{Cluster: "demo", AuthInfo: "user"},
 	}
 
-	cs, rConf, err := getKubeClientAndConfig(kCtx, "tok-123")
+	cs, rConf, err := getKubeClientAndConfig(kCtx, "tok-123", nil)
 	require.NoError(t, err)
 	assert.NotNil(t, cs)
 	assert.Equal(t, "tok-123", rConf.BearerToken)
 
 	badCtx := &kubeconfig.Context{Name: "broken"}
-	_, _, err = getKubeClientAndConfig(badCtx, "")
+	_, _, err = getKubeClientAndConfig(badCtx, "", nil)
 	require.Error(t, err)
 }
 
@@ -1553,4 +1553,52 @@ func TestStartPortForward_OpenChunkedBodyTimeout(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestGetKubeClientAndConfigFetchesTokenPerRequest(t *testing.T) {
+	var (
+		mu   sync.Mutex
+		seen []string
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		seen = append(seen, r.Header.Get("Authorization"))
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(corev1.Pod{
+			TypeMeta:   v1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+			ObjectMeta: v1.ObjectMeta{Name: "pod"},
+			Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	kContext := &kubeconfig.Context{
+		Name:     "cluster",
+		Cluster:  &api.Cluster{Server: server.URL},
+		AuthInfo: &api.AuthInfo{Token: "kubeconfig-token"}, // #nosec G101 -- synthetic test credential.
+	}
+
+	var calls int
+
+	tokenSource := func(context.Context) (string, error) {
+		calls++
+		return fmt.Sprintf("sts-token-%d", calls), nil
+	}
+
+	clientset, rConf, err := getKubeClientAndConfig(kContext, "request-token", tokenSource)
+	require.NoError(t, err)
+
+	// The pod monitor uses clientset, and reconnects dial with rConf.
+	require.NoError(t, checkIfPodIsRunning(clientset, "default", "pod"))
+	require.NoError(t, checkIfPodIsRunning(clientset, "default", "pod"))
+
+	reconnectClientset, err := kubernetes.NewForConfig(rConf)
+	require.NoError(t, err)
+	require.NoError(t, checkIfPodIsRunning(reconnectClientset, "default", "pod"))
+
+	assert.Equal(t, []string{"Bearer sts-token-1", "Bearer sts-token-2", "Bearer sts-token-3"}, seen)
 }

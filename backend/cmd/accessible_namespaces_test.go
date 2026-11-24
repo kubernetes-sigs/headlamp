@@ -22,6 +22,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -255,11 +258,85 @@ func TestAccessibleNamespacesInvalidUserToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+// TestAccessibleNamespacesRenewsExchangedToken checks that with STS the
+// access reviews exchange the caller's token again, so an exchanged token
+// that expires during discovery doesn't fail it. Here the token exchanged
+// for the request expires after one review.
+func TestAccessibleNamespacesRenewsExchangedToken(t *testing.T) {
+	auth.ResetSTSCache()
+	t.Cleanup(auth.ResetSTSCache)
+
+	var issued atomic.Int32
+
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		if r.FormValue("subject_token") != accessibleNamespacesUserToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Without expires_in the exchanged token isn't cached.
+		_, _ = fmt.Fprintf(w, `{"access_token": "exchanged-%d"}`, issued.Add(1))
+	}))
+	t.Cleanup(sts.Close)
+
+	var sawOtherToken atomic.Bool
+
+	ssarURL, err := url.Parse(fakeSSARServer(t, &sawOtherToken).URL)
+	require.NoError(t, err)
+
+	ssar := httputil.NewSingleHostReverseProxy(ssarURL)
+
+	var firstTokenUsed atomic.Bool
+
+	kubeAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		expired := token == "Bearer exchanged-1" && firstTokenUsed.Swap(true)
+
+		if expired || !strings.HasPrefix(token, "Bearer exchanged-") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// The token was good, so let the user's reviews through.
+		r.Header.Set("Authorization", "Bearer "+accessibleNamespacesUserToken)
+		ssar.ServeHTTP(w, r)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	router := setupAccessibleNamespacesTestWithConfig(t, true, kubeconfig.InCluster, kubeAPI.URL,
+		func(cfg *HeadlampConfig) {
+			cfg.OidcStsEnabled = true
+			cfg.OidcStsIssuerURL = sts.URL
+			cfg.OidcStsClientID = "sts-client"
+			cfg.OidcStsClientSecret = "sts-secret"
+			cfg.OidcStsAudienceMap = "main=main-audience"
+		}, "team-a", "team-b")
+
+	rr := getAccessibleNamespaces(router, accessibleNamespacesUserToken)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var result nsdiscovery.Result
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &result))
+	assert.Equal(t, []string{"team-a"}, result.Namespaces)
+	assert.Greater(t, issued.Load(), int32(2), "discovery should need more than one review")
+}
+
 func TestAccessibleNamespacesErrorStatus(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError,
 		accessibleNamespacesErrorStatus(&nsdiscovery.ListError{Err: errors.New("forbidden")}))
 	assert.Equal(t, http.StatusGatewayTimeout, accessibleNamespacesErrorStatus(context.DeadlineExceeded))
 	assert.Equal(t, http.StatusBadGateway, accessibleNamespacesErrorStatus(errors.New("boom")))
+	// The HTTP client wraps the error of a review's token exchange.
+	assert.Equal(t, http.StatusUnauthorized, accessibleNamespacesErrorStatus(&url.Error{
+		Op: "Post", URL: "https://cluster", Err: &auth.STSError{StatusCode: http.StatusUnauthorized},
+	}))
 	assert.True(t, isRateLimiterDeadline(errors.New(
 		"client rate limiter Wait returned an error: rate: Wait(n=1) would exceed context deadline")))
 	assert.False(t, isRateLimiterDeadline(errors.New("boom")))

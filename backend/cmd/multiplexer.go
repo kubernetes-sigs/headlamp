@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -172,6 +173,12 @@ type Multiplexer struct {
 	saTokenMu sync.RWMutex
 	// heartbeatInterval is HeartbeatInterval; tests shorten it.
 	heartbeatInterval time.Duration
+	// exchangeToken, when set, exchanges the request token for a cluster-scoped
+	// STS token before connecting to the cluster.
+	exchangeToken func(ctx context.Context, clusterName, token string) (string, error)
+	// subjectToken, when set, selects the caller's token from the handshake
+	// request the same way cluster requests do, including the proxy-auth header.
+	subjectToken func(r *http.Request, clusterName string) string
 }
 
 // errDialIncomplete is what waiters get if the dial they wait on never finished, e.g. it panicked.
@@ -445,15 +452,22 @@ func (m *Multiplexer) dialClusterConnection(
 		return nil, fmt.Errorf("getting REST config: %w", err)
 	}
 
-	authToken, err := m.clusterConnectionToken(clusterContext, token)
+	authToken, err := m.clusterConnectionToken(clusterID, clusterContext, token)
 	if err != nil {
 		return nil, err
 	}
 
-	connection := m.createConnection(clusterID, userID, path, query, clientConn, authToken)
-	if m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken() {
-		connection.usesServiceAccountToken = true
+	usesServiceAccountToken := m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken()
+
+	// Keep the caller's token on the connection so a reconnect exchanges it
+	// again; authToken (possibly STS-exchanged) is only used for dialing.
+	connectionToken := token
+	if usesServiceAccountToken {
+		connectionToken = authToken
 	}
+
+	connection := m.createConnection(clusterID, userID, path, query, clientConn, connectionToken)
+	connection.usesServiceAccountToken = usesServiceAccountToken
 
 	wsURL := createWebSocketURL(config.Host, path, query)
 
@@ -534,6 +548,7 @@ func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*
 }
 
 func (m *Multiplexer) clusterConnectionToken(
+	clusterID string,
 	clusterContext *kubeconfig.Context,
 	requestToken *string,
 ) (*string, error) {
@@ -543,7 +558,16 @@ func (m *Multiplexer) clusterConnectionToken(
 	}
 
 	if !m.unsafeUseServiceAccountToken || !clusterContext.UsesInClusterServiceAccountToken() {
-		return requestToken, nil
+		if requestToken == nil || m.exchangeToken == nil {
+			return requestToken, nil
+		}
+
+		token, err := m.exchangeToken(context.Background(), clusterID, *requestToken)
+		if err != nil {
+			return nil, err
+		}
+
+		return &token, nil
 	}
 
 	token, err := m.readServiceAccountToken(clusterContext.AuthInfo.TokenFile)
@@ -938,6 +962,10 @@ func (m *Multiplexer) processClientMessage(
 		m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
 
 		return
+	}
+
+	if m.subjectToken != nil {
+		token = m.subjectToken(r, msg.ClusterID)
 	}
 
 	var tokenPtr *string

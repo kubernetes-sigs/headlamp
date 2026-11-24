@@ -52,6 +52,66 @@ func requestToken(r *http.Request) (string, error) {
 	return auth.GetTokenFromCookie(r, clusterName)
 }
 
+// TokenExchange returns the token to send to the cluster in place of the
+// request's token, such as one exchanged by an STS.
+type TokenExchange func(ctx context.Context, token string) (string, error)
+
+type (
+	tokenExchangeKey struct{}
+	tokenSourceKey   struct{}
+)
+
+// WithTokenExchange returns ctx with an exchange that port-forward requests
+// apply to their token before authenticating with it, as the cluster only
+// accepts the exchanged one.
+func WithTokenExchange(ctx context.Context, exchange TokenExchange) context.Context {
+	return context.WithValue(ctx, tokenExchangeKey{}, exchange)
+}
+
+// requestTokenSource returns the token source a port-forward started for the
+// request uses for every cluster request, or nil to use the request's token.
+func requestTokenSource(ctx context.Context) func(context.Context) (string, error) {
+	tokenSource, _ := ctx.Value(tokenSourceKey{}).(func(context.Context) (string, error))
+
+	return tokenSource
+}
+
+// exchangeRequestToken exchanges the request's token, if ctx has an exchange,
+// and returns the request with the exchanged token as its only credential.
+// The forward keeps running after the request, possibly for longer than the
+// exchanged token lasts, so the request also gets a token source that
+// exchanges the original token again.
+func exchangeRequestToken(r *http.Request, token string) (*http.Request, string, error) {
+	exchange, _ := r.Context().Value(tokenExchangeKey{}).(TokenExchange)
+	if exchange == nil || token == "" {
+		return r, token, nil
+	}
+
+	// Other schemes, such as Basic from an authenticating proxy, don't carry the
+	// user's token, so their credentials aren't sent to the STS. A bare token,
+	// which an auth proxy header can hold, has no scheme.
+	if authorization := strings.TrimSpace(r.Header.Get("Authorization")); strings.ContainsAny(authorization, " \t") &&
+		auth.BearerTokenValue(authorization) == authorization {
+		return nil, "", &auth.STSError{
+			StatusCode: http.StatusUnauthorized,
+			Message:    "only a bearer token can be exchanged",
+		}
+	}
+
+	exchanged, err := exchange(r.Context(), token)
+	if err != nil {
+		return nil, "", err
+	}
+
+	tokenSource := func(ctx context.Context) (string, error) { return exchange(ctx, token) }
+	r = r.WithContext(context.WithValue(r.Context(), tokenSourceKey{}, tokenSource))
+	r.Header = r.Header.Clone()
+	r.Header.Set("Authorization", "Bearer "+exchanged)
+	r.Header.Del("Cookie")
+
+	return r, exchanged, nil
+}
+
 // RequestHandler authenticates all port-forward operations and isolates their
 // cached sessions by the Kubernetes-verified principal, not a client routing ID.
 // Stored credentials without server-managed provenance require explicit desktop/development trust.
@@ -229,6 +289,14 @@ func handleRequestContext(kContext *kubeconfig.Context, sessions cache.Cache[int
 	} else if token == "" && kContext.UsesInClusterServiceAccountToken() {
 		logger.Log(logger.LevelWarn, nil, nil, "portforward requires user credentials")
 		http.Error(w, "authentication required", http.StatusUnauthorized)
+
+		return
+	}
+
+	r, token, err = exchangeRequestToken(r, token)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "exchanging portforward token")
+		http.Error(w, "STS token exchange failed", auth.GetSTSErrorStatusCode(err))
 
 		return
 	}

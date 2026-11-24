@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -99,15 +100,27 @@ func namespaceListerClient() (kubernetes.Interface, error) {
 
 // userClientForContext returns a client for the context's API server that
 // carries the user's bearer token and drops every other credential of the
-// context, so requests can never fall back to Headlamp's own identity.
-func userClientForContext(kContext *kubeconfig.Context, token string, qps float64) (kubernetes.Interface, error) {
+// context, so requests can never fall back to Headlamp's own identity. With a
+// tokenSource, each request gets its token from it instead, so an exchanged
+// token that expires during discovery is replaced.
+func userClientForContext(
+	kContext *kubeconfig.Context,
+	token string,
+	tokenSource func(context.Context) (string, error),
+	qps float64,
+) (kubernetes.Interface, error) {
 	base, err := kContext.RESTConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	conf := rest.AnonymousClientConfig(base)
-	conf.BearerToken = token
+	if tokenSource != nil {
+		kubeconfig.WrapTokenSource(conf, tokenSource)
+	} else {
+		conf.BearerToken = token
+	}
+
 	conf.QPS = float32(qps)
 	conf.Burst = max(1, int(qps))
 
@@ -119,9 +132,10 @@ func userClientForContext(kContext *kubeconfig.Context, token string, qps float6
 func accessibleNamespacesClients(
 	kContext *kubeconfig.Context,
 	token string,
+	tokenSource func(context.Context) (string, error),
 	qps float64,
 ) (kubernetes.Interface, kubernetes.Interface, error) {
-	userClient, err := newUserClient(kContext, token, qps)
+	userClient, err := newUserClient(kContext, token, tokenSource, qps)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -174,7 +188,10 @@ func (c *HeadlampConfig) handleAccessibleNamespaces(w http.ResponseWriter, r *ht
 		return
 	}
 
-	lister, userClient, err := accessibleNamespacesClients(kContext, token, c.namespaceDiscoveryQPS())
+	// With STS, the token above is an exchanged one that can expire during
+	// discovery, so the reviews exchange the caller's token again as needed.
+	lister, userClient, err := accessibleNamespacesClients(kContext, token, c.requestSTSTokenSource(r),
+		c.namespaceDiscoveryQPS())
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName}, err, "creating discovery clients")
 		http.Error(w, "namespace discovery is not available", http.StatusInternalServerError)
@@ -225,12 +242,19 @@ func isRateLimiterDeadline(err error) bool {
 }
 
 func accessibleNamespacesErrorStatus(err error) int {
-	var listErr *nsdiscovery.ListError
+	var (
+		listErr *nsdiscovery.ListError
+		stsErr  *auth.STSError
+	)
 
 	switch {
 	case errors.As(err, &listErr):
 		// Headlamp's service account lacks "list namespaces"; not the user's fault.
 		return http.StatusInternalServerError
+	case errors.As(err, &stsErr):
+		// A review's token exchange failed, e.g. as the user's token expired meanwhile, so
+		// the client can sign in again on a 401.
+		return auth.GetSTSErrorStatusCode(err)
 	case apierrors.IsUnauthorized(err):
 		return http.StatusUnauthorized
 	case apierrors.IsForbidden(err):

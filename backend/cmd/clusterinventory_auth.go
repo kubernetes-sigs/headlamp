@@ -101,9 +101,9 @@ func (c *HeadlampConfig) requireUserAuthentication(next http.Handler) http.Handl
 		}
 
 		r, kContext := c.resolveRequestContext(r, clusterName)
-		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
-			processWebSocketProtocolHeader(r)
-		}
+		// The cluster proxy takes a token from the WebSocket bearer subprotocol
+		// on any request, so it has to be selected here too, before STS runs.
+		processWebSocketProtocolHeader(r)
 
 		c.normalizeClusterCredentials(r, clusterName, kContext)
 
