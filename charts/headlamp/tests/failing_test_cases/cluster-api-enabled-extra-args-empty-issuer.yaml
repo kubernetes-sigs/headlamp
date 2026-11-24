@@ -1,3 +1,9 @@
+env:
+  - name: RUNTIME_DISCOVERY_ENABLED
+    valueFrom:
+      configMapKeyRef:
+        name: discovery-settings
+        key: enabled
 config:
   oidc:
     secret:
@@ -5,6 +11,7 @@ config:
     clientID: headlamp
     issuerURL: https://idp.example.com
   extraArgs:
+    - --enable-cluster-api=$(RUNTIME_DISCOVERY_ENABLED)
     - --enable-cluster-api=false
     - --enable-cluster-api=true
     - --oidc-idp-issuer-url=

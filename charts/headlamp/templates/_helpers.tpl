@@ -77,6 +77,32 @@ Create the name of the service account to use
 
 
 {{/*
+Resolve a discovery boolean using literal environment values.
+Return JSON with known/enabled/valid fields; pod-only values stay unknown.
+*/}}
+{{- define "headlamp.discoveryFlagState" -}}
+{{- $known := .state.known -}}
+{{- $value := .state.value -}}
+{{- if and $known (contains "$(" $value) -}}
+  {{- if regexMatch "^\\$\\([^()]+\\)$" $value -}}
+    {{- $name := trimPrefix "$(" (trimSuffix ")" $value) -}}
+    {{- if hasKey .environment $name -}}
+      {{- $entry := get .environment $name -}}
+      {{- $known = $entry.known -}}
+      {{- $value = $entry.value -}}
+    {{- else -}}
+      {{- $known = false -}}
+    {{- end -}}
+  {{- else -}}
+    {{- $known = false -}}
+  {{- end -}}
+{{- end -}}
+{{- $enabled := and $known (has $value (list "1" "t" "T" "TRUE" "true" "True")) -}}
+{{- $valid := and $known (or $enabled (has $value (list "0" "f" "F" "FALSE" "false" "False"))) -}}
+{{- dict "known" $known "value" $value "enabled" $enabled "valid" $valid | toJson -}}
+{{- end -}}
+
+{{/*
 Check if readOnlyRootFilesystem is enabled, returns string "true" if enabled, otherwise returns "false".
 */}}
 {{- define "headlamp.readOnlyRootFilesystem" -}}

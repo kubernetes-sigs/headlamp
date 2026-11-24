@@ -61,6 +61,13 @@ Discovery flags in `config.extraArgs` also override the chart's enabled settings
 Validation uses the final issuer and credential-file values, so earlier empty
 values are allowed when a later occurrence replaces them.
 
+Literal `HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY` and
+`HEADLAMP_CONFIG_ENABLE_CLUSTER_API` environment values seed discovery validation;
+generated chart flags and final `extraArgs` take precedence. References such as
+`$(DISCOVERY_ENABLED)` are resolved when their environment value is literal.
+If pod-only values leave discovery undecidable, the chart defers the dependent
+OIDC checks to Headlamp's startup validation rather than guessing a boolean.
+
 When migrating from a chart-created OIDC Secret, first create a separately managed
 Secret with a different name, such as `headlamp-oidc-files`, containing the credential
 keys. Mount that Secret through `volumes` and `volumeMounts` before switching to file

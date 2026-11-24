@@ -22,6 +22,8 @@
 {{- $backendEnvClientID := "" }}
 {{- $backendEnvIssuerURL := "" }}
 {{- $oidcClientFileConfigured := false }}
+{{- $environment := dict }}
+{{- $discoveryFlags := dict "enable-cluster-inventory" (dict "known" true "value" "false") "enable-cluster-api" (dict "known" true "value" "false") }}
 {{- $clusterInventory := .Values.config.clusterInventory | default dict }}
 {{- $clusterInventoryEnabled := $clusterInventory.enabled | default false }}
 {{- $clusterAPI := .Values.config.clusterAPI | default dict }}
@@ -46,6 +48,20 @@
 # This block of code is used to extract the values from the env.
 # This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
 {{- range $env }}
+  {{- $value := "" }}
+  {{- if hasKey . "value" }}
+    {{- $value = .value | toString }}
+  {{- end }}
+  {{- $entry := dict "known" (and (hasKey . "value") (not (contains "$(" $value))) "value" $value }}
+  {{- $_ := set $environment .name $entry }}
+  {{- if or (not $entry.known) (ne $entry.value "") }}
+    {{- if eq .name "HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY" }}
+      {{- $_ := set $discoveryFlags "enable-cluster-inventory" $entry }}
+    {{- end }}
+    {{- if eq .name "HEADLAMP_CONFIG_ENABLE_CLUSTER_API" }}
+      {{- $_ := set $discoveryFlags "enable-cluster-api" $entry }}
+    {{- end }}
+  {{- end }}
   {{- if eq .name "OIDC_CLIENT_ID" }}
     {{- $clientID = .value }}
   {{- end }}
@@ -91,8 +107,12 @@
 {{- end }}
 
 {{- $extraArgs := .Values.config.extraArgs }}
-{{- $effectiveClusterInventoryEnabled := $clusterInventoryEnabled }}
-{{- $effectiveClusterAPIEnabled := $clusterAPIEnabled }}
+{{- if $clusterInventoryEnabled }}
+  {{- $_ := set $discoveryFlags "enable-cluster-inventory" (dict "known" true "value" "true") }}
+{{- end }}
+{{- if $clusterAPIEnabled }}
+  {{- $_ := set $discoveryFlags "enable-cluster-api" (dict "known" true "value" "true") }}
+{{- end }}
 {{- $oidcArgs := dict }}
 {{- /* Keep boolean flag names in sync with backend/pkg/config. Other bare
        flags consume the next argument, even when that value looks like a flag. */}}
@@ -130,26 +150,31 @@
         {{- $_ := set $oidcArgs $flagName (dict "value" $value "hasValue" $hasValue "flagLikeValue" $flagLikeValue) }}
       {{- end }}
       {{- if has $flagName (list "enable-cluster-inventory" "enable-cluster-api") }}
-        {{- $enabled := true }}
+        {{- $value := "true" }}
         {{- if contains "=" $arg }}
-          {{- $value := trimPrefix (printf "%s=" (first (splitList "=" $arg))) $arg }}
-          {{- $enabled = has $value (list "1" "t" "T" "TRUE" "true" "True") }}
-          {{- if not (or $enabled (has $value (list "0" "f" "F" "FALSE" "false" "False"))) }}
-            {{- fail (printf "%s has an invalid boolean value in config.extraArgs" $flagName) }}
-          {{- end }}
+          {{- $value = trimPrefix (printf "%s=" (first (splitList "=" $arg))) $arg }}
         {{- end }}
-        {{- if eq $flagName "enable-cluster-inventory" }}
-          {{- $effectiveClusterInventoryEnabled = $enabled }}
-        {{- else }}
-          {{- $effectiveClusterAPIEnabled = $enabled }}
+        {{- $state := include "headlamp.discoveryFlagState" (dict "state" (dict "known" true "value" $value) "environment" $environment) | fromJson }}
+        {{- if and $state.known (not $state.valid) }}
+          {{- fail (printf "%s has an invalid boolean value in config.extraArgs" $flagName) }}
         {{- end }}
+        {{- $_ := set $discoveryFlags $flagName $state }}
       {{- end }}
       {{- $skipNext = and (not (contains "=" $arg)) (not (has $flagName $booleanFlags)) }}
     {{- end }}
   {{- end }}
 {{- end }}
 
-{{- $discoveryEnabled := or $effectiveClusterInventoryEnabled $effectiveClusterAPIEnabled }}
+{{- range $name, $option := $discoveryFlags }}
+  {{- $state := include "headlamp.discoveryFlagState" (dict "state" $option "environment" $environment) | fromJson }}
+  {{- if and $state.known (not $state.valid) }}
+    {{- fail (printf "%s has an invalid boolean environment value" $name) }}
+  {{- end }}
+  {{- $_ := set $discoveryFlags $name $state }}
+{{- end }}
+{{- $inventoryState := get $discoveryFlags "enable-cluster-inventory" }}
+{{- $apiState := get $discoveryFlags "enable-cluster-api" }}
+{{- $discoveryEnabled := or (and $inventoryState.known $inventoryState.enabled) (and $apiState.known $apiState.enabled) }}
 {{- if $discoveryEnabled }}
   {{- $directClientID := or $oidc.externalSecret.enabled (ne $oidc.clientID "") (ne $clientID "") (hasKey $oidcArgs "oidc-client-id") }}
   {{- $directClientSecret := or $oidc.externalSecret.enabled (ne $oidc.clientSecret "") (ne $clientSecret "") (hasKey $oidcArgs "oidc-client-secret") }}
