@@ -31,7 +31,11 @@ import {
 import { setConfig } from '../../redux/configSlice';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { queryClient as appQueryClient, resetAccessibleNamespaces } from '../queryClient';
+import {
+  IDENTITY_RESET_CHANNEL,
+  queryClient as appQueryClient,
+  resetAccessibleNamespaces,
+} from '../queryClient';
 import {
   ACCESSIBLE_NAMESPACES_REFRESH_MS,
   accessibleNamespacesQueryOptions,
@@ -244,6 +248,46 @@ describe('resetAccessibleNamespaces', () => {
 
     expect(getDiscoveredNamespaces('prod')).toBeUndefined();
     expect(getDiscoveredNamespaces('dev')).toBeUndefined();
+  });
+});
+
+describe('identity reset in another tab', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setDiscoveredNamespaces('prod', null);
+    mockClusterFetch.mockReset();
+    setDiscoveryEnabled(true);
+  });
+
+  afterEach(() => {
+    appQueryClient.clear();
+    setDiscoveredNamespaces('prod', null);
+  });
+
+  it('drops discovered namespaces and ignores an in-flight response of the old identity', async () => {
+    let resolveOld!: (value: unknown) => void;
+    mockClusterFetch.mockReturnValueOnce(new Promise(resolve => (resolveOld = resolve)));
+    const { result } = renderHook(() => useAccessibleNamespaces('prod'), {
+      wrapper: makeWrapper(),
+    });
+    expect(result.current.isPending).toBe(true);
+
+    // Another tab (a second BroadcastChannel instance) switches the user.
+    respond({ status: 'restricted', namespaces: ['new-user-ns'] });
+    const otherTab = new BroadcastChannel(IDENTITY_RESET_CHANNEL);
+    otherTab.postMessage({ cluster: 'prod' });
+    otherTab.close();
+
+    await waitFor(() => expect(result.current.namespaces).toEqual(['new-user-ns']));
+
+    // The response of the previous user arrives late and must not be applied.
+    await act(async () => {
+      resolveOld({
+        json: () => Promise.resolve({ status: 'restricted', namespaces: ['old-user-ns'] }),
+      });
+    });
+    expect(result.current.namespaces).toEqual(['new-user-ns']);
+    expect(getDiscoveredNamespaces('prod')).toEqual(['new-user-ns']);
   });
 });
 
