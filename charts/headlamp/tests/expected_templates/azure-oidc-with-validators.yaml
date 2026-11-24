@@ -100,17 +100,17 @@ spec:
           
           env:
             - name: OIDC_CLIENT_ID
-              value: azure-client-id
+              value: "azure-client-id"
             - name: OIDC_CLIENT_SECRET
-              value: azure-client-secret
+              value: "azure-client-secret"
             - name: OIDC_ISSUER_URL
-              value: https://login.microsoftonline.com/tenant-id/v2.0
+              value: "https://login.microsoftonline.com/tenant-id/v2.0"
             - name: OIDC_SCOPES
-              value: openid email profile
+              value: "openid email profile"
             - name: OIDC_VALIDATOR_CLIENT_ID
-              value: azure-validator-client-id
+              value: "azure-validator-client-id"
             - name: OIDC_VALIDATOR_ISSUER_URL
-              value: https://login.microsoftonline.com/tenant-id/v2.0
+              value: "https://login.microsoftonline.com/tenant-id/v2.0"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
