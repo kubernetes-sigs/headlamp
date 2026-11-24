@@ -101,7 +101,7 @@ export default function ReplicaSetList() {
           label: t('Selector'),
           getValue: replicaSet => replicaSet.getMatchLabelsList().join(''),
           render: replicaSet => {
-            const matchLabels = replicaSet.spec.selector?.matchLabels;
+            const matchLabels = replicaSet.spec?.selector?.matchLabels;
             return matchLabels && <MetadataDictGrid dict={matchLabels} />;
           },
         },
