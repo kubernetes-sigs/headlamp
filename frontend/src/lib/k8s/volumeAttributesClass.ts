@@ -40,6 +40,11 @@ class VolumeAttributesClass extends KubeObject<KubeVolumeAttributesClass> {
     return this.jsonData.driverName;
   }
 
+  /** The driver-specific volume attributes this class applies, such as IOPS or throughput. */
+  get parameters(): Record<string, string> {
+    return this.jsonData.parameters ?? {};
+  }
+
   static get listRoute() {
     return 'volumeAttributesClasses';
   }
