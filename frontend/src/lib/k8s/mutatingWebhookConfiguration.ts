@@ -37,11 +37,22 @@ export interface KubeWebhookClientConfig {
   };
 }
 
+/**
+ * A CEL expression that must evaluate to true for a request to be sent to the webhook.
+ *
+ * @see {@link https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#matching-requests-matchconditions}
+ */
+export interface KubeWebhookMatchCondition {
+  name: string;
+  expression: string;
+}
+
 export interface KubeMutatingWebhookConfiguration extends KubeObjectInterface {
   webhooks: {
     admissionReviewVersions: string[];
     clientConfig: KubeWebhookClientConfig;
     failurePolicy?: string;
+    matchConditions?: KubeWebhookMatchCondition[];
     matchPolicy?: string;
     name: string;
     namespaceSelector?: {

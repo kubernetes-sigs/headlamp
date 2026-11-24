@@ -81,3 +81,37 @@ WithURL.parameters = {
     },
   },
 };
+
+/** A webhook that is only called for requests matching its CEL match conditions. */
+export const WithMatchConditions = Template.bind({});
+WithMatchConditions.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/my-vwc`,
+          () => {
+            const vwc = createVWC(true);
+            return HttpResponse.json({
+              ...vwc,
+              webhooks: vwc.webhooks.map(webhook => ({
+                ...webhook,
+                matchConditions: [
+                  {
+                    name: 'exclude-leases',
+                    expression:
+                      '!(request.resource.group == "coordination.k8s.io" && request.resource.resource == "leases")',
+                  },
+                  {
+                    name: 'exclude-kubelet-requests',
+                    expression: '!("system:nodes" in request.userInfo.groups)',
+                  },
+                ],
+              })),
+            });
+          }
+        ),
+      ],
+    },
+  },
+};

@@ -15,7 +15,9 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import MutatingWebhookConfiguration from '../../lib/k8s/mutatingWebhookConfiguration';
+import MutatingWebhookConfiguration, {
+  type KubeWebhookMatchCondition,
+} from '../../lib/k8s/mutatingWebhookConfiguration';
 import ValidatingWebhookConfiguration from '../../lib/k8s/validatingWebhookConfiguration';
 import Link from '../common/Link';
 import NameValueTable from '../common/NameValueTable';
@@ -28,6 +30,31 @@ export interface WebhookConfigurationDetailsProps {
   resourceClass: typeof ValidatingWebhookConfiguration | typeof MutatingWebhookConfiguration;
   name: string;
   cluster?: string;
+}
+
+/**
+ * The match conditions of a webhook: CEL expressions that all have to be true for a
+ * request to be sent to it.
+ */
+export function WebhookMatchConditions(props: { matchConditions: KubeWebhookMatchCondition[] }) {
+  const { matchConditions } = props;
+  const { t } = useTranslation(['glossary', 'translation']);
+
+  return (
+    <SimpleTable
+      data={matchConditions}
+      columns={[
+        {
+          label: t('translation|Name'),
+          getter: condition => condition.name,
+        },
+        {
+          label: t('translation|Expression'),
+          getter: condition => condition.expression,
+        },
+      ]}
+    />
+  );
 }
 
 export default function WebhookConfigurationDetails(props: WebhookConfigurationDetailsProps) {
@@ -155,6 +182,15 @@ export default function WebhookConfigurationDetails(props: WebhookConfigurationD
                             .reinvocationPolicy,
                           hide: !(webhook as MutatingWebhookConfiguration['webhooks'][number])
                             .reinvocationPolicy,
+                        },
+                        {
+                          name: t('translation|Match Conditions'),
+                          value: (
+                            <WebhookMatchConditions
+                              matchConditions={webhook.matchConditions ?? []}
+                            />
+                          ),
+                          hide: !webhook.matchConditions?.length,
                         },
                         {
                           name: t('Rules'),
