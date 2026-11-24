@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-import { expect, Page, test } from '@playwright/test';
+import { expect, type Page, test, type WebSocketRoute } from '@playwright/test';
 
 const selector = 'team=headlamp';
+const emptySelector = 'team=none';
+const otherSelector = 'team=backend';
+const refreshSelector = 'team=refresh';
+const panelCluster = 'test2';
 
 function namespaceList(names: string[]) {
   return {
@@ -35,7 +39,7 @@ function namespaceList(names: string[]) {
 async function mockHeadlamp(
   page: Page,
   clusters: string[],
-  resolveSelector: (cluster: string) => Promise<string[]>
+  resolveSelector: (cluster: string, requestedSelector: string) => Promise<string[]>
 ) {
   await page.route('**/config', route =>
     route.fulfill({
@@ -87,11 +91,15 @@ async function mockHeadlamp(
       return;
     }
 
+    const requestedSelector = url.searchParams.get('labelSelector');
     if (
       clusterPath === '/api/v1/namespaces' &&
-      url.searchParams.get('labelSelector') === selector
+      requestedSelector &&
+      [selector, emptySelector, otherSelector, refreshSelector].includes(requestedSelector)
     ) {
-      await route.fulfill({ json: namespaceList(await resolveSelector(cluster)) });
+      await route.fulfill({
+        json: namespaceList(await resolveSelector(cluster, requestedSelector)),
+      });
       return;
     }
 
@@ -130,6 +138,342 @@ async function mockHeadlamp(
     });
   });
 }
+
+function panelPod(namespace: string, name = 'listed-pod') {
+  return {
+    apiVersion: 'v1',
+    kind: 'Pod',
+    metadata: {
+      name,
+      namespace,
+      uid: `${namespace}-${name}`,
+      resourceVersion: '1',
+    },
+    spec: { containers: [{ name: 'main', image: 'busybox' }] },
+    status: { phase: 'Running' },
+  };
+}
+
+async function mockLegacyPanel(page: Page) {
+  const podRequests: string[] = [];
+  const watches: Array<{ socket: WebSocketRoute; path: string; closed: boolean }> = [];
+  const isPanelPods = (path: string) =>
+    new RegExp(`^/clusters/${panelCluster}/api/v1/(?:namespaces/[^/]+/)?pods$`).test(path);
+
+  await page.route('**/version', route => route.fulfill({ json: { gitVersion: 'v1.36.0' } }));
+  await page.route('**/plugins', route =>
+    route.fulfill({
+      json: [
+        {
+          name: 'e2e-namespace-panel',
+          path: 'plugins/e2e-namespace-panel',
+          type: 'user',
+          source: 'user',
+        },
+      ],
+    })
+  );
+  await page.route('**/plugins/e2e-namespace-panel/package.json', route =>
+    route.fulfill({
+      json: {
+        name: 'e2e-namespace-panel',
+        version: '1.0.0',
+        devDependencies: { '@kinvolk/headlamp-plugin': '^0.10.0' },
+      },
+    })
+  );
+  await page.route('**/plugins/e2e-namespace-panel/main.js', route =>
+    route.fulfill({
+      contentType: 'application/javascript',
+      body: `
+      const { React, ReactRouter, K8s, registerUIPanel } = window.pluginLib;
+      function NamespacePanel() {
+        const [pods, setPods] = React.useState(null);
+        const [error, setError] = React.useState('');
+        const [filter, setFilter] = React.useState('');
+        K8s.ResourceClasses.Pod.useApiList(setPods, error => setError(error.message), { cluster: '${panelCluster}' });
+        return React.createElement('aside', { 'aria-label': 'Legacy namespace panel' },
+          React.createElement('label', null, 'Panel state',
+            React.createElement('input', { value: filter, onChange: event => setFilter(event.target.value) })),
+          React.createElement(ReactRouter.Link, { to: '/settings/cluster?c=${panelCluster}' }, 'Edit namespace settings'),
+          React.createElement(ReactRouter.Link, { to: '/project/create-yaml' }, 'Create YAML project'),
+          React.createElement('output', { 'data-testid': 'legacy-pods' },
+            pods === null ? 'Loading plugin pods' :
+            pods.map(pod => pod.metadata.namespace + '/' + pod.metadata.name).join(', ') || 'No plugin pods'),
+          React.createElement('output', { 'data-testid': 'legacy-error' }, error));
+      }
+      registerUIPanel({ id: 'e2e-namespace-panel', side: 'right', component: NamespacePanel });
+    `,
+    })
+  );
+  await page.route(
+    url => isPanelPods(url.pathname),
+    route => {
+      const path = new URL(route.request().url()).pathname;
+      podRequests.push(path);
+      const namespace = path.match(/\/namespaces\/([^/]+)\/pods$/)?.[1] || 'unrestricted';
+      return route.fulfill({
+        json: {
+          apiVersion: 'v1',
+          kind: 'PodList',
+          metadata: { resourceVersion: '1' },
+          items: [panelPod(namespace)],
+        },
+      });
+    }
+  );
+  await page.routeWebSocket('**', socket => {
+    const path = new URL(socket.url()).pathname;
+    if (isPanelPods(path)) {
+      const watch = { socket, path, closed: false };
+      watches.push(watch);
+      socket.onClose(() => {
+        watch.closed = true;
+      });
+    }
+  });
+  return { podRequests, watches };
+}
+
+test.describe('legacy namespace API', () => {
+  test.use({ locale: 'en-US' });
+
+  test('gates new routes and fails closed after a live selector edit', async ({ page }) => {
+    const selectorRequests: string[] = [];
+    let releaseSelector!: () => void;
+    const selectorReleased = new Promise<void>(resolve => {
+      releaseSelector = resolve;
+    });
+    await page.addInitScript(
+      ({ clusters, selector }) => {
+        for (const cluster of clusters) {
+          localStorage.setItem(
+            `cluster_settings.${cluster}`,
+            JSON.stringify({ allowedNamespacesSelector: selector })
+          );
+        }
+      },
+      { clusters: ['test', panelCluster], selector }
+    );
+    await mockHeadlamp(page, ['test', panelCluster], async (cluster, requestedSelector) => {
+      if (requestedSelector === selector) {
+        selectorRequests.push(cluster);
+        await selectorReleased;
+      }
+      return requestedSelector === emptySelector ? [] : ['allowed-a'];
+    });
+    const { podRequests, watches } = await mockLegacyPanel(page);
+    const panel = page.getByRole('complementary', { name: 'Legacy namespace panel' });
+    const pods = panel.getByTestId('legacy-pods');
+
+    try {
+      await page.goto('/');
+      await expect(page.getByRole('tab', { name: 'Clusters', exact: true })).toBeVisible();
+      await expect.poll(() => selectorRequests).toContain(panelCluster);
+      await expect(pods).toHaveText('No plugin pods');
+      expect(podRequests).toEqual([]);
+
+      await panel.getByRole('link', { name: 'Create YAML project' }).click();
+      await expect(page).toHaveURL(/\/project\/create-yaml$/);
+      await expect.poll(() => selectorRequests).toContain('test');
+      const projectName = page.getByRole('textbox', { name: 'Project Name', exact: true });
+      await expect(projectName).toHaveCount(0);
+
+      releaseSelector();
+      await expect(projectName).toBeVisible();
+      await expect(pods).toHaveText('allowed-a/listed-pod');
+      await expect.poll(() => watches.filter(watch => !watch.closed).length).toBe(1);
+      const initialWatch = watches.find(watch => !watch.closed);
+      if (!initialWatch) throw new Error('The legacy Pod watch did not open');
+      const addedPod = panelPod('allowed-a', 'watch-pod');
+      addedPod.metadata.resourceVersion = '2';
+      initialWatch.socket.send(
+        JSON.stringify({
+          type: 'ADDED',
+          object: addedPod,
+        })
+      );
+      await expect(pods).toContainText('allowed-a/watch-pod');
+      await panel.getByRole('textbox', { name: 'Panel state' }).fill('keep panel state');
+
+      await panel.getByRole('link', { name: 'Edit namespace settings' }).click();
+      const input = page.getByRole('textbox', {
+        name: 'Allowed namespaces label selector',
+        exact: true,
+      });
+      await expect(input).toHaveValue(selector);
+      await expect.poll(() => watches.filter(watch => !watch.closed).length).toBe(1);
+      const activeWatch = watches.find(watch => !watch.closed);
+      if (!activeWatch) throw new Error('The legacy Pod watch did not reconnect');
+      await input.fill(emptySelector);
+      await page.getByRole('button', { name: 'Apply label selector', exact: true }).click();
+
+      await expect(
+        page.getByText('No namespaces match this selector', { exact: true })
+      ).toBeVisible();
+      await expect(pods).toHaveText('No plugin pods');
+      await expect.poll(() => activeWatch.closed).toBe(true);
+      await expect(panel.getByRole('textbox', { name: 'Panel state' })).toHaveValue(
+        'keep panel state'
+      );
+      await expect(panel.getByTestId('legacy-error')).toBeEmpty();
+      expect(podRequests.length).toBeGreaterThan(0);
+      expect(podRequests.every(path => path.endsWith('/namespaces/allowed-a/pods'))).toBe(true);
+      expect(watches.every(watch => watch.path.endsWith('/namespaces/allowed-a/pods'))).toBe(true);
+    } finally {
+      releaseSelector();
+    }
+  });
+
+  test('preserves editor/project state and fail-closed cache policy across tabs', async ({
+    page,
+  }) => {
+    const selectorRequests: string[] = [];
+    let releaseRefresh!: () => void;
+    const refreshReleased = new Promise<void>(resolve => {
+      releaseRefresh = resolve;
+    });
+    await page.addInitScript(
+      ({ cluster, selector }) => {
+        localStorage.setItem(
+          `cluster_settings.${cluster}`,
+          JSON.stringify({ allowedNamespacesSelector: selector })
+        );
+      },
+      { cluster: panelCluster, selector }
+    );
+    await mockHeadlamp(page, ['test', panelCluster], async (cluster, requestedSelector) => {
+      if (cluster === panelCluster) selectorRequests.push(requestedSelector);
+      if (requestedSelector === refreshSelector) await refreshReleased;
+      return requestedSelector === selector ? ['allowed-a'] : ['allowed-b'];
+    });
+    const { podRequests } = await mockLegacyPanel(page);
+    const panel = page.getByRole('complementary', { name: 'Legacy namespace panel' });
+    const pods = panel.getByTestId('legacy-pods');
+    const input = page.getByRole('textbox', {
+      name: 'Allowed namespaces label selector',
+      exact: true,
+    });
+    await page.goto(`/settings/cluster?c=${panelCluster}`);
+    await expect(pods).toHaveText('allowed-a/listed-pod');
+    await expect(input).toHaveValue(selector);
+    await panel.getByRole('textbox', { name: 'Panel state' }).fill('keep panel state');
+
+    const writer = await page.context().newPage();
+    await writer.route('**/e2e-storage-writer', route =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><title>Namespace storage writer</title>',
+      })
+    );
+    await writer.goto('/e2e-storage-writer');
+    await writer.evaluate(
+      ({ cluster, selector }) => {
+        localStorage.setItem(
+          `cluster_settings.${cluster}`,
+          JSON.stringify({ allowedNamespacesSelector: selector })
+        );
+      },
+      { cluster: panelCluster, selector: otherSelector }
+    );
+    await expect(input).toHaveValue(otherSelector);
+    await expect(pods).toHaveText('allowed-b/listed-pod');
+    const namespaceRequestsBeforeCacheLoss = selectorRequests.length;
+    expect(namespaceRequestsBeforeCacheLoss).toBeGreaterThan(0);
+
+    await writer.evaluate(cluster => {
+      localStorage.removeItem(`cluster_allowed_namespaces_selector_cache.${cluster}`);
+    }, panelCluster);
+    await expect
+      .poll(() =>
+        page.evaluate(cluster => {
+          const raw = localStorage.getItem(`cluster_allowed_namespaces_selector_cache.${cluster}`);
+          return raw ? JSON.parse(raw).namespaces : null;
+        }, panelCluster)
+      )
+      .toEqual(['allowed-b']);
+    await expect(pods).toHaveText('allowed-b/listed-pod');
+    await expect(input).toHaveValue(otherSelector);
+    await expect(panel.getByRole('textbox', { name: 'Panel state' })).toHaveValue(
+      'keep panel state'
+    );
+    await expect(panel.getByTestId('legacy-error')).toBeEmpty();
+    expect(selectorRequests).toContain(otherSelector);
+    expect(selectorRequests).toHaveLength(namespaceRequestsBeforeCacheLoss);
+    expect(podRequests.every(path => /\/namespaces\/allowed-[ab]\/pods$/.test(path))).toBe(true);
+
+    await panel.getByRole('link', { name: 'Create YAML project' }).click();
+    const projectName = page.getByRole('textbox', { name: 'Project Name', exact: true });
+    await projectName.fill('keep project name');
+    await page.getByLabel('Choose Files', { exact: true }).setInputFiles({
+      name: 'project.yaml',
+      mimeType: 'application/yaml',
+      buffer: Buffer.from(
+        'apiVersion: v1\nkind: Pod\nmetadata:\n  name: keep-yaml\nspec:\n  containers:\n  - name: main\n    image: busybox\n'
+      ),
+    });
+    const loadedResource = page.getByRole('cell', { name: 'keep-yaml', exact: true });
+    await expect(loadedResource).toBeVisible();
+
+    try {
+      await writer.evaluate(
+        ({ cluster, selector }) => {
+          localStorage.setItem(
+            `cluster_settings.${cluster}`,
+            JSON.stringify({ allowedNamespacesSelector: selector })
+          );
+        },
+        { cluster: panelCluster, selector: refreshSelector }
+      );
+      await expect.poll(() => selectorRequests.includes(refreshSelector)).toBe(true);
+      await expect(pods).toHaveText('No plugin pods');
+      await expect(projectName).toHaveValue('keep project name');
+      await expect(loadedResource).toBeVisible();
+    } finally {
+      releaseRefresh();
+    }
+    await expect(pods).toHaveText('allowed-b/listed-pod');
+    await expect(projectName).toHaveValue('keep project name');
+    await expect(loadedResource).toBeVisible();
+
+    const requestsBeforePeerFailure = selectorRequests.length;
+    await writer.evaluate(
+      ({ cluster, selector }) => {
+        localStorage.setItem(
+          `cluster_allowed_namespaces_selector_cache.${cluster}`,
+          JSON.stringify({
+            selector,
+            namespaces: [],
+            resolvedAt: Date.now(),
+          })
+        );
+      },
+      { cluster: panelCluster, selector: refreshSelector }
+    );
+    await expect(pods).toHaveText('No plugin pods');
+    await expect
+      .poll(() =>
+        page.evaluate(cluster => {
+          const cache = localStorage.getItem(
+            `cluster_allowed_namespaces_selector_cache.${cluster}`
+          );
+          return cache ? JSON.parse(cache).namespaces : null;
+        }, panelCluster)
+      )
+      .toEqual([]);
+    await panel.getByRole('link', { name: 'Edit namespace settings' }).click();
+    await expect(input).toHaveValue(refreshSelector);
+    await expect(pods).toHaveText('No plugin pods');
+    expect(
+      await page.evaluate(cluster => {
+        const cache = localStorage.getItem(`cluster_allowed_namespaces_selector_cache.${cluster}`);
+        return cache ? JSON.parse(cache).namespaces : null;
+      }, panelCluster)
+    ).toEqual([]);
+    expect(selectorRequests).toHaveLength(requestsBeforePeerFailure);
+    expect(podRequests.every(path => /\/namespaces\/allowed-[ab]\/pods$/.test(path))).toBe(true);
+  });
+});
 
 test('an empty namespace selector suppresses namespaced requests', async ({ page }) => {
   const podRequests: string[] = [];

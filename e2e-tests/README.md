@@ -122,6 +122,28 @@ kubectl config set-credentials admin@kind-test2 \
   --embed-certs=false
 ```
 
+### Namespace restrictions with mocked API traffic
+
+The two `legacy namespace API` tests in `tests/namespaceRestrictions.spec.ts`
+load a small plugin through Headlamp's plugin loader and exercise the public
+`useApiList` API. They cover initial selector gating after Home-to-project navigation,
+unselected-cluster resolution, live watch delivery and fail-closed cleanup,
+native cross-tab settings/cache recovery, and project/YAML
+form-state preservation during refresh. Mounting a settings resolver after a peer
+failure cannot restore older query data: only a newer successful query update may
+replace the tagged empty cache. A selector failure is a tagged empty cache,
+not a missing entry that older successful query results can restore.
+
+Config, plugin files, Kubernetes HTTP requests and WebSockets are intercepted,
+so these tests need a running Headlamp instance serving the built frontend but
+do not need cluster provisioning or a service-account token.
+
+From `e2e-tests/`, with `HEADLAMP_TEST_URL` pointing at that instance, run:
+
+```bash
+npx playwright test tests/namespaceRestrictions.spec.ts --project=chromium --grep "legacy namespace API"
+```
+
 ### Additional suites
 
 `tests/logStreaming.spec.ts` creates a temporary namespace and a logging Deployment
