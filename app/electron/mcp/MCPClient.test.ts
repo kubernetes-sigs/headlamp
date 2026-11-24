@@ -1162,4 +1162,137 @@ describe('MCPClient#mcpExecuteTool', () => {
     const res = await client.mcpExecuteTool('x.y', [], 'call-5');
     expect(res).toBeUndefined();
   });
+
+  it.each([
+    ['nullable string', { type: ['string', 'null'] }, null],
+    ['null-only union', { type: ['null'] }, null],
+    ['nullable integer', { type: ['integer', 'null'] }, 3],
+    ['unconstrained value', {}, null],
+    ['enum allowing null', { enum: ['all', null] }, null],
+    ['allOf allowing null', { allOf: [{}, { type: ['string', 'null'] }] }, null],
+    ['oneOf allowing null', { oneOf: [{}, { type: 'string' }] }, null],
+  ])('executes a required %s using real validateToolArgs', async (_name, propSchema, value) => {
+    vi.resetModules();
+    vi.doMock('./MCPSettings', () => ({
+      makeMcpServersFromSettings: vi.fn().mockReturnValue({}),
+      hasClusterDependentServers: vi.fn().mockReturnValue(false),
+    }));
+    const realStore = await vi.importActual<typeof import('./MCPToolStateStore')>(
+      './MCPToolStateStore'
+    );
+    vi.doMock('./MCPToolStateStore', () => ({
+      ...realStore,
+      parseServerNameToolName: vi
+        .fn()
+        .mockReturnValue({ serverName: 'serverA', toolName: 'tool1' }),
+      MCPToolStateStore: vi.fn().mockImplementation(function () {
+        return {
+          initialize: vi.fn(),
+          initConfigFromClientTools: vi.fn(),
+        };
+      }),
+    }));
+
+    const { default: MCPClient } = await import('./MCPClient');
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    const invoke = vi.fn().mockResolvedValue({ ok: true });
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: propSchema,
+      },
+    };
+    client.clientTools = [{ name: 'serverA.tool1', schema, invoke }];
+    client.mcpToolState = {
+      isToolEnabled: vi.fn().mockReturnValue(true),
+      recordToolUsage: vi.fn(),
+    };
+    client.isInitialized = true;
+    client.client = {};
+
+    const res = await client.mcpExecuteTool(
+      'serverA.tool1',
+      { selector: value },
+      'call-nullable-1'
+    );
+    expect(res.success).toBe(true);
+    expect(invoke).toHaveBeenCalledWith({ selector: value });
+  });
+
+  it.each([
+    [
+      'omitted parameter',
+      { type: ['string', 'null'] },
+      {},
+      /Required parameter 'selector' is missing/,
+    ],
+    ['fractional integer', { type: ['integer', 'null'] }, { selector: 3.5 }, /got number/],
+    [
+      'non-null value for a null-only union',
+      { type: ['null'] },
+      { selector: 'unexpected' },
+      /should be a null/,
+    ],
+    [
+      'allOf excluding null',
+      { allOf: [{ type: ['string', 'null'] }, { type: 'string' }] },
+      { selector: null },
+      /got null/,
+    ],
+    [
+      'oneOf matching twice',
+      { oneOf: [{ type: ['string', 'null'] }, { type: 'null' }] },
+      { selector: null },
+      /got null/,
+    ],
+  ])('does not invoke the tool for a required %s', async (_name, propSchema, args, error) => {
+    vi.resetModules();
+    vi.doMock('./MCPSettings', () => ({
+      makeMcpServersFromSettings: vi.fn().mockReturnValue({}),
+      hasClusterDependentServers: vi.fn().mockReturnValue(false),
+    }));
+    const realStore = await vi.importActual<typeof import('./MCPToolStateStore')>(
+      './MCPToolStateStore'
+    );
+    vi.doMock('./MCPToolStateStore', () => ({
+      ...realStore,
+      parseServerNameToolName: vi
+        .fn()
+        .mockReturnValue({ serverName: 'serverA', toolName: 'tool1' }),
+      MCPToolStateStore: vi.fn().mockImplementation(function () {
+        return {
+          initialize: vi.fn(),
+          initConfigFromClientTools: vi.fn(),
+        };
+      }),
+    }));
+
+    const { default: MCPClient } = await import('./MCPClient');
+    const client = new MCPClient(cfgPath, settingsPath) as any;
+    await client.initialize();
+
+    const invoke = vi.fn().mockResolvedValue({ ok: true });
+    const schema = {
+      type: 'object',
+      required: ['selector'],
+      properties: {
+        selector: propSchema,
+      },
+    };
+    client.clientTools = [{ name: 'serverA.tool1', schema, invoke }];
+    client.mcpToolState = {
+      isToolEnabled: vi.fn().mockReturnValue(true),
+      recordToolUsage: vi.fn(),
+    };
+    client.isInitialized = true;
+    client.client = {};
+
+    const res = await client.mcpExecuteTool('serverA.tool1', args, 'call-nullable-2');
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(error);
+    expect(invoke).not.toHaveBeenCalled();
+  });
 });
