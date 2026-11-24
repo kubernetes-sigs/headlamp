@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -44,6 +45,7 @@ const (
 var (
 	errRepositoryNotFound        = errors.New("repository not found")
 	errRepositoryLockNotAcquired = errors.New("repository lock not acquired")
+	errRepositoryIndexDownload   = errors.New("downloading repository index")
 )
 
 // CertFile, KeyFile, and CAFile are intentionally omitted from this struct.
@@ -160,6 +162,25 @@ func applyRequestFields(entry *repo.Entry, request AddUpdateRepoRequest) {
 	}
 }
 
+// downloadRepositoryIndex downloads the index of the given repository into
+// settings.RepositoryCache, which is where listCharts reads it from.
+func downloadRepositoryIndex(entry *repo.Entry, settings *cli.EnvSettings) error {
+	r, err := repo.NewChartRepository(entry, getter.All(settings))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating chart repository")
+		return err
+	}
+
+	r.CachePath = settings.RepositoryCache
+
+	if _, err = r.DownloadIndexFile(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "downloading index file")
+		return fmt.Errorf("%w: %w", errRepositoryIndexDownload, err)
+	}
+
+	return nil
+}
+
 // addRepository adds a repository with the given request fields to the helm config.
 // Returns an error if the repository cannot be created or its index downloaded.
 func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) error {
@@ -205,15 +226,7 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 
 	applyRequestFields(newRepo, request)
 
-	r, err := repo.NewChartRepository(newRepo, getter.All(settings))
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "creating chart repository")
-		return err
-	}
-
-	_, err = r.DownloadIndexFile()
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "downloading index file")
+	if err = downloadRepositoryIndex(newRepo, settings); err != nil {
 		return err
 	}
 
@@ -419,6 +432,20 @@ func copyExistingRepoFields(updated, existing *repo.Entry) {
 	updated.PassCredentialsAll = existing.PassCredentialsAll
 }
 
+// updatedRepoEntry returns the entry that results from applying request to
+// the existing entry, keeping the server-side fields of the existing one.
+func updatedRepoEntry(existing *repo.Entry, request AddUpdateRepoRequest) *repo.Entry {
+	updated := &repo.Entry{
+		Name: request.Name,
+		URL:  request.URL,
+	}
+
+	copyExistingRepoFields(updated, existing)
+	applyRequestFields(updated, request)
+
+	return updated
+}
+
 // UpdateRepository updates an existing repository entry.
 // It returns errRepositoryNotFound if the named repository does not exist.
 // Callers that need create-or-update behaviour should use AddRepo instead.
@@ -458,11 +485,6 @@ func updateRepositoryWithRequest(request AddUpdateRepoRequest, settings *cli.Env
 		return err
 	}
 
-	updated := &repo.Entry{
-		Name: request.Name,
-		URL:  request.URL,
-	}
-
 	existing := repoFile.Get(request.Name)
 	if existing == nil {
 		logger.Log(
@@ -475,9 +497,17 @@ func updateRepositoryWithRequest(request AddUpdateRepoRequest, settings *cli.Env
 		return errRepositoryNotFound
 	}
 
-	copyExistingRepoFields(updated, existing)
+	updated := updatedRepoEntry(existing, request)
 
-	applyRequestFields(updated, request)
+	// The cached index belongs to the old URL, so fetch the new one before
+	// saving the entry. A URL that is not a chart repository fails here and
+	// leaves the configuration untouched.
+	if updated.URL != existing.URL {
+		if err = downloadRepositoryIndex(updated, settings); err != nil {
+			return err
+		}
+	}
+
 	repoFile.Update(updated)
 
 	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
@@ -511,6 +541,11 @@ func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, errRepositoryNotFound) {
 			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		if errors.Is(err, errRepositoryIndexDownload) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
