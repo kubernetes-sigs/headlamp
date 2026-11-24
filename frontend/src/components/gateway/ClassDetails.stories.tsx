@@ -100,3 +100,30 @@ WithDescriptionAndParameters.parameters = {
     },
   },
 };
+
+/** A class whose controller reports the features it supports. */
+export const WithSupportedFeatures = Template.bind({});
+WithSupportedFeatures.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/gateway.networking.k8s.io/v1/gatewayclasses/default-gateway-class`,
+          () =>
+            HttpResponse.json({
+              ...DEFAULT_GATEWAY_CLASS,
+              status: {
+                supportedFeatures: [
+                  { name: 'Gateway' },
+                  { name: 'GRPCRoute' },
+                  { name: 'HTTPRoute' },
+                  { name: 'HTTPRouteQueryParamMatching' },
+                  { name: 'ReferenceGrant' },
+                ],
+              },
+            })
+        ),
+      ],
+    },
+  },
+};

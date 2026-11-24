@@ -881,6 +881,7 @@
   "Retry Budget": "Omförsöksbudget",
   "Not specified": "Inte angivet",
   "Min Retry Rate": "Minsta antal nya försök",
+  "Supported Features": "",
   "No addresses data to be shown.": "Det finns inga adressdata att visa.",
   "Listeners": "Lyssnare",
   "Matches": "Matchningar",

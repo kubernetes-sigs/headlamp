@@ -895,6 +895,7 @@
   "Retry Budget": "Бюджет повторных попыток",
   "Not specified": "Не указан",
   "Min Retry Rate": "Минимальная частота повторов",
+  "Supported Features": "",
   "No addresses data to be shown.": "Нет адресных данных для отображения.",
   "Listeners": "Слушатели",
   "Matches": "Совпадения",

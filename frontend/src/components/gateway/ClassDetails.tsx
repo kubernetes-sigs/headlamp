@@ -20,6 +20,7 @@ import GatewayClass, {
   formatGatewayClassParametersRef,
   KubeGatewayClass,
 } from '../../lib/k8s/gatewayClass';
+import LabelListItem from '../common/LabelListItem';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 
@@ -50,6 +51,11 @@ export default function GatewayClassDetails(props: { name?: string }) {
               gatewayClass.spec?.parametersRef &&
               formatGatewayClassParametersRef(gatewayClass.spec.parametersRef),
             hide: !gatewayClass.spec?.parametersRef,
+          },
+          {
+            name: t('translation|Supported Features'),
+            value: <LabelListItem labels={gatewayClass.supportedFeatures} />,
+            hide: gatewayClass.supportedFeatures.length === 0,
           },
         ]
       }
