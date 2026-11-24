@@ -71,6 +71,36 @@ export interface ResourceSliceDevice {
   allNodes?: boolean;
   /** The taints the driver put on the device. */
   taints?: DeviceTaint[];
+  /**
+   * The shared counters the device draws from when it is allocated, for devices that are
+   * partitions of the same hardware. The counter sets are published by a slice in the same pool.
+   */
+  consumesCounters?: DeviceCounterConsumption[];
+}
+
+/** An amount of a counter, such as memory or compute units. */
+export interface Counter {
+  /** The amount, as a Kubernetes quantity. */
+  value: string;
+}
+
+/**
+ * A set of counters that the devices of a pool share, for example the memory of one GPU
+ * that several partitions of it use.
+ */
+export interface CounterSet {
+  /** The name of the set, unique within the pool. */
+  name: string;
+  /** The total amount of each counter, keyed by counter name. */
+  counters: Record<string, Counter>;
+}
+
+/** How much of the counters in one shared counter set a device uses. */
+export interface DeviceCounterConsumption {
+  /** The name of a counter set in the `spec.sharedCounters` of a slice in the same pool. */
+  counterSet: string;
+  /** The amount of each counter the device uses, keyed by counter name. */
+  counters: Record<string, Counter>;
 }
 
 /** The pool a slice belongs to. A pool can span several slices. */
@@ -105,6 +135,11 @@ export interface ResourceSliceSpec {
   perDeviceNodeSelection?: boolean;
   /** The devices in the slice. */
   devices?: ResourceSliceDevice[];
+  /**
+   * Counter sets that the devices of the pool draw from, for partitionable devices. A slice
+   * sets either this or `devices`, not both.
+   */
+  sharedCounters?: CounterSet[];
 }
 
 /** A ResourceSlice as served by the `resource.k8s.io/v1` API. */
@@ -148,6 +183,11 @@ class ResourceSlice extends KubeObject<KubeResourceSlice> {
   /** The devices in the slice, empty when it publishes none. */
   get devices(): ResourceSliceDevice[] {
     return this.spec?.devices ?? [];
+  }
+
+  /** The counter sets the slice publishes for the devices of its pool, empty when there are none. */
+  get sharedCounters(): CounterSet[] {
+    return this.spec?.sharedCounters ?? [];
   }
 
   /** Which spec field says where the devices can be used, if any is set. */

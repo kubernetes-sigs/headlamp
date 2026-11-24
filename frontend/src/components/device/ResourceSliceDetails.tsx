@@ -16,10 +16,12 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import type { CounterSet } from '../../lib/k8s/resourceSlice';
 import ResourceSlice from '../../lib/k8s/resourceSlice';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
-import ResourceSliceDevices from './ResourceSliceDevices';
+import SimpleTable from '../common/SimpleTable';
+import ResourceSliceDevices, { NameValueLines } from './ResourceSliceDevices';
 import ResourceSliceNode from './ResourceSliceNode';
 
 export default function ResourceSliceDetails(props: { name?: string; cluster?: string }) {
@@ -71,6 +73,36 @@ export default function ResourceSliceDetails(props: { name?: string; cluster?: s
               </SectionBox>
             ),
           },
+          ...(item.sharedCounters.length > 0
+            ? [
+                {
+                  id: 'headlamp.resourceslice-shared-counters',
+                  section: (
+                    <SectionBox title={t('translation|Shared Counters')}>
+                      <SimpleTable
+                        columns={[
+                          {
+                            label: t('translation|Counter Set'),
+                            getter: (counterSet: CounterSet) => counterSet.name,
+                          },
+                          {
+                            label: t('translation|Counters'),
+                            getter: (counterSet: CounterSet) => (
+                              <NameValueLines
+                                values={Object.entries(counterSet.counters ?? {}).map(
+                                  ([name, counter]) => [name, counter.value]
+                                )}
+                              />
+                            ),
+                          },
+                        ]}
+                        data={item.sharedCounters}
+                      />
+                    </SectionBox>
+                  ),
+                },
+              ]
+            : []),
         ]
       }
     />

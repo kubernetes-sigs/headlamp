@@ -434,6 +434,71 @@ export const RESOURCE_SLICE_TAINTED: KubeResourceSlice = {
   },
 };
 
+const partitionedPool = { name: `${worker}-gpu-0`, generation: 1, resourceSliceCount: 2 };
+
+/**
+ * The slice of a GPU that publishes its memory and multiprocessors as a shared counter set.
+ * A slice sets either sharedCounters or devices, so the partitions are in a second slice of
+ * the same pool, RESOURCE_SLICE_PARTITIONED.
+ */
+export const RESOURCE_SLICE_SHARED_COUNTERS: KubeResourceSlice = {
+  ...RESOURCE_SLICE_DUMMY_DATA[0],
+  metadata: {
+    ...RESOURCE_SLICE_DUMMY_DATA[0].metadata,
+    name: `${worker}-gpu.example.com-c7nts`,
+    uid: 'resource-slice-uid-5',
+  },
+  spec: {
+    driver: 'gpu.example.com',
+    pool: partitionedPool,
+    nodeName: worker,
+    sharedCounters: [
+      {
+        name: 'gpu-0-counters',
+        counters: { memory: { value: '80Gi' }, multiprocessors: { value: '132' } },
+      },
+    ],
+  },
+};
+
+/**
+ * The two partitions of the GPU in RESOURCE_SLICE_SHARED_COUNTERS. They draw on the counter
+ * set that slice publishes in the same pool.
+ */
+export const RESOURCE_SLICE_PARTITIONED: KubeResourceSlice = {
+  ...RESOURCE_SLICE_DUMMY_DATA[0],
+  metadata: {
+    ...RESOURCE_SLICE_DUMMY_DATA[0].metadata,
+    name: `${worker}-gpu.example.com-p8rtn`,
+    uid: 'resource-slice-uid-6',
+  },
+  spec: {
+    driver: 'gpu.example.com',
+    pool: partitionedPool,
+    nodeName: worker,
+    devices: [
+      {
+        name: 'gpu-0-part-0',
+        consumesCounters: [
+          {
+            counterSet: 'gpu-0-counters',
+            counters: { memory: { value: '40Gi' }, multiprocessors: { value: '66' } },
+          },
+        ],
+      },
+      {
+        name: 'gpu-0-part-1',
+        consumesCounters: [
+          {
+            counterSet: 'gpu-0-counters',
+            counters: { memory: { value: '40Gi' }, multiprocessors: { value: '66' } },
+          },
+        ],
+      },
+    ],
+  },
+};
+
 /** trainer-2 as the kubelet reports the health of the GPUs in its claim trainer-2-gpus-vfghv. */
 export const DEVICE_HEALTH_POD: KubePod = {
   ...podWithResourceClaims,
