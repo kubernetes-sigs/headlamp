@@ -215,6 +215,39 @@ describe('ConditionList', () => {
         color: theme.palette.text.primary,
       });
     });
+
+    it('colors negative ReplicaFailure condition with status="True" as error and "False" as success', () => {
+      const conditions: KubeCondition[] = [
+        createMockCondition({
+          type: 'ReplicaFailure',
+          status: 'True',
+          reason: 'QuotaExceeded',
+        }),
+        createMockCondition({
+          type: 'replicafailure',
+          status: 'False',
+          reason: 'PodsCreated',
+        }),
+      ];
+
+      renderConditionList(conditions);
+
+      const replicaFailureLabels = screen.getAllByText(/ReplicaFailure/i);
+      expect(replicaFailureLabels).toHaveLength(2);
+
+      const errorBg = (theme.palette.error as any)[800] ?? theme.palette.error.main;
+      const successBg = (theme.palette.success as any)[800] ?? theme.palette.success.main;
+
+      // ReplicaFailure=True is an error
+      expect(replicaFailureLabels[0]).toHaveStyle({
+        backgroundColor: errorBg,
+      });
+
+      // replicafailure=False (case-insensitive) is success
+      expect(replicaFailureLabels[1]).toHaveStyle({
+        backgroundColor: successBg,
+      });
+    });
   });
 
   describe('Cell formatters and fallback handling', () => {
