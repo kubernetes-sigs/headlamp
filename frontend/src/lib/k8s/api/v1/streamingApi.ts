@@ -17,9 +17,9 @@
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
-import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
+import { resolveClusterRequestKubeconfig } from '../../../preparedClusterConnection';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
@@ -461,7 +461,7 @@ export async function connectStreamWithParams<T>(
   if (cluster) {
     fullPath = combinePath(`/${CLUSTERS_PREFIX}/${cluster}`, path);
     try {
-      const kubeconfig = await findKubeconfigByClusterName(cluster);
+      const kubeconfig = await resolveClusterRequestKubeconfig(cluster);
 
       if (kubeconfig !== null) {
         protocols.push(`base64url.headlamp.authorization.k8s.io.${userID}`);

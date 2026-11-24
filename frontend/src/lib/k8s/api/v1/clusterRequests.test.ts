@@ -20,6 +20,13 @@ import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import {
+  beginClusterConnectionPreparation,
+  completeClusterConnectionPreparation,
+  failClusterConnectionPreparation,
+  releaseClusterConnectionPreparation,
+  resetPreparedClusterConnections,
+} from '../../../preparedClusterConnection';
 import { clusterRequest } from './clusterRequests';
 
 vi.mock('../../../../helpers/addBackstageAuthHeaders', () => ({
@@ -44,6 +51,7 @@ vi.mock('../../../auth', () => ({
 
 describe('clusterRequest transports', () => {
   beforeEach(() => {
+    resetPreparedClusterConnections();
     vi.clearAllMocks();
     vi.stubGlobal('fetch', vi.fn());
     setBackendToken('desktop-token');
@@ -91,6 +99,78 @@ describe('clusterRequest transports', () => {
     const headers = new Headers(init.headers);
     expect(url).toContain('/config');
     expect(headers.get('X-HEADLAMP_BACKEND-TOKEN')).toBe('desktop-token');
+  });
+
+  it('pins stored kubeconfig requests while replacement preparation is pending or failed', async () => {
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue('replacement-kubeconfig');
+    (fetch as Mock).mockResolvedValue(new Response('{}', { status: 200 }));
+    completeClusterConnectionPreparation('desktop-cluster', {
+      stored: true,
+      kubeconfig: 'prepared-kubeconfig',
+    });
+    beginClusterConnectionPreparation('desktop-cluster');
+
+    await clusterRequest('/version', { cluster: 'desktop-cluster' });
+
+    expect(findKubeconfigByClusterName).not.toHaveBeenCalled();
+    const headers = new Headers((fetch as Mock).mock.lastCall![1].headers);
+    expect(headers.get('KUBECONFIG')).toBe('prepared-kubeconfig');
+  });
+
+  it('does not attach replacement stored kubeconfig while backend preparation is pending', async () => {
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue('replacement-kubeconfig');
+    (fetch as Mock).mockResolvedValue(new Response('{}', { status: 200 }));
+    completeClusterConnectionPreparation('desktop-cluster', {
+      stored: false,
+      kubeconfig: null,
+    });
+    beginClusterConnectionPreparation('desktop-cluster');
+
+    await clusterRequest('/version', { cluster: 'desktop-cluster' });
+
+    expect(findKubeconfigByClusterName).not.toHaveBeenCalled();
+    const headers = new Headers((fetch as Mock).mock.lastCall![1].headers);
+    expect(headers.has('KUBECONFIG')).toBe(false);
+  });
+
+  it('resolves current stored config after cancellation or a successful configuration-only retry', async () => {
+    completeClusterConnectionPreparation('desktop-cluster', {
+      stored: true,
+      kubeconfig: 'prepared-kubeconfig',
+    });
+    beginClusterConnectionPreparation('desktop-cluster');
+    failClusterConnectionPreparation('desktop-cluster');
+    releaseClusterConnectionPreparation('desktop-cluster');
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue('replacement-kubeconfig');
+    (fetch as Mock).mockResolvedValue(new Response('{}', { status: 200 }));
+
+    await clusterRequest('/version', { cluster: 'desktop-cluster' });
+
+    const headers = new Headers((fetch as Mock).mock.lastCall![1].headers);
+    expect(headers.get('KUBECONFIG')).toBe('replacement-kubeconfig');
+  });
+
+  it('re-resolves a kubeconfig lookup that finishes after replacement preparation begins', async () => {
+    let finishLookup!: (value: string) => void;
+    vi.mocked(findKubeconfigByClusterName).mockReturnValueOnce(
+      new Promise(resolve => {
+        finishLookup = resolve;
+      })
+    );
+    (fetch as Mock).mockResolvedValue(new Response('{}', { status: 200 }));
+
+    const request = clusterRequest('/version', { cluster: 'desktop-cluster' });
+    completeClusterConnectionPreparation('desktop-cluster', {
+      stored: true,
+      kubeconfig: 'prepared-kubeconfig',
+    });
+    beginClusterConnectionPreparation('desktop-cluster');
+    finishLookup('replacement-kubeconfig');
+    await request;
+
+    const headers = new Headers((fetch as Mock).mock.lastCall![1].headers);
+    expect(headers.get('KUBECONFIG')).toBe('prepared-kubeconfig');
+    expect(findKubeconfigByClusterName).toHaveBeenCalledOnce();
   });
 
   it('overwrites a caller backend token without creating a duplicate header', async () => {

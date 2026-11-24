@@ -19,6 +19,12 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import {
+  beginClusterConnectionPreparation,
+  completeClusterConnectionPreparation,
+  failClusterConnectionPreparation,
+  resetPreparedClusterConnections,
+} from '../../../preparedClusterConnection';
 import { clusterRequest } from './clusterRequests';
 import {
   connectStreamWithParams,
@@ -45,6 +51,10 @@ vi.mock('../../../../helpers/debugVerbose', () => ({
 }));
 
 describe('connectStreamWithParams protocols', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetPreparedClusterConnections();
+  });
   afterEach(() => {
     setBackendToken(null);
     vi.unstubAllGlobals();
@@ -109,10 +119,40 @@ describe('connectStreamWithParams protocols', () => {
       cluster: 'test-cluster',
       isJson: true,
     });
+
     listeners.message(new MessageEvent('message', { data: JSON.stringify({ kind: 'Pod' }) }));
 
     expect(onMessage).toHaveBeenCalledWith({ kind: 'Pod' });
   });
+
+  it.each(['pending', 'failed'])(
+    'keeps v1 stored WebSocket provenance while replacement is %s',
+    async state => {
+      const socket = { addEventListener: vi.fn(), binaryType: '' };
+      const WebSocketMock = vi.fn(function () {
+        return socket;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+      completeClusterConnectionPreparation('test-cluster', {
+        stored: true,
+        kubeconfig: 'prepared-kubeconfig',
+      });
+      beginClusterConnectionPreparation('test-cluster');
+      if (state === 'failed') failClusterConnectionPreparation('test-cluster');
+      (findKubeconfigByClusterName as Mock).mockResolvedValue('replacement-kubeconfig');
+      (getUserIdFromLocalStorage as Mock).mockReturnValue('prepared-user');
+
+      await connectStreamWithParams('/api/v1/pods', vi.fn(), vi.fn(), {
+        cluster: 'test-cluster',
+      });
+
+      expect(findKubeconfigByClusterName).not.toHaveBeenCalled();
+      expect(WebSocketMock).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['base64url.headlamp.authorization.k8s.io.prepared-user'])
+      );
+    }
+  );
 
   it('returns a closable connection when socket construction fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});

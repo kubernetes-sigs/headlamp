@@ -38,6 +38,12 @@ const pending = {
   retry: () => {},
 };
 
+function configurationError(message: string) {
+  const error = new Error(message);
+  error.stack = `Error: ${message}\n    at loadConfiguration (cluster-config.ts:1:1)`;
+  return error;
+}
+
 export const Preparing: StoryObj<typeof ClusterPreOpenStatus> = {
   args: {
     cluster: 'destination-cluster',
@@ -52,6 +58,36 @@ export const Failed: StoryObj<typeof ClusterPreOpenStatus> = {
       ...pending,
       isError: true,
       error: 'Proxy exited with code 1\nstderr: could not connect to the cluster',
+    },
+  },
+};
+
+export const ConfigurationLoading: StoryObj<typeof ClusterPreOpenStatus> = {
+  args: { cluster: 'destination-cluster', preOpen: pending },
+};
+
+export const ConfigurationUnavailable: StoryObj<typeof ClusterPreOpenStatus> = {
+  args: {
+    cluster: 'destination-cluster',
+    preOpen: {
+      ...pending,
+      isError: true,
+      error: configurationError(
+        'Configuration request failed. Retry to load the cluster configuration.'
+      ),
+    },
+  },
+};
+
+export const StoredConfigurationUnavailable: StoryObj<typeof ClusterPreOpenStatus> = {
+  args: {
+    cluster: 'destination-cluster',
+    preOpen: {
+      ...pending,
+      isError: true,
+      error: configurationError(
+        'Stored kubeconfig could not be parsed. Retry before opening this cluster.'
+      ),
     },
   },
 };

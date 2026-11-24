@@ -83,7 +83,7 @@ function renderDetails(urlPath: string, serviceCluster: string, clusterProp?: st
     getName: () => 'web',
   };
   render(
-    <TestContext>
+    <TestContext urlPrefix="/c" routerMap={{ cluster: urlPath.split('/')[2] }}>
       <ThemeProvider theme={theme}>
         <ServiceDetails name="web" namespace="default" cluster={clusterProp} />
       </ThemeProvider>

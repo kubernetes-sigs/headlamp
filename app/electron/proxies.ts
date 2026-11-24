@@ -30,7 +30,7 @@ export interface ManagedProxyTarget {
 
 /** A cluster target accepted by `az connectedk8s proxy`. */
 export interface ClusterProxyTarget extends ManagedProxyTarget {
-  /** Kubeconfig cluster name. */
+  /** Azure connected Kubernetes resource name passed to `az connectedk8s proxy --name`. */
   cluster: string;
   /** Azure subscription UUID containing the cluster. */
   subscriptionId: string;

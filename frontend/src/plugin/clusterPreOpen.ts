@@ -61,6 +61,10 @@ function runHookUntilAbort(
 
 /** Registers a privileged callback outside renderer-visible Redux state. */
 export function registerClusterPreOpenHook(hook: ClusterPreOpenHook): boolean {
+  if (typeof hook !== 'function') {
+    console.error('Ignoring cluster pre-open hook: expected a function');
+    return false;
+  }
   if (privateApply(privateIndexOf, preOpenHooks, [hook]) !== -1) {
     return false;
   }

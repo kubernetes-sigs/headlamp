@@ -117,11 +117,17 @@ describe('Settings theme', () => {
   });
 
   it('dispatches CLUSTER_SETTINGS_VIEW with the cluster from the URL', async () => {
-    // SettingsCluster resolves the cluster from window.location, not from the router.
-    window.history.pushState({}, '', '/c/cluster-1/settings');
     const events = recordHeadlampEvents();
 
-    renderWithProviders(<SettingsCluster />);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TestContext urlSearchParams={{ c: 'cluster-1' }}>
+          <ThemeProvider theme={theme}>
+            <SettingsCluster />
+          </ThemeProvider>
+        </TestContext>
+      </QueryClientProvider>
+    );
 
     await waitFor(() => {
       expect(events.filter(e => e.type === HeadlampEventType.CLUSTER_SETTINGS_VIEW)).toEqual([

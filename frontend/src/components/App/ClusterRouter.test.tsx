@@ -15,8 +15,10 @@
  */
 
 import '../../lib/router/index';
+import { ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { IDBFactory } from 'fake-indexeddb';
 import { createBrowserHistory, createHashHistory, History } from 'history';
 import { SnackbarProvider } from 'notistack';
 import { ReactNode, Suspense, useEffect, useLayoutEffect, useState } from 'react';
@@ -24,22 +26,27 @@ import { Provider } from 'react-redux';
 import { Link, Redirect, Route, useHistory, useLocation } from 'react-router-dom';
 import { isElectron } from '../../helpers/isElectron';
 import { getCluster, getSelectedClusters } from '../../lib/cluster';
+import { useCluster, useSelectedClusters } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
+import { createMuiTheme } from '../../lib/themes';
 import {
   registerClusterPreOpenHook,
   resetClusterPreOpenHooksForTests,
 } from '../../plugin/clusterPreOpen';
+import { pluginsLoaded } from '../../plugin/pluginsSlice';
 import {
   ClusterPreOpenContext,
   clusterPreOpenHooksChanged,
 } from '../../redux/clusterProviderSlice';
-import { setConfig, setStatelessConfig } from '../../redux/configSlice';
+import { setConfig, setStatelessConfig, setStatelessConfigError } from '../../redux/configSlice';
 import store from '../../redux/stores/store';
 import { UIPanel } from '../../redux/uiSlice';
+import { storeStatelessClusterKubeconfig } from '../../stateless';
 import { ActivitiesRenderer, Activity } from '../activity/Activity';
 import AlertNotification from '../common/AlertNotification';
 import ClusterLayout from './ClusterLayout';
 import ClusterRouter from './ClusterRouter';
+import Home from './Home';
 
 vi.mock('../../stateless/findKubeconfigByClusterName', () => ({
   findKubeconfigByClusterName: vi.fn(async () => null),
@@ -112,6 +119,16 @@ function Session() {
 }
 
 let appHistory: History;
+function CaptureHistory() {
+  const history = useHistory();
+  const cluster = useCluster();
+  const selected = useSelectedClusters();
+  useLayoutEffect(() => {
+    appHistory = history;
+  }, [history]);
+  return <span data-testid="hook-selection">{JSON.stringify([cluster, selected])}</span>;
+}
+
 function Destination() {
   const history = useHistory();
   const { pathname } = useLocation();
@@ -125,6 +142,8 @@ function Destination() {
     <main>
       <div data-testid="route">{pathname}</div>
       <Link to="/c/cluster-b/pods">Open B</Link>
+      <Link to="/c/%2541/pods">Open percent</Link>
+      <Link to="/c/50%25off/pods">Open percentage</Link>
       <AlertNotification />
     </main>
   );
@@ -156,6 +175,7 @@ describe('prepared cluster navigation', () => {
     vi.mocked(isElectron).mockReturnValue(false);
     window.history.replaceState({}, '', '/c/cluster-a/pods');
     store.dispatch(setConfig({ clusters, isDynamicClusterEnabled: false }));
+    store.dispatch(pluginsLoaded());
     Activity.reset();
     hook = vi.fn(async () => {});
     registerClusterPreOpenHook(hook);
@@ -187,7 +207,8 @@ describe('prepared cluster navigation', () => {
   function mount(
     history: History = createBrowserHistory(),
     redirect = false,
-    gateDelay?: GateDelay
+    gateDelay?: GateDelay,
+    showHome = false
   ) {
     Activity.launch({
       id: 'session',
@@ -200,21 +221,29 @@ describe('prepared cluster navigation', () => {
       <Provider store={store}>
         <QueryClientProvider client={client}>
           <SnackbarProvider>
-            <ClusterRouter history={history}>
-              {redirect && (
-                <Route path="/c/cluster-a/pods" exact>
-                  <Redirect to="/c/cluster-b/pods" />
-                </Route>
-              )}
-              <Suspense fallback={null}>
-                <DelayedGate delay={gateDelay}>
-                  <ClusterLayout panels={panels}>
-                    <Destination />
-                    <ActivitiesRenderer />
-                  </ClusterLayout>
-                </DelayedGate>
-              </Suspense>
-            </ClusterRouter>
+            <ThemeProvider theme={createMuiTheme({ base: 'light', name: 'light' })}>
+              <ClusterRouter history={history}>
+                <CaptureHistory />
+                {showHome && (
+                  <Route exact path="/">
+                    <Home />
+                  </Route>
+                )}
+                {redirect && (
+                  <Route path="/c/cluster-a/pods" exact>
+                    <Redirect to="/c/cluster-b/pods" />
+                  </Route>
+                )}
+                <Suspense fallback={null}>
+                  <DelayedGate delay={gateDelay}>
+                    <ClusterLayout panels={panels}>
+                      <Destination />
+                      <ActivitiesRenderer />
+                    </ClusterLayout>
+                  </DelayedGate>
+                </Suspense>
+              </ClusterRouter>
+            </ThemeProvider>
           </SnackbarProvider>
         </QueryClientProvider>
       </Provider>
@@ -225,6 +254,29 @@ describe('prepared cluster navigation', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByTestId('panel')).toBeInTheDocument();
   }
+
+  it.each([
+    ['browser', '%2541', '%41'],
+    ['hash', '%2541', '%41'],
+    ['browser', '50%25off', '50%off'],
+    ['hash', '50%25off', '50%off'],
+  ] as const)(
+    'initializes cold %s cluster hooks from the decoded path %s',
+    async (mode, encoded, cluster) => {
+      vi.mocked(isElectron).mockReturnValue(mode === 'hash');
+      window.history.replaceState({}, '', `${mode === 'hash' ? '/#' : ''}/c/${encoded}/pods`);
+      store.dispatch(setConfig({ clusters: { [cluster]: { name: cluster, auth_type: '' } } }));
+      mount(mode === 'hash' ? createHashHistory() : createBrowserHistory());
+      expect(screen.getByTestId('hook-selection')).toHaveTextContent(
+        JSON.stringify([cluster, [cluster]])
+      );
+      await ready();
+      expect(hook).toHaveBeenCalledWith(expect.objectContaining({ cluster }));
+      expect(screen.getByTestId('hook-selection')).toHaveTextContent(
+        JSON.stringify([cluster, [cluster]])
+      );
+    }
+  );
 
   async function pollOnlyA() {
     await act(async () => await vi.advanceTimersByTimeAsync(5000));
@@ -258,6 +310,7 @@ describe('prepared cluster navigation', () => {
     await pollOnlyA();
     await act(async () => attempt.reject(new Error('proxy failed\nretry later')));
     const retry = await screen.findByRole('button', { name: 'Retry' });
+    expect(screen.getByRole('dialog', { name: 'Could not open cluster' })).toContainElement(retry);
     expect(retry).toHaveFocus();
     await pollOnlyA();
     expectPreserved();
@@ -303,6 +356,7 @@ describe('prepared cluster navigation', () => {
       abandoned.reportProgress?.('obsolete');
       first.resolve();
     });
+
     expect(window.location.pathname).toBe('/c/cluster-a/pods');
     expect(screen.queryByText('obsolete')).not.toBeInTheDocument();
     const cancelled = hook.mock.calls.at(-1)![0];
@@ -314,6 +368,33 @@ describe('prepared cluster navigation', () => {
     expect(window.location.pathname).toBe('/');
     expect(panelMounted).toHaveBeenCalledOnce();
     expect(sessionOpened).toHaveBeenCalledOnce();
+  });
+
+  it('uses generic progress for runtime objects without storing or logging their contents', async () => {
+    mount();
+    await ready();
+    const opening = deferred();
+    hook.mockImplementationOnce(() => opening.promise);
+    act(() => appHistory.push('/c/cluster-b/pods'));
+    await screen.findByRole('dialog');
+    const context = hook.mock.calls.at(-1)![0];
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      act(() => context.reportProgress?.({ secret: 'private' } as unknown as string));
+      expect(screen.getByRole('status')).toHaveTextContent('Preparing cluster…');
+      expect(store.getState().clusterProvider.preparing['cluster-b'].message).toBe('');
+      expect(warn).toHaveBeenCalledExactlyOnceWith('Cluster preparation progress must be a string');
+      fireEvent.click(screen.getByRole('link', { name: 'Back to clusters' }));
+      await ready();
+      await act(async () => {
+        context.reportProgress?.('obsolete');
+        opening.resolve();
+      });
+      expect(store.getState().clusterProvider.preparing['cluster-b']).toBeUndefined();
+      expect(window.location.pathname).toBe('/');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it.each(['browser', 'hash'])(
@@ -480,6 +561,104 @@ describe('prepared cluster navigation', () => {
     expect(hook).not.toHaveBeenCalled();
   });
 
+  it('keeps no-hook navigation pending until failed configuration is retried successfully', async () => {
+    resetClusterPreOpenHooksForTests();
+    store.dispatch(setConfig({ clusters: null, isDynamicClusterEnabled: false }));
+    let available = false;
+    const loadConfig = async () => {
+      if (!available) throw new Error('Backend configuration failed');
+      store.dispatch(setConfig({ clusters }));
+      return { clusters };
+    };
+    await expect(
+      client.fetchQuery({
+        queryKey: ['cluster-fetch'],
+        queryFn: loadConfig,
+        retry: false,
+      })
+    ).rejects.toThrow('Backend configuration failed');
+    mount();
+    act(() => appHistory.push('/c/cluster-b/pods'));
+    expect(window.location.pathname).toBe('/c/cluster-a/pods');
+    expect(getCluster()).toBe('cluster-a');
+    available = true;
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await ready();
+    expect(window.location.pathname).toBe('/c/cluster-b/pods');
+    expect(getCluster()).toBe('cluster-b');
+    expect(hook).not.toHaveBeenCalled();
+  });
+
+  it('escapes preparation to the browser chooser without single-cluster auto-redirect', async () => {
+    store.dispatch(
+      setConfig({ clusters: { 'cluster-a': clusters['cluster-a'] }, clusterSources: [] })
+    );
+    const opening = deferred();
+    hook.mockImplementation(() => opening.promise);
+    mount(undefined, false, undefined, true);
+    await screen.findByRole('dialog');
+    const signal = hook.mock.calls[0][0].signal;
+    fireEvent.click(screen.getByRole('link', { name: 'Back to clusters' }));
+    await ready();
+    expect(appHistory.location.pathname).toBe('/');
+    expect(signal?.aborted).toBe(true);
+    expect(hook).toHaveBeenCalledOnce();
+  });
+
+  it('does not let Home auto-redirect supersede a pending cold-link POP during config loading', async () => {
+    window.history.replaceState({}, '', '/');
+    store.dispatch(setConfig({ clusters: null, isDynamicClusterEnabled: false }));
+    const opening = deferred();
+    hook.mockImplementation(() => opening.promise);
+    mount(undefined, false, undefined, true);
+    act(() => {
+      window.history.pushState({}, '', '/c/cluster-a/login');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      store.dispatch(
+        setConfig({
+          clusters: { 'cluster-a': clusters['cluster-a'] },
+          clusterSources: [],
+        })
+      );
+    });
+    await screen.findByRole('dialog');
+    await act(async () => opening.resolve());
+    await ready();
+    expect(appHistory.location.pathname).toBe('/c/cluster-a/login');
+    expect(window.location.pathname).toBe('/c/cluster-a/login');
+  });
+
+  it.each(['browser', 'hash'] as const)(
+    'preserves encoded React Router links in %s history',
+    async mode => {
+      store.dispatch(
+        setConfig({
+          clusters: {
+            ...clusters,
+            '%41': { name: '%41', auth_type: '' },
+            '50%off': { name: '50%off', auth_type: '' },
+          },
+        })
+      );
+      if (mode === 'hash') window.history.replaceState({}, '', '/#/c/cluster-a/pods');
+      mount(mode === 'hash' ? createHashHistory() : createBrowserHistory());
+      await ready();
+      for (const [label, path, cluster] of [
+        ['Open percent', '/c/%2541/pods', '%41'],
+        ['Open percentage', '/c/50%25off/pods', '50%off'],
+      ]) {
+        const link = screen.getByRole('link', { name: label });
+        expect(link).toHaveAttribute('href', `${mode === 'hash' ? '#' : ''}${path}`);
+        fireEvent.click(link);
+        await ready();
+        expect(mode === 'hash' ? window.location.hash.slice(1) : window.location.pathname).toBe(
+          path
+        );
+        expect(getCluster()).toBe(cluster);
+      }
+    }
+  );
+
   it.each(['complete', 'supersede', 'cancel'])(
     'retains a programmatic navigation requested by a commit listener (%s)',
     async outcome => {
@@ -580,6 +759,65 @@ describe('prepared cluster navigation', () => {
       await act(async () => opening.resolve());
       await ready();
       expect(hook).toHaveBeenCalledOnce();
+    }
+  );
+
+  it.each([false, true])(
+    'does not commit a stored destination before parsing succeeds, including retry cancellation (%s)',
+    async cancel => {
+      vi.stubGlobal('indexedDB', new IDBFactory());
+      await storeStatelessClusterKubeconfig('stored-destination-kubeconfig');
+      window.history.replaceState({}, '', '/');
+      store.dispatch(
+        setConfig({
+          clusters: { 'cluster-a': clusters['cluster-a'] },
+          isDynamicClusterEnabled: true,
+        })
+      );
+      store.dispatch(setStatelessConfig({ statelessClusters: null }));
+      store.dispatch(setStatelessConfigError('stored configuration unavailable'));
+      const parsing = deferred();
+      let resolveParse!: (response: Response) => void;
+      vi.mocked(fetch).mockImplementation(async url => {
+        if (String(url).includes('/parseKubeConfig')) {
+          return new Promise<Response>(resolve => {
+            resolveParse = resolve;
+            parsing.resolve();
+          });
+        }
+        return new Response('{}');
+      });
+      mount();
+      await ready();
+      act(() => appHistory.push('/c/cluster-b/pods'));
+      expect(
+        await screen.findByRole('dialog', { name: 'Could not open cluster' })
+      ).toHaveTextContent('stored configuration unavailable');
+      expect(getCluster()).toBeNull();
+      expect(hook).not.toHaveBeenCalled();
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+        await parsing.promise;
+      });
+      if (cancel) {
+        fireEvent.click(screen.getByRole('link', { name: 'Back to clusters' }));
+        await ready();
+      }
+      await act(async () =>
+        resolveParse(
+          new Response(JSON.stringify({ clusters: [clusters['cluster-b']] }), { status: 200 })
+        )
+      );
+      await ready();
+      expect(store.getState().config.statelessConfigError).toBeNull();
+      expect(getCluster()).toBe(cancel ? null : 'cluster-b');
+      if (cancel) expect(hook).not.toHaveBeenCalled();
+      else {
+        expect(hook).toHaveBeenCalledOnce();
+        expect(hook).toHaveBeenCalledWith(
+          expect.objectContaining({ clusterConf: clusters['cluster-b'] })
+        );
+      }
     }
   );
 

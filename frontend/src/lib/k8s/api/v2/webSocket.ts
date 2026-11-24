@@ -17,9 +17,9 @@
 import { useEffect } from 'react';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
-import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
+import { resolveClusterRequestKubeconfig } from '../../../preparedClusterConnection';
 import { makeUrl } from './makeUrl';
 
 /**
@@ -159,7 +159,7 @@ export async function openWebSocket<T>(
     path.unshift('clusters', cluster);
 
     try {
-      const kubeconfig = await findKubeconfigByClusterName(cluster);
+      const kubeconfig = await resolveClusterRequestKubeconfig(cluster);
 
       if (kubeconfig !== null) {
         const userID = getUserIdFromLocalStorage();

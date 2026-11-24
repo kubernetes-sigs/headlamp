@@ -14,17 +14,38 @@
  * limitations under the License.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render as testingRender, screen } from '@testing-library/react';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { MemoryRouter, Route, useLocation } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useCluster } from '../../lib/k8s';
+import { useAllowedNamespacesFromSelector } from '../../lib/k8s/allowedNamespaces';
+import {
+  completeClusterConnectionPreparation,
+  getPreparedClusterConnection,
+  resetPreparedClusterConnections,
+} from '../../lib/preparedClusterConnection';
 import type { UIPanel } from '../../redux/uiSlice';
 import ClusterLayout from './ClusterLayout';
 import { ClusterPreOpenState, useClusterPreOpen } from './useClusterPreOpen';
 
 vi.mock('../../lib/k8s', () => ({
   useCluster: vi.fn(() => 'test-cluster'),
+}));
+
+vi.mock('../../lib/k8s/allowedNamespaces', () => ({
+  useAllowedNamespacesFromSelector: vi.fn(() => ({
+    namespaces: [],
+    isFetching: false,
+    isSuccess: false,
+    error: null,
+  })),
+}));
+
+vi.mock('../../redux/hooks', () => ({
+  useTypedSelector: (selector: (state: any) => any) =>
+    selector({ config: { namespaceDiscoveryEnabled: true } }),
 }));
 
 vi.mock('./useClusterPreOpen', () => ({
@@ -36,11 +57,15 @@ vi.mock('../common/AlertNotification', () => ({
 }));
 
 import ClusterPreOpenGate from './ClusterPreOpenGate';
+import ClusterPreparingDialog from './ClusterPreparingDialog';
 
 function render(children: ReactNode) {
+  const client = new QueryClient();
   return testingRender(children, {
     wrapper: ({ children }) => (
-      <MemoryRouter initialEntries={['/c/test-cluster/pods']}>{children}</MemoryRouter>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/c/test-cluster/pods']}>{children}</MemoryRouter>
+      </QueryClientProvider>
     ),
   });
 }
@@ -60,6 +85,22 @@ const readyState: ClusterPreOpenState = {
 const sidebarClusterRequest = vi.fn();
 const topBarUserInfoRequest = vi.fn();
 const panelClusterRequest = vi.fn();
+
+const viewMounted = vi.fn();
+const viewUnmounted = vi.fn();
+
+function PersistentView({ name }: { name: string }) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    viewMounted(name);
+    return () => viewUnmounted(name);
+  }, [name]);
+  return (
+    <button onClick={() => setCount(value => value + 1)} data-testid={`${name}-state`}>
+      {name}: {count}
+    </button>
+  );
+}
 
 function TopBarWithUserInfoRequest() {
   topBarUserInfoRequest();
@@ -84,9 +125,13 @@ const panels = {
 } as Record<UIPanel['side'], UIPanel[]>;
 
 beforeEach(() => {
+  resetPreparedClusterConnections();
   sidebarClusterRequest.mockClear();
   topBarUserInfoRequest.mockClear();
   panelClusterRequest.mockClear();
+  vi.mocked(useAllowedNamespacesFromSelector).mockClear();
+  viewMounted.mockClear();
+  viewUnmounted.mockClear();
   vi.mocked(useCluster).mockReturnValue('test-cluster');
   vi.mocked(useClusterPreOpen).mockReturnValue(readyState);
 });
@@ -104,6 +149,157 @@ it('does not mount plugin UI panels while preparation is pending', () => {
   expect(panelClusterRequest).not.toHaveBeenCalled();
   expect(screen.queryByText('cluster-panel')).not.toBeInTheDocument();
   expect(screen.queryByText('cluster-content')).not.toBeInTheDocument();
+});
+
+it('names the destination preparation dialog correctly when a cold-open dialog is still mounted', () => {
+  render(
+    <>
+      <ClusterPreparingDialog cluster="previous-cluster" />
+      <ClusterPreparingDialog cluster="destination-cluster" />
+    </>
+  );
+  expect(
+    screen.getByRole('dialog', { name: 'Connecting to "destination-cluster"' })
+  ).toBeInTheDocument();
+});
+it.each([false, true])(
+  'gates shared namespace resolution for routes and panels until preparation succeeds (error: %s)',
+  isError => {
+    vi.mocked(useClusterPreOpen).mockReturnValue({
+      ...readyState,
+      isSuccess: false,
+      isError,
+      error: isError ? new Error('preparation failed') : null,
+    });
+    const content = () => (
+      <ClusterLayout panels={panels} clustersToResolve={['test-cluster']}>
+        <div>cluster-content</div>
+      </ClusterLayout>
+    );
+
+    const result = render(content());
+    expect(useAllowedNamespacesFromSelector).not.toHaveBeenCalled();
+    expect(panelClusterRequest).not.toHaveBeenCalled();
+    vi.mocked(useClusterPreOpen).mockReturnValue(readyState);
+    result.rerender(content());
+    expect(useAllowedNamespacesFromSelector).toHaveBeenCalledWith('test-cluster', '');
+    expect(panelClusterRequest).toHaveBeenCalledTimes(4);
+  }
+);
+
+it('does not allow a same-name replacement to reuse the new stored connection before success', () => {
+  const persistentPanels: Record<UIPanel['side'], UIPanel[]> = {
+    ...panels,
+    left: [
+      {
+        id: 'panel',
+        side: 'left',
+        component: () => <PersistentView name="panel" />,
+      },
+    ],
+  };
+  const content = () => (
+    <ClusterLayout panels={persistentPanels} clustersToResolve={['test-cluster']}>
+      <PersistentView name="activity" />
+    </ClusterLayout>
+  );
+  const result = render(content());
+  completeClusterConnectionPreparation('test-cluster', {
+    stored: true,
+    kubeconfig: 'prepared-kubeconfig',
+  });
+  vi.mocked(useClusterPreOpen).mockReturnValue({ ...readyState, isSuccess: false });
+  result.rerender(content());
+
+  expect(viewUnmounted).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  expect(getPreparedClusterConnection('test-cluster')).toEqual({
+    stored: true,
+    kubeconfig: 'prepared-kubeconfig',
+  });
+});
+
+it('releases an abandoned or configuration-only preparation pin once the combined view is ready', () => {
+  completeClusterConnectionPreparation('test-cluster', {
+    stored: true,
+    kubeconfig: 'prepared-kubeconfig',
+  });
+  vi.mocked(useClusterPreOpen).mockReturnValue(readyState);
+  const result = render(
+    <ClusterPreOpenGate>
+      <PersistentView name="activity" />
+    </ClusterPreOpenGate>
+  );
+  vi.mocked(useClusterPreOpen).mockReturnValue({ ...readyState, isSuccess: false });
+  result.rerender(
+    <ClusterPreOpenGate>
+      <PersistentView name="activity" />
+    </ClusterPreOpenGate>
+  );
+
+  expect(getPreparedClusterConnection('test-cluster')).toBeDefined();
+
+  vi.mocked(useClusterPreOpen).mockReturnValue(readyState);
+  result.rerender(
+    <ClusterPreOpenGate>
+      <PersistentView name="activity" />
+    </ClusterPreOpenGate>
+  );
+
+  expect(getPreparedClusterConnection('test-cluster')).toBeUndefined();
+});
+
+it.each([false, true])(
+  'retains mounted panels and sessions during re-preparation (error: %s)',
+  isError => {
+    const persistentPanels: Record<UIPanel['side'], UIPanel[]> = {
+      top: [],
+      bottom: [],
+      right: [],
+      left: [{ id: 'persistent', side: 'left', component: () => <PersistentView name="panel" /> }],
+    };
+    const content = () => (
+      <ClusterLayout panels={persistentPanels}>
+        <PersistentView name="activity" />
+      </ClusterLayout>
+    );
+    const result = render(content());
+    fireEvent.click(screen.getByTestId('panel-state'));
+    fireEvent.click(screen.getByTestId('activity-state'));
+    vi.mocked(useClusterPreOpen).mockReturnValue({
+      ...readyState,
+      isSuccess: false,
+      isError,
+      error: isError ? new Error('preparation failed') : null,
+    });
+    result.rerender(content());
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('panel-state')).toHaveTextContent('panel: 1');
+    expect(screen.getByTestId('activity-state')).toHaveTextContent('activity: 1');
+    expect(viewMounted).toHaveBeenCalledTimes(2);
+    expect(viewUnmounted).not.toHaveBeenCalled();
+
+    vi.mocked(useClusterPreOpen).mockReturnValue(readyState);
+    result.rerender(content());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('panel-state')).toHaveTextContent('panel: 1');
+    expect(screen.getByTestId('activity-state')).toHaveTextContent('activity: 1');
+  }
+);
+
+it('still replaces the initial gate for a different unprepared cluster', () => {
+  const content = () => (
+    <ClusterPreOpenGate>
+      <PersistentView name="activity" />
+    </ClusterPreOpenGate>
+  );
+  const result = render(content());
+  vi.mocked(useCluster).mockReturnValue('another-cluster');
+  vi.mocked(useClusterPreOpen).mockReturnValue({ ...readyState, isSuccess: false });
+  result.rerender(content());
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  expect(screen.queryByTestId('activity-state')).not.toBeInTheDocument();
+  expect(viewUnmounted).toHaveBeenCalledWith('activity');
 });
 
 it('does not mount cluster polling or namespace resolution while preparation is pending', () => {

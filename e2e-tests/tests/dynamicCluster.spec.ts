@@ -260,10 +260,10 @@ test('deleting a backend-managed cluster reloads the home page', async ({ page }
   });
 
   await clusterRow.getByRole('button', { name: 'Actions' }).click();
-  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await page.getByRole('menuitem', { name: 'Remove Cluster' }).click();
   await Promise.all([
     page.waitForNavigation({ waitUntil: 'load' }),
-    page.getByRole('button', { name: 'Delete' }).click(),
+    page.getByRole('button', { name: 'Remove', exact: true }).click(),
   ]);
 
   expect(await page.evaluate(() => (window as any).__clusterDeletionPageMarker)).toBeUndefined();

@@ -21,7 +21,7 @@ import { request } from '../lib/k8s/api/v1/clusterRequests';
 import { JSON_HEADERS } from '../lib/k8s/api/v1/constants';
 import { Cluster } from '../lib/k8s/cluster';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
-import { ConfigState, setStatelessConfig } from '../redux/configSlice';
+import { ConfigState, setStatelessConfig, setStatelessConfigError } from '../redux/configSlice';
 import store from '../redux/stores/store';
 import { enqueueConfigOperation } from './configOperationQueue';
 import { deleteClusterKubeconfig } from './deleteClusterKubeconfig';
@@ -235,49 +235,49 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
      * Once the database is opened, it creates a transaction and an object store.
      * It returns all the kubeconfigs from the object store.
      * */
-    request.onsuccess = function handleDatabaseSuccess() {
-      const db = request.result;
+    request.onsuccess = function handleDatabaseSuccess(event: Event) {
+      const db = (event.target as IDBOpenDBRequest)?.result;
 
       if (db) {
-        let transaction: IDBTransaction;
+        const fail = (error: unknown) => {
+          db.close();
+          console.error(error);
+          reject(error);
+        };
         try {
-          transaction = db.transaction(['kubeconfigStore'], 'readonly');
+          const transaction = db.transaction(['kubeconfigStore'], 'readonly');
+          transaction.oncomplete = () => db.close();
+          transaction.onerror = () => fail(transaction.error);
+          transaction.onabort = () => fail(new Error('Failed to read IndexedDB'));
+          const store = transaction.objectStore('kubeconfigStore');
+          const kubeconfigs: string[] = [];
+
+          const cursorRequest = store.openCursor();
+          cursorRequest.onsuccess = function storeSuccess(event: Event) {
+            try {
+              const successEvent = event as CursorSuccessEvent;
+              const cursor = successEvent.target.result;
+              if (cursor) {
+                kubeconfigs.push(cursor.value.kubeconfig);
+                cursor.continue();
+              } else {
+                resolve(kubeconfigs);
+              }
+            } catch (error) {
+              fail(error);
+            }
+          };
+          cursorRequest.onerror = (event: Event) => {
+            const error = (event as DatabaseErrorEvent).target?.error;
+            if (error?.name === 'AbortError' || transaction.error?.name === 'AbortError') {
+              fail(new Error('Failed to read IndexedDB'));
+            } else {
+              handleDataBaseError(event as DatabaseErrorEvent, fail);
+            }
+          };
         } catch (error) {
-          db.close();
-          console.error(error);
-          reject(error);
-          return;
+          fail(error);
         }
-        const store = transaction.objectStore('kubeconfigStore');
-
-        const kubeconfigs: string[] = [];
-        transaction.oncomplete = () => {
-          db.close();
-          resolve(kubeconfigs);
-        };
-        transaction.onabort = () => {
-          db.close();
-          const error = transaction.error ?? new Error('Failed to read IndexedDB');
-          console.error(error);
-          reject(error);
-        };
-
-        /** The onsuccess event is fired when the request has succeeded.
-         * This is where you handle the results of the request.
-         * The result is the cursor. It is used to iterate through the object store.
-         * The cursor is null when there are no more objects to iterate through.
-         * */
-        const cursorRequest = store.openCursor();
-        cursorRequest.onsuccess = function storeSuccess(event: Event) {
-          const successEvent = event as CursorSuccessEvent;
-          const cursor = successEvent.target.result;
-          if (cursor) {
-            kubeconfigs.push(cursor.value.kubeconfig);
-            cursor.continue();
-          }
-        };
-        cursorRequest.onerror = (event: Event) =>
-          handleDataBaseError(event as DatabaseErrorEvent, reject);
       } else {
         reject('Failed to open IndexedDB');
       }
@@ -430,35 +430,46 @@ export function isEqualClusterConfigs(
   });
 }
 
-let pendingStatelessRefresh: Promise<void> | undefined;
+// Explicit replacement loads supersede older results; polling joins the current load.
+let latestStatelessConfigLoad = 0;
+let pendingStatelessConfigLoad: Promise<void> | undefined;
 
 /**
  * Parses the cluster config from the backend and updates the redux store
  * if the present stored config is different from the fetched one.
+ * Periodic callers coalesce so a slow load can settle without an unbounded queue.
+ * Explicit callers (including Retry) replace an in-flight load by default.
  */
-export function fetchStatelessClusterKubeConfigs(dispatch: any): Promise<void> {
-  if (!pendingStatelessRefresh) {
-    pendingStatelessRefresh = enqueueConfigOperation(() =>
-      refreshStatelessClusterKubeConfigs(dispatch)
-    )
-      .catch((err: Error) => {
-        console.error('Error getting config:', err);
-      })
-      .finally(() => {
-        pendingStatelessRefresh = undefined;
-      });
-  }
-  return pendingStatelessRefresh;
+export function fetchStatelessClusterKubeConfigs(
+  dispatch: any,
+  { coalesce = false }: { coalesce?: boolean } = {}
+): Promise<void> {
+  if (coalesce && pendingStatelessConfigLoad) return pendingStatelessConfigLoad;
+  const load = ++latestStatelessConfigLoad;
+  const operation = () => loadStatelessClusterKubeConfigs(dispatch, load);
+  const pending = (coalesce ? enqueueConfigOperation(operation) : operation())
+    .catch((error: unknown) => {
+      console.error('Error getting config:', error);
+    })
+    .finally(() => {
+      if (pendingStatelessConfigLoad === pending) pendingStatelessConfigLoad = undefined;
+    });
+  pendingStatelessConfigLoad = pending;
+  return pending;
 }
 
-async function refreshStatelessClusterKubeConfigs(dispatch: any) {
+async function loadStatelessClusterKubeConfigs(dispatch: any, load: number) {
   try {
     const config = await getStatelessClusterKubeConfigs();
+    if (load !== latestStatelessConfigLoad) return;
 
     if (!config || config.length === 0) {
       const statelessClusters = store.getState().config.statelessClusters;
       if (statelessClusters === null || Object.keys(statelessClusters).length > 0) {
         dispatch(setStatelessConfig({ statelessClusters: {} }));
+      }
+      if (store.getState().config.statelessConfigError) {
+        dispatch(setStatelessConfigError(null));
       }
       return;
     }
@@ -481,9 +492,11 @@ async function refreshStatelessClusterKubeConfigs(dispatch: any) {
       false,
       false
     )) as ParsedConfig;
-    if (!_.isEqual(config, await getStatelessClusterKubeConfigs())) {
-      return;
+    if (load !== latestStatelessConfigLoad) return;
+    if (store.getState().config.statelessConfigError) {
+      dispatch(setStatelessConfigError(null));
     }
+    if (!_.isEqual(config, await getStatelessClusterKubeConfigs())) return;
     const nextState = toStatelessConfigState(parsed);
     const statelessClusters = store.getState().config.statelessClusters;
 
@@ -491,10 +504,14 @@ async function refreshStatelessClusterKubeConfigs(dispatch: any) {
       dispatch(setStatelessConfig(nextState));
     }
   } catch (error) {
+    if (load !== latestStatelessConfigLoad) return;
     console.error('Error getting stateless config:', error);
-    if (store.getState().config.statelessClusters === null) {
-      dispatch(setStatelessConfig({ statelessClusters: {} }));
-    }
+    dispatch(
+      setStatelessConfigError(
+        error instanceof Error && error.message ? error.message : 'Error getting stateless config'
+      )
+    );
+    throw error;
   }
 }
 

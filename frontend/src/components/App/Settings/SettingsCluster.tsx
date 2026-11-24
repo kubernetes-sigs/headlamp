@@ -45,6 +45,7 @@ import Loader from '../../common/Loader';
 import NameValueTable from '../../common/NameValueTable';
 import { labelMapsEqual } from '../../common/Resource/CreateResourceForm/CreateResourceForm';
 import SectionBox from '../../common/SectionBox';
+import { useClusterPreOpen } from '../useClusterPreOpen';
 import { ClusterNameEditor } from './ClusterNameEditor';
 import ClusterSelector from './ClusterSelector';
 import { canSaveClusterTags, ClusterTagsEditor } from './ClusterTagsEditor';
@@ -58,12 +59,17 @@ import { isValidNamespaceFormat } from './util';
 
 export default function SettingsCluster() {
   const clusterConf = useClustersConf();
+  const location = useLocation();
+  const clusterFromUrl = useMemo(
+    () => new URLSearchParams(location.search).get('c'),
+    [location.search]
+  );
   const clusters = Object.values(clusterConf || {})
     .map(cluster => cluster.name)
     .sort((a, b) => a.localeCompare(b));
   const { t } = useTranslation(['translation']);
-  const initialCluster = useCluster() || '';
-  const [cluster, setCluster] = React.useState(initialCluster);
+  const currentCluster = useCluster() || '';
+  const cluster = clusterFromUrl || currentCluster;
   const statelessCluster = useTypedSelector(state => state.config.statelessClusters?.[cluster]);
   const metadata = clusterConf?.[cluster]?.meta_data;
   const canRename = !!statelessCluster || (metadata?.canRename ?? !!metadata?.origin?.kubeconfig);
@@ -81,7 +87,6 @@ export default function SettingsCluster() {
 
   const history = useHistory();
   const dispatch = useDispatch();
-  const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.CLUSTER_SETTINGS_VIEW);
 
@@ -132,18 +137,9 @@ export default function SettingsCluster() {
     }));
   }
 
-  const clusterFromUrl = useMemo(
-    () => new URLSearchParams(location.search).get('c'),
-    [location.search]
-  );
-
   React.useLayoutEffect(() => {
-    if (clusterFromUrl && clusters.includes(clusterFromUrl)) {
-      setCluster(clusterFromUrl);
-    } else if (clusters.length > 0 && !clusterFromUrl) {
-      history.replace(`/settings/cluster?c=${clusters[0]}`);
-    } else {
-      setCluster('');
+    if (clusters.length > 0 && !clusterFromUrl) {
+      history.replace(`/settings/cluster?c=${encodeURIComponent(clusters[0])}`);
     }
   }, [clusters, history, clusterFromUrl]);
 
@@ -190,8 +186,12 @@ export default function SettingsCluster() {
   // Resolve the configured selector (via Namespace.useList) and keep the cache in
   // sync. The resolution is keyed on the persisted selector, so it re-runs after
   // applyNamespacesSelector persists a new value.
+  const namespacePreOpen = useClusterPreOpen(
+    cluster && (!clusterConf?.[cluster] || allowedNamespacesSelector.trim()) ? [cluster] : []
+  );
+  const namespaceReady = !namespacePreOpen.enabled || namespacePreOpen.isSuccess;
   const namespacesSelectorResolution = useAllowedNamespacesFromSelector(
-    cluster,
+    namespaceReady ? cluster : '',
     allowedNamespacesSelector
   );
   const namespacesSelectorError = namespacesSelectorResolution.error
@@ -205,6 +205,26 @@ export default function SettingsCluster() {
     !!allowedNamespacesSelector &&
     namespacesSelectorResolution.isSuccess &&
     namespacesSelectorResolution.namespaces.length === 0;
+  const preparationStatus = !namespaceReady ? (
+    namespacePreOpen.isError ? (
+      <Alert
+        severity="error"
+        action={
+          <Button onClick={() => namespacePreOpen.retry()} color="inherit">
+            {t('translation|Retry')}
+          </Button>
+        }
+      >
+        {namespacePreOpen.error instanceof Error
+          ? namespacePreOpen.error.message
+          : String(namespacePreOpen.error)}
+      </Alert>
+    ) : (
+      <Typography role="status" aria-live="polite">
+        {namespacePreOpen.message || t('translation|Preparing cluster…')}
+      </Typography>
+    )
+  ) : null;
 
   function applyNamespacesSelector(selector: string) {
     const trimmedSelector = selector.trim();
@@ -247,6 +267,15 @@ export default function SettingsCluster() {
     return <Loader title={t('Loading')} />;
   }
 
+  if (!clusterConf?.[cluster] && !namespaceReady) {
+    return (
+      <SectionBox title={t('translation|Cluster Settings')} backLink>
+        {preparationStatus}
+        <ClusterSelector currentCluster="" clusters={clusters} />
+      </SectionBox>
+    );
+  }
+
   if (clusters.length === 0) {
     return (
       <>
@@ -258,7 +287,7 @@ export default function SettingsCluster() {
     );
   }
 
-  if (!cluster) {
+  if (!clusterConf?.[cluster]) {
     return (
       <>
         <SectionBox title={t('translation|Cluster Settings')} backLink>
@@ -274,7 +303,7 @@ export default function SettingsCluster() {
               }
             )}
           </Typography>
-          <ClusterSelector currentCluster={cluster} clusters={clusters} />
+          <ClusterSelector currentCluster="" clusters={clusters} />
         </SectionBox>
       </>
     );
@@ -594,6 +623,7 @@ export default function SettingsCluster() {
               ),
               value: (
                 <>
+                  {preparationStatus}
                   <TextField
                     onChange={event => {
                       setNamespacesSelectorInput(event.target.value);

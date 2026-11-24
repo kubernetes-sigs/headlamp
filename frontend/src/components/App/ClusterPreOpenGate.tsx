@@ -16,11 +16,18 @@
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
 import Typography from '@mui/material/Typography';
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router-dom';
 import { useCluster } from '../../lib/k8s';
+import {
+  beginClusterConnectionPreparation,
+  releaseClusterConnectionPreparation,
+  resolveClusterRequestKubeconfig,
+} from '../../lib/preparedClusterConnection';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import ErrorComponent from '../common/ErrorPage';
 import ClusterPreparingDialog from './ClusterPreparingDialog';
@@ -41,22 +48,48 @@ export interface ClusterPreOpenGateProps {
 export default function ClusterPreOpenGate({ children }: ClusterPreOpenGateProps) {
   const cluster = useCluster();
   const preOpen = useClusterPreOpen();
+  const ready = !preOpen.enabled || preOpen.isSuccess;
+  const [preparedCluster, setPreparedCluster] = useState<string | null | undefined>(undefined);
+  const pinPreparedConnection = !ready && preparedCluster === cluster && !!cluster;
 
-  if (!preOpen.enabled || preOpen.isSuccess) {
-    return <>{children}</>;
+  if (pinPreparedConnection) {
+    beginClusterConnectionPreparation(cluster);
   }
 
-  return <ClusterPreOpenStatus cluster={cluster!} preOpen={preOpen} />;
+  useEffect(() => {
+    if (!pinPreparedConnection) return;
+    return () => releaseClusterConnectionPreparation(cluster);
+  }, [cluster, pinPreparedConnection]);
+
+  useEffect(() => {
+    if (ready && cluster) {
+      void resolveClusterRequestKubeconfig(cluster).catch(() => {});
+    }
+  }, [cluster, ready]);
+
+  if (ready && preparedCluster !== cluster) {
+    setPreparedCluster(cluster);
+  }
+
+  if (!ready && preparedCluster !== cluster) {
+    return <ClusterPreOpenStatus cluster={cluster!} preOpen={preOpen} />;
+  }
+
+  return (
+    <>
+      {children}
+      {!ready && <ClusterPreOpenOverlay cluster={cluster!} preOpen={preOpen} />}
+    </>
+  );
+}
+
+interface ClusterPreOpenStatusProps {
+  cluster: string;
+  preOpen: ReturnType<typeof useClusterPreOpen>;
 }
 
 /** App-owned pending/error actions, shared by cold opens and prepared navigation. */
-export function ClusterPreOpenStatus({
-  cluster,
-  preOpen,
-}: {
-  cluster: string;
-  preOpen: ReturnType<typeof useClusterPreOpen>;
-}) {
+export function ClusterPreOpenStatus({ cluster, preOpen }: ClusterPreOpenStatusProps) {
   const { t } = useTranslation();
   const retryButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -91,7 +124,14 @@ export function ClusterPreOpenStatus({
               >
                 {t('translation|Retry')}
               </Button>
-              <Button component={RouterLink} role={undefined} to={createRouteURL('chooser')}>
+              <Button
+                component={RouterLink}
+                role={undefined}
+                to={{
+                  pathname: createRouteURL('chooser') || '/',
+                  state: { showClusterChooser: true },
+                }}
+              >
                 {t('translation|Back to clusters')}
               </Button>
             </Box>
@@ -102,4 +142,24 @@ export function ClusterPreOpenStatus({
   }
 
   return <ClusterPreparingDialog cluster={cluster} message={preOpen.message} />;
+}
+
+/** Overlays preparation status without unmounting an already prepared view. */
+export function ClusterPreOpenOverlay(props: ClusterPreOpenStatusProps) {
+  const { t } = useTranslation();
+  if (!props.preOpen.isError) {
+    return <ClusterPreOpenStatus {...props} />;
+  }
+  return (
+    <Dialog
+      open
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ 'aria-label': t('translation|Could not open cluster') }}
+    >
+      <DialogContent>
+        <ClusterPreOpenStatus {...props} />
+      </DialogContent>
+    </Dialog>
+  );
 }

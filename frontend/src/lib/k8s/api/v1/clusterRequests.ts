@@ -22,10 +22,10 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
-import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
+import { resolveClusterRequestKubeconfig } from '../../../preparedClusterConnection';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
@@ -202,7 +202,7 @@ export async function clusterRequest(
 
   let fullPath = path;
   if (cluster) {
-    const kubeconfig = await findKubeconfigByClusterName(cluster);
+    const kubeconfig = await resolveClusterRequestKubeconfig(cluster);
     if (kubeconfig !== null) {
       opts.headers['KUBECONFIG'] = kubeconfig;
       opts.headers['X-HEADLAMP-USER-ID'] = userID;

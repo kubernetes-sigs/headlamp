@@ -62,7 +62,7 @@ export default function PodDebugSettings(props: SettingsProps) {
   }
 
   return (
-    <SectionBox title={t('translation|Pod Debug Settings')} headerProps={{ headerStyle: 'label' }}>
+    <SectionBox title={t('translation|Pod Debug Settings')} headerProps={{ headerStyle: 'normal' }}>
       <NameValueTable
         rows={[
           {

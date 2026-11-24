@@ -117,15 +117,15 @@ describe('fetchSource', () => {
     expect(result).toBeNull();
   });
 
-  it('returns null when clusterFetch rejects or fails', async () => {
+  it('propagates read failures rather than treating them as absent settings', async () => {
     vi.mocked(clusterFetch).mockRejectedValueOnce(new Error('Forbidden'));
 
-    const result = await fetchSource(clusterName, {
-      name: 'forbidden-settings',
-      type: 'Secret',
-    });
-
-    expect(result).toBeNull();
+    await expect(
+      fetchSource(clusterName, {
+        name: 'forbidden-settings',
+        type: 'Secret',
+      })
+    ).rejects.toThrow('Forbidden');
   });
 });
 

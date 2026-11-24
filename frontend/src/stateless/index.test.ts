@@ -18,7 +18,7 @@ import { waitFor } from '@testing-library/react';
 import { IDBDatabase } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Cluster } from '../lib/k8s/cluster';
-import { setStatelessConfig } from '../redux/configSlice';
+import { setStatelessConfig, setStatelessConfigError } from '../redux/configSlice';
 import store from '../redux/stores/store';
 import { enqueueConfigOperation } from './configOperationQueue';
 import { deleteClusterKubeconfig } from './deleteClusterKubeconfig';
@@ -156,6 +156,7 @@ describe('IndexedDB failures', () => {
       openRequest.onsuccess?.({
         target: {
           result: {
+            close: vi.fn(),
             transaction: () => ({
               objectStore: () => ({ openCursor: () => cursorRequest }),
             }),
@@ -482,11 +483,13 @@ describe('fetchStatelessClusterKubeConfigs', () => {
   beforeEach(async () => {
     await clearIndexedDB();
     store.dispatch(setStatelessConfig({ statelessClusters: null }));
+    store.dispatch(setStatelessConfigError(null));
   });
 
   afterEach(async () => {
     await clearIndexedDB();
     store.dispatch(setStatelessConfig({ statelessClusters: null }));
+    store.dispatch(setStatelessConfigError(null));
   });
 
   it('dispatches setStatelessConfig({}) when IndexedDB is empty and stale state exists', async () => {
@@ -514,7 +517,7 @@ describe('fetchStatelessClusterKubeConfigs', () => {
     expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
   });
 
-  it('marks stateless config loaded when IndexedDB fails to open', async () => {
+  it('keeps a loading failure when IndexedDB fails to open', async () => {
     const openError = new Error('IndexedDB unavailable');
     const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
       const request = {} as IDBOpenDBRequest;
@@ -527,7 +530,8 @@ describe('fetchStatelessClusterKubeConfigs', () => {
     try {
       await fetchStatelessClusterKubeConfigs(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
+      expect(dispatch).toHaveBeenCalledWith(setStatelessConfigError('IndexedDB unavailable'));
+      expect(store.getState().config.statelessClusters).toBeNull();
       expect(consoleError).toHaveBeenCalledWith('Error getting stateless config:', openError);
     } finally {
       open.mockRestore();
@@ -535,24 +539,71 @@ describe('fetchStatelessClusterKubeConfigs', () => {
     }
   });
 
-  it('marks stateless config loaded when IndexedDB open throws synchronously', async () => {
+  it('keeps a loading failure when IndexedDB open throws synchronously', async () => {
     const openError = new DOMException('IndexedDB blocked', 'SecurityError');
     const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
       throw openError;
     });
+
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const dispatch = vi.fn();
 
     try {
       await fetchStatelessClusterKubeConfigs(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
+      expect(dispatch).toHaveBeenCalledWith(
+        setStatelessConfigError('Error getting stateless config')
+      );
+      expect(store.getState().config.statelessClusters).toBeNull();
       expect(consoleError).toHaveBeenCalledWith('Error getting stateless config:', openError);
     } finally {
       open.mockRestore();
       consoleError.mockRestore();
     }
   });
+
+  it.each(['missing store', 'openCursor'])(
+    'rejects synchronous %s failures inside IndexedDB onsuccess and reports retryable status',
+    async failurePoint => {
+      const failure =
+        failurePoint === 'missing store'
+          ? new DOMException('kubeconfigStore not found', 'NotFoundError')
+          : new Error('openCursor failed');
+      const close = vi.fn();
+      const db = {
+        close,
+        transaction: () => {
+          if (failurePoint === 'missing store') throw failure;
+          return {
+            objectStore: () => ({
+              openCursor: () => {
+                throw failure;
+              },
+            }),
+          };
+        },
+      };
+      const open = vi.spyOn(indexedDB, 'open').mockImplementation(() => {
+        const request = {} as IDBOpenDBRequest;
+        queueMicrotask(() => request.onsuccess?.call(request, { target: { result: db } } as any));
+        return request;
+      });
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        await expect(getStatelessClusterKubeConfigs()).rejects.toBe(failure);
+        expect(close).toHaveBeenCalledOnce();
+        await fetchStatelessClusterKubeConfigs(store.dispatch);
+        expect(store.getState().config.statelessClusters).toBeNull();
+        expect(store.getState().config.statelessConfigError).toBe(
+          failure instanceof Error ? failure.message : 'Error getting stateless config'
+        );
+        expect(close).toHaveBeenCalledTimes(2);
+      } finally {
+        open.mockRestore();
+        consoleError.mockRestore();
+      }
+    }
+  );
 });
 
 describe('toStatelessConfigState', () => {
@@ -664,12 +715,14 @@ describe('fetchStatelessClusterKubeConfigs corner cases', () => {
   beforeEach(async () => {
     await clearIndexedDB();
     store.dispatch(setStatelessConfig({ statelessClusters: null }));
+    store.dispatch(setStatelessConfigError(null));
     vi.clearAllMocks();
   });
 
   afterEach(async () => {
     await clearIndexedDB();
     store.dispatch(setStatelessConfig({ statelessClusters: null }));
+    store.dispatch(setStatelessConfigError(null));
   });
 
   it('dispatches update when cluster names change even if count is the same', async () => {
@@ -716,7 +769,7 @@ describe('fetchStatelessClusterKubeConfigs corner cases', () => {
     const dispatch = vi.fn((action: ReturnType<typeof setStatelessConfig>) =>
       store.dispatch(action)
     );
-    const polling = fetchStatelessClusterKubeConfigs(dispatch);
+    const polling = fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true });
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
     const save = vi.fn(async () => {
       await clearIndexedDB();
@@ -725,7 +778,7 @@ describe('fetchStatelessClusterKubeConfigs corner cases', () => {
     });
     const saving = enqueueConfigOperation(save);
     const redundantPolls = Array.from({ length: 12 }, () =>
-      fetchStatelessClusterKubeConfigs(dispatch)
+      fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true })
     );
     expect(redundantPolls.every(poll => poll === polling)).toBe(true);
     expect(save).not.toHaveBeenCalled();
@@ -758,8 +811,8 @@ describe('fetchStatelessClusterKubeConfigs corner cases', () => {
     vi.mocked(request).mockRejectedValueOnce(new Error('parse unavailable'));
     const dispatch = vi.fn();
     try {
-      const polling = fetchStatelessClusterKubeConfigs(dispatch);
-      expect(fetchStatelessClusterKubeConfigs(dispatch)).toBe(polling);
+      const polling = fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true });
+      expect(fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true })).toBe(polling);
       expect(request).not.toHaveBeenCalled();
       releaseSave();
       await save;
@@ -955,17 +1008,43 @@ describe('fetchStatelessClusterKubeConfigs corner cases', () => {
     expect(settled).toHaveBeenCalledOnce();
   });
 
-  it('settles stateless readiness when kubeconfig parsing fails', async () => {
+  it.each([false, true])(
+    'clears the load error after a confirmed full reload with unchanged data (stored config: %s)',
+    async hasStoredConfig => {
+      const existing = { name: 'existing', auth_type: '' };
+      if (hasStoredConfig) {
+        await storeStatelessClusterKubeconfig('dummy-kubeconfig');
+        vi.mocked(request).mockResolvedValue({ clusters: [existing] });
+      }
+      store.dispatch(
+        setStatelessConfig({
+          statelessClusters: hasStoredConfig ? { existing } : {},
+        })
+      );
+      store.dispatch(setStatelessConfigError('previous full load failed'));
+      const dispatch = vi.fn(store.dispatch);
+
+      await fetchStatelessClusterKubeConfigs(dispatch);
+
+      expect(store.getState().config.statelessConfigError).toBeNull();
+      expect(dispatch).toHaveBeenCalledExactlyOnceWith(setStatelessConfigError(null));
+    }
+  );
+
+  it('preserves parse failures and stored kubeconfigs until a successful retry', async () => {
     await storeStatelessClusterKubeconfig('dummy-kubeconfig');
     const parseError = new Error('parse failed');
     vi.mocked(request).mockRejectedValue(parseError);
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const dispatch = vi.fn();
+    const dispatch = vi.fn(store.dispatch);
 
     try {
       await fetchStatelessClusterKubeConfigs(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
+      expect(dispatch).toHaveBeenCalledWith(setStatelessConfigError('parse failed'));
+      expect(store.getState().config.statelessClusters).toBeNull();
+      expect(store.getState().config.statelessConfigError).toBe('parse failed');
+      expect(await getStatelessClusterKubeConfigs()).toEqual(['dummy-kubeconfig']);
       expect(consoleError).toHaveBeenCalledWith('Error getting stateless config:', parseError);
 
       store.dispatch(
@@ -976,9 +1055,131 @@ describe('fetchStatelessClusterKubeConfigs corner cases', () => {
       dispatch.mockClear();
       await fetchStatelessClusterKubeConfigs(dispatch);
 
-      expect(dispatch).not.toHaveBeenCalled();
+      expect(dispatch).toHaveBeenCalledWith(setStatelessConfigError('parse failed'));
+      expect(store.getState().config.statelessClusters).toHaveProperty('existing');
+      expect(store.getState().config.statelessConfigError).toBe('parse failed');
+
+      vi.mocked(request).mockResolvedValue({ clusters: [{ name: 'destination', auth_type: '' }] });
+      await fetchStatelessClusterKubeConfigs(dispatch);
+      expect(store.getState().config.statelessClusters).toHaveProperty('destination');
+      expect(store.getState().config.statelessConfigError).toBeNull();
     } finally {
       consoleError.mockRestore();
     }
   });
+
+  it.each([
+    ['success', 'success'],
+    ['success', 'error'],
+    ['error', 'success'],
+    ['error', 'error'],
+  ])('ignores older %s after newer %s full-load results', async (olderResult, newerResult) => {
+    await storeStatelessClusterKubeconfig('dummy-kubeconfig');
+    const oldCluster = { name: 'older', auth_type: '' };
+    const newCluster = { name: 'newer', auth_type: '' };
+    let resolveOlder!: (value: object) => void;
+    let rejectOlder!: (error: Error) => void;
+    let resolveNewer!: (value: object) => void;
+    let rejectNewer!: (error: Error) => void;
+    vi.mocked(request)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            resolveOlder = resolve;
+            rejectOlder = reject;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            resolveNewer = resolve;
+            rejectNewer = reject;
+          })
+      );
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const dispatch = vi.fn(store.dispatch);
+    try {
+      const older = fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true });
+      await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+      const newer = fetchStatelessClusterKubeConfigs(dispatch);
+      await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+      expect(fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true })).toBe(newer);
+      if (newerResult === 'success') resolveNewer({ clusters: [newCluster] });
+      else rejectNewer(new Error('newer failure'));
+      await newer;
+      const latestState = store.getState().config;
+      expect(latestState.statelessClusters).toEqual(
+        newerResult === 'success' ? { newer: newCluster } : null
+      );
+      expect(latestState.statelessConfigError).toBe(
+        newerResult === 'success' ? null : 'newer failure'
+      );
+      dispatch.mockClear();
+
+      if (olderResult === 'success') resolveOlder({ clusters: [oldCluster] });
+      else rejectOlder(new Error('older failure'));
+      await older;
+      expect(dispatch).not.toHaveBeenCalled();
+      expect(store.getState().config).toBe(latestState);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it.each(['success', 'failure'])(
+    'coalesces multiple periodic ticks until a slow parse %s settles, then allows a retry',
+    async outcome => {
+      await storeStatelessClusterKubeconfig('dummy-kubeconfig');
+      const cluster = { name: 'slow-cluster', auth_type: '' };
+      let resolveParse!: (value: object) => void;
+      let rejectParse!: (error: Error) => void;
+      vi.mocked(request)
+        .mockResolvedValue({ clusters: [cluster] })
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve, reject) => {
+              resolveParse = resolve;
+              rejectParse = reject;
+            })
+        );
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const dispatch = vi.fn(store.dispatch);
+      const poll = vi.fn(() => fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true }));
+      const first = poll();
+      await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+      vi.useFakeTimers({
+        toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+      });
+      const interval = setInterval(poll, 10_000);
+      try {
+        await vi.advanceTimersByTimeAsync(35_000);
+        expect(poll).toHaveBeenCalledTimes(4);
+        expect(request).toHaveBeenCalledOnce();
+        expect(poll.mock.results.every(result => result.value === first)).toBe(true);
+
+        if (outcome === 'success') resolveParse({ clusters: [cluster] });
+        else rejectParse(new Error('slow parse failed'));
+        await first;
+        expect(store.getState().config.statelessClusters).toEqual(
+          outcome === 'success' ? { 'slow-cluster': cluster } : null
+        );
+        expect(store.getState().config.statelessConfigError).toBe(
+          outcome === 'success' ? null : 'slow parse failed'
+        );
+        clearInterval(interval);
+        vi.useRealTimers();
+
+        await fetchStatelessClusterKubeConfigs(dispatch);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(store.getState().config.statelessClusters).toEqual({ 'slow-cluster': cluster });
+        expect(store.getState().config.statelessConfigError).toBeNull();
+      } finally {
+        clearInterval(interval);
+        vi.useRealTimers();
+        resolveParse({ clusters: [] });
+        await first;
+        consoleError.mockRestore();
+      }
+    }
+  );
 });

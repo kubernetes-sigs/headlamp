@@ -47,10 +47,8 @@ export default function ClusterPreparingDialog({ cluster, message }: ClusterPrep
   const { t } = useTranslation();
 
   return (
-    <Dialog open maxWidth="xs" fullWidth aria-labelledby="cluster-preopen-title">
-      <DialogTitle id="cluster-preopen-title">
-        {t('translation|Connecting to "{{cluster}}"', { cluster })}
-      </DialogTitle>
+    <Dialog open maxWidth="xs" fullWidth>
+      <DialogTitle>{t('translation|Connecting to "{{cluster}}"', { cluster })}</DialogTitle>
       <DialogContent>
         <Box display="flex" alignItems="center" gap={2} py={1}>
           <CircularProgress size={22} aria-hidden="true" />
@@ -65,7 +63,11 @@ export default function ClusterPreparingDialog({ cluster, message }: ClusterPrep
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button component={RouterLink} role={undefined} to={createRouteURL('chooser')}>
+        <Button
+          component={RouterLink}
+          role={undefined}
+          to={{ pathname: createRouteURL('chooser') || '/', state: { showClusterChooser: true } }}
+        >
           {t('translation|Back to clusters')}
         </Button>
       </DialogActions>

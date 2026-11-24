@@ -82,7 +82,10 @@ export default function NodeShellSettings(props: SettingsProps) {
   }
 
   return (
-    <SectionBox title={t('translation|Node Shell Settings')} headerProps={{ headerStyle: 'label' }}>
+    <SectionBox
+      title={t('translation|Node Shell Settings')}
+      headerProps={{ headerStyle: 'normal' }}
+    >
       <NameValueTable
         rows={[
           {

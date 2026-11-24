@@ -14,22 +14,19 @@
  * limitations under the License.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useSyncExternalStore } from 'react';
 import { useDispatch } from 'react-redux';
+import { clusterConfigReadiness, clusterPreOpenOptions } from '../../lib/clusterPreOpen';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
-import { hasClusterPreOpenHooks, runClusterPreOpenHooks } from '../../plugin/clusterPreOpen';
-import {
-  clearClusterPreparing,
-  setClusterPreparing,
-  startClusterPreparing,
-} from '../../redux/clusterProviderSlice';
+import { hasClusterPreOpenHooks } from '../../plugin/clusterPreOpen';
+import { reloadPage } from '../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../redux/hooks';
-
-let nextClusterPreOpenRunId = 0;
+import { fetchStatelessClusterKubeConfigs } from '../../stateless';
 
 /** Preparation state for the active or requested destination cluster. */
 export interface ClusterPreOpenState {
-  /** Whether preparation applies at all (single cluster, hooks registered). */
+  /** Whether a single cluster needs configuration loading or registered hooks. */
   enabled: boolean;
   /** All hooks resolved; the cluster's views may render. */
   isSuccess: boolean;
@@ -38,7 +35,7 @@ export interface ClusterPreOpenState {
   error: unknown;
   /** The latest progress message a hook reported, if any. */
   message?: string;
-  /** Runs the hooks again (the retry affordance on the error UI). */
+  /** Retries failed configuration loading or hooks, as appropriate. */
   retry: () => void;
 }
 
@@ -65,6 +62,7 @@ export interface ClusterPreOpenState {
  */
 export function useClusterPreOpen(destinationClusters?: string[]): ClusterPreOpenState {
   const dispatch = useDispatch();
+  const client = useQueryClient();
   const activeCluster = useCluster();
   const activeClusters = useSelectedClusters();
   const cluster = destinationClusters ? destinationClusters[0] ?? null : activeCluster;
@@ -74,75 +72,49 @@ export function useClusterPreOpen(destinationClusters?: string[]): ClusterPreOpe
   const preOpenHooksRevision = useTypedSelector(
     state => state.clusterProvider.preOpenHooksRevision
   );
-  const statelessConfigLoaded = useTypedSelector(
-    state => !state.config.isDynamicClusterEnabled || state.config.statelessClusters !== null
+  const config = useTypedSelector(state => state.config);
+  const pluginsLoaded = useTypedSelector(state => state.plugins.loaded);
+  const pluginLoadError = useTypedSelector(state => state.plugins.loadError);
+  // Watch Layout's request without replacing its query options or issuing a
+  // second request. Layout still owns configuration polling and theme updates.
+  const configState = useSyncExternalStore(
+    useCallback(
+      notify =>
+        client.getQueryCache().subscribe(event => {
+          if (event.query.queryKey[0] === 'cluster-fetch') notify();
+        }),
+      [client]
+    ),
+    useCallback(() => client.getQueryState(['cluster-fetch']), [client])
   );
   // Reactive, not a render-time snapshot: going from a multi-cluster view to one
   // of its clusters can leave `cluster` unchanged (both resolve to the first
   // one), so a snapshot would keep reporting "multi" and skip preparation.
   const isSingleCluster = (destinationClusters ?? activeClusters).length <= 1;
-  const enabled = !!cluster && isSingleCluster && hasClusterPreOpenHooks();
-  const configLoaded = clusters !== null && statelessConfigLoaded;
+  const readiness = clusterConfigReadiness(clusters, config);
+  const configLoaded = readiness.ready;
+  const configError =
+    clusters === null && configState?.status === 'error'
+      ? configState.error
+      : readiness.error
+      ? new Error(readiness.error)
+      : null;
+  const hasHooks = hasClusterPreOpenHooks();
+  const pluginsReady = pluginsLoaded && !pluginLoadError;
+  const enabled = !!cluster && isSingleCluster && (hasHooks || !configLoaded || !pluginsReady);
 
   const query = useQuery({
-    queryKey: [
-      'clusterPreOpen',
+    ...clusterPreOpenOptions(
       cluster,
+      currentClusterConf,
       isSingleCluster,
       preOpenHooksRevision,
-      // A stateless config fetch may initially fail. Reconsider a provider's
-      // no-op decision when this cluster's config becomes available later.
-      currentClusterConf !== null,
-    ],
-    // `signal` is consumed deliberately: React Query only aborts an in-flight
-    // fetch if the query function takes it. Without that, a query whose fetch is
-    // still pending is not evicted by gcTime, so leaving and reopening the
-    // cluster reattaches to the abandoned run instead of preparing again.
-    queryFn: async ({ signal }) => {
-      // Capture the cluster this run prepares so cleanup stays keyed to it even
-      // if the user navigates to a different cluster while hooks are running.
-      const preparingCluster = cluster!;
-      const runId = `${preparingCluster}:${++nextClusterPreOpenRunId}`;
-      // Mark the cluster as preparing so the gate shows the connecting popup
-      // instead of mounting cluster-dependent UI and health polling.
-      dispatch(startClusterPreparing({ cluster: preparingCluster, runId }));
-      const reportProgress = (message: string) =>
-        dispatch(setClusterPreparing({ cluster: preparingCluster, runId, message }));
-      try {
-        await runClusterPreOpenHooks(
-          {
-            cluster: preparingCluster,
-            clusterConf: currentClusterConf,
-            reportProgress,
-            signal,
-          },
-          () => {
-            if (signal.aborted) {
-              // The user left the cluster; stop before the next hook rather than
-              // finishing work whose result is already discarded.
-              throw new DOMException('Cluster preparation aborted', 'AbortError');
-            }
-            dispatch(setClusterPreparing({ cluster: preparingCluster, runId, message: '' }));
-          }
-        );
-        return true;
-      } finally {
-        // Clear deterministically for the cluster we prepared (on success or
-        // error) so a mid-run navigation can't leave a stale "preparing" entry.
-        dispatch(clearClusterPreparing({ cluster: preparingCluster, runId }));
-      }
-    },
+      dispatch,
+      !!cluster && Object.hasOwn(config.statelessClusters ?? {}, cluster)
+    ),
     // Keep cluster routes gated while configuration loads, but do not execute
     // or cache a provider decision until the real cluster config is available.
-    enabled: enabled && configLoaded,
-    retry: 0,
-    networkMode: 'always',
-    // Prepare a cluster once per open: staleTime keeps hooks from re-running
-    // while the cluster stays open, and gcTime: 0 evicts the result once the
-    // last observer goes — which, with this hook called above the route switch,
-    // means when the user leaves the cluster.
-    staleTime: Infinity,
-    gcTime: 0,
+    enabled: !!cluster && isSingleCluster && hasHooks && configLoaded && pluginsReady,
   });
 
   // The latest progress message a hook reported for this cluster (drives the
@@ -154,10 +126,20 @@ export function useClusterPreOpen(destinationClusters?: string[]): ClusterPreOpe
 
   return {
     enabled,
-    isSuccess: query.isSuccess,
-    isError: query.isError,
-    error: query.error,
+    isSuccess: configLoaded && pluginsReady && (!hasHooks || query.isSuccess),
+    isError: !!configError || !!pluginLoadError || query.isError,
+    error: configError ?? (pluginLoadError ? new Error(pluginLoadError) : query.error),
     message,
-    retry: query.refetch,
+    retry: () => {
+      if (pluginLoadError) {
+        dispatch(reloadPage());
+      } else if (clusters === null) {
+        void client.refetchQueries({ queryKey: ['cluster-fetch'] });
+      } else if (!readiness.ready) {
+        void fetchStatelessClusterKubeConfigs(dispatch);
+      } else if (pluginsLoaded && hasHooks) {
+        void query.refetch();
+      }
+    },
   };
 }

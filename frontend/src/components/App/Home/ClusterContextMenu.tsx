@@ -248,9 +248,11 @@ export default function ClusterContextMenu({
             }}
           >
             <ListItemText>
-              {deleteFromKubeconfig && pluginDeleteDialog === null
+              {pluginDeleteDialog !== null
+                ? t('translation|Delete')
+                : deleteFromKubeconfig
                 ? t('translation|Remove Context')
-                : t('translation|Delete')}
+                : t('translation|Remove Cluster')}
             </ListItemText>
           </MenuItem>
         )}
@@ -312,13 +314,13 @@ export default function ClusterContextMenu({
       <ConfirmDialog
         open={openConfirmDialog === BUILT_IN_DELETE_DIALOG}
         handleClose={() => setOpenConfirmDialog('')}
-        confirmLabel={deleteFromKubeconfig ? t('translation|Remove') : t('translation|Delete')}
+        confirmLabel={t('translation|Remove')}
         onConfirm={() => {
           setOpenConfirmDialog('');
           removeCluster(cluster);
         }}
         title={
-          deleteFromKubeconfig ? t('translation|Remove Context') : t('translation|Delete Cluster')
+          deleteFromKubeconfig ? t('translation|Remove Context') : t('translation|Remove Cluster')
         }
         description={removeClusterDescription(cluster)}
       />

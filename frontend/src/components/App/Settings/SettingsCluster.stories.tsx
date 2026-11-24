@@ -19,6 +19,8 @@ import { Meta, StoryFn } from '@storybook/react';
 import { screen } from '@testing-library/react';
 import React from 'react';
 import { expect, userEvent, waitFor } from 'storybook/test';
+import clusterProviderReducer from '../../../redux/clusterProviderSlice';
+import type { ConfigState } from '../../../redux/configSlice';
 import { TestContext } from '../../../test';
 import SettingsCluster from './SettingsCluster';
 
@@ -28,9 +30,13 @@ function setupLocalStorage(clusterName: string, settings: Record<string, any> = 
   localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
 }
 
-function getMockStore(clusters: Record<string, any> = {}) {
+function getMockStore(
+  clusters: Record<string, any> = {},
+  configOverrides: Partial<ConfigState> = {}
+) {
   return configureStore({
     reducer: {
+      clusterProvider: clusterProviderReducer,
       config: (
         state = {
           clusters,
@@ -41,6 +47,7 @@ function getMockStore(clusters: Record<string, any> = {}) {
             timezone: 'UTC',
             useEvict: true,
           },
+          ...configOverrides,
         }
       ) => state,
       plugins: (state = { loaded: true }) => state,
@@ -131,6 +138,37 @@ export const WithSavedSettings: StoryFn = () => {
 
   return (
     <TestContext store={getMockStore(mockClusters)} urlSearchParams={{ c: mockClusterName }}>
+      <SettingsCluster />
+    </TestContext>
+  );
+};
+
+export const NamespacePreparationPending: StoryFn = () => {
+  setupLocalStorage(mockClusterName, { allowedNamespacesSelector: 'team=frontend' });
+  return (
+    <TestContext
+      store={getMockStore(mockClusters, {
+        isDynamicClusterEnabled: true,
+        statelessClusters: null,
+      })}
+      urlSearchParams={{ c: mockClusterName }}
+    >
+      <SettingsCluster />
+    </TestContext>
+  );
+};
+
+export const NamespacePreparationFailed: StoryFn = () => {
+  setupLocalStorage(mockClusterName, { allowedNamespacesSelector: 'team=frontend' });
+  return (
+    <TestContext
+      store={getMockStore(mockClusters, {
+        isDynamicClusterEnabled: true,
+        statelessClusters: null,
+        statelessConfigError: 'Stored kubeconfig could not be loaded. Retry to prepare namespaces.',
+      })}
+      urlSearchParams={{ c: mockClusterName }}
+    >
       <SettingsCluster />
     </TestContext>
   );

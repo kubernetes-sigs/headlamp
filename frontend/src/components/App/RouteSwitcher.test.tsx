@@ -26,6 +26,7 @@ import {
   registerClusterPreOpenHook,
   resetClusterPreOpenHooksForTests,
 } from '../../plugin/clusterPreOpen';
+import { pluginsLoaded } from '../../plugin/pluginsSlice';
 import { ClusterPreOpenHook, clusterPreOpenHooksChanged } from '../../redux/clusterProviderSlice';
 import { setConfig, setStatelessConfig } from '../../redux/configSlice';
 import reducers from '../../redux/reducers/reducers';
@@ -41,7 +42,7 @@ vi.mock('../../lib/k8s', () => ({
 }));
 
 vi.mock('../../lib/cluster', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../lib/cluster')>()),
+  ...((await importOriginal()) as typeof import('../../lib/cluster')),
   getCluster: vi.fn(() => null),
   getSelectedClusters: vi.fn(() => []),
 }));
@@ -221,7 +222,11 @@ describe('RouteSwitcher', () => {
 });
 
 describe('AuthRoute pre-open hooks', () => {
-  const createTestStore = () => configureStore({ reducer: reducers });
+  const createTestStore = () => {
+    const store = configureStore({ reducer: reducers });
+    store.dispatch(pluginsLoaded());
+    return store;
+  };
   type TestStore = ReturnType<typeof createTestStore>;
 
   beforeEach(() => {

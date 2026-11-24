@@ -22,13 +22,13 @@
       tabindex="-1"
     >
       <div
-        aria-labelledby="cluster-preopen-title"
+        aria-labelledby=":mock-test-id:"
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthXs MuiDialog-paperFullWidth css-17iivmf-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
           class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
-          id="cluster-preopen-title"
+          id=":mock-test-id:"
         >
           Connecting to "destination-cluster"
         </h2>

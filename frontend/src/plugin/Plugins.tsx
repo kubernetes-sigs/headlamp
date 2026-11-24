@@ -23,7 +23,7 @@ import { useHistory } from 'react-router-dom';
 import { isElectron } from '../helpers/isElectron';
 import { useTypedSelector } from '../redux/hooks';
 import { fetchAndExecutePlugins } from './index';
-import { pluginsLoaded, setPluginSettings } from './pluginsSlice';
+import { pluginsLoaded, pluginsLoadFailed, setPluginSettings } from './pluginsSlice';
 
 /**
  * For discovering and executing plugins.
@@ -84,6 +84,11 @@ export default function Plugins() {
     )
       .catch((err: unknown) => {
         console.error('Failed to load plugins:', err);
+        dispatch(
+          pluginsLoadFailed(
+            err instanceof Error && err.message ? err.message : 'Failed to load plugins'
+          )
+        );
         enqueueSnackbar(t('translation|Failed to load plugins. Please try reloading the app.'), {
           variant: 'error',
         });

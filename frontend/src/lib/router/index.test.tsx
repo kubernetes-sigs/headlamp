@@ -21,15 +21,21 @@ import { TestContext } from '../../test';
 const mockHistoryReplace = vi.fn();
 const { mockUseCluster } = vi.hoisted(() => ({ mockUseCluster: vi.fn<() => string | null>() }));
 
-vi.mock('react-router', async importOriginal => ({
-  ...(await importOriginal<typeof import('react-router')>()),
-  useHistory: () => ({ replace: mockHistoryReplace }),
-}));
+vi.mock('react-router', async importOriginal => {
+  type ReactRouterModule = typeof import('react-router');
+  return {
+    ...(await importOriginal<ReactRouterModule>()),
+    useHistory: () => ({ replace: mockHistoryReplace }),
+  };
+});
 
-vi.mock('../k8s', async importOriginal => ({
-  ...(await importOriginal<typeof import('../k8s')>()),
-  useCluster: () => mockUseCluster(),
-}));
+vi.mock('../k8s', async importOriginal => {
+  type K8sModule = typeof import('../k8s');
+  return {
+    ...(await importOriginal<K8sModule>()),
+    useCluster: () => mockUseCluster(),
+  };
+});
 
 import { getDefaultRoutes } from './index';
 
@@ -94,6 +100,22 @@ describe('lib/router/index', () => {
       expect(mockHistoryReplace).toHaveBeenCalledWith('/settings/cluster?c=my-cluster');
       expect(mockHistoryReplace).toHaveBeenCalledTimes(1);
     });
+
+    it.each(['%41', '50%off', 'cluster+one&two'])(
+      'preserves the literal context %s in the settings query',
+      cluster => {
+        mockUseCluster.mockReturnValue(cluster);
+        const SettingsClusterRedirect = getDefaultRoutes().settingsCluster.component;
+        render(
+          <TestContext>
+            <SettingsClusterRedirect />
+          </TestContext>
+        );
+        const destination = mockHistoryReplace.mock.calls[0][0];
+        expect(new URL(destination, 'http://localhost').searchParams.get('c')).toBe(cluster);
+        expect(mockHistoryReplace).toHaveBeenCalledTimes(1);
+      }
+    );
 
     it('includes the cluster name as-is, even if it is empty', () => {
       mockUseCluster.mockReturnValue('');

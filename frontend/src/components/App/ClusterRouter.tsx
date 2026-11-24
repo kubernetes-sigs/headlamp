@@ -14,29 +14,30 @@
  * limitations under the License.
  */
 
-import Dialog from '@mui/material/Dialog';
-import DialogContent from '@mui/material/DialogContent';
 import { History } from 'history';
 import {
+  createContext,
   PropsWithChildren,
   useEffect,
   useLayoutEffect,
   useMemo,
   useSyncExternalStore,
 } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Router } from 'react-router-dom';
+import { Router, useLocation } from 'react-router-dom';
 import { getSelectedClusters } from '../../lib/cluster';
 import { createClusterHistory } from '../../lib/router/clusterHistory';
-import { ClusterPreOpenStatus } from './ClusterPreOpenGate';
+import { ClusterPreOpenOverlay } from './ClusterPreOpenGate';
 import { useClusterPreOpen } from './useClusterPreOpen';
+
+/** Suppresses automatic redirects through preparation and the Router handoff. */
+export const ClusterNavigationPendingContext = createContext(false);
 
 function ClusterNavigation({
   navigation,
   children,
 }: PropsWithChildren<{ navigation: ReturnType<typeof createClusterHistory> }>) {
   const pending = useSyncExternalStore(navigation.subscribe, navigation.getPending);
-  const { t } = useTranslation();
+  const routerLocation = useLocation();
   // Retain committed B before the destination observer can move to reentrant C.
   // The gate may not render B until after its gcTime: 0 eviction would have run.
   // History is synchronous even when React's Router context has not caught up.
@@ -52,19 +53,12 @@ function ClusterNavigation({
   }, [navigation, pending, preOpen.enabled, preOpen.isSuccess]);
 
   return (
-    <>
+    <ClusterNavigationPendingContext.Provider
+      value={pending !== null || routerLocation !== navigation.history.location}
+    >
       {children}
-      {pending &&
-        (preOpen.isError ? (
-          <Dialog open maxWidth="sm" fullWidth aria-label={t('translation|Could not open cluster')}>
-            <DialogContent>
-              <ClusterPreOpenStatus cluster={clusters[0]} preOpen={preOpen} />
-            </DialogContent>
-          </Dialog>
-        ) : (
-          <ClusterPreOpenStatus cluster={clusters[0]} preOpen={preOpen} />
-        ))}
-    </>
+      {pending && <ClusterPreOpenOverlay cluster={clusters[0]} preOpen={preOpen} />}
+    </ClusterNavigationPendingContext.Provider>
   );
 }
 

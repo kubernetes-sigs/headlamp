@@ -679,7 +679,7 @@ describe('ClusterContextMenu', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
-  it('keeps Delete when a plugin registers an additive cluster action', () => {
+  it('keeps Remove Cluster when a plugin registers an additive cluster action', () => {
     ClusterMenuItems = [() => <div role="menuitem">Start proxy</div>];
     render(
       <SnackbarProvider>
@@ -698,7 +698,56 @@ describe('ClusterContextMenu', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
     expect(screen.getByText('Start proxy')).toBeInTheDocument();
-    expect(screen.getByText('Delete')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Remove Cluster' })).toBeInTheDocument();
+  });
+
+  it('distinguishes dynamic connection removal from a custom plugin Delete', () => {
+    ClusterDialogs = [PluginDeleteDialog];
+    ClusterMenuItems = [
+      ({ setOpenConfirmDialog, handleMenuClose }) => (
+        <MenuItem
+          onClick={() => {
+            setOpenConfirmDialog('deletePlugin');
+            handleMenuClose();
+          }}
+        >
+          Delete
+        </MenuItem>
+      ),
+    ];
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            cluster={{ name: 'dev', auth_type: '', meta_data: { source: 'dynamic_cluster' } }}
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Remove Cluster' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(screen.getByText('Plugin delete')).toBeInTheDocument();
+    expect(deleteCluster).not.toHaveBeenCalled();
+  });
+
+  it('routes plugin-owned dynamic cluster Delete only to its handler', () => {
+    ClusterDialogs = [PluginDeleteDialog];
+    ClusterDeleteHandlers = [{ owns: () => true, dialog: 'deletePlugin' }];
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            cluster={{ name: 'dev', auth_type: '', meta_data: { source: 'dynamic_cluster' } }}
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Remove Cluster' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(screen.getByText('Plugin delete')).toBeInTheDocument();
+    expect(deleteCluster).not.toHaveBeenCalled();
   });
 
   it('updates the config before notifying the page after deleting a cluster', async () => {
@@ -761,8 +810,8 @@ describe('ClusterContextMenu', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
-    fireEvent.click(screen.getByText('Delete'));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove Cluster' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to delete cluster');
     expect(onClusterRemoved).not.toHaveBeenCalled();

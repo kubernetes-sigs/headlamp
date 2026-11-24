@@ -16,7 +16,7 @@
 
 /** Azure cluster details required to start a local proxy. */
 export interface ClusterProxyTarget {
-  /** Kubeconfig cluster name. */
+  /** Azure connected Kubernetes resource name passed to the provider CLI. */
   cluster: string;
   /** Azure subscription UUID containing the cluster. */
   subscriptionId: string;

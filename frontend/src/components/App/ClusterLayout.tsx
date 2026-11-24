@@ -27,7 +27,11 @@ export interface ClusterLayoutProps {
 }
 
 /** Places plugin panels and cluster chrome behind one preparation boundary. */
-export default function ClusterLayout({ children, panels, clustersToResolve = [] }: ClusterLayoutProps) {
+export default function ClusterLayout({
+  children,
+  panels,
+  clustersToResolve = [],
+}: ClusterLayoutProps) {
   const content = (
     <Box sx={{ display: 'flex', height: '100dvh' }}>
       {panels.left.map(it => (

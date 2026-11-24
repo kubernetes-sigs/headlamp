@@ -177,19 +177,17 @@ export function isPluginDevelopmentMode(
  * Load external, then local plugins. Then initialize() them in order with a Registry.
  */
 export async function initializePlugins() {
-  // Initialize every plugin in the order they were loaded.
-  return new Promise(resolve => {
-    for (const pluginName of Object.keys(window.plugins)) {
-      const plugin = window.plugins[pluginName];
-      try {
-        // @todo: what should happen if this fails?
-        plugin.initialize(new Registry());
-      } catch (e) {
-        console.error(`Plugin initialize() error in ${pluginName}:`, e);
-      }
+  const errors: unknown[] = [];
+  for (const pluginName of Object.keys(window.plugins)) {
+    const plugin = window.plugins[pluginName];
+    try {
+      await plugin.initialize(new Registry());
+    } catch (e) {
+      console.error(`Plugin initialize() error in ${pluginName}:`, e);
+      errors.push(e);
     }
-    resolve(undefined);
-  });
+  }
+  if (errors.length > 0) throw errors[0];
 }
 
 /**
@@ -521,13 +519,16 @@ export async function fetchAndExecutePlugins(
       fetchPluginResource(
         `${getAppUrl()}${path}/main.js`,
         headers,
-        response => response.text(),
+        response => {
+          if (!response.ok) return Promise.reject(response);
+          return response.text();
+        },
         remainingStartupTime(deadline)
       )
     )
   );
 
-  const packageInfosPromise = await Promise.all<PluginInfo>(
+  const packageInfosPromise = Promise.all<PluginInfo>(
     pluginPaths.map((path, index) =>
       fetchPluginResource(
         `${getAppUrl()}${path}/package.json`,
@@ -566,8 +567,7 @@ export async function fetchAndExecutePlugins(
     )
   );
 
-  const sources = await sourcesPromise;
-  const packageInfos = await packageInfosPromise;
+  const [sources, packageInfos] = await Promise.all([sourcesPromise, packageInfosPromise]);
   const permissionSecrets = await beforePluginStartupDeadline(permissionSecretsPromise, deadline);
   const commandPermissionSecrets = Object.fromEntries(
     Object.entries(permissionSecrets).filter((entry): entry is [string, number] =>
@@ -696,15 +696,19 @@ export async function fetchAndExecutePlugins(
       type: plugin.type,
     }));
 
+  const executionErrors: unknown[] = [];
   const infoForRunningPlugins = sourcesToExecute
     .map((source, index) => {
-      return getInfoForRunningPlugins({
+      const info = getInfoForRunningPlugins({
         source,
         pluginPath: pluginPathsToExecute[index],
         packageName: packageInfosToExecute[index].name,
         packageVersion: packageInfosToExecute[index].version || '',
         permissionSecrets: commandPermissionSecrets,
-        handleError: handlePluginRunError,
+        handleError: (error, packageName, packageVersion) => {
+          executionErrors.push(error);
+          handlePluginRunError(error, packageName, packageVersion);
+        },
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
           const secretsToReturn: Record<string, number> = {};
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
@@ -790,6 +794,12 @@ export async function fetchAndExecutePlugins(
         internalRunPlugin,
         consoleError,
       });
+      if (!info) {
+        executionErrors.push(
+          new Error(`Failed to initialize plugin ${packageInfosToExecute[index].name}`)
+        );
+      }
+      return info;
     })
     .filter(info => info !== undefined);
 
@@ -810,6 +820,7 @@ export async function fetchAndExecutePlugins(
   await initializePluginsI18n(packageInfos, pluginPaths, deadline);
 
   await beforePluginStartupDeadline(afterPluginsRun(pluginsLoaded), deadline);
+  if (executionErrors.length > 0) throw executionErrors[0];
 }
 
 /**

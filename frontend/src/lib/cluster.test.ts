@@ -16,7 +16,12 @@
 
 import * as getBaseUrl from '../helpers/getBaseUrl';
 import * as isElectron from '../helpers/isElectron';
-import { getCluster, getClusterGroup, getClusterPrefixedPath, getSelectedClusters } from './cluster';
+import {
+  getCluster,
+  getClusterGroup,
+  getClusterPrefixedPath,
+  getSelectedClusters,
+} from './cluster';
 import { registerClusterLocation } from './router/clusterLocation';
 
 vi.mock('../helpers/getBaseUrl', () => ({

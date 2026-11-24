@@ -293,6 +293,26 @@ describe('registerResourceRelationProvider', () => {
     expect(hook).toHaveBeenCalledOnce();
   });
 
+  it.each([undefined, null, 'not-a-function', {}])(
+    'ignores malformed JavaScript pre-open registrations (%s)',
+    async invalid => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        // @ts-expect-error JavaScript plugins are not constrained by the TypeScript signature.
+        registerClusterProviderPreOpen(invalid);
+        expect(activeStore.getState().clusterProvider.preOpenHooksRevision).toBe(0);
+        expect(hasClusterPreOpenHooks()).toBe(false);
+        expect(errorSpy).toHaveBeenCalledOnce();
+        const hook = vi.fn(async () => {});
+        registerClusterProviderPreOpen(hook);
+        await runClusterPreOpenHooks({ cluster: 'test', clusterConf: null }, () => {});
+        expect(hook).toHaveBeenCalledOnce();
+      } finally {
+        errorSpy.mockRestore();
+      }
+    }
+  );
+
   it('does not expose hooks through replaced array methods', async () => {
     const hook = vi.fn(async () => {});
     const originalPush = Array.prototype.push;
