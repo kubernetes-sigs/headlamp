@@ -235,6 +235,12 @@ independent request token that replaces the configured credentials; otherwise
 the request is rejected before authentication. Embedded credentials remain
 supported, and trusted server-configured kubeconfigs keep their existing
 credential methods.
+The same in-cluster restrictions apply to contexts registered through
+`POST /cluster`, including after persistence reload. Stored dynamic uploads and
+contexts without recorded provenance require a caller-supplied token in-cluster;
+they cannot supply another uploader's embedded identity. File-backed CAs remain
+restricted even with that token. Trust follows the recorded source, not the
+internal routing flag.
 Desktop/development uploads retain local exec/OIDC providers, token and
 certificate/key files, and file-backed CAs after the backend-token middleware.
 Configure a nonempty `HEADLAMP_BACKEND_TOKEN` to protect that local trust boundary.

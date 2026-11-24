@@ -332,7 +332,8 @@ func TestStartPortForward_InputValidation(t *testing.T) {
 
 			store := kubeconfig.NewContextStore()
 			require.NoError(t, store.AddContext(&kubeconfig.Context{
-				Name: "test-cluster", Cluster: &api.Cluster{Server: upstream.URL, InsecureSkipTLSVerify: true},
+				Name: "test-cluster", Source: kubeconfig.KubeConfig,
+				Cluster:     &api.Cluster{Server: upstream.URL, InsecureSkipTLSVerify: true},
 				KubeContext: &api.Context{Cluster: "test-cluster", AuthInfo: "alice"},
 				AuthInfo:    &api.AuthInfo{Token: "alice"},
 			}))

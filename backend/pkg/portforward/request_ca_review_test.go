@@ -77,7 +77,7 @@ func TestPortForwardCAReplacementPinsAuthority(t *testing.T) {
 
 	store := kubeconfig.NewContextStore()
 	kContext := &kubeconfig.Context{
-		Name: "shared",
+		Name: "shared", Source: kubeconfig.KubeConfig,
 		Cluster: &api.Cluster{
 			Server: upstream.URL, TLSServerName: "ca-review.example", CertificateAuthority: caFile,
 		},
@@ -99,7 +99,7 @@ func TestPortForwardCAReplacementPinsAuthority(t *testing.T) {
 
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/portforward").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		RequestHandler(store, sessions, false, "shared", w, r)
+		RequestHandler(store, sessions, false, false, "shared", w, r)
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
@@ -179,7 +179,7 @@ func TestPortForwardCreationPinsCABytes(t *testing.T) {
 
 	store := kubeconfig.NewContextStore()
 	kContext := &kubeconfig.Context{
-		Name: "shared",
+		Name: "shared", Source: kubeconfig.KubeConfig,
 		Cluster: &api.Cluster{
 			Server: upstream.URL, TLSServerName: "ca-review.example", CertificateAuthority: caFile,
 		},
@@ -196,7 +196,7 @@ func TestPortForwardCreationPinsCABytes(t *testing.T) {
 	request.Header.Set("Authorization", "Bearer alice")
 
 	response := httptest.NewRecorder()
-	RequestHandler(store, sessions, false, "shared", response, request)
+	RequestHandler(store, sessions, false, false, "shared", response, request)
 	require.Equal(t, http.StatusInternalServerError, response.Code)
 	require.Contains(t, response.Body.String(), "creation reached the original authority")
 	require.EqualValues(t, 1, permissionCalls.Load())
@@ -230,8 +230,9 @@ func TestPortForwardCAFileFailureAndEmbeddedPrecedence(t *testing.T) {
 
 			store := kubeconfig.NewContextStore()
 			require.NoError(t, store.AddContext(&kubeconfig.Context{
-				Name: "shared", Cluster: cluster, KubeContext: &api.Context{Cluster: "shared", AuthInfo: "shared"},
-				AuthInfo: &api.AuthInfo{Token: "alice"},
+				Name: "shared", Source: kubeconfig.KubeConfig, Cluster: cluster,
+				KubeContext: &api.Context{Cluster: "shared", AuthInfo: "shared"},
+				AuthInfo:    &api.AuthInfo{Token: "alice"},
 			}))
 
 			sessions := cache.New[interface{}]()
@@ -242,7 +243,7 @@ func TestPortForwardCAFileFailureAndEmbeddedPrecedence(t *testing.T) {
 			response := httptest.NewRecorder()
 			before := upstream.calls.Load()
 
-			RequestHandler(store, sessions, false, "shared", response, request)
+			RequestHandler(store, sessions, false, false, "shared", response, request)
 
 			if test.embedded {
 				require.Equal(t, http.StatusOK, response.Code)
@@ -304,7 +305,7 @@ func TestPortForwardRequestCAFilesRequireEmbeddedData(t *testing.T) {
 			before := upstream.calls.Load()
 
 			if test.cached {
-				RequestHandler(store, sessions, false, "shared", response, request)
+				RequestHandler(store, sessions, false, false, "shared", response, request)
 			} else {
 				RequestHandlerWithContext(kContext, sessions, false, false, "shared", response, request)
 			}

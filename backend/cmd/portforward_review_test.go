@@ -46,6 +46,130 @@ func TestPortForwardExecCredentialHelper(t *testing.T) {
 	os.Exit(0)
 }
 
+//nolint:funlen // Covers upload, persistence reload, and credential isolation through the production routes.
+func TestPortForwardStoredUploadsRespectCredentialProvenance(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "desktop-token")
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+
+	for _, test := range []struct {
+		name       string
+		inCluster  bool
+		caFile     bool
+		embedded   bool
+		wantStatus int
+	}{
+		{name: "in-cluster-token-file", inCluster: true, wantStatus: http.StatusUnauthorized},
+		{name: "in-cluster-ca-file", inCluster: true, caFile: true, wantStatus: http.StatusBadRequest},
+		{name: "in-cluster-embedded-credentials", inCluster: true, embedded: true, wantStatus: http.StatusUnauthorized},
+		{name: "desktop-token-file", wantStatus: http.StatusOK},
+		{name: "desktop-ca-file", caFile: true, wantStatus: http.StatusOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			upstream, seen := portForwardReviewIdentityAPI(t)
+			tokenFile := filepath.Join(t.TempDir(), "backend-local-token")
+			require.NoError(t, os.WriteFile(tokenFile, []byte("alice"), 0o600))
+			caFile := filepath.Join(t.TempDir(), "backend-local-ca.pem")
+			require.NoError(t, os.WriteFile(caFile,
+				pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstream.Certificate().Raw}), 0o600))
+			cluster := &api.Cluster{Server: upstream.URL, InsecureSkipTLSVerify: !test.caFile}
+			info := &api.AuthInfo{TokenFile: tokenFile}
+			token := ""
+			want := "Bearer alice"
+
+			if test.embedded {
+				info = &api.AuthInfo{Token: "alice"}
+			}
+
+			if test.caFile {
+				cluster.CertificateAuthority = caFile
+				info = &api.AuthInfo{Token: "alice"}
+				token = "bob"
+				want = "Bearer bob"
+			}
+
+			sessions := cache.New[interface{}]()
+
+			t.Cleanup(func() { _ = sessions.Close() })
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster: test.inCluster, KubeConfigStore: kubeconfig.NewContextStore(),
+						EnableDynamicClusters: true, KubeConfigPath: filepath.Join(t.TempDir(), "missing"),
+						KubeConfigDir: t.TempDir(),
+					},
+					Cache: sessions,
+				},
+			}
+			config.UnsafeUseServiceAccountToken = test.inCluster
+			handler := createHeadlampHandler(t.Context(), config)
+			data, err := clientcmd.Write(api.Config{
+				Clusters:       map[string]*api.Cluster{"api": cluster},
+				AuthInfos:      map[string]*api.AuthInfo{"user": info},
+				Contexts:       map[string]*api.Context{"shared": {Cluster: "api", AuthInfo: "user"}},
+				CurrentContext: "shared",
+			})
+			require.NoError(t, err)
+
+			encoded := base64.StdEncoding.EncodeToString(data)
+			upload, err := makeJSONReq(http.MethodPost, "/cluster", ClusterReq{KubeConfig: &encoded})
+			require.NoError(t, err)
+			upload.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "desktop-token")
+
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, upload)
+			require.Equal(t, http.StatusCreated, response.Code, response.Body.String())
+
+			for _, reload := range []bool{false, true} {
+				if reload {
+					config.KubeConfigStore = kubeconfig.NewContextStore()
+					loadDynamicClusters(config, filepath.Join(config.KubeConfigDir, "config"), nil)
+				}
+
+				stored, err := config.KubeConfigStore.GetContext("shared")
+				require.NoError(t, err)
+				require.Equal(t, kubeconfig.DynamicCluster, stored.Source)
+				require.False(t, stored.Internal, "the trust decision must not rely on the internal routing flag")
+				request := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+					"/clusters/shared/portforward/list", nil)
+				request.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "desktop-token")
+
+				if token != "" {
+					request.Header.Set("Authorization", "Bearer "+token)
+				}
+
+				response = httptest.NewRecorder()
+				handler.ServeHTTP(response, request)
+
+				require.Equal(t, test.wantStatus, response.Code, response.Body.String())
+
+				if test.wantStatus != http.StatusOK {
+					require.Empty(t, seen, "a restricted stored upload must not contact the upstream API")
+				} else {
+					require.Len(t, seen, 1)
+					require.Equal(t, want, <-seen)
+				}
+			}
+
+			if !test.caFile {
+				require.NoError(t, os.Remove(tokenFile))
+				request := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+					"/clusters/shared/portforward/list", nil)
+				request.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "desktop-token")
+				request.Header.Set("Authorization", "Bearer bob")
+
+				response = httptest.NewRecorder()
+				handler.ServeHTTP(response, request)
+				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+				require.Len(t, seen, 1)
+				require.Equal(t, "Bearer bob", <-seen, "a request token must replace the stored credentials")
+			}
+		})
+	}
+}
+
 //nolint:funlen // Verifies local credential methods and backend-token rejection through the desktop routes.
 func TestPortForwardDesktopUploadedCredentials(t *testing.T) {
 	t.Setenv("HEADLAMP_BACKEND_TOKEN", "desktop-token")
@@ -345,7 +469,8 @@ func portForwardReviewContext(server, token string) *kubeconfig.Context {
 	const name = "shared"
 
 	return &kubeconfig.Context{
-		Name: name, Cluster: &api.Cluster{Server: server, InsecureSkipTLSVerify: true},
+		Name: name, Source: kubeconfig.KubeConfig,
+		Cluster:     &api.Cluster{Server: server, InsecureSkipTLSVerify: true},
 		KubeContext: &api.Context{Cluster: name, AuthInfo: name}, AuthInfo: &api.AuthInfo{Token: token},
 	}
 }

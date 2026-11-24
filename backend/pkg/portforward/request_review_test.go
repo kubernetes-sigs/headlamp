@@ -110,7 +110,7 @@ func TestPortForwardRequestTokensPreserveAPIProxy(t *testing.T) {
 
 			before := identityCalls.Load()
 			response := httptest.NewRecorder()
-			RequestHandler(store, sessions, false, "shared", response, request)
+			RequestHandler(store, sessions, false, false, "shared", response, request)
 
 			if method == http.MethodGet {
 				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
@@ -171,7 +171,7 @@ func TestPortForwardRejectsAPIProxyURLCredentials(t *testing.T) {
 			request.Header.Set("Authorization", "Bearer forged")
 
 			response := httptest.NewRecorder()
-			RequestHandler(store, sessions, false, "shared", response, request)
+			RequestHandler(store, sessions, false, false, "shared", response, request)
 			require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
 			require.Zero(t, calls.Load(), "URL credentials must be rejected before contacting the gateway")
 			require.Zero(t, direct.calls.Load())
@@ -240,7 +240,7 @@ func TestPortForwardAPIProxyReplacementIsolatesSessions(t *testing.T) {
 
 			router := mux.NewRouter()
 			router.PathPrefix("/clusters/{clusterName}/portforward").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				RequestHandler(store, sessions, false, "shared", w, r)
+				RequestHandler(store, sessions, false, false, "shared", w, r)
 			})
 			server := httptest.NewServer(router)
 			t.Cleanup(server.Close)
@@ -334,7 +334,8 @@ func TestPortForwardRejectsURLCredentialsWithRequestToken(t *testing.T) {
 
 	serverURL.User = url.UserPassword("configured-user", "configured-password")
 	kContext := &kubeconfig.Context{
-		Name: "shared", Cluster: &api.Cluster{Server: serverURL.String(), InsecureSkipTLSVerify: true},
+		Name: "shared", Source: kubeconfig.KubeConfig,
+		Cluster:     &api.Cluster{Server: serverURL.String(), InsecureSkipTLSVerify: true},
 		KubeContext: &api.Context{Cluster: "shared", AuthInfo: "shared"}, AuthInfo: &api.AuthInfo{},
 	}
 	store := kubeconfig.NewContextStore()
@@ -354,7 +355,7 @@ func TestPortForwardRejectsURLCredentialsWithRequestToken(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/portforward/list", nil)
 	request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
 	response := httptest.NewRecorder()
-	RequestHandler(store, sessions, false, "shared", response, request)
+	RequestHandler(store, sessions, false, false, "shared", response, request)
 	require.Equal(t, http.StatusOK, response.Code, "trusted configured URL credentials remain supported")
 	require.Contains(t, response.Body.String(), "private-pod")
 
@@ -381,7 +382,7 @@ func TestPortForwardRejectsURLCredentialsWithRequestToken(t *testing.T) {
 				if stateless {
 					RequestHandlerWithContext(kContext, sessions, false, false, "shared", response, request)
 				} else {
-					RequestHandler(store, sessions, false, "shared", response, request)
+					RequestHandler(store, sessions, false, false, "shared", response, request)
 				}
 
 				require.Equal(t, http.StatusBadRequest, response.Code)
@@ -426,7 +427,7 @@ func TestPortForwardNormalizesSchemeLessServerCredentials(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			kContext := &kubeconfig.Context{
-				Name: "shared", Cluster: &api.Cluster{Server: test.server},
+				Name: "shared", Source: kubeconfig.KubeConfig, Cluster: &api.Cluster{Server: test.server},
 				KubeContext: &api.Context{Cluster: "shared", AuthInfo: "shared"}, AuthInfo: &api.AuthInfo{},
 			}
 			store := kubeconfig.NewContextStore()
@@ -446,7 +447,7 @@ func TestPortForwardNormalizesSchemeLessServerCredentials(t *testing.T) {
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/portforward/list", nil)
 			request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
 			response := httptest.NewRecorder()
-			RequestHandler(store, sessions, false, "shared", response, request)
+			RequestHandler(store, sessions, false, false, "shared", response, request)
 			require.Equal(t, http.StatusOK, response.Code, "configured scheme-less servers must remain supported")
 			require.Contains(t, response.Body.String(), "private-pod")
 
@@ -469,7 +470,7 @@ func TestPortForwardNormalizesSchemeLessServerCredentials(t *testing.T) {
 				if fresh {
 					RequestHandlerWithContext(kContext, sessions, false, false, "shared", response, request)
 				} else {
-					RequestHandler(store, sessions, false, "shared", response, request)
+					RequestHandler(store, sessions, false, false, "shared", response, request)
 				}
 
 				if test.credentials {
@@ -499,7 +500,7 @@ func TestPortForwardRejectsEmptySuppliedCredentials(t *testing.T) {
 
 	router := mux.NewRouter()
 	router.HandleFunc("/clusters/{clusterName}/portforward/list", func(w http.ResponseWriter, r *http.Request) {
-		RequestHandler(store, sessions, false, "shared", w, r)
+		RequestHandler(store, sessions, false, false, "shared", w, r)
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
@@ -525,7 +526,8 @@ func TestPortForwardUnicodeStaticContext(t *testing.T) {
 
 	const cluster = "\u751f\u4ea7\u96c6\u7fa4"
 	require.NoError(t, store.AddContext(&kubeconfig.Context{
-		Name: cluster, Cluster: &api.Cluster{Server: upstream.server.URL, InsecureSkipTLSVerify: true},
+		Name: cluster, Source: kubeconfig.KubeConfig,
+		Cluster:     &api.Cluster{Server: upstream.server.URL, InsecureSkipTLSVerify: true},
 		KubeContext: &api.Context{Cluster: cluster, AuthInfo: cluster}, AuthInfo: &api.AuthInfo{Token: "alice"},
 	}))
 
@@ -535,7 +537,7 @@ func TestPortForwardUnicodeStaticContext(t *testing.T) {
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/portforward/list", nil)
 	request = mux.SetURLVars(request, map[string]string{"clusterName": cluster})
 	response := httptest.NewRecorder()
-	RequestHandler(store, sessions, false, cluster, response, request)
+	RequestHandler(store, sessions, false, false, cluster, response, request)
 	require.Equal(t, http.StatusOK, response.Code)
 	require.JSONEq(t, "[]", response.Body.String())
 }
@@ -565,7 +567,7 @@ func TestPortForwardContextReplacementPinsAuthority(t *testing.T) {
 
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/portforward").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		RequestHandler(store, sessions, false, contextKey, w, r)
+		RequestHandler(store, sessions, false, false, contextKey, w, r)
 	})
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)

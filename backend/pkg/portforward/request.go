@@ -54,8 +54,9 @@ func requestToken(r *http.Request) (string, error) {
 
 // RequestHandler authenticates all port-forward operations and isolates their
 // cached sessions by the Kubernetes-verified principal, not a client routing ID.
+// Stored credentials without server-managed provenance require explicit desktop/development trust.
 func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interface{}],
-	unsafeUseServiceAccountToken bool, contextKey string, w http.ResponseWriter, r *http.Request,
+	unsafeUseServiceAccountToken, allowUploadedCredentials bool, contextKey string, w http.ResponseWriter, r *http.Request,
 ) {
 	kContext, err := store.GetContext(contextKey)
 	if err != nil {
@@ -65,7 +66,14 @@ func RequestHandler(store kubeconfig.ContextStore, sessions cache.Cache[interfac
 		return
 	}
 
-	trustedContext := !kContext.Internal
+	trustedSource := allowUploadedCredentials
+
+	switch kContext.Source {
+	case kubeconfig.KubeConfig, kubeconfig.InCluster, kubeconfig.ClusterInventory, kubeconfig.DiscoveredCluster:
+		trustedSource = true
+	}
+
+	trustedContext := !kContext.Internal && trustedSource
 	handleRequestContext(kContext, sessions, unsafeUseServiceAccountToken, contextKey,
 		trustedContext, trustedContext, w, r)
 }

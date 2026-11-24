@@ -1810,7 +1810,7 @@ func (c *HeadlampConfig) portForwardRequestHandler(w http.ResponseWriter, r *htt
 
 	c.authenticatePortForwardRequest(w, r, http.HandlerFunc(func(w http.ResponseWriter, authenticated *http.Request) {
 		portforward.RequestHandler(c.KubeConfigStore, c.Cache,
-			c.shouldUseUnsafeServiceAccountToken(), contextKey, w, authenticated)
+			c.shouldUseUnsafeServiceAccountToken(), !c.UseInCluster, contextKey, w, authenticated)
 	}))
 }
 

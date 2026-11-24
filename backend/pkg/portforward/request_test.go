@@ -75,12 +75,46 @@ func portForwardTestStore(t *testing.T, upstream string) kubeconfig.ContextStore
 	store := kubeconfig.NewContextStore()
 	for _, name := range []string{"shared", "shared-extra", "shared\x00stateless-user"} {
 		require.NoError(t, store.AddContext(&kubeconfig.Context{
-			Name: name, Cluster: &api.Cluster{Server: upstream, InsecureSkipTLSVerify: true},
+			Name: name, Source: kubeconfig.KubeConfig,
+			Cluster:     &api.Cluster{Server: upstream, InsecureSkipTLSVerify: true},
 			KubeContext: &api.Context{Cluster: name, AuthInfo: name}, AuthInfo: &api.AuthInfo{},
 		}))
 	}
 
 	return store
+}
+
+func TestPortForwardUnknownProvenanceRequiresDesktopTrust(t *testing.T) {
+	upstream := newPortForwardTestAPI(t)
+	store := portForwardTestStore(t, upstream.server.URL)
+	kContext, err := store.GetContext("shared")
+	require.NoError(t, err)
+
+	kContext.Source = 0
+	kContext.AuthInfo.TokenFile = filepath.Join(t.TempDir(), "local-token")
+	require.NoError(t, os.WriteFile(kContext.AuthInfo.TokenFile, []byte("alice"), 0o600))
+
+	sessions := cache.New[interface{}]()
+
+	t.Cleanup(func() { _ = sessions.Close() })
+
+	for _, allowLocalCredentials := range []bool{false, true} {
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+			"/clusters/shared/portforward/list", nil)
+		request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
+		response := httptest.NewRecorder()
+		before := upstream.calls.Load()
+
+		RequestHandler(store, sessions, false, allowLocalCredentials, "shared", response, request)
+
+		if allowLocalCredentials {
+			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			require.Equal(t, before+1, upstream.calls.Load())
+		} else {
+			require.Equal(t, http.StatusUnauthorized, response.Code, response.Body.String())
+			require.Equal(t, before, upstream.calls.Load())
+		}
+	}
 }
 
 func portForwardTestRequest(t *testing.T, server, method, path, token, body string) (int, string) {
@@ -136,7 +170,7 @@ func TestPortForwardAuthenticatedOwnershipEndToEnd(t *testing.T) {
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/portforward").Handler(
 		auth.NewBackendTokenMiddleware(true)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			RequestHandler(store, sessions, false, mux.Vars(r)["clusterName"], w, r)
+			RequestHandler(store, sessions, false, false, mux.Vars(r)["clusterName"], w, r)
 		})))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
@@ -222,7 +256,7 @@ func TestPortForwardAuthenticationFailsClosed(t *testing.T) {
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/portforward").Handler(
 		auth.NewBackendTokenMiddleware(false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			RequestHandler(store, sessions, false, "shared", w, r)
+			RequestHandler(store, sessions, false, false, "shared", w, r)
 		})))
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
@@ -253,7 +287,7 @@ func TestPortForwardAuthenticationFailsClosed(t *testing.T) {
 		request.Header.Set("Authorization", "Bearer "+test.token)
 
 		response := httptest.NewRecorder()
-		RequestHandler(store, sessions, false, "shared", response, request)
+		RequestHandler(store, sessions, false, false, "shared", response, request)
 		require.Equal(t, test.want, response.Code)
 	}
 
@@ -262,10 +296,10 @@ func TestPortForwardAuthenticationFailsClosed(t *testing.T) {
 		"/clusters/shared/portforward/list", nil)
 	request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
 	response := httptest.NewRecorder()
-	RequestHandler(store, sessions, false, "shared", response, request)
+	RequestHandler(store, sessions, false, false, "shared", response, request)
 	require.Equal(t, http.StatusUnauthorized, response.Code)
 	response = httptest.NewRecorder()
-	RequestHandler(store, sessions, true, "shared", response, request)
+	RequestHandler(store, sessions, true, false, "shared", response, request)
 	require.Equal(t, http.StatusOK, response.Code)
 }
 
@@ -330,7 +364,7 @@ func TestPortForwardCookieOwnership(t *testing.T) {
 		}
 
 		response := httptest.NewRecorder()
-		RequestHandler(store, sessions, false, "shared", response, request)
+		RequestHandler(store, sessions, false, false, "shared", response, request)
 		require.Equal(t, http.StatusOK, response.Code)
 
 		if token == "bob" {

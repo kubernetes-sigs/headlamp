@@ -251,7 +251,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 ) {
 	r = r.Clone(r.Context())
 	r.Method = http.MethodPost
-	RequestHandler(kubeConfigStore, cache, unsafeUseServiceAccountToken, contextKey, w, r)
+	RequestHandler(kubeConfigStore, cache, unsafeUseServiceAccountToken, false, contextKey, w, r)
 }
 
 //nolint:funlen // Validates and starts a forward using the authenticated owner's cache scope.
