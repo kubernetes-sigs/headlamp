@@ -6746,7 +6746,8 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, []string{"nosniff"}, rr.Header().Values("X-Content-Type-Options"))
+	assert.Equal(t, []string{"strict-origin-when-cross-origin"}, rr.Header().Values("Referrer-Policy"))
 }
 
 func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
@@ -6786,9 +6787,57 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 			rr := httptest.NewRecorder()
 			handler.ServeHTTP(rr, req)
 
-			assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
+			assert.Equal(t, []string{"nosniff"}, rr.Header().Values("X-Content-Type-Options"))
+			assert.Equal(t, []string{"strict-origin-when-cross-origin"}, rr.Header().Values("Referrer-Policy"))
 		})
 	}
+}
+
+func TestClusterProxyDiscardsUpstreamReferrerPolicy(t *testing.T) {
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Referrer-Policy", "unsafe-url")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("OK"))
+		require.NoError(t, err)
+	}))
+	defer proxyServer.Close()
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "test",
+		Cluster: &api.Cluster{
+			Server: proxyServer.URL,
+		},
+	})
+	require.NoError(t, err)
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  filepath.Join("headlamp_testdata", "kubeconfig"),
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/version", nil)
+	require.NoError(t, err)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, []string{"strict-origin-when-cross-origin"}, rr.Header().Values("Referrer-Policy"))
 }
 
 func TestGetConfigIncludesBackstageOrigin(t *testing.T) {
