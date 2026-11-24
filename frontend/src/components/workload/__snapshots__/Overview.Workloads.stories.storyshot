@@ -53,7 +53,7 @@
                           >
                             1 Healthy
                             <span
-                              class="MuiBox-root css-172fsqw"
+                              class="MuiBox-root css-mdv428"
                             >
                               1 Other
                             </span>
@@ -126,6 +126,10 @@
                                       />
                                     </g>
                                   </g>
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
@@ -732,7 +736,7 @@
                           >
                             0 Healthy
                             <span
-                              class="MuiBox-root css-172fsqw"
+                              class="MuiBox-root css-mdv428"
                             >
                               1 Other
                             </span>
@@ -779,6 +783,10 @@
                                   class="recharts-layer recharts-pie"
                                   tabindex="0"
                                 >
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
@@ -945,6 +953,10 @@
                                       />
                                     </g>
                                   </g>
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"

@@ -1249,6 +1249,7 @@
   "Service: {{namespace}}/{{name}}": "Služba: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Cesta: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Připraveno",
   "Up to date//context:replicas": "Aktuální",
   "Available//context:replicas": "K dispozici",

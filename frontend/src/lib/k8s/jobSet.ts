@@ -70,7 +70,8 @@ class JobSet extends KubeObject<KubeJobSet> {
    * logic used for other workloads can't apply. This relies on the same
    * conditions the Job Sets list shows (Failed / Completed / Suspended); a job
    * set with no terminal condition yet is still running and treated as
-   * transitional.
+   * transitional. A Suspended job set is paused on purpose, so it is suspended
+   * rather than degraded.
    */
   getHealth(): WorkloadHealthCategory {
     const conditions = this.status?.conditions;
@@ -82,7 +83,7 @@ class JobSet extends KubeObject<KubeJobSet> {
       return 'healthy';
     }
     if (isConditionTrue(conditions, 'Suspended')) {
-      return 'degraded';
+      return 'suspended';
     }
     return 'transitional';
   }

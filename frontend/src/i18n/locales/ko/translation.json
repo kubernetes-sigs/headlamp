@@ -1213,6 +1213,7 @@
   "Service: {{namespace}}/{{name}}": "서비스: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "경로: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "준비됨",
   "Up to date//context:replicas": "최신 상태",
   "Available//context:replicas": "사용 가능",

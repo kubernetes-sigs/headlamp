@@ -1237,6 +1237,7 @@
   "Service: {{namespace}}/{{name}}": "",
   "Path: {{ path }}:{{ port }}": "",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "",
   "Up to date//context:replicas": "",
   "Available//context:replicas": "",

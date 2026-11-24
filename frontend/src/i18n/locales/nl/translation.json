@@ -1225,6 +1225,7 @@
   "Service: {{namespace}}/{{name}}": "Service: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Pad: {{ path }}:{{ port }}",
   "Other": "",
+  "Suspended": "",
   "Ready//context:replicas": "Gereed",
   "Up to date//context:replicas": "Bijgewerkt",
   "Available//context:replicas": "Beschikbaar",
