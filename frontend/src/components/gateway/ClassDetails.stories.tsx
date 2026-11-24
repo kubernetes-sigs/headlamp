@@ -73,3 +73,30 @@ export const Basic = Template.bind({});
 Basic.args = {
   gatewayJson: DEFAULT_GATEWAY_CLASS,
 };
+
+export const WithDescriptionAndParameters = Template.bind({});
+WithDescriptionAndParameters.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/gateway.networking.k8s.io/v1/gatewayclasses/default-gateway-class`,
+          () =>
+            HttpResponse.json({
+              ...DEFAULT_GATEWAY_CLASS,
+              spec: {
+                ...DEFAULT_GATEWAY_CLASS.spec,
+                description: 'Internet-facing load balancers',
+                parametersRef: {
+                  group: 'gateway.example.com',
+                  kind: 'GatewayConfig',
+                  name: 'internet-facing',
+                  namespace: 'gateway-system',
+                },
+              },
+            })
+        ),
+      ],
+    },
+  },
+};
