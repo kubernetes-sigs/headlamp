@@ -2921,6 +2921,8 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(codes.Ok, "Cluster added successfully")
 	}
 
+	// Headers set after WriteHeader are dropped, so set the type getConfig writes first.
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	c.getConfig(w, r)
 }
@@ -3197,6 +3199,8 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 		return
 	}
 
+	// Headers set after WriteHeader are dropped, so set the type getConfig writes first.
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	c.getConfig(w, r)
 
@@ -3393,6 +3397,8 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return cacheErr
 	}
 
+	// Headers set after WriteHeader are dropped, so set the type getConfig writes first.
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	c.getConfig(w, r)
 

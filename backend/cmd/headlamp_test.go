@@ -810,6 +810,8 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	clusters := c.getClusters()
 
 	assert.Equal(t, http.StatusCreated, r.Code)
+	// Result() returns the headers as they were when the status was written.
+	assert.Equal(t, "application/json", r.Result().Header.Get("Content-Type"))
 
 	clustersByName := map[string]Cluster{}
 	for _, cl := range clusters {
@@ -2849,6 +2851,10 @@ func handleClusterRenameRequest(
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, req)
 	assert.Equal(t, tc.expectedState, response.Code)
+
+	if response.Code == http.StatusCreated {
+		assert.Equal(t, "application/json", response.Result().Header.Get("Content-Type"))
+	}
 }
 
 // TestCheckUniqueName checks the CheckUniqueName function which checks if a new name is unique among existing contexts.
