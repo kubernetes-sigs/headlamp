@@ -94,12 +94,20 @@ const renderPage = (search: Record<string, string> = { driver }, cluster = 'gpu-
 const mockSlices = (result: { items: ResourceSlice[] | null; errors: ApiError[] | null }) =>
   vi.spyOn(ResourceSlice, 'useList').mockReturnValue(result as any);
 
+const mockAccess = (isAllowed: (cluster?: string) => boolean) =>
+  vi
+    .spyOn(ResourcePoolStatusRequest, 'getAuthorization')
+    .mockImplementation(async (_verb, _attrs, cluster) => ({
+      status: { allowed: isAllowed(cluster) },
+    }));
+
 describe('PoolAvailability', () => {
   beforeEach(() => {
     mockPost.mockReset();
     mockRequest.mockReset();
     mockRemove.mockReset().mockResolvedValue({});
     vi.spyOn(ResourcePoolStatusRequest, 'isEnabled').mockResolvedValue(true);
+    mockAccess(() => true);
     mockSlices({
       items: RESOURCE_SLICE_DUMMY_DATA.map(slice => new ResourceSlice(slice, 'gpu-cluster')),
       errors: null,
@@ -290,7 +298,45 @@ describe('PoolAvailability', () => {
     ).toBeVisible();
   });
 
-  it('says when the user is not allowed to ask', async () => {
+  it('asks nothing when the user is not allowed to', async () => {
+    const getAuthorization = mockAccess(() => false);
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        'You are not allowed to request pool status. By default, only cluster admins can.'
+      )
+    ).toBeVisible();
+    expect(getAuthorization).toHaveBeenCalledWith('create', expect.anything(), 'gpu-cluster');
+    expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('asks nothing until it knows whether the user is allowed to', async () => {
+    const getAuthorization = vi
+      .spyOn(ResourcePoolStatusRequest, 'getAuthorization')
+      .mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+
+    await waitFor(() => expect(getAuthorization).toHaveBeenCalled());
+    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeVisible();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('shows why it could not check whether the user is allowed to ask', async () => {
+    vi.spyOn(ResourcePoolStatusRequest, 'getAuthorization').mockRejectedValue(
+      new Error('Bad gateway')
+    );
+
+    renderPage();
+
+    expect(await screen.findByText('Bad gateway')).toBeVisible();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('says when the cluster refuses a user who was allowed to ask', async () => {
     mockPost.mockRejectedValue(Object.assign(new Error('forbidden'), { status: 403 }));
 
     renderPage();
@@ -412,6 +458,23 @@ describe('PoolAvailability', () => {
 
       expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
       expect(screen.getByRole('combobox', { name: 'Cluster' })).toHaveTextContent('tpu-cluster');
+      expect(mockPost).toHaveBeenCalledTimes(1);
+      expect(mockPost.mock.calls[0][3]).toEqual({ cluster: 'tpu-cluster' });
+    });
+
+    it('checks access in the picked cluster', async () => {
+      mockAccess(name => name === 'tpu-cluster');
+      renderPage({ driver }, clusters);
+
+      expect(await screen.findByText(/You are not allowed to request pool status/)).toBeVisible();
+      expect(mockPost).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole('combobox', { name: 'Cluster' }));
+      await userEvent.click(screen.getByRole('option', { name: 'tpu-cluster' }));
+      await userEvent.click(await screen.findByRole('combobox', { name: 'Driver' }));
+      await userEvent.click(screen.getByRole('option', { name: driver }));
+
+      expect(await screen.findByText('worker-0', { selector: 'td' })).toBeVisible();
       expect(mockPost).toHaveBeenCalledTimes(1);
       expect(mockPost.mock.calls[0][3]).toEqual({ cluster: 'tpu-cluster' });
     });

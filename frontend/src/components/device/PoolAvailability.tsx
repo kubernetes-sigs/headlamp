@@ -20,7 +20,7 @@ import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useMemo } from 'react';
+import { type PropsWithChildren, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory, useLocation } from 'react-router-dom';
 import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
@@ -33,8 +33,44 @@ import ResourcePoolStatusRequest, {
 import ResourceSlice from '../../lib/k8s/resourceSlice';
 import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import Loader from '../common/Loader';
+import AuthVisible from '../common/Resource/AuthVisible';
 import SectionBox from '../common/SectionBox';
 import PoolAvailabilityTable from './PoolAvailabilityTable';
+
+function NotAllowed() {
+  const { t } = useTranslation(['translation']);
+
+  return (
+    <Alert severity="warning">
+      {t(
+        'translation|You are not allowed to request pool status. By default, only cluster admins can.'
+      )}
+    </Alert>
+  );
+}
+
+/** Shows its children only to users who may create pool status requests in the cluster. */
+function PoolStatusAccess({ cluster, children }: PropsWithChildren<{ cluster: string }>) {
+  const { t } = useTranslation(['translation']);
+  const [result, setResult] = useState<{ allowed: boolean; error?: Error }>();
+
+  return (
+    <>
+      <AuthVisible
+        item={ResourcePoolStatusRequest}
+        authVerb="create"
+        cluster={cluster}
+        onAuthResult={({ allowed }) => setResult({ allowed })}
+        onError={error => setResult({ allowed: false, error })}
+      >
+        {children}
+      </AuthVisible>
+      {!result && <Loader title={t('translation|Loading')} />}
+      {result?.error && <Alert severity="error">{result.error.message}</Alert>}
+      {result && !result.allowed && !result.error && <NotAllowed />}
+    </>
+  );
+}
 
 function PoolStatusResult({
   status,
@@ -68,13 +104,7 @@ function PoolStatusResult({
       );
     }
     if ((status.error as ApiError).status === 403) {
-      return (
-        <Alert severity="warning">
-          {t(
-            'translation|You are not allowed to request pool status. By default, only cluster admins can.'
-          )}
-        </Alert>
-      );
+      return <NotAllowed />;
     }
     return <Alert severity="error">{status.error.message}</Alert>;
   }
@@ -107,14 +137,7 @@ function PoolStatusResult({
   );
 }
 
-interface ClusterPoolAvailabilityProps {
-  /** The cluster to ask, which serves pool status requests. */
-  cluster: string;
-  /** The clusters to pick from, empty when only one cluster is selected. */
-  clusters: string[];
-}
-
-function ClusterPoolAvailability({ cluster, clusters }: ClusterPoolAvailabilityProps) {
+function ClusterPoolAvailability({ cluster }: { cluster: string }) {
   const { t } = useTranslation(['glossary', 'translation']);
   const location = useLocation();
   const history = useHistory();
@@ -133,13 +156,12 @@ function ClusterPoolAvailability({ cluster, clusters }: ClusterPoolAvailabilityP
 
   const status = usePoolStatusRequest(cluster, driver ? { driver } : undefined);
 
-  const show = (next: { cluster: string; driver?: string }) =>
-    history.push({
-      search: new URLSearchParams({
-        ...(clusters.length > 0 ? { cluster: next.cluster } : {}),
-        ...(next.driver ? { driver: next.driver } : {}),
-      }).toString(),
-    });
+  const showDriver = (name: string) => {
+    const search = new URLSearchParams(location.search);
+    search.set('driver', name);
+    search.delete('pool');
+    history.push({ search: search.toString() });
+  };
 
   let body;
   if (driver) {
@@ -166,28 +188,12 @@ function ClusterPoolAvailability({ cluster, clusters }: ClusterPoolAvailabilityP
   return (
     <>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 2 }}>
-        {clusters.length > 0 && (
-          <TextField
-            select
-            size="small"
-            label={t('glossary|Cluster')}
-            value={cluster}
-            onChange={event => show({ cluster: event.target.value })}
-            sx={{ minWidth: 160 }}
-          >
-            {clusters.map(name => (
-              <MenuItem key={name} value={name}>
-                {name}
-              </MenuItem>
-            ))}
-          </TextField>
-        )}
         <TextField
           select
           size="small"
           label={t('glossary|Driver')}
           value={driver}
-          onChange={event => show({ cluster, driver: event.target.value })}
+          onChange={event => showDriver(event.target.value)}
           InputLabelProps={{ shrink: true }}
           sx={{ minWidth: 240 }}
         >
@@ -200,9 +206,7 @@ function ClusterPoolAvailability({ cluster, clusters }: ClusterPoolAvailabilityP
         {pool && (
           <>
             <Typography>{t('translation|Pool: {{pool}}', { pool })}</Typography>
-            <Button onClick={() => show({ cluster, driver })}>
-              {t('translation|Show all pools')}
-            </Button>
+            <Button onClick={() => showDriver(driver)}>{t('translation|Show all pools')}</Button>
           </>
         )}
         <Button
@@ -222,6 +226,7 @@ function ClusterPoolAvailability({ cluster, clusters }: ClusterPoolAvailabilityP
 export default function PoolAvailability() {
   const { t } = useTranslation(['glossary', 'translation']);
   const location = useLocation();
+  const history = useHistory();
   const selectedClusters = useSelectedClusters();
   const servingClusters = useClustersServing(ResourcePoolStatusRequest);
 
@@ -242,10 +247,31 @@ export default function PoolAvailability() {
     );
   } else {
     body = (
-      <ClusterPoolAvailability
-        cluster={cluster}
-        clusters={selectedClusters.length > 1 ? servingClusters : []}
-      />
+      <>
+        {selectedClusters.length > 1 && (
+          <TextField
+            select
+            size="small"
+            label={t('glossary|Cluster')}
+            value={cluster}
+            onChange={event =>
+              history.push({
+                search: new URLSearchParams({ cluster: event.target.value }).toString(),
+              })
+            }
+            sx={{ minWidth: 160, mb: 2 }}
+          >
+            {servingClusters.map(name => (
+              <MenuItem key={name} value={name}>
+                {name}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
+        <PoolStatusAccess key={cluster} cluster={cluster}>
+          <ClusterPoolAvailability cluster={cluster} />
+        </PoolStatusAccess>
+      </>
     );
   }
 

@@ -42,6 +42,11 @@ const discovery = (served: boolean, base = clusterUrl) =>
     })
   );
 
+const access = (allowed: boolean) =>
+  http.post(`${clusterUrl}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+    HttpResponse.json({ status: { allowed } })
+  );
+
 const slicesUrl = `${clusterUrl}/apis/resource.k8s.io/v1/resourceslices`;
 
 const slices = http.get(slicesUrl, () =>
@@ -109,6 +114,7 @@ Pools.parameters = {
     handlers: {
       story: [
         discovery(true),
+        access(true),
         slices,
         ...answers({
           poolCount: 2,
@@ -146,6 +152,7 @@ IncompletePool.parameters = {
     handlers: {
       story: [
         discovery(true),
+        access(true),
         slices,
         ...answers({
           poolCount: 2,
@@ -172,6 +179,7 @@ ValidationError.parameters = {
     handlers: {
       story: [
         discovery(true),
+        access(true),
         slices,
         ...answers({
           poolCount: 1,
@@ -189,6 +197,7 @@ Truncated.parameters = {
     handlers: {
       story: [
         discovery(true),
+        access(true),
         slices,
         ...answers({
           poolCount: 150,
@@ -206,6 +215,7 @@ Failed.parameters = {
     handlers: {
       story: [
         discovery(true),
+        access(true),
         slices,
         ...answers({ conditions: [condition('Failed', 'Listing ResourceSlices failed')] }),
       ],
@@ -217,16 +227,7 @@ export const Forbidden = Template.bind({});
 Forbidden.parameters = {
   msw: {
     handlers: {
-      story: [
-        discovery(true),
-        slices,
-        http.post(requestsUrl, () =>
-          HttpResponse.json(
-            { kind: 'Status', reason: 'Forbidden', code: 403, message: 'forbidden' },
-            { status: 403 }
-          )
-        ),
-      ],
+      story: [discovery(true), access(false), slices],
     },
   },
 };
@@ -236,7 +237,12 @@ Calculating.parameters = {
   storyshots: { disable: true },
   msw: {
     handlers: {
-      story: [discovery(true), slices, http.post(requestsUrl, () => new Promise(() => {}))],
+      story: [
+        discovery(true),
+        access(true),
+        slices,
+        http.post(requestsUrl, () => new Promise(() => {})),
+      ],
     },
   },
 };
@@ -244,7 +250,7 @@ Calculating.parameters = {
 export const PickADriver = Template.bind({});
 PickADriver.args = { search: {} };
 PickADriver.parameters = {
-  msw: { handlers: { story: [discovery(true), slices] } },
+  msw: { handlers: { story: [discovery(true), access(true), slices] } },
 };
 
 export const NoDrivers = Template.bind({});
@@ -254,6 +260,7 @@ NoDrivers.parameters = {
     handlers: {
       story: [
         discovery(true),
+        access(true),
         http.get(slicesUrl, () =>
           HttpResponse.json({ kind: 'ResourceSliceList', items: [], metadata: {} })
         ),
@@ -280,6 +287,7 @@ DriversError.parameters = {
     handlers: {
       story: [
         discovery(true),
+        access(true),
         http.get(slicesUrl, () =>
           HttpResponse.json(
             { kind: 'Status', reason: 'Forbidden', code: 403, message: 'forbidden' },

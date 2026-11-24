@@ -30,66 +30,6 @@
           class="MuiBox-root css-1txv3mw"
         >
           <div
-            class="MuiBox-root css-1payfi1"
-          >
-            <div
-              class="MuiFormControl-root MuiTextField-root css-9sfuha-MuiFormControl-root-MuiTextField-root"
-            >
-              <label
-                class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-standard MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-standard css-1xqhkuv-MuiFormLabel-root-MuiInputLabel-root"
-                data-shrink="true"
-                for=":mock-test-id:"
-                id=":mock-test-id:"
-              >
-                Driver
-              </label>
-              <div
-                class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-16i65zs-MuiInputBase-root-MuiInput-root"
-              >
-                <div
-                  aria-controls=":mock-test-id:"
-                  aria-expanded="false"
-                  aria-haspopup="listbox"
-                  aria-labelledby=":mock-test-id:"
-                  class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input MuiInputBase-inputSizeSmall css-1q7gfwb-MuiSelect-select-MuiInputBase-input-MuiInput-input"
-                  id=":mock-test-id:"
-                  role="combobox"
-                  tabindex="0"
-                >
-                  gpu.example.com
-                </div>
-                <input
-                  aria-hidden="true"
-                  aria-invalid="false"
-                  class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
-                  tabindex="-1"
-                  value="gpu.example.com"
-                />
-                <svg
-                  aria-hidden="true"
-                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconStandard css-pqjvzy-MuiSvgIcon-root-MuiSelect-icon"
-                  data-testid="ArrowDropDownIcon"
-                  focusable="false"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M7 10l5 5 5-5z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <button
-              class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
-              tabindex="0"
-              type="button"
-            >
-              Refresh
-              <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-              />
-            </button>
-          </div>
-          <div
             class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-standardWarning MuiAlert-standard css-179gzu5-MuiPaper-root-MuiAlert-root"
             role="alert"
           >
