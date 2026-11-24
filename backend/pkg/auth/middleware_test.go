@@ -27,6 +27,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 func TestNewOIDCTokenRefreshMiddleware(t *testing.T) {
@@ -54,6 +56,62 @@ func TestNewOIDCTokenRefreshMiddleware(t *testing.T) {
 	rec = httptest.NewRecorder()
 	middleware.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestOIDCTokenRefreshMiddlewareContextAndInClusterBranches(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+	config := auth.OIDCTokenRefreshConfig{
+		KubeConfigStore:  kubeConfigStore,
+		Cache:            cache.New[interface{}](),
+		TelemetryHandler: &telemetry.RequestHandler{},
+	}
+	nextCalled := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		nextCalled++
+
+		w.Header().Set("X-Next-Called", "true")
+		w.WriteHeader(http.StatusOK)
+	})
+	serveAndAssert := func(mw http.Handler, path string, wantCalls int) {
+		t.Helper()
+
+		req := httptest.NewRequestWithContext(context.Background(), "GET", path, nil)
+		req.Header.Set("Authorization", "Bearer tok")
+
+		rec := httptest.NewRecorder()
+		mw.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "true", rec.Header().Get("X-Next-Called"))
+		assert.Equal(t, wantCalls, nextCalled)
+	}
+
+	middleware := auth.NewOIDCTokenRefreshMiddleware(config)(handler)
+	// Missing context in store triggers handleGetContextError and passes through.
+	serveAndAssert(middleware, "/clusters/missing-cluster/pods", 1)
+
+	// Context without OIDC config triggers handleOIDCAuthConfigError and passes through.
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:        "no-oidc",
+		Cluster:     &api.Cluster{Server: "https://127.0.0.1:6443"},
+		AuthInfo:    &api.AuthInfo{Token: "static"},
+		KubeContext: &api.Context{Cluster: "no-oidc", AuthInfo: "no-oidc"},
+	}))
+	serveAndAssert(middleware, "/clusters/no-oidc/pods", 2)
+
+	// In-cluster unsafe service account token skips OIDC refresh.
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:        "incluster",
+		Source:      kubeconfig.InCluster,
+		Cluster:     &api.Cluster{Server: "https://127.0.0.1:6443"},
+		AuthInfo:    &api.AuthInfo{TokenFile: "sa-token-file"},
+		KubeContext: &api.Context{Cluster: "incluster", AuthInfo: "incluster"},
+	}))
+
+	inClusterCfg := config
+	inClusterCfg.UseInCluster = true
+	inClusterCfg.UnsafeUseServiceAccountToken = true
+	inClusterMW := auth.NewOIDCTokenRefreshMiddleware(inClusterCfg)(handler)
+	serveAndAssert(inClusterMW, "/clusters/incluster/pods", 3)
 }
 
 func TestSetTokenFromCookie(t *testing.T) {

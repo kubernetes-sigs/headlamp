@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -297,7 +298,10 @@ func createOTLPExporter(cfg cfg.Config) (trace.SpanExporter, error) {
 // createStdoutExporter creates an exporter that writes traces to stdout.
 // This is primarily useful for debugging or development environments.
 func createStdoutExporter() (trace.SpanExporter, error) {
-	return stdouttrace.New(stdouttrace.WithPrettyPrint())
+	return stdouttrace.New(
+		stdouttrace.WithWriter(os.Stdout),
+		stdouttrace.WithPrettyPrint(),
+	)
 }
 
 // setupShutdownFunction prepares a function that will properly shut down
