@@ -29,7 +29,7 @@ We will start by creating a Cognito user pool. This tutorial uses the AWS portal
    ![Sign-up Experience](./cognito/sign-up-experience.png)
 8. Click next to go to the Configure message delivery view
 9. You can either chose sending email from Amazon SES or with Cognito, These emails are for MFA, account recovery, sign up, sign in workflows. For this tutorial we will use sending emails through Cognito.
-   ![congigure-message-delivery](./cognito/configure-message-delivery.png)
+   ![configure-message-delivery](./cognito/configure-message-delivery.png)
 10. Click next to go to the Integrate your app view
 11. There are a few things you have to take care of here,
     - You can either use the hosted UI or create your own UI for the authentication workflows (We are using the Cognito hosted UI).
