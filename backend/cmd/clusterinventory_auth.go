@@ -132,20 +132,27 @@ func requestBearerToken(r *http.Request) string {
 func (c *HeadlampConfig) normalizeClusterCredentials(r *http.Request, cluster string, k *kubeconfig.Context) {
 	if c.shouldUseUnsafeServiceAccountTokenForContext(k) {
 		clearRequestAuthorization(r)
-	} else {
-		token := c.proxyAuthToken(r)
-
-		// The refresh middleware sets Authorization while the request cookie
-		// still holds the old token. Only use the cookie as a fallback.
-		if token == "" {
-			token = c.requestTokenForContext(r, cluster, k)
-		}
-
-		if token != "" {
-			r.Header.Set("Authorization", "Bearer "+token)
-		}
+	} else if token := c.clusterRequestToken(r, cluster, k); token != "" {
+		r.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
 	r.Header.Del("Cookie")
+}
+
+// clusterRequestToken returns the user's token for a request to cluster, through
+// context k: the auth proxy's token, then a Bearer Authorization header, then the
+// cluster's cookie. It returns "" when k uses the service account token instead.
+func (c *HeadlampConfig) clusterRequestToken(r *http.Request, cluster string, k *kubeconfig.Context) string {
+	if c.shouldUseUnsafeServiceAccountTokenForContext(k) {
+		return ""
+	}
+
+	if token := c.proxyAuthToken(r); token != "" {
+		return token
+	}
+
+	// The refresh middleware sets Authorization while the request cookie
+	// still holds the old token. Only use the cookie as a fallback.
+	return c.requestTokenForContext(r, cluster, k)
 }
