@@ -25,6 +25,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
 
@@ -330,4 +331,111 @@ func TestMutationFencesConcurrentGETs(t *testing.T) {
 	storePod(t, during)
 	_, err = c.Get(t.Context(), key)
 	require.Error(t, err, "GETs overlapping a mutation cannot restore stale data")
+}
+
+func TestScopeAndWatcherConfigErrors(t *testing.T) {
+	mustKey := func(k CacheKey) string {
+		b, err := json.Marshal(k)
+		require.NoError(t, err)
+
+		return string(b)
+	}
+
+	t.Run("scope_for_key_invalid_inputs", func(t *testing.T) {
+		_, ok := scopeForKey("invalid-key")
+		require.False(t, ok)
+
+		_, ok = scopeForKey(mustKey(CacheKey{Context: "ctx", Path: "/api/v1/namespaces/default/pods/p/log"}))
+		require.False(t, ok)
+
+		_, ok = scopeForKey(mustKey(CacheKey{Context: "ctx", Path: "/api/v1/pods", Query: "bad=%ZZ"}))
+		require.False(t, ok)
+
+		_, ok = scopeForKey(mustKey(CacheKey{Context: "ctx", Path: "/api/v1/pods", Query: "fieldSelector=a%3D%3Db%3D%3Dc"}))
+		require.False(t, ok)
+
+		scope, ok := scopeForKey(mustKey(CacheKey{Context: "ctx", Path: "/api/v1/namespaces/default/pods/web"}))
+		require.True(t, ok)
+		require.Contains(t, scope.Fields, "metadata.name=web")
+	})
+
+	t.Run("watcher_config_errors_and_begin_cache_read_nil", func(t *testing.T) {
+		_, err := watcherConfig(nil, "tok")
+		require.Error(t, err)
+
+		_, err = watcherConfig(&kubeconfig.Context{}, "tok")
+		require.Error(t, err)
+
+		oidcCtx := &kubeconfig.Context{
+			Name:        "oidc",
+			Cluster:     &api.Cluster{Server: "https://example.test"},
+			AuthInfo:    &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{Name: "oidc"}},
+			KubeContext: &api.Context{Cluster: "oidc"},
+		}
+		_, err = watcherConfig(oidcCtx, "")
+		require.Error(t, err)
+
+		c := cache.New[string]()
+
+		t.Cleanup(func() { _ = c.Close() })
+		require.Nil(t, BeginCacheRead(c, "bad-key", oidcCtx, "tok"))
+		require.Nil(t, BeginCacheRead(c, mustKey(CacheKey{Context: "oidc", Path: "/api/v1/pods"}), nil, "tok"))
+	})
+}
+
+func TestWatchConsumeAndLoadEdgeCases(t *testing.T) {
+	t.Run("load_corrupt_json_and_generation_mismatch", func(t *testing.T) {
+		a, c, request, key := newWatchFixture(t, "/api/v1/pods")
+		read := readyRead(t, c, key, a.connection(), "user")
+
+		require.NoError(t, c.Set(t.Context(), key, "{not-json"))
+
+		served, err := read.Load(httptest.NewRecorder(), request)
+		require.Error(t, err)
+		require.False(t, served)
+
+		stale, err := json.Marshal(CachedResponseData{Generation: read.generation - 1, StatusCode: http.StatusOK})
+		require.NoError(t, err)
+		require.NoError(t, c.Set(t.Context(), key, string(stale)))
+
+		served, err = read.Load(httptest.NewRecorder(), request)
+		require.NoError(t, err)
+		require.False(t, served)
+	})
+
+	t.Run("consume_error_unknown_and_bad_accessor", func(t *testing.T) {
+		w := &resourceWatcher{}
+
+		fw := watch.NewFake()
+		go func() { fw.Error(nil) }()
+
+		err := w.consume(t.Context(), fw)
+		require.ErrorContains(t, err, "resource watch failed")
+
+		fw2 := watch.NewFake()
+		go func() { fw2.Action("UNKNOWN", nil) }()
+
+		err = w.consume(t.Context(), fw2)
+		require.ErrorContains(t, err, "unexpected resource watch event")
+
+		fw3 := watch.NewFake()
+		go func() { fw3.Add(nil) }()
+
+		err = w.consume(t.Context(), fw3)
+		require.Error(t, err)
+	})
+
+	t.Run("purge_matching_nil_cache_and_non_resource_mutation", func(t *testing.T) {
+		purgeMatching(nil, func(string) bool { return true })
+
+		called := false
+		c := cache.New[string]()
+
+		t.Cleanup(func() { _ = c.Close() })
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/version", nil)
+		next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true })
+		err := HandleNonGETCacheInvalidation(c, httptest.NewRecorder(), req, next, "connection")
+		require.ErrorIs(t, err, ErrHandled)
+		require.True(t, called)
+	})
 }

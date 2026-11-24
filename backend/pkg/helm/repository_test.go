@@ -852,3 +852,70 @@ func TestAddUpdateRepoRequest_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestRepoHandlers_AddListRemoveErrors(t *testing.T) {
+	t.Run("add_repo_internal_error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		h := newIsolatedHelmHandler(t)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+			"/clusters/minikube/helm/repositories/charts",
+			mustJSONBody(t, helm.AddUpdateRepoRequest{Name: "bad", URL: srv.URL}))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		h.AddRepo(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+
+	t.Run("list_repo_internal_error", func(t *testing.T) {
+		h := newIsolatedHelmHandler(t)
+		require.NoError(t, os.WriteFile(h.RepositoryConfig, []byte(":::invalid-yaml"), 0o600))
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/clusters/minikube/helm/repositories", nil)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		h.ListRepo(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+
+	t.Run("remove_repo_internal_error", func(t *testing.T) {
+		h := newIsolatedHelmHandler(t)
+		require.NoError(t, os.WriteFile(h.RepositoryConfig, []byte(":::invalid-yaml"), 0o600))
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete,
+			"/clusters/minikube/helm/repositories/?name=myrepo", nil)
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		h.RemoveRepo(rr, req)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+}
+
+func TestRepoHandlers_UpdateErrors(t *testing.T) {
+	h := newIsolatedHelmHandler(t)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut,
+		"/clusters/minikube/helm/repositories",
+		mustJSONBody(t, helm.AddUpdateRepoRequest{Name: "missing", URL: "https://example.test/charts"}))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	h.UpdateRepository(rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+
+	require.NoError(t, os.WriteFile(h.RepositoryConfig, []byte(":::invalid-yaml"), 0o600))
+	req2, err := http.NewRequestWithContext(context.Background(), http.MethodPut,
+		"/clusters/minikube/helm/repositories",
+		mustJSONBody(t, helm.AddUpdateRepoRequest{Name: "missing", URL: "https://example.test/charts"}))
+	require.NoError(t, err)
+
+	rr2 := httptest.NewRecorder()
+	h.UpdateRepository(rr2, req2)
+	assert.Equal(t, http.StatusInternalServerError, rr2.Code)
+}

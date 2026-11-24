@@ -179,3 +179,12 @@ func TestNewResponseCapture(t *testing.T) {
 		assert.Equal(t, 0, rc.Body.Len())
 	})
 }
+
+func TestResponseCapture_Unwrap(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	rc := k8cache.NewResponseCapture(recorder)
+
+	assert.Same(t, recorder, rc.Unwrap())
+	assert.NoError(t, http.NewResponseController(rc).Flush())
+	assert.True(t, recorder.Flushed)
+}

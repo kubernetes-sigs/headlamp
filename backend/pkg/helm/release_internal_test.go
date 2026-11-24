@@ -47,8 +47,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -1110,4 +1112,219 @@ func TestInstallAndUpgradeInvalidValues(t *testing.T) {
 			assert.Contains(t, *st.Err, tc.errSubstr)
 		})
 	}
+}
+
+func TestReleaseHandlers_InstallErrors(t *testing.T) {
+	badClientCfg := clientcmd.NewDefaultClientConfig(api.Config{}, nil)
+	h := newTestChartRepoHandler(t)
+
+	for _, tc := range []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{name: "bad_json", body: "{", status: http.StatusBadRequest},
+		{name: "missing_fields", body: `{"name":"r"}`, status: http.StatusBadRequest},
+		{
+			name:   "bad_chart_ref",
+			body:   `{"name":"r","namespace":"default","description":"d","chart":"../bad","version":"1.0.0"}`,
+			status: http.StatusBadRequest,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+				"/helm/releases", strings.NewReader(tc.body))
+			rr := httptest.NewRecorder()
+			h.InstallRelease(badClientCfg, rr, req)
+			assert.Equal(t, tc.status, rr.Code)
+		})
+	}
+}
+
+func TestReleaseHandlers_UpgradeErrors(t *testing.T) {
+	badClientCfg := clientcmd.NewDefaultClientConfig(api.Config{}, nil)
+	h := newTestChartRepoHandler(t)
+
+	for _, tc := range []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{name: "bad_json", body: "{", status: http.StatusBadRequest},
+		{name: "missing_fields", body: `{"name":"r"}`, status: http.StatusBadRequest},
+		{
+			name:   "bad_chart_ref",
+			body:   `{"name":"r","namespace":"default","description":"d","chart":"../bad","version":"1.0.0"}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "bad_client_config",
+			body:   `{"name":"r","namespace":"default","description":"d","chart":"myrepo/demo","version":"1.0.0"}`,
+			status: http.StatusInternalServerError,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPut,
+				"/helm/releases", strings.NewReader(tc.body))
+			rr := httptest.NewRecorder()
+			h.UpgradeRelease(badClientCfg, rr, req)
+			assert.Equal(t, tc.status, rr.Code)
+		})
+	}
+
+	srv, _ := newFakeHelmSecretsServer(t, nil, "alice")
+	defer srv.Close()
+
+	reqBody := `{"name":"missing","namespace":"default","description":"d","chart":"myrepo/demo","version":"1.0.0"}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPut,
+		"/helm/releases", strings.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+	h.UpgradeRelease(clientConfigFor(srv.URL), rr, req)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+}
+
+func TestReleaseHandlers_ConfigAndStatusErrors(t *testing.T) {
+	badClientCfg := clientcmd.NewDefaultClientConfig(api.Config{}, nil)
+	h := newTestChartRepoHandler(t)
+
+	t.Run("action_config_errors_on_read_and_mutation_handlers", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		listReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/releases", nil)
+		h.ListRelease(badClientCfg, rr, listReq)
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+		rr = httptest.NewRecorder()
+		h.GetRelease(badClientCfg, rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/helm/releases?unknown=1", nil))
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+		rr = httptest.NewRecorder()
+		h.GetRelease(badClientCfg, rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/helm/releases?name=r&namespace=default", nil))
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+		rr = httptest.NewRecorder()
+		h.GetReleaseHistory(badClientCfg, rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/helm/releases/history?name=r&namespace=default", nil))
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+		rr = httptest.NewRecorder()
+		h.UninstallRelease(badClientCfg, rr, httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+			"/helm/releases?unknown=1", nil))
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+		rr = httptest.NewRecorder()
+		h.UninstallRelease(badClientCfg, rr, httptest.NewRequestWithContext(context.Background(), http.MethodDelete,
+			"/helm/releases?name=r&namespace=default", nil))
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+		rr = httptest.NewRecorder()
+		h.RollbackRelease(badClientCfg, rr, httptest.NewRequestWithContext(context.Background(), http.MethodPut,
+			"/helm/releases/rollback", strings.NewReader(`{"name":"r","namespace":"default","revision":1}`)))
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	})
+
+	t.Run("get_action_status_success_and_failed_with_err", func(t *testing.T) {
+		require.NoError(t, h.setReleaseStatus("install", "ok-rel", success, nil))
+
+		rr := httptest.NewRecorder()
+		h.GetActionStatus(nil, rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/helm/releases/status?action=install&name=ok-rel", nil))
+		require.Equal(t, http.StatusAccepted, rr.Code)
+		assert.Contains(t, rr.Body.String(), "action completed successfully")
+
+		require.NoError(t, h.setReleaseStatus("install", "fail-rel", failed, errors.New("boom")))
+
+		rr = httptest.NewRecorder()
+		h.GetActionStatus(nil, rr, httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+			"/helm/releases/status?action=install&name=fail-rel", nil))
+		require.Equal(t, http.StatusAccepted, rr.Code)
+		assert.Contains(t, rr.Body.String(), "action failed with error: boom")
+	})
+}
+
+func TestGetChart_LoadAndDependencyErrors(t *testing.T) {
+	h := newTestChartRepoHandler(t)
+	h.Debug = false
+
+	t.Run("corrupt_chart_archive", func(t *testing.T) {
+		corruptPath := filepath.Join(t.TempDir(), "corrupt-0.1.0.tgz")
+		require.NoError(t, os.WriteFile(corruptPath, []byte("not-a-gzip"), 0o600))
+
+		_, err := h.getChart("install", corruptPath, "rel", action.ChartPathOptions{}, false, h.EnvSettings)
+		require.Error(t, err)
+	})
+}
+
+type badRESTClientGetter struct {
+	genericclioptions.RESTClientGetter
+}
+
+func (badRESTClientGetter) ToRESTConfig() (*rest.Config, error) {
+	return nil, errors.New("bad rest config")
+}
+
+func TestVerifyUserBadRestConfig(t *testing.T) {
+	cfg := &action.Configuration{
+		RESTClientGetter: badRESTClientGetter{},
+	}
+	assert.False(t, VerifyUser(cfg, InstallRequest{}))
+}
+
+func TestInstallAndUpgradeWorkerErrors(t *testing.T) {
+	anonSrv, _ := newFakeHelmSecretsServer(t, nil, "system:anonymous")
+	defer anonSrv.Close()
+
+	h := newTestChartRepoHandler(t)
+	h.Debug = false
+
+	anonCfg, err := NewActionConfig(clientConfigFor(anonSrv.URL), "default")
+	require.NoError(t, err)
+	h.installRelease(InstallRequest{CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+		Name: "anon-rel", Namespace: "default", Chart: "myrepo/demo", Version: "1.0.0",
+	}}, anonCfg)
+	_, err = h.getReleaseStatus("install", "anon-rel")
+	require.Error(t, err)
+
+	rel := &release.Release{
+		Name:      "existing-rel",
+		Namespace: "default",
+		Version:   1,
+		Chart:     &chart.Chart{Metadata: &chart.Metadata{Name: "demo", Version: "1.0.0"}},
+		Info:      &release.Info{Status: release.StatusDeployed},
+	}
+
+	srv, _ := newFakeHelmSecretsServer(t, rel, "alice")
+	defer srv.Close()
+
+	cfg, err := NewActionConfig(clientConfigFor(srv.URL), "default")
+	require.NoError(t, err)
+
+	h.installRelease(InstallRequest{CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+		Name: "bad-chart-rel", Namespace: "default", Chart: "myrepo/does-not-exist", Version: "1.0.0",
+	}}, cfg)
+	st, err := h.getReleaseStatus("install", "bad-chart-rel")
+	require.NoError(t, err)
+	assert.Equal(t, failed, st.Status)
+
+	h.installRelease(InstallRequest{CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+		Name: "existing-rel", Namespace: "default", Chart: "myrepo/demo", Version: "1.0.0",
+	}}, cfg)
+	st, err = h.getReleaseStatus("install", "existing-rel")
+	require.NoError(t, err)
+	assert.Equal(t, failed, st.Status)
+
+	h.upgradeRelease(UpgradeReleaseRequest{CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+		Name: "bad-up-chart", Namespace: "default", Chart: "myrepo/does-not-exist", Version: "1.0.0",
+	}}, cfg)
+	st, err = h.getReleaseStatus("upgrade", "bad-up-chart")
+	require.NoError(t, err)
+	assert.Equal(t, failed, st.Status)
+
+	h.upgradeRelease(UpgradeReleaseRequest{CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+		Name: "not-installed", Namespace: "default", Chart: "myrepo/demo", Version: "1.0.0",
+	}}, cfg)
+	st, err = h.getReleaseStatus("upgrade", "not-installed")
+	require.NoError(t, err)
+	assert.Equal(t, failed, st.Status)
 }
