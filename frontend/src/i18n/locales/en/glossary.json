@@ -128,6 +128,10 @@
   "Hosts": "Hosts",
   "Completions": "Completions",
   "Failed": "Failed",
+  "Completed Indexes": "Completed Indexes",
+  "Failed Indexes": "Failed Indexes",
+  "Backoff Limit Per Index": "Backoff Limit Per Index",
+  "Max Failed Indexes": "Max Failed Indexes",
   "Jobs": "Jobs",
   "Job Sets": "Job Sets",
   "Checking if JobSet is enabled…": "Checking if JobSet is enabled…",
@@ -348,6 +352,5 @@
   "TTL After Finished": "TTL After Finished",
   "Pods Status": "Pods Status",
   "Completion Time": "Completion Time",
-  "Duration": "Duration",
-  "Completed Indexes": "Completed Indexes"
+  "Duration": "Duration"
 }
