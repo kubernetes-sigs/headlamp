@@ -115,4 +115,32 @@ describe('clusterFetch', () => {
 
     await expect(clusterFetch(testUrl, { cluster: clusterName })).rejects.toThrow('Unreachable');
   });
+
+  it('extracts plain text error message from non-JSON response', async () => {
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/${clusterName}${testUrl}`)
+      .reply(400, 'Invalid cluster name\n');
+
+    await expect(clusterFetch(testUrl, { cluster: clusterName })).rejects.toThrow(
+      'Invalid cluster name'
+    );
+  });
+
+  it('extracts error field from JSON error response when message is absent', async () => {
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/${clusterName}${testUrl}`)
+      .reply(400, { error: 'invalid_grant' });
+
+    await expect(clusterFetch(testUrl, { cluster: clusterName })).rejects.toThrow('invalid_grant');
+  });
+
+  it('extracts error_description from OAuth-style error response', async () => {
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/${clusterName}${testUrl}`)
+      .reply(400, { error: 'invalid_request', error_description: 'Code parameter is missing' });
+
+    await expect(clusterFetch(testUrl, { cluster: clusterName })).rejects.toThrow(
+      'Code parameter is missing'
+    );
+  });
 });
