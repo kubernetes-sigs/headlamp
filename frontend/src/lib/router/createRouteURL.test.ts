@@ -25,6 +25,12 @@ vi.mock('./getRoute', () => ({
     if (name === 'pluginSimpleRoute') {
       return { path: '/plugin', useClusterURL: false };
     }
+    if (name === 'roles' || name === 'clusterRoles') {
+      return { path: '/c/:cluster/roles', useClusterURL: true };
+    }
+    if (name === 'roleBindings' || name === 'clusterRoleBindings') {
+      return { path: '/c/:cluster/rolebindings', useClusterURL: true };
+    }
     return undefined;
   }),
 }));
@@ -70,5 +76,15 @@ describe('createRouteURL', () => {
     const message = warnSpy.mock.calls[0][0] as string;
     expect(message).toContain('pluginParameterizedRoute');
     expect(message).toContain('/plugin/:namespace/:name');
+  });
+
+  it('resolves deprecated alias clusterRoles via getRoute', () => {
+    expect(createRouteURL('clusterRoles', { cluster: 'minikube' })).toBe('/c/minikube/roles');
+  });
+
+  it('resolves deprecated alias clusterRoleBindings via getRoute', () => {
+    expect(createRouteURL('clusterRoleBindings', { cluster: 'minikube' })).toBe(
+      '/c/minikube/rolebindings'
+    );
   });
 });
