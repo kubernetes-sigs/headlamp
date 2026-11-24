@@ -27,13 +27,22 @@ The main ones are:
 Headlamp shares many npm modules with plugins. It includes VSCode configuration
 files to find them.
 
-These are:
+The canonical list lives in
+[`frontend/src/plugin/index.ts`](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/plugin/index.ts),
+where `window.pluginLib` is assembled. At the time of writing, the shared
+third-party modules are:
 
 - react
-- @iconify-react
+- react-dom
+- @iconify/react
 - react-redux
-- @material-ui/core
-- @material-ui/styles
+- react-router-dom
+- @mui/material (also exposed as `MuiCore` for backwards compatibility)
+- @mui/lab
+- @mui/styles (only `makeStyles` is exposed, as an alias of `@mui/system`'s
+  `styled`; this is not API-compatible with the original JSS `makeStyles` hook)
+- @monaco-editor/react
+- monaco-editor
 - lodash
 - notistack
 - recharts
