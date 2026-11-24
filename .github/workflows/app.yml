@@ -55,7 +55,7 @@ jobs:
         cache-dependency-path: |
           app/package-lock.json
           frontend/package-lock.json
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+    - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
       with:
         go-version: '1.26.*'
         cache-dependency-path: |
@@ -94,7 +94,7 @@ jobs:
     - name: Verify Linux build
       run: npm run app:verify-build-linux
     - name: Start Minikube
-      uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+      uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # latest
     - name: Verify Minikube
       run: |
         minikube status
@@ -129,7 +129,7 @@ jobs:
         cache-dependency-path: |
           app/package-lock.json
           frontend/package-lock.json
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+    - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
       with:
         go-version: '1.26.*'
         cache-dependency-path: |
@@ -175,7 +175,7 @@ jobs:
         cache-dependency-path: |
           app/package-lock.json
           frontend/package-lock.json
-    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+    - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
       with:
         go-version: '1.26.*'
         cache-dependency-path: |
