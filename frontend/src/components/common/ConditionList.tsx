@@ -110,8 +110,12 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
     {
       label: t('glossary|Last Update'),
       getter: condition =>
-        condition.lastUpdateTime !== null && condition.lastUpdateTime !== undefined ? (
-          <DateLabel date={condition.lastUpdateTime} />
+        (condition as KubeCondition & { lastUpdateTime?: string | number }).lastUpdateTime ? (
+          <DateLabel
+            date={
+              (condition as KubeCondition & { lastUpdateTime?: string | number }).lastUpdateTime!
+            }
+          />
         ) : (
           '-'
         ),
