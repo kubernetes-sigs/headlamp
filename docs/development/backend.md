@@ -180,6 +180,123 @@ for a specific resource version or with `Cache-Control: no-cache`. Only successf
 Kubernetes objects are stored, and never responses that set cookies, send
 `Cache-Control: no-store` or vary on anything but `Accept` and `Accept-Encoding`.
 
+## Port-forward authentication and ownership
+
+Port-forwarding requires **Kubernetes 1.28+**: every create/list/get/stop/delete
+request authenticates using `authentication.k8s.io/v1` SelfSubjectReview,
+[stable since Kubernetes 1.28](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#self-subject-review).
+The API server must permit the authenticated user to create self-subject reviews.
+On older clusters, the unsupported v1 endpoint causes port-forward requests to
+return HTTP 503 (Service Unavailable), rather than forwarding without verified
+ownership. An unavailable review endpoint also fails closed; unverified JWT
+claims or arbitrary nonempty bearer text are never trusted.
+
+An Authorization bearer token takes precedence over the cluster cookie. Supplied
+user tokens replace stored authentication methods for the request, so invalid
+tokens cannot fall back to a configured certificate or token file. Static
+kubeconfig credentials still work when no user token is supplied.
+Cluster and effective API-proxy URLs containing credentials are rejected when a
+request token is supplied: HTTP URL Basic authentication must not replace the caller's bearer
+identity. Trusted configured URL credentials still work without a request token.
+This check uses client-go's server normalization, including scheme-less
+`user:password@host:port` credentials, while preserving valid `IP:port` servers.
+When proxy authentication is enabled, its configured token header takes
+precedence and is subject to the same Kubernetes identity verification.
+Using `Authorization` itself as that proxy header is supported case-insensitively;
+an existing Bearer prefix is normalized only once. An explicitly supplied empty
+credential is rejected, never replaced by a cookie or stored identity. Static
+contexts with names that cannot form cookie names can still use their configured
+credentials when no Authorization header was supplied.
+The outer cluster OIDC middleware validates supplied Authorization before
+refresh: an expiring cookie cannot replace an invalid header or collapse multiple
+headers into an accepted credential. Legitimate cookie-only refresh still works.
+
+Sessions are scoped by the exact context key, effective API server or
+gateway/TLS/proxy authority, and the Kubernetes-returned username and UID.
+Another user cannot list, inspect,
+stop, delete, or overwrite them by
+supplying the same forwarding ID. Refreshed tokens for the same principal retain
+access; a different UID does not. Public cluster names and response shapes remain
+unchanged. Existing unowned cache entries are not adopted by the next caller.
+The store is in memory; no persistent session migration is required.
+
+Stateless requests resolve their supplied `KUBECONFIG` afresh and use that same
+context snapshot for authentication and forward creation. A cached routing key
+cannot supply another caller's credentials. `X-HEADLAMP-USER-ID` is a routing
+label, not authentication. Requests addressing a cached internal context without
+their own token or request kubeconfig cannot borrow its stored credentials.
+Cached internal contexts and in-cluster request-supplied contexts cannot read backend-local CA
+files, even with an independent request token. They must embed the CA data or
+use default system trust. An embedded CA takes precedence over a filename
+without reading it. Trusted server-configured contexts retain file-backed CAs.
+In-cluster request-supplied kubeconfigs cannot read backend-local token/certificate/key
+files or run exec/auth-provider credential plugins. These methods require an
+independent request token that replaces the configured credentials; otherwise
+the request is rejected before authentication. Embedded credentials remain
+supported, and trusted server-configured kubeconfigs keep their existing
+credential methods.
+The same in-cluster restrictions apply to contexts registered through
+`POST /cluster`, including after persistence reload. Stored dynamic uploads and
+contexts without recorded provenance require a caller-supplied token in-cluster;
+they cannot supply another uploader's embedded identity. File-backed CAs remain
+restricted even with that token. Trust follows the recorded source, not the
+internal routing flag.
+Desktop/development uploads retain local exec/OIDC providers, token and
+certificate/key files, and file-backed CAs after the backend-token middleware.
+Configure a nonempty `HEADLAMP_BACKEND_TOKEN` to protect that local trust boundary.
+OIDC contexts without stored credentials return HTTP 401 before provider lookup.
+API-proxy settings are resolved before credentials are replaced and retained for
+identity verification and forwarding. Gateway CA data and skip-verification
+settings replace the API server's TLS trust; unused API-server CA files are not read.
+Recreating a context with a different endpoint or TLS/proxy trust configuration
+does not grant access to existing sessions even if that endpoint claims the same
+username and UID. Restoring the original authority with valid credentials retains
+access across context-cache expiry.
+File-backed certificate authorities are read into the copied request context
+before authentication. The effective CA bytes determine session ownership and
+are reused for forward creation, without rereading the filename. Replacing a CA
+file at the same path cannot inherit surviving sessions; unreadable or empty
+configured CA files fail closed. Embedded CA data takes precedence over a file.
+
+In-cluster service-account credentials are not used in place of a missing user
+token unless unsafe service-account mode was explicitly enabled. That unsafe
+mode deliberately shares the service-account identity, not individual user
+ownership. Desktop backend-token protection remains an additional boundary.
+
+Run the local HTTP end-to-end and ownership regressions without a Kubernetes cluster:
+
+```bash
+cd backend
+go test -race ./pkg/portforward ./cmd -run 'TestPortForward(AuthenticatedOwnershipEndToEnd|AuthenticationFailsClosed|CreationKeepsOwnerScope|CookieOwnership|RoutesRejectForgedCredentials)$' -count=20
+```
+
+Header, Unicode-name, authority-replacement and stateless-cache regressions:
+
+```bash
+cd backend
+go test -race ./pkg/portforward ./cmd -run '^TestPortForward(ProxyAuthorizationNormalization|RejectsEmptySuppliedCredentials|UnicodeStaticContext|ContextReplacementPinsAuthority|Stateless.*)$' -count=20
+```
+
+The fully wrapped refresh-order regression is
+`go test -race ./cmd -run '^TestPortForwardValidatesAuthorizationBeforeRefresh$' -count=20`.
+
+These tests use the production request handler and real HTTP/TLS connections to a
+local mock of the Kubernetes authentication API. Session-control tests use
+synthetic channels and do not establish live Kubernetes port-forwards.
+
+CI also enables the live Minikube lifecycle test. With a running `minikube`
+context and a Headlamp pod exposing its backend port in the `headlamp` namespace:
+
+```bash
+cd backend
+HEADLAMP_RUN_INTEGRATION_TESTS=true go test -race ./pkg/portforward -run '^TestStartPortForward$' -count=1
+```
+
+This test creates a real forward and uses the authenticated request handler to
+stop, list, inspect, and delete it. Cleanup also deletes the forward if a later
+assertion fails; the test does not access owner-scoped cache records through
+legacy unscoped keys.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.

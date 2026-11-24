@@ -1014,60 +1014,21 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Setup port forwarding handlers.
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.StartPortForward(
-				config.KubeConfigStore,
-				config.Cache,
-				config.shouldUseUnsafeServiceAccountToken(),
-				contextKey,
-				w,
-				r,
-			)
-		})),
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
 	).Methods("POST")
 
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
-		})),
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
 	).Methods("DELETE")
 
 	r.Handle(
 		"/clusters/{clusterName}/portforward/list",
-		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.GetPortForwards(config.Cache, contextKey, w, r)
-		})),
-	)
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
+	).Methods("GET")
 	r.Handle(
 		"/clusters/{clusterName}/portforward",
-		config.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contextKey, err := config.getContextKeyForRequest(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-
-			portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
-		})),
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
 	).Methods("GET")
 
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
@@ -1761,7 +1722,7 @@ func clearRequestAuthorization(r *http.Request) {
 
 func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader string) {
 	proxyAuthTokenHeader = strings.TrimSpace(proxyAuthTokenHeader)
-	if proxyAuthTokenHeader != "" {
+	if proxyAuthTokenHeader != "" && !strings.EqualFold(proxyAuthTokenHeader, "Authorization") {
 		r.Header.Del(proxyAuthTokenHeader)
 	}
 }
@@ -1773,6 +1734,84 @@ func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
 	}
 
 	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+}
+
+// Keep the shared user-authentication gate without letting credential
+// normalization hide empty or duplicate credentials from the verified-owner handler.
+func (c *HeadlampConfig) authenticatePortForwardRequest(w http.ResponseWriter, r *http.Request, next http.Handler) {
+	authorization, supplied := r.Header["Authorization"]
+	authorization = append([]string(nil), authorization...)
+	cookies := append([]string(nil), r.Header.Values("Cookie")...)
+	request := r.Clone(r.Context())
+
+	if len(authorization) == 1 {
+		if token := auth.BearerTokenValue(authorization[0]); token != "" {
+			request.Header.Set("Authorization", "Bearer "+token)
+		}
+	}
+
+	c.requireUserAuthentication(http.HandlerFunc(func(w http.ResponseWriter, authenticated *http.Request) {
+		authenticated = authenticated.Clone(authenticated.Context())
+		authenticated.Header.Del("Authorization")
+		authenticated.Header.Del("Cookie")
+
+		if supplied {
+			authenticated.Header["Authorization"] = authorization
+		}
+
+		if len(cookies) != 0 {
+			authenticated.Header["Cookie"] = cookies
+		}
+
+		next.ServeHTTP(w, authenticated)
+	})).ServeHTTP(w, request)
+}
+
+func (c *HeadlampConfig) portForwardRequestHandler(w http.ResponseWriter, r *http.Request) {
+	proxyHeader := strings.TrimSpace(c.ProxyAuthTokenHeader)
+	if c.ProxyAuthEnabled && proxyHeader != "" && !strings.EqualFold(proxyHeader, "Authorization") {
+		if values, supplied := r.Header[http.CanonicalHeaderKey(proxyHeader)]; supplied {
+			r = r.Clone(r.Context())
+
+			r.Header["Authorization"] = append([]string(nil), values...)
+		}
+	}
+
+	if !strings.EqualFold(proxyHeader, "Authorization") {
+		clearConfiguredProxyTokenHeader(r, proxyHeader)
+	}
+
+	if supplied := r.Header.Get("KUBECONFIG"); supplied != "" && c.EnableDynamicClusters {
+		key, kContext, err := resolveStatelessRequestContext(r, supplied)
+		if err != nil {
+			logger.Log(logger.LevelWarn, nil, err, "resolving portforward request kubeconfig")
+			http.Error(w, "invalid request kubeconfig", http.StatusBadRequest)
+
+			return
+		}
+
+		resolved := resolvedClusterContext{key: key, context: kContext}
+		r = r.WithContext(context.WithValue(r.Context(), resolvedClusterContextKey{}, resolved))
+		c.authenticatePortForwardRequest(w, r, http.HandlerFunc(func(w http.ResponseWriter, authenticated *http.Request) {
+			portforward.RequestHandlerWithContext(kContext, c.Cache,
+				c.shouldUseUnsafeServiceAccountToken(), !c.UseInCluster, key, w, authenticated)
+		}))
+
+		return
+	}
+
+	contextKey, err := c.getContextKeyForRequest(r)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "resolving portforward context")
+		http.Error(w, "invalid request context", http.StatusBadRequest)
+
+		return
+	}
+
+	c.authenticatePortForwardRequest(w, r, http.HandlerFunc(func(w http.ResponseWriter, authenticated *http.Request) {
+		portforward.RequestHandler(c.KubeConfigStore, c.Cache,
+			c.shouldUseUnsafeServiceAccountToken(), !c.UseInCluster, contextKey, w, authenticated)
+	}))
 }
 
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {

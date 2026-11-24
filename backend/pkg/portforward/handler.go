@@ -34,7 +34,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -46,6 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
 	streamhttp "k8s.io/streaming/pkg/httpstream"
@@ -244,11 +244,19 @@ func getFreePort() (int, error) {
 }
 
 // StartPortForward handles the port forward request.
-//
-//nolint:funlen // Handler validates request, allocates port, and starts port-forwarding routine
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
 	contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
+	r = r.Clone(r.Context())
+	r.Method = http.MethodPost
+	RequestHandler(kubeConfigStore, cache, unsafeUseServiceAccountToken, false, contextKey, w, r)
+}
+
+//nolint:funlen // Validates and starts a forward using the authenticated owner's cache scope.
+func startPortForwardForOwner(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
+	unsafeUseServiceAccountToken bool, contextKey, cacheKey string,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	var p portForwardRequest
@@ -276,7 +284,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	// Ensure we don't orphan an existing port-forward by overwriting its cache entry.
 	// This check happens before any resource allocation or blocking code so duplicates short-circuit
 	// deterministically and avoid unnecessary listener churn.
-	if existingPF, err := getPortForwardByID(cache, contextKey, p.ID); err == nil &&
+	if existingPF, err := getPortForwardByID(cache, cacheKey, p.ID); err == nil &&
 		(existingPF.Status == RUNNING || existingPF.Status == RECONNECTING) {
 		//nolint:goconst // Repeated log message keys are clearer inline than as package constants
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
@@ -287,7 +295,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	}
 
 	// Reject duplicates before any resource-consuming work (port alloc, kubeconfig lookup).
-	inFlightKey := strings.Join([]string{contextKey, p.ID}, "\x00")
+	inFlightKey := strings.Join([]string{cacheKey, p.ID}, "\x00")
 	if _, loaded := inFlightPortForwards.LoadOrStore(inFlightKey, struct{}{}); loaded {
 		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
 			nil, "portforward ID is already starting")
@@ -310,31 +318,26 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	kContext, err := kubeConfigStore.GetContext(contextKey)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey},
-			err, "getting kubeconfig context")
-
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
 	token := ""
 
 	if !unsafeUseServiceAccountToken || !kContext.UsesInClusterServiceAccountToken() {
-		// Check Authorization header first (consistent with ParseClusterAndToken),
-		// then fall back to the cluster cookie.
-		if authHeader := r.Header.Get("Authorization"); authHeader != "" {
-			token = auth.BearerTokenValue(authHeader)
-		}
+		var err error
 
-		if token == "" {
-			token, _ = auth.GetTokenFromCookie(r, requestClusterName)
+		token, err = requestToken(r)
+		if err != nil {
+			logger.Log(logger.LevelWarn, nil, err, "reading portforward credentials")
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+
+			return
 		}
 	}
 
-	err = startPortForward(kContext, cache, p, token, contextKey, requestClusterName)
+	if token != "" {
+		kContext = kContext.Copy()
+		kContext.AuthInfo = &api.AuthInfo{Token: token}
+	}
+
+	err := startPortForward(kContext, cache, p, token, cacheKey, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -997,7 +1000,7 @@ func (r *stopOrDeletePortForwardRequest) Validate() error {
 }
 
 // StopOrDeletePortForward handles stop or delete port forward request.
-func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
+func StopOrDeletePortForward(sessions cache.Cache[interface{}], contextKey string,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	var p stopOrDeletePortForwardRequest
@@ -1017,7 +1020,7 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
-	err = stopOrDeletePortForward(cache, contextKey, p.ID, p.StopOrDelete)
+	err = stopOrDeletePortForward(sessions, contextKey, p.ID, p.StopOrDelete)
 	if err == nil {
 		if _, err := w.Write([]byte("stopped")); err != nil {
 			logger.Log(logger.LevelError, nil, err, "writing response")
@@ -1027,7 +1030,12 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
-	http.Error(w, "failed to delete port forward "+err.Error(), http.StatusInternalServerError)
+	status := http.StatusInternalServerError
+	if errors.Is(err, cache.ErrNotFound) {
+		status = http.StatusNotFound
+	}
+
+	http.Error(w, "failed to delete port forward "+err.Error(), status)
 }
 
 // GetPortForwards handles get port forwards request.

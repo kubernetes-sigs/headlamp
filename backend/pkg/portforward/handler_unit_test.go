@@ -33,6 +33,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 // newRequestWithVars creates an http.Request with gorilla/mux route variables set.
@@ -220,7 +221,7 @@ func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
 		{
 			name:           "id not found in cache",
 			id:             "does-not-exist",
-			wantStatusCode: http.StatusInternalServerError,
+			wantStatusCode: http.StatusNotFound,
 			wantBody:       "failed to delete port forward",
 		},
 	}
@@ -291,6 +292,16 @@ func assertPortForwardBadRequest(
 func TestStartPortForward_InputValidation(t *testing.T) {
 	t.Parallel()
 
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/apis/authentication.k8s.io/v1/selfsubjectreviews", r.URL.Path)
+		assert.Equal(t, "Bearer alice", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"apiVersion":"authentication.k8s.io/v1","kind":"SelfSubjectReview",` +
+			`"status":{"userInfo":{"username":"alice","uid":"alice-id"}}}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(upstream.Close)
+
 	oversized := fmt.Sprintf(
 		`{"namespace":"default","pod":"my-pod","targetPort":"80","id":"%s"}`,
 		bytes.Repeat([]byte("a"), 70<<10),
@@ -316,7 +327,16 @@ func TestStartPortForward_InputValidation(t *testing.T) {
 			t.Parallel()
 
 			ch := cache.New[interface{}]()
+
+			t.Cleanup(func() { assert.NoError(t, ch.Close()) })
+
 			store := kubeconfig.NewContextStore()
+			require.NoError(t, store.AddContext(&kubeconfig.Context{
+				Name: "test-cluster", Source: kubeconfig.KubeConfig,
+				Cluster:     &api.Cluster{Server: upstream.URL, InsecureSkipTLSVerify: true},
+				KubeContext: &api.Context{Cluster: "test-cluster", AuthInfo: "alice"},
+				AuthInfo:    &api.AuthInfo{Token: "alice"},
+			}))
 
 			assertPortForwardBadRequest(t, tt.body, tt.wantBody, func(w *httptest.ResponseRecorder, r *http.Request) {
 				portforward.StartPortForward(store, ch, false, "test-cluster", w, r)
