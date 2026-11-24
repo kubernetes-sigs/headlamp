@@ -3141,7 +3141,7 @@ func TestRenameCluster(t *testing.T) {
 			expectedState: http.StatusCreated,
 		},
 		{
-			name: "passStatefull",
+			name: "passStateful",
 			clusterReq: RenameClusterRequest{
 				NewClusterName: "minikubetestworkskubeconfig",
 				Stateless:      false,

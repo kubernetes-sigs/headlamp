@@ -99,7 +99,7 @@ func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey 
 		MetaData:   Metadata{}, // In this case the Metadata will always be empty.
 		Message: fmt.Sprintf("%s is forbidden: User \"system:serviceaccount:default:%s\" cannot ", last, contextKey) +
 			fmt.Sprintf("%s resource \"%s\" in API group \"\" at the cluster scope", kubeVerb, last),
-		Reason: "Forbidden", // For this scenerio the reason should be forbidden.
+		Reason: "Forbidden", // For this scenario the reason should be forbidden.
 		Details: Details{
 			Kind: last,
 		},
