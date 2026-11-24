@@ -41,6 +41,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -50,6 +51,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
+import { DetailsGridContext } from '../DetailsViewSection/detailsViewSectionSlice';
 import { activitySlice } from './activitySlice';
 
 const areWindowsEnabled = false;
@@ -95,6 +97,12 @@ export interface Activity {
    * temporary or split-right activities launched by plugins.
    */
   kind?: 'details';
+  /**
+   * ID of the details activity this one was opened on top of. Back in this
+   * panel closes it and shows that activity again. Set automatically when a
+   * details activity launches over another one.
+   */
+  previousId?: string;
   /**
    * Optional close interceptor. When set, user-initiated close actions
    * (the title-bar X, the taskbar close buttons, Close All and clicking
@@ -151,6 +159,31 @@ export const useActivity = () => {
 
   return [activity, update] as const;
 };
+
+/**
+ * Returns a function that closes the current details panel and shows the one it
+ * was opened from, or undefined when there is no such panel, for example when it
+ * was opened from the page or the earlier panel has been closed since.
+ */
+export function useBackToPreviousActivity() {
+  const [activity] = useActivity();
+  const previousId = useTypedSelector(state =>
+    activity.previousId && state.activity.activities[activity.previousId]
+      ? activity.previousId
+      : undefined
+  );
+
+  return useMemo(
+    () =>
+      previousId
+        ? () => {
+            Activity.close(activity.id);
+            Activity.update(previousId, { minimized: false });
+          }
+        : undefined,
+    [activity.id, previousId]
+  );
+}
 
 /** Renders a single activity */
 export function SingleActivityRenderer({
@@ -791,7 +824,15 @@ export function SingleActivityRenderer({
                   flexDirection: 'column',
                 }}
               >
-                {content}
+                {activity.kind === 'details' ? (
+                  // Tell details views they are in a panel, including ones from
+                  // plugins, so they do not show a Back that navigates the page.
+                  <DetailsGridContext.Provider value={{ isInPanel: true }}>
+                    {content}
+                  </DetailsGridContext.Provider>
+                ) : (
+                  content
+                )}
               </Box>
             </Suspense>
             {location === 'window' && <ActivityResizer activityElementRef={activityElementRef} />}

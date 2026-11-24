@@ -56,6 +56,7 @@ import { divideK8sResources } from '../../../lib/units';
 import { localeDate, useId } from '../../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
+import { useBackToPreviousActivity } from '../../activity/Activity';
 import { useHasPreviousRoute } from '../../App/RouteSwitcher';
 import { SectionBox } from '../../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../../common/SimpleTable';
@@ -162,6 +163,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const location = useLocation<{ backLink: NavLinkProps['location'] }>();
   const hasPreviousRoute = useHasPreviousRoute();
   const { isInPanel } = React.useContext(DetailsGridContext);
+  const backToPreviousPanel = useBackToPreviousActivity();
   const detailViews = useTypedSelector(state => state.detailsViewSection.detailsViewSections);
   const detailViewsProcessors = useTypedSelector(
     state => state.detailsViewSection.detailsViewSectionsProcessors
@@ -257,8 +259,13 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
 
-  // Back link
-  if (!!actualBackLink || actualBackLink === '') {
+  // Back link. In a panel opened from another panel, it returns to that panel.
+  if (isInPanel && backToPreviousPanel) {
+    sections.push({
+      id: DefaultDetailsViewSection.BACK_LINK,
+      section: <BackLink onClick={backToPreviousPanel} />,
+    });
+  } else if (!!actualBackLink || actualBackLink === '') {
     sections.push({
       id: DefaultDetailsViewSection.BACK_LINK,
       section: <BackLink to={actualBackLink} />,
