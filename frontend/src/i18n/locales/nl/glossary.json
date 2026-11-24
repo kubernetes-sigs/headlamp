@@ -306,6 +306,7 @@
   "Provisioner": "Inrichter",
   "Reclaim Policy": "Beleid opnieuw claimen",
   "Binding Mode": "Bindingsmodus",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Volume-uitbreiding toestaan",
   "Mount Options": "",
   "Volume Binding Mode": "Modus volumebinding",

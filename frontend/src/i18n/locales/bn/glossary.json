@@ -306,6 +306,7 @@
   "Provisioner": "Provisioner",
   "Reclaim Policy": "রিক্লেইম পলিসি",
   "Binding Mode": "বাইন্ডিং Mode",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "ভলিউম এক্সপ্যানশন অনুমতি দিন",
   "Mount Options": "মাউন্ট অপশন",
   "Volume Binding Mode": "ভলিউম বাইন্ডিং Mode",

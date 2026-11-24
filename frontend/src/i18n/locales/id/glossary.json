@@ -306,6 +306,7 @@
   "Provisioner": "Penyedia",
   "Reclaim Policy": "Kebijakan Klaim Ulang",
   "Binding Mode": "Mode Pengikatan",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Izinkan Ekspansi Volume",
   "Mount Options": "",
   "Volume Binding Mode": "Mode Pengikatan Volume",

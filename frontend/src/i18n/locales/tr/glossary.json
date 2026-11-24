@@ -306,6 +306,7 @@
   "Provisioner": "Sağlayıcı",
   "Reclaim Policy": "Geri Kazanma İlkesi",
   "Binding Mode": "Bağlama Modu",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Birim Genişletmeye İzin Ver",
   "Mount Options": "",
   "Volume Binding Mode": "Birim Bağlama Modu",

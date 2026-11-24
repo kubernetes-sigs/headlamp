@@ -306,6 +306,7 @@
   "Provisioner": "プロビジョナー",
   "Reclaim Policy": "再利用ポリシー",
   "Binding Mode": "バインディングモード",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "ボリューム拡張の許可",
   "Mount Options": "",
   "Volume Binding Mode": "ボリュームバインディングモード",

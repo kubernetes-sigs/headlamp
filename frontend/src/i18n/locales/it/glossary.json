@@ -306,6 +306,7 @@
   "Provisioner": "Provisioner",
   "Reclaim Policy": "Policy di Recupero",
   "Binding Mode": "Policy di Binding",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Consenti Espansione Volume",
   "Mount Options": "",
   "Volume Binding Mode": "Modalità Binding di Volume",

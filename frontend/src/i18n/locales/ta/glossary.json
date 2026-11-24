@@ -306,6 +306,7 @@
   "Provisioner": "ப்ரொவிஷனர்",
   "Reclaim Policy": "ரிக்ளெயிம் பாலிசி",
   "Binding Mode": "பைண்டிங் மோட்",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "வால்யூம் விரிவாக்கத்தை அனுமதி",
   "Mount Options": "",
   "Volume Binding Mode": "வால்யூம் பைண்டிங் மோட்",

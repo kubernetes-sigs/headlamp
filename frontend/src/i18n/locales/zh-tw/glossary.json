@@ -306,6 +306,7 @@
   "Provisioner": "供應商",
   "Reclaim Policy": "回收策略",
   "Binding Mode": "繫結模式",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "允許卷擴充套件",
   "Mount Options": "",
   "Volume Binding Mode": "卷繫結模式",

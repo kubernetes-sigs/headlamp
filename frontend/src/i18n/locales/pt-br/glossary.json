@@ -306,6 +306,7 @@
   "Provisioner": "Provisioner",
   "Reclaim Policy": "Política de \"Reclaim\"",
   "Binding Mode": "Binding Mode",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Permitir Expansão de Volume",
   "Mount Options": "",
   "Volume Binding Mode": "Volume Binding Mode",

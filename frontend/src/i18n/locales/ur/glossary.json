@@ -306,6 +306,7 @@
   "Provisioner": "پروویژنر",
   "Reclaim Policy": "ری کلیم پالیسی",
   "Binding Mode": "بائنڈنگ موڈ",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "والیوم توسیع کی اجازت",
   "Mount Options": "",
   "Volume Binding Mode": "والیوم بائنڈنگ موڈ",

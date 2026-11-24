@@ -306,6 +306,7 @@
   "Provisioner": "프로비저너",
   "Reclaim Policy": "복구 정책",
   "Binding Mode": "바인딩 모드",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "볼륨 확장 허용",
   "Mount Options": "",
   "Volume Binding Mode": "볼륨 바인딩 모드",

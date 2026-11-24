@@ -306,6 +306,7 @@
   "Provisioner": "Obiekt aprowizujący",
   "Reclaim Policy": "Zasady odzyskania",
   "Binding Mode": "Tryb powiązania",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Zezwalaj na rozszerzenie woluminu",
   "Mount Options": "",
   "Volume Binding Mode": "Tryb powiązania woluminu",

@@ -306,6 +306,7 @@
   "Provisioner": "Zřizovatel",
   "Reclaim Policy": "Zásada opětovného získání",
   "Binding Mode": "Režim vazby",
+  "Allowed Topologies": "",
   "Allow Volume Expansion": "Povolit rozšíření svazků",
   "Mount Options": "",
   "Volume Binding Mode": "Režim vazby svazků",

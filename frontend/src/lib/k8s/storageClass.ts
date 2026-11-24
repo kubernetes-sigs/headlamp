@@ -24,6 +24,12 @@ export interface KubeStorageClass extends KubeObjectInterface {
   allowVolumeExpansion?: boolean;
   parameters?: { [key: string]: string };
   mountOptions?: string[];
+  allowedTopologies?: {
+    matchLabelExpressions?: {
+      key: string;
+      values: string[];
+    }[];
+  }[];
 }
 
 class StorageClass extends KubeObject<KubeStorageClass> {
@@ -74,6 +80,10 @@ class StorageClass extends KubeObject<KubeStorageClass> {
 
   get mountOptions() {
     return this.jsonData.mountOptions;
+  }
+
+  get allowedTopologies() {
+    return this.jsonData.allowedTopologies;
   }
 
   static get listRoute() {

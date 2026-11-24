@@ -201,6 +201,26 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
+                    Allowed Topologies
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiStack-root css-jfdv4h-MuiStack-root"
+                    >
+                      <div>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-d9xww8-MuiTypography-root"
+                        >
+                          topology.kubernetes.io/zone in (us-east-1a,us-east-1b)
+                        </p>
+                      </div>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
                     Default
                   </dt>
                   <dd
