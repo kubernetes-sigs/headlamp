@@ -41,20 +41,21 @@ export default function CustomResourceDefinitionDetails(props: {
         item && [
           {
             name: t('translation|Group'),
-            value: item.spec.group,
+            value: item.spec?.group,
           },
           {
             name: t('translation|Version'),
-            value: item.spec.version,
+            value: item.spec?.version,
+            hide: !item.spec?.version,
           },
           {
             name: t('Scope'),
-            value: item.spec.scope,
+            value: item.spec?.scope,
           },
           {
             name: t('Subresources'),
-            value: item.spec.subresources && Object.keys(item.spec.subresources).join(' & '),
-            hide: !item.spec.subresources,
+            value: item.spec?.subresources && Object.keys(item.spec.subresources).join(' & '),
+            hide: !item.spec?.subresources,
           },
           {
             name: t('Resource'),
@@ -113,7 +114,7 @@ export default function CustomResourceDefinitionDetails(props: {
             section: (
               <SectionBox title={t('translation|Versions')}>
                 <SimpleTable
-                  data={item.spec.versions}
+                  data={item.spec?.versions || []}
                   columns={[
                     {
                       label: t('translation|Name'),

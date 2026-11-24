@@ -94,4 +94,28 @@ describe('CustomResourceDefinitionDetails', () => {
     expect(servedColumn.getter(versionB)).toBe('false');
     expect(storageColumn.getter(versionB)).toBe('true');
   });
+
+  it('handles CRD with undefined or partial spec safely without throwing', () => {
+    render(
+      <TestContext routerMap={{ name: 'mydefinition.phonyresources.io' }}>
+        <CustomResourceDefinitionDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const minimalCRD: any = {
+      metadata: { name: 'mydefinition.phonyresources.io' },
+      getCategories: () => [],
+      jsonData: {},
+    };
+
+    expect(() => props.extraInfo(minimalCRD)).not.toThrow();
+    const info = props.extraInfo(minimalCRD);
+    expect(info).toBeDefined();
+
+    expect(() => props.extraSections(minimalCRD)).not.toThrow();
+    const sections = props.extraSections(minimalCRD);
+    const versionsSection = sections.find((s: any) => s.id === 'headlamp.crd-versions');
+    expect(versionsSection.section.props.children.props.data).toEqual([]);
+  });
 });
