@@ -100,7 +100,7 @@ describe('ActionsNotifier', () => {
 
       expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
       const [message, options] = mockEnqueueSnackbar.mock.calls[0];
-      expect(message).toBe('Restarting deployment...');
+      expect(message.props.message).toBe('Restarting deployment...');
       expect(options.autoHideDuration).toBe(CLUSTER_ACTION_GRACE_PERIOD);
       expect(options.style).toEqual({ whiteSpace: 'pre-line' });
       expect(options.key).toMatch(/^action-1-\d+$/);
@@ -122,7 +122,7 @@ describe('ActionsNotifier', () => {
 
       expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
       const [message, options] = mockEnqueueSnackbar.mock.calls[0];
-      expect(message).toBe('Pod failed to delete');
+      expect(message.props.message).toBe('Pod failed to delete');
       expect(options.autoHideDuration).toBe(10000);
       expect(options.variant).toBe('error');
       expect(options.preventDuplicate).toBe(true);
@@ -241,7 +241,7 @@ describe('ActionsNotifier', () => {
         </Router>
       );
       expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(2);
-      expect(mockEnqueueSnackbar.mock.calls[1][0]).toBe('Node drain complete');
+      expect(mockEnqueueSnackbar.mock.calls[1][0].props.message).toBe('Node drain complete');
 
       // Transition to error state
       rerender(
@@ -259,7 +259,7 @@ describe('ActionsNotifier', () => {
         </Router>
       );
       expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(3);
-      expect(mockEnqueueSnackbar.mock.calls[2][0]).toBe('Node drain failed');
+      expect(mockEnqueueSnackbar.mock.calls[2][0].props.message).toBe('Node drain failed');
     });
 
     it('does not re-enqueue when refKey is already active', () => {
@@ -365,7 +365,7 @@ describe('ActionsNotifier', () => {
 
       expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
       const [message, options] = mockEnqueueSnackbar.mock.calls[0];
-      expect(message).toBe('Cluster connected successfully');
+      expect(message.props.message).toBe('Cluster connected successfully');
       expect(options.variant).toBe('success');
     });
   });
