@@ -122,4 +122,15 @@ describe('BackLink', () => {
     expect(history.location.pathname).toBe('/c/my-cluster/overview');
     expect(history.location.search).toBe('?filter=test');
   });
+
+  it('calls onClick instead of navigating when it is passed', () => {
+    const history = createMemoryHistory({ initialEntries: ['/home', '/details'], initialIndex: 1 });
+    const onClick = vi.fn();
+
+    renderBackLink({ to: '/elsewhere', onClick }, history);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(history.location.pathname).toBe('/details');
+  });
 });
