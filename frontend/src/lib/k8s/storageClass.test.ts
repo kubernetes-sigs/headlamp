@@ -65,3 +65,17 @@ describe('StorageClass isDefault', () => {
     expect(makeStorageClass({}).isDefault).toBe(false);
   });
 });
+
+describe('StorageClass allowedTopologies', () => {
+  it('returns the allowed topologies from the spec', () => {
+    const allowedTopologies = [
+      { matchLabelExpressions: [{ key: 'topology.kubernetes.io/zone', values: ['us-east-1a'] }] },
+    ];
+    const sc = new StorageClass({ ...makeStorageClass().jsonData, allowedTopologies });
+    expect(sc.allowedTopologies).toEqual(allowedTopologies);
+  });
+
+  it('is undefined when unset', () => {
+    expect(makeStorageClass().allowedTopologies).toBeUndefined();
+  });
+});
