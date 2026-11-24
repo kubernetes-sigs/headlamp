@@ -5,7 +5,7 @@ ARG IMAGE_BASE=default-image-base
 FROM alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS default-image-base
 FROM ${IMAGE_BASE} AS image-base
 
-FROM --platform=${BUILDPLATFORM} golang:1.26.10@sha256:cfa27959837144bf4649802ba38e59daffd0dd2a7994aa83daaf113285b0f551 AS backend-build
+FROM --platform=${BUILDPLATFORM} golang:1.26.11@sha256:4165ee6bf3b7811fd7b40373290405c83d0167dcb87ee5f29c427cdcef45ff8f AS backend-build
 WORKDIR /headlamp
 
 ARG TARGETOS
