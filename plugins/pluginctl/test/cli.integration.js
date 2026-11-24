@@ -213,3 +213,33 @@ test('returns failure for missing plugins in quiet mode', () => {
     /Plugin not found/
   );
 });
+
+for (const parallel of [false, true]) {
+  for (const quiet of [false, true]) {
+    test(`bulk failures exit nonzero (${parallel ? 'parallel' : 'sequential'}, ${quiet ? 'quiet' : 'verbose'})`, () => {
+      const config = path.join(directory, 'plugins.json');
+      fs.writeFileSync(config, JSON.stringify({
+        plugins: [{ name: 'example', source: 'https://artifacthub.io/packages/headlamp/example/example' }],
+        installOptions: { parallel },
+      }));
+      const preload = path.join(directory, 'fetch-failure.cjs');
+      fs.writeFileSync(preload,
+        "global.fetch = async () => { throw new Error('Fixture metadata failure'); };\n");
+      const result = spawnSync(process.execPath, [
+        '--require', preload, cli, 'install', '--config', config,
+        '--folderName', path.join(directory, 'installed'), ...(quiet ? ['--quiet'] : []),
+      ], { encoding: 'utf8', timeout: 15000 });
+      if (result.error) throw result.error;
+      assert.equal(result.signal, null, result.stderr);
+      assert.equal(result.status, 1, result.stdout + result.stderr);
+      assert.match(result.stderr, /1 plugins failed to install/);
+      assert.doesNotMatch(result.stdout, /Plugin installed successfully/);
+    });
+  }
+}
+
+test('an empty successful bulk configuration exits zero', () => {
+  const config = path.join(directory, 'plugins.json');
+  fs.writeFileSync(config, JSON.stringify({ plugins: [] }));
+  run(['install', '--config', config, '--folderName', path.join(directory, 'installed')]);
+});
