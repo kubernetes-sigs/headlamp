@@ -92,7 +92,7 @@ export default function SectionFilterHeader(props: SectionFilterHeaderProps) {
   }
 
   if (!noNamespaceFilter) {
-    actions.push(<NamespacesAutocomplete />);
+    actions.push(<NamespacesAutocomplete key="namespaces-autocomplete" />);
   }
 
   return (
@@ -100,13 +100,16 @@ export default function SectionFilterHeader(props: SectionFilterHeaderProps) {
       <SectionHeader
         {...headerProps}
         actions={
-          actions.length <= 1
+          actions.length === 0
             ? actions
             : [
                 <Box>
                   <Grid container spacing={1} alignItems="center">
                     {actions.map((action, i) => (
-                      <Grid item key={i}>
+                      <Grid
+                        item
+                        key={React.isValidElement(action) && action.key !== null ? action.key : i}
+                      >
                         {action}
                       </Grid>
                     ))}
