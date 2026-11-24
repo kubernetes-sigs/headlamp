@@ -98,6 +98,8 @@ config:
     useCookie: false
     # -- Enable automatic redirect to the OIDC provider
     autoLogin: false
+    # -- After a login, also set the auth cookie for other kubeconfig contexts with the same issuer URL and client ID
+    useTokenBroadcast: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration
