@@ -342,6 +342,30 @@ export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
   },
 };
 
+/** A GRPCRoute whose match checks one header exactly and another with a regular expression. */
+export const GRPC_ROUTE_WITH_HEADER_MATCHES: KubeGRPCRoute = {
+  ...DEFAULT_GRPC_ROUTE,
+  metadata: { ...DEFAULT_GRPC_ROUTE.metadata, name: 'grpcroute-header-matches', uid: 'abc1235' },
+  spec: {
+    ...DEFAULT_GRPC_ROUTE.spec,
+    rules: [
+      {
+        name: 'canary-users',
+        matches: [
+          {
+            method: { type: 'Exact', service: 'com.example.UserService', method: 'GetUser' },
+            headers: [
+              { name: 'x-environment', value: 'production' },
+              { type: 'RegularExpression', name: 'x-user-id', value: '^beta-[0-9]+$' },
+            ],
+          },
+        ],
+        backendRefs: [{ group: '', kind: 'Service', name: 'user-service-canary', port: 9090 }],
+      },
+    ],
+  },
+};
+
 export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
   apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'ReferenceGrant',

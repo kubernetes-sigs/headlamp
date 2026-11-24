@@ -98,11 +98,33 @@ export function GRPCRuleMatches(props: GRPCRuleMatchesProps) {
         },
         {
           label: t('translation|Headers'),
-          getter: (data: GRPCRouteMatch) => data.headers?.length,
+          getter: (data: GRPCRouteMatch) => <GRPCHeaderMatches headers={data.headers} />,
         },
       ]}
       data={matches}
     />
+  );
+}
+
+/**
+ * The header matches of a gRPC route match, one per line as `name: value`. The match
+ * type is shown only when it is not the default `Exact`.
+ */
+function GRPCHeaderMatches(props: { headers?: GRPCRouteMatch['headers'] }) {
+  const { headers } = props;
+  if (!headers?.length) {
+    return null;
+  }
+
+  return (
+    <>
+      {headers.map((header, index) => (
+        <div key={`${header.name}-${index}`}>
+          {header.name}: {header.value}
+          {header.type && header.type !== 'Exact' ? ` (${header.type})` : ''}
+        </div>
+      ))}
+    </>
   );
 }
 

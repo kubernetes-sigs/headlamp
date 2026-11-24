@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import GRPCRouteDetails from './GRPCRouteDetails';
-import { DEFAULT_GRPC_ROUTE } from './storyHelper';
+import { DEFAULT_GRPC_ROUTE, GRPC_ROUTE_WITH_HEADER_MATCHES } from './storyHelper';
 
 export default {
   title: 'GRPCRoute/DetailsView',
@@ -78,6 +78,20 @@ Basic.parameters = {
       story: [
         http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/grpcroutes/default-grpcroute`, () =>
           HttpResponse.json(DEFAULT_GRPC_ROUTE)
+        ),
+      ],
+    },
+  },
+};
+
+/** A match that checks one header exactly and another with a regular expression. */
+export const HeaderMatches = Template.bind({});
+HeaderMatches.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/grpcroutes/default-grpcroute`, () =>
+          HttpResponse.json(GRPC_ROUTE_WITH_HEADER_MATCHES)
         ),
       ],
     },
