@@ -88,6 +88,53 @@ func TestMutationForwardsOnceWithoutSyntheticGET(t *testing.T) {
 	require.NoError(t, k8cache.HandleNonGETCacheInvalidation(nil, httptest.NewRecorder(), get, nil, "connection"))
 }
 
+func TestInvalidatesCache(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		method string
+		path   string
+		want   bool
+	}{
+		{"subresource write", http.MethodPatch, "/apis/apps/v1/namespaces/team/deployments/web/scale", true},
+		{"resource write", http.MethodPut, "/api/v1/namespaces/team/pods/pod", true},
+		{"resource read", http.MethodGet, "/api/v1/namespaces/team/pods/pod", false},
+		{"self-subject review", http.MethodPost, "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", false},
+		{"non-API write", http.MethodPost, "/healthz", false},
+		{"unsupported method", http.MethodConnect, "/api/v1/namespaces/team/pods/pod", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequestWithContext(t.Context(), test.method, test.path, nil)
+			require.Equal(t, test.want, k8cache.InvalidatesCache(request))
+		})
+	}
+}
+
+func TestSubresourceWriteInvalidatesParentResponses(t *testing.T) {
+	c := cache.New[string]()
+
+	t.Cleanup(func() { require.NoError(t, c.Close()) })
+
+	for _, path := range []string{
+		"/apis/apps/v1/namespaces/team/deployments/web",
+		"/apis/apps/v1/namespaces/team/deployments?labelSelector=app%3Dweb",
+	} {
+		require.NoError(t, c.Set(t.Context(), testResponseKey(t, "connection", path), "stale"))
+	}
+
+	request := httptest.NewRequestWithContext(
+		t.Context(), http.MethodPatch, "/apis/apps/v1/namespaces/team/deployments/web/scale", nil,
+	)
+	err := k8cache.HandleNonGETCacheInvalidation(
+		c, httptest.NewRecorder(), request, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		"connection",
+	)
+	require.ErrorIs(t, err, k8cache.ErrHandled)
+
+	entries, err := c.GetAll(t.Context(), nil)
+	require.NoError(t, err)
+	require.Empty(t, entries)
+}
+
 func TestSkipWebSocket(t *testing.T) {
 	for _, header := range []string{"upgrade", "Upgrade", "keep-alive, Upgrade", ""} {
 		calls := 0

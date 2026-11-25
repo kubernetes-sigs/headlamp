@@ -514,6 +514,21 @@ func SyncWatchers(c cache.Cache[string], activeContexts []string) {
 	}
 }
 
+// InvalidatesCache reports whether r is an API resource mutation that must fence
+// cached responses. Subresource writes qualify even though their own responses
+// are not cacheable because they can change the parent resource.
+func InvalidatesCache(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	default:
+		return false
+	}
+
+	_, ok := requestedResource(r.URL)
+
+	return ok && IsAuthBypassURL(r.URL.Path)
+}
+
 // HandleNonGETCacheInvalidation forwards a mutation exactly once, invalidating
 // every affected response variant without issuing a synthetic GET.
 func HandleNonGETCacheInvalidation(
@@ -521,6 +536,12 @@ func HandleNonGETCacheInvalidation(
 ) error {
 	if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 		return nil
+	}
+
+	if !InvalidatesCache(r) {
+		next.ServeHTTP(w, r)
+
+		return ErrHandled
 	}
 
 	resource, ok := requestedResource(r.URL)
