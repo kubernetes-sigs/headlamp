@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-import { setShortcutsDialogOpen } from '../../../redux/shortcutsSlice';
+import { resetAllShortcuts, setShortcutsDialogOpen } from '../../../redux/shortcutsSlice';
 import defaultStore from '../../../redux/stores/store';
 import { TestContext } from '../../../test';
 import ShortcutsSettings from './ShortcutsSettings';
@@ -94,5 +94,123 @@ describe('ShortcutsSettings Localization', () => {
     expect(screen.getByText('[ru] Global Search')).toBeInTheDocument();
     // Verify the description correctly updates as well
     expect(screen.getByText('[ru] Open the global search dialog')).toBeInTheDocument();
+  });
+});
+
+describe('ShortcutsSettings Editing and Controls', () => {
+  beforeEach(() => {
+    mockLang = 'en';
+    defaultStore.dispatch(resetAllShortcuts());
+    defaultStore.dispatch(setShortcutsDialogOpen(true));
+  });
+
+  it('records, saves, detects conflicts, and resets shortcuts', () => {
+    render(
+      <TestContext store={defaultStore}>
+        <ShortcutsSettings />
+      </TestContext>
+    );
+
+    const shortcuts = defaultStore.getState().shortcuts.shortcuts;
+    const allIds = Object.keys(shortcuts);
+    const firstId = allIds[0];
+    const secondId = allIds[1];
+
+    // Click the first shortcut button to enter edit mode
+    const buttons = screen
+      .getAllByRole('button')
+      .filter(b => b.textContent && !['Reset All to Defaults', 'Close'].includes(b.textContent));
+    fireEvent.click(buttons[0]);
+
+    const input = screen.getByPlaceholderText('Press keys...');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    // Modifier-only key is ignored
+    fireEvent.keyDown(input, { key: 'Control', ctrlKey: true });
+    expect(input).toHaveValue('');
+
+    // Conflict with second shortcut's key
+    const secondKey = shortcuts[secondId].key;
+    fireEvent.keyDown(input, { key: secondKey });
+    expect(screen.getByText(/Conflicts with:/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    // Re-enable recording by clicking input, then Escape cancels editing
+    fireEvent.click(input);
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+
+    // Re-enter edit mode and record ctrl+shift+k
+    fireEvent.click(
+      screen
+        .getAllByRole('button')
+        .filter(
+          b => b.textContent && !['Reset All to Defaults', 'Close'].includes(b.textContent)
+        )[0]
+    );
+    const input2 = screen.getByPlaceholderText('Press keys...');
+    fireEvent.keyDown(input2, { key: 'k', ctrlKey: true, shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(defaultStore.getState().shortcuts.shortcuts[firstId].key).toBe('ctrl+shift+k');
+
+    // Reset individual modified shortcut
+    const resetButtons = screen.getAllByRole('button', { name: 'Reset to default' });
+    fireEvent.click(resetButtons[0]);
+    expect(defaultStore.getState().shortcuts.shortcuts[firstId].key).toBe(
+      shortcuts[firstId].defaultKey
+    );
+
+    // Modify again, then Reset All to Defaults
+    fireEvent.click(
+      screen
+        .getAllByRole('button')
+        .filter(
+          b => b.textContent && !['Reset All to Defaults', 'Close'].includes(b.textContent)
+        )[0]
+    );
+    const input3 = screen.getByPlaceholderText('Press keys...');
+    fireEvent.keyDown(input3, { key: 'ArrowUp', altKey: true, metaKey: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(defaultStore.getState().shortcuts.shortcuts[firstId].key).toBe('alt+meta+ArrowUp');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset All to Defaults' }));
+    expect(defaultStore.getState().shortcuts.shortcuts[firstId].key).toBe(
+      shortcuts[firstId].defaultKey
+    );
+
+    // Close dialog (use the text 'Close' button in DialogActions)
+    fireEvent.click(screen.getByText('Close'));
+    expect(defaultStore.getState().shortcuts.isShortcutsDialogOpen).toBe(false);
+  });
+
+  it('cancels editing with Cancel button and handles special keys', () => {
+    render(
+      <TestContext store={defaultStore}>
+        <ShortcutsSettings />
+      </TestContext>
+    );
+
+    const buttons = screen
+      .getAllByRole('button')
+      .filter(b => b.textContent && !['Reset All to Defaults', 'Close'].includes(b.textContent));
+    fireEvent.click(buttons[0]);
+    const input = screen.getByPlaceholderText('Press keys...');
+
+    fireEvent.keyDown(input, { key: ' ' });
+    expect(input).toHaveValue('Space');
+    fireEvent.click(input); // re-enable recording
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(input).toHaveValue('↓');
+    fireEvent.click(input);
+    fireEvent.keyDown(input, { key: 'ArrowLeft' });
+    expect(input).toHaveValue('←');
+    fireEvent.click(input);
+    fireEvent.keyDown(input, { key: 'ArrowRight' });
+    expect(input).toHaveValue('→');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByPlaceholderText('Press keys...')).not.toBeInTheDocument();
   });
 });
