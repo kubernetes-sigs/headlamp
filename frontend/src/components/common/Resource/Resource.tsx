@@ -1976,7 +1976,7 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
       } else if (resource.spec.template && resource.spec.template.spec) {
         // eslint-disable-next-line react-hooks/immutability
         title = t('Container Spec');
-        containers = resource.spec.template.spec.containers;
+        containers = resource.spec.template.spec.containers || [];
       }
     }
 

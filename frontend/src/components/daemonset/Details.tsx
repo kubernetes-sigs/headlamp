@@ -16,6 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { labelSelectorToQuery } from '../../lib/k8s';
 import DaemonSet from '../../lib/k8s/daemonSet';
 import {
   ContainersSection,
@@ -42,7 +43,7 @@ function TolerationsSection(props: TolerationsSection) {
     return null;
   }
 
-  const tolerations = resource.spec.template.spec?.tolerations || [];
+  const tolerations = resource.spec?.template?.spec?.tolerations || [];
 
   function getEffectString(effect: string, seconds?: number) {
     if (effect === 'NoExecute') {
@@ -118,24 +119,35 @@ export default function DaemonSetDetails(props: {
         item && [
           {
             name: t('Update Strategy'),
-            value: item?.spec.updateStrategy.type,
+            value: item?.spec?.updateStrategy?.type,
           },
           {
             name: t('Selector'),
-            value: <MetadataDictGrid dict={item.spec.selector.matchLabels || {}} />,
+            value: <MetadataDictGrid dict={item?.spec?.selector?.matchLabels || {}} />,
           },
           {
             name: t('Node Selector'),
-            value: <MetadataDictGrid dict={item.spec.template.spec.nodeSelector || {}} />,
+            value: <MetadataDictGrid dict={item?.spec?.template?.spec?.nodeSelector || {}} />,
           },
         ]
       }
-      extraSections={item =>
-        item && [
-          {
-            id: 'headlamp.daemonset-owned-pods',
-            section: <OwnedPodsSection resource={item} />,
-          },
+      extraSections={item => {
+        if (!item) {
+          return false;
+        }
+
+        const selector = item.jsonData?.spec?.selector ?? item.spec?.selector;
+        const hasSelector = Boolean(selector && labelSelectorToQuery(selector));
+
+        return [
+          ...(hasSelector
+            ? [
+                {
+                  id: 'headlamp.daemonset-owned-pods',
+                  section: <OwnedPodsSection resource={item} />,
+                },
+              ]
+            : []),
           {
             id: 'headlamp.daemonset-tolerations',
             section: <TolerationsSection resource={item} />,
@@ -148,8 +160,8 @@ export default function DaemonSetDetails(props: {
             id: 'headlamp.daemonset-revision-history',
             section: <RevisionHistorySection resource={item} />,
           },
-        ]
-      }
+        ];
+      }}
     />
   );
 }
