@@ -136,7 +136,7 @@ describe('RoleBindingList service accounts column', () => {
     consoleError.mockRestore();
   });
 
-  it('sorts on the service account subjects and ignores the other kinds', () => {
+  it('configures the Service Accounts header to sort by ServiceAccount subjects', () => {
     const column = serviceAccountColumn();
     const alpha = makeBinding(
       [
@@ -153,6 +153,7 @@ describe('RoleBindingList service accounts column', () => {
       'ci'
     );
 
+    expect(column.label).toBe('Service Accounts');
     expect(column.sort(alpha, beta)).toBeLessThan(0);
     expect(column.sort(beta, alpha)).toBeGreaterThan(0);
     expect(column.sort(alpha, alpha)).toBe(0);
