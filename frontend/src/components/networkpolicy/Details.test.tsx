@@ -43,16 +43,8 @@ afterEach(async () => {
   server.resetHandlers();
 });
 
-function renderPolicy(direction: 'ingress' | 'egress', peers?: NetworkPolicyPeer[]) {
-  const ports = [{ protocol: 'TCP', port: 443 }];
-  const policy = {
-    ...NETWORK_POLICY_DETAIL,
-    spec: {
-      ...NETWORK_POLICY_DETAIL.spec,
-      ingress: direction === 'ingress' ? [{ ports, from: peers }] : [],
-      egress: direction === 'egress' ? [{ ports, to: peers }] : [],
-    },
-  };
+function renderPolicySpec(spec: Record<string, unknown>) {
+  const policy = { ...NETWORK_POLICY_DETAIL, spec: { ...NETWORK_POLICY_DETAIL.spec, ...spec } };
   server.use(http.get(/networkpolicies/, () => HttpResponse.json(policy)));
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -65,6 +57,20 @@ function renderPolicy(direction: 'ingress' | 'egress', peers?: NetworkPolicyPeer
     </QueryClientProvider>
   );
 }
+
+function renderPolicy(direction: 'ingress' | 'egress', peers?: NetworkPolicyPeer[]) {
+  const ports = [{ protocol: 'TCP', port: 443 }];
+  renderPolicySpec({
+    ingress: direction === 'ingress' ? [{ ports, from: peers }] : [],
+    egress: direction === 'egress' ? [{ ports, to: peers }] : [],
+  });
+}
+
+it('shows an empty pod selector as all pods in the namespace', async () => {
+  renderPolicySpec({ podSelector: {}, ingress: [], egress: [] });
+
+  expect(await screen.findByText('All pods in the namespace')).toBeInTheDocument();
+});
 
 describe.each(['ingress', 'egress'] as const)('%s peer grouping', direction => {
   const namespaceSelector = { matchLabels: { environment: 'production' } };

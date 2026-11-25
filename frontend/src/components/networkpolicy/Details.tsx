@@ -73,7 +73,8 @@ export function NetworkPolicyDetails(props: {
     const { networkPolicy } = props;
     return prepareMatchLabelsAndExpressions(
       networkPolicy.spec?.podSelector?.matchLabels,
-      networkPolicy.spec?.podSelector?.matchExpressions
+      networkPolicy.spec?.podSelector?.matchExpressions,
+      t('translation|All pods in the namespace')
     );
   }
 
