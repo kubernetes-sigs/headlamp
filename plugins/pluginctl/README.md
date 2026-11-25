@@ -53,6 +53,13 @@ installOptions:
   maxConcurrent: 3
 ```
 
+Dependencies refer to plugin `name` values in the same configuration. Unknown
+names and dependency cycles are rejected before installation starts. Configuration
+order does not need to match dependency order: prerequisites finish before their
+dependents are attempted in both sequential and parallel mode. A failed or skipped
+prerequisite causes its dependents to be skipped; independent plugins can continue.
+Parallel mode runs up to `maxConcurrent` dependency-ready plugins per batch.
+
 ## Available Classes
 
 The package exports the following classes for programmatic use:
