@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	tel "github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
@@ -240,7 +241,7 @@ func TestResponseWriterHijack_SucceedsWithUnderlyingHijacker(t *testing.T) {
 	metrics, err := tel.NewMetrics()
 	require.NoError(t, err)
 
-	called := false
+	var called atomic.Bool
 
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hj, ok := w.(http.Hijacker)
@@ -249,7 +250,7 @@ func TestResponseWriterHijack_SucceedsWithUnderlyingHijacker(t *testing.T) {
 		conn, rw, err := hj.Hijack()
 		require.NoError(t, err, "expected Hijack to succeed when underlying supports it")
 
-		called = true
+		called.Store(true)
 
 		// rw is intentionally unused; we just ensure Hijack succeeded.
 		_ = rw
@@ -273,7 +274,7 @@ func TestResponseWriterHijack_SucceedsWithUnderlyingHijacker(t *testing.T) {
 
 	_ = doErr // ignore errors due to hijacking
 
-	assert.True(t, called, "handler should have executed and called Hijack")
+	assert.True(t, called.Load(), "handler should have executed and called Hijack")
 }
 
 func TestResponseWriterHijack_ReturnsErrorWhenUnderlyingNotHijacker(t *testing.T) {
