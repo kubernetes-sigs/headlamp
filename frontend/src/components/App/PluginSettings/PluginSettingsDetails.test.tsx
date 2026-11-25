@@ -15,14 +15,31 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
 import store from '../../../redux/stores/store';
 import { recordHeadlampEvents, TestContext } from '../../../test';
 import PluginSettingsDetails, { PluginSettingsDetailsPure } from './PluginSettingsDetails';
+
+const { mockPush, mockIsElectronRef } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockIsElectronRef: { current: false },
+}));
+
+vi.mock('react-router-dom', async importOriginal => {
+  const actual = (await importOriginal()) as Record<string, any>;
+  return {
+    ...actual,
+    useHistory: () => ({ push: mockPush }),
+  };
+});
+
+vi.mock('../../../helpers/isElectron', () => ({
+  isElectron: () => mockIsElectronRef.current,
+}));
 
 const theme = createMuiTheme({ name: 'Light', base: 'light' });
 
@@ -75,5 +92,161 @@ describe('PluginSettingsDetails events', () => {
         { type: HeadlampEventType.PLUGIN_DETAILS_VIEW, data: { plugin } },
       ]);
     });
+  });
+
+  it('renders NotFound when plugin does not exist and matches by name + type when provided', () => {
+    const devPlugin: PluginInfo = { ...plugin, name: 'multi-plugin', type: 'development' };
+    const shippedPlugin: PluginInfo = { ...plugin, name: 'multi-plugin', type: 'shipped' };
+    store.dispatch(setPluginSettings([shippedPlugin, devPlugin]));
+
+    render(
+      <TestContext routerMap={{ name: 'missing-plugin' }}>
+        <ThemeProvider theme={theme}>
+          <PluginSettingsDetails />
+        </ThemeProvider>
+      </TestContext>
+    );
+    expect(screen.getByText(/Whoops! This page doesn't exist/)).toBeInTheDocument();
+
+    render(
+      <TestContext routerMap={{ name: 'multi-plugin', type: 'development' }}>
+        <ThemeProvider theme={theme}>
+          <PluginSettingsDetails />
+        </ThemeProvider>
+      </TestContext>
+    );
+    expect(screen.getByText('Development')).toBeInTheDocument();
+  });
+});
+
+describe('PluginSettingsDetailsPure branches', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsElectronRef.current = false;
+  });
+
+  it.each([
+    {
+      type: 'development' as const,
+      label: 'Development',
+      overriddenBy: 'user' as const,
+      overriddenText: 'user-installed',
+    },
+    {
+      type: 'user' as const,
+      label: 'User-installed',
+      overriddenBy: 'shipped' as const,
+      overriddenText: 'shipped',
+    },
+    {
+      type: 'shipped' as const,
+      label: 'Shipped',
+      overriddenBy: 'development' as const,
+      overriddenText: 'development',
+    },
+  ])(
+    'renders type chip and Not Loaded banner for $type',
+    ({ type, label, overriddenBy, overriddenText }) => {
+      render(
+        <TestContext>
+          <ThemeProvider theme={theme}>
+            <PluginSettingsDetailsPure
+              plugin={{ ...plugin, type, isLoaded: false, overriddenBy }}
+              onDelete={() => {}}
+            />
+          </ThemeProvider>
+        </TestContext>
+      );
+
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.getByText('Not Loaded')).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`"${overriddenText}" version`))).toBeInTheDocument();
+    }
+  );
+
+  it('renders React element and function settingsComponent and handles Save/Cancel', async () => {
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <PluginSettingsDetailsPure
+            plugin={{ ...plugin, settingsComponent: <div>Element Settings</div> }}
+            onDelete={() => {}}
+          />
+        </ThemeProvider>
+      </TestContext>
+    );
+    expect(screen.getByText('Element Settings')).toBeInTheDocument();
+
+    const onSave = vi.fn();
+    const SettingsComp = ({ onDataChange, data }: any) => (
+      <button onClick={() => onDataChange({ ...data, updated: true })}>Change Setting</button>
+    );
+
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <PluginSettingsDetailsPure
+            config={{ initial: true }}
+            plugin={{
+              ...plugin,
+              settingsComponent: SettingsComp,
+              displaySettingsComponentWithSaveButton: true,
+            }}
+            onSave={onSave}
+            onDelete={() => {}}
+          />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    const saveBtn = screen.getByRole('button', { name: 'Save' });
+    expect(saveBtn).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change Setting' }));
+    expect(saveBtn).toBeEnabled();
+
+    fireEvent.click(saveBtn);
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith({ initial: true, updated: true });
+      expect(mockPush).toHaveBeenCalledWith('/settings/plugins');
+    });
+
+    mockPush.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/settings/plugins');
+    });
+  });
+
+  it('renders Electron folder and delete actions and confirms deletion', async () => {
+    mockIsElectronRef.current = true;
+    const sendSpy = vi.fn();
+    (window as any).desktopApi = { send: sendSpy };
+    const onDelete = vi.fn();
+
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <PluginSettingsDetailsPure
+            plugin={{ ...plugin, folderName: 'my-plugin-folder', type: 'user' }}
+            onDelete={onDelete}
+          />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Plugin Folder' }));
+    expect(sendSpy).toHaveBeenCalledWith('open-plugin-folder', {
+      folderName: 'my-plugin-folder',
+      type: 'user',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Plugin' }));
+    expect(screen.getByText('Are you sure you want to delete this plugin?')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+
+    delete (window as any).desktopApi;
   });
 });
