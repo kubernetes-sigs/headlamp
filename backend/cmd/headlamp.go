@@ -3863,13 +3863,17 @@ func (c *HeadlampConfig) drainNodePods(
 	pods []corev1.Pod,
 	finish func(status string),
 ) {
-	pending := make([]*corev1.Pod, 0, len(pods))
+	pending, safetyErrors := filterDrainPods(pods)
 
-	for i := range pods {
-		// ignore daemonsets
-		if !isDaemonSetPod(&pods[i]) {
-			pending = append(pending, &pods[i])
-		}
+	if len(safetyErrors) > 0 {
+		logger.Log(logger.LevelError, nil, nil,
+			fmt.Sprintf("node drain: refused to evict %d pod(s) with emptyDir volumes: %s",
+				len(safetyErrors), strings.Join(safetyErrors, "; ")))
+
+		finish(fmt.Sprintf("error: failed to evict %d pod(s): %s",
+			len(safetyErrors), strings.Join(safetyErrors, "; ")))
+
+		return
 	}
 
 	accepted, evictErrors, done := evictPending(ctx, clientset, pending)
@@ -3899,6 +3903,33 @@ func (c *HeadlampConfig) drainNodePods(
 	} else {
 		finish("success")
 	}
+}
+
+func filterDrainPods(pods []corev1.Pod) ([]*corev1.Pod, []string) {
+	var (
+		pending      = make([]*corev1.Pod, 0, len(pods))
+		safetyErrors []string
+	)
+
+	for i := range pods {
+		pod := &pods[i]
+
+		// DaemonSet and mirror pods are not evicted during a drain.
+		if isDaemonSetPod(pod) || isMirrorPod(pod) {
+			continue
+		}
+
+		if hasEmptyDirVolume(pod) && !isTerminalPod(pod) {
+			safetyErrors = append(safetyErrors,
+				fmt.Sprintf("%s/%s: uses emptyDir volume", pod.Namespace, pod.Name))
+
+			continue
+		}
+
+		pending = append(pending, pod)
+	}
+
+	return pending, safetyErrors
 }
 
 // evictPending evicts the given pods, retrying those refused by a PodDisruptionBudget until
@@ -4058,6 +4089,28 @@ func isDaemonSetPod(pod *corev1.Pod) bool {
 	}
 
 	return controllerRef.Kind == "DaemonSet"
+}
+
+// isMirrorPod reports whether the pod is a mirror pod managed directly by the kubelet.
+func isMirrorPod(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations["kubernetes.io/config.mirror"]
+
+	return ok
+}
+
+// hasEmptyDirVolume reports whether any pod volume uses emptyDir storage.
+func hasEmptyDirVolume(pod *corev1.Pod) bool {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.EmptyDir != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isTerminalPod(pod *corev1.Pod) bool {
+	return pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed
 }
 
 /*

@@ -1695,6 +1695,148 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	assert.Equal(t, "success", status)
 }
 
+func TestIsDaemonSetPod(t *testing.T) {
+	controller := true
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "controller owner reference",
+			pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+				Kind: "DaemonSet", Controller: &controller,
+			}}}},
+			want: true,
+		},
+		{
+			name: "non-controller owner reference",
+			pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+				Kind: "DaemonSet",
+			}}}},
+		},
+		{
+			name: "deprecated label only",
+			pod: &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
+			}},
+		},
+		{name: "no owner", pod: &corev1.Pod{}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isDaemonSetPod(tc.pod))
+		})
+	}
+}
+
+func TestIsMirrorPod(t *testing.T) {
+	assert.True(t, isMirrorPod(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Annotations: map[string]string{"kubernetes.io/config.mirror": "hash"},
+	}}))
+	assert.False(t, isMirrorPod(&corev1.Pod{}))
+}
+
+func TestHasEmptyDirVolume(t *testing.T) {
+	assert.True(t, hasEmptyDirVolume(&corev1.Pod{Spec: corev1.PodSpec{
+		Volumes: []corev1.Volume{{VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		}}},
+	}}))
+	assert.False(t, hasEmptyDirVolume(&corev1.Pod{Spec: corev1.PodSpec{
+		Volumes: []corev1.Volume{{VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{},
+		}}},
+	}}))
+	assert.False(t, hasEmptyDirVolume(&corev1.Pod{}))
+}
+
+func TestDrainNodeSkipsMirrorAndFailsOnEmptyDir(t *testing.T) {
+	normalPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	mirrorPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mirror",
+			Namespace: "kube-system",
+			Annotations: map[string]string{
+				"kubernetes.io/config.mirror": "hash",
+			},
+		},
+		Spec: corev1.PodSpec{NodeName: "test-node"},
+	}
+	emptyDirPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "emptydir", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			NodeName: "test-node",
+			Volumes: []corev1.Volume{{
+				VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+			}},
+		},
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}
+	fakeClient := fake.NewClientset(node, normalPod, mirrorPod, emptyDirPod)
+	evictionRemovesPod(fakeClient)
+
+	testCache := cache.New[interface{}]()
+	config := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{Cache: testCache}}
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	config.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+
+	status := waitForDrainStatus(t, testCache, cacheKey)
+
+	assert.Equal(t,
+		"error: failed to evict 1 pod(s): default/emptydir: uses emptyDir volume",
+		status)
+
+	_, err := fakeClient.CoreV1().Pods("default").Get(
+		context.Background(), "normal", metav1.GetOptions{})
+	assert.NoError(t, err, "normal pod must remain when preflight blocks the drain")
+
+	_, err = fakeClient.CoreV1().Pods("kube-system").Get(
+		context.Background(), "mirror", metav1.GetOptions{})
+	assert.NoError(t, err, "mirror pod must not be evicted")
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(
+		context.Background(), "emptydir", metav1.GetOptions{})
+	assert.NoError(t, err, "emptyDir pod must not be evicted")
+
+	for _, action := range fakeClient.Actions() {
+		assert.NotEqual(t, "eviction", action.GetSubresource(), "no pods should be evicted after a safety failure")
+	}
+}
+
+func TestDrainNodeEvictsTerminalEmptyDirPod(t *testing.T) {
+	terminalPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "completed", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			NodeName: "test-node",
+			Volumes: []corev1.Volume{{
+				VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+			}},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodSucceeded},
+	}
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}
+	fakeClient := fake.NewClientset(node, terminalPod)
+	evictionRemovesPod(fakeClient)
+
+	testCache := cache.New[interface{}]()
+	config := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{Cache: testCache}}
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	config.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+
+	_, err := fakeClient.CoreV1().Pods("default").Get(
+		context.Background(), "completed", metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "terminal pod should be evicted")
+}
+
 // drainTestSetup returns a fake clientset with one pod on test-node, a config and the cache key.
 func drainTestSetup(t *testing.T) (*fake.Clientset, *HeadlampConfig, cache.Cache[interface{}], string) {
 	t.Helper()
