@@ -90,6 +90,7 @@ export default function EndpointDetails(props: {
                                         name: address.targetRef.name,
                                         namespace: address.targetRef.namespace,
                                       }}
+                                      activeCluster={item.cluster}
                                       state={{
                                         backLink: location,
                                       }}
