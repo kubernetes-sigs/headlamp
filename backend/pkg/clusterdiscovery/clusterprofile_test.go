@@ -915,8 +915,11 @@ func TestInformerUpdatesConnectionMetadataAfterProviderNameChange(t *testing.T) 
 	assert.NotEqual(t, previousContext.Name, headlampContext.Name)
 	assert.NotEqual(t, previousContext.ClusterID, headlampContext.ClusterID)
 	assert.True(t, strings.HasSuffix(headlampContext.Name, "-another-provider"))
-	_, err = store.GetContext(previousContext.Name)
-	require.Error(t, err)
+	require.Eventually(t, func() bool {
+		_, err := store.GetContext(previousContext.Name)
+
+		return err != nil
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
 	assert.Equal(t, "oidc", headlampContext.AuthType())
 	assert.Nil(t, headlampContext.AuthInfo.Exec)
 }
