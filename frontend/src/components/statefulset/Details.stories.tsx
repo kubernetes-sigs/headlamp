@@ -254,3 +254,41 @@ WithMultipleContainers.parameters = {
     },
   },
 };
+
+export const WithRolloutAndRetentionSettings = Template.bind({});
+WithRolloutAndRetentionSettings.args = {
+  name: 'mock-statefulset',
+  namespace: 'default',
+};
+WithRolloutAndRetentionSettings.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset`,
+          () => {
+            return HttpResponse.json({
+              ...mockStatefulSet,
+              spec: {
+                ...mockStatefulSet.spec,
+                updateStrategy: {
+                  type: 'RollingUpdate',
+                  rollingUpdate: {
+                    partition: 2,
+                  },
+                },
+                minReadySeconds: 10,
+                ordinals: {
+                  start: 1,
+                },
+                persistentVolumeClaimRetentionPolicy: {
+                  whenDeleted: 'Delete',
+                },
+              },
+            });
+          }
+        ),
+      ],
+    },
+  },
+};

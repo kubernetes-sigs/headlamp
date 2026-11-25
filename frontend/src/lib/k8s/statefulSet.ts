@@ -29,6 +29,14 @@ export interface KubeStatefulSet extends KubeObjectInterface {
     selector: LabelSelector;
     serviceName?: string;
     podManagementPolicy?: 'OrderedReady' | 'Parallel';
+    minReadySeconds?: number;
+    persistentVolumeClaimRetentionPolicy?: {
+      whenDeleted?: 'Retain' | 'Delete';
+      whenScaled?: 'Retain' | 'Delete';
+    };
+    ordinals?: {
+      start?: number;
+    };
     updateStrategy: {
       rollingUpdate: {
         partition: number;
