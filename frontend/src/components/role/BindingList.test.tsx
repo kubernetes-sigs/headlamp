@@ -18,9 +18,10 @@
 import '../../lib/router';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type RoleBinding from '../../lib/k8s/roleBinding';
 import type { KubeRoleBinding } from '../../lib/k8s/roleBinding';
 import { TestContext } from '../../test';
-import RoleBindingList from './BindingList';
+import RoleBindingList, { sortBindingsByKind } from './BindingList';
 
 const { mockListView } = vi.hoisted(() => ({
   mockListView: vi.fn(),
@@ -46,7 +47,7 @@ function makeBinding(subjects: KubeRoleBinding['subjects'], namespace?: string) 
     subjects,
     cluster: 'my-cluster',
     getNamespace: () => namespace,
-  };
+  } as unknown as RoleBinding;
 }
 
 function serviceAccountColumn() {
@@ -168,5 +169,23 @@ describe('RoleBindingList service accounts column', () => {
     );
 
     expect(column.getValue(binding)).toBe('builder');
+  });
+});
+
+describe('sortBindingsByKind', () => {
+  it('sorts bindings by their ServiceAccount subject names', () => {
+    const bravo = makeBinding([{ kind: 'ServiceAccount', name: 'bravo' }]);
+    const alpha = makeBinding([{ kind: 'ServiceAccount', name: 'alpha' }]);
+    const compare = sortBindingsByKind('ServiceAccount');
+
+    expect(compare(bravo, alpha)).toBeGreaterThan(0);
+    expect(compare(alpha, bravo)).toBeLessThan(0);
+  });
+
+  it.each(['User', 'Group'])('still sorts %s subjects correctly', kind => {
+    const bravo = makeBinding([{ kind, name: 'bravo' }]);
+    const alpha = makeBinding([{ kind, name: 'alpha' }]);
+
+    expect(sortBindingsByKind(kind)(alpha, bravo)).toBeLessThan(0);
   });
 });
