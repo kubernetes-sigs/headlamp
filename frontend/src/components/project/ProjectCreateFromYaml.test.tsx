@@ -22,10 +22,15 @@ import { TestContext } from '../../test';
 import { CreateNew, splitKubernetesResources } from './ProjectCreateFromYaml';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
-const { apply, push, namespaces } = vi.hoisted(() => ({
+const { apply, push, namespaces, capturedTableColumns } = vi.hoisted(() => ({
   apply: vi.fn(),
   push: vi.fn(),
   namespaces: vi.fn(),
+  capturedTableColumns: [] as Array<{
+    id: string;
+    accessorFn?: (item: KubeObjectInterface) => unknown;
+    Cell?: React.ComponentType<{ row: { original: KubeObjectInterface } }>;
+  }>,
 }));
 
 vi.mock('../../lib/k8s', () => ({
@@ -56,13 +61,28 @@ vi.mock('../resourceMap/kubeIcon/KubeIcon', () => ({
   KubeIcon: () => <span />,
 }));
 vi.mock('../common/Table', () => ({
-  default: ({ data }: { data: KubeObjectInterface[] }) => (
-    <ul>
-      {data.map(item => (
-        <li key={item.metadata.name}>{item.metadata.name}</li>
-      ))}
-    </ul>
-  ),
+  default: ({
+    data,
+    columns,
+  }: {
+    data: KubeObjectInterface[];
+    columns: Array<{
+      id: string;
+      accessorFn?: (item: KubeObjectInterface) => unknown;
+      Cell?: React.ComponentType<{ row: { original: KubeObjectInterface } }>;
+    }>;
+  }) => {
+    capturedTableColumns.length = 0;
+    capturedTableColumns.push(...columns);
+    return (
+      <ul>
+        {data.map(item => {
+          columns.forEach(column => column.accessorFn?.(item));
+          return <li key={item.metadata.name}>{item.metadata.name}</li>;
+        })}
+      </ul>
+    );
+  },
 }));
 
 const yaml = `apiVersion: v1
@@ -372,4 +392,30 @@ it('stops and shows the error when the namespace cannot be created', async () =>
   expect(screen.getByText('Something went wrong')).toBeInTheDocument();
   expect(apply).toHaveBeenCalledTimes(1);
   expect(push).not.toHaveBeenCalled();
+});
+
+it('handles table rows missing metadata or uid without crashing', async () => {
+  renderForm();
+  await loadUrl();
+
+  expect(capturedTableColumns.length).toBeGreaterThan(0);
+  const withoutMetadata = {
+    apiVersion: 'v1',
+    kind: 'ConfigMap',
+  } as unknown as KubeObjectInterface;
+  const withoutUid = {
+    apiVersion: 'v1',
+    kind: 'ConfigMap',
+    metadata: { name: 'no-uid' },
+  } as unknown as KubeObjectInterface;
+
+  for (const row of [withoutMetadata, withoutUid]) {
+    for (const column of capturedTableColumns) {
+      expect(() => column.accessorFn?.(row)).not.toThrow();
+      if (column.Cell) {
+        const Cell = column.Cell;
+        expect(() => render(<Cell row={{ original: row }} />)).not.toThrow();
+      }
+    }
+  }
 });

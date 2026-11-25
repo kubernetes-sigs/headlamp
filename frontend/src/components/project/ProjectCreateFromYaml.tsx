@@ -567,12 +567,12 @@ export function CreateNew() {
                           {
                             id: 'kind',
                             header: t('Kind'),
-                            accessorFn: item => item.kind,
+                            accessorFn: item => item?.kind,
                             Cell: ({ row: { original: item } }) => (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <KubeIcon kind={item.kind as any} width="24px" height="24px" />
+                                <KubeIcon kind={item?.kind as any} width="24px" height="24px" />
                                 <Typography variant="body2" color="text.secondary">
-                                  {item.kind}
+                                  {item?.kind}
                                 </Typography>
                               </Box>
                             ),
@@ -581,18 +581,18 @@ export function CreateNew() {
                           {
                             id: 'name',
                             header: t('Name'),
-                            accessorFn: item => item.metadata.name,
+                            accessorFn: item => item?.metadata?.name,
                           },
                           {
                             id: 'apiVersion',
                             header: t('API Version'),
-                            accessorFn: item => item.apiVersion,
+                            accessorFn: item => item?.apiVersion,
                           },
                           {
                             id: 'actions',
                             header: t('Actions'),
                             gridTemplate: 'min-content',
-                            accessorFn: item => item.metadata.uid,
+                            accessorFn: item => item?.metadata?.uid,
                             Cell: ({ row: { original: item } }) => (
                               <ViewYaml item={{ ...item, jsonData: item } as any} />
                             ),
