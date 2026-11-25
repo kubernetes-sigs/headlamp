@@ -75,9 +75,13 @@ function GatewayListenerTable(props: {
   return <NameValueTable rows={mainRows} />;
 }
 
-export default function GatewayDetails(props: { name?: string; namespace?: string }) {
+export default function GatewayDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
@@ -85,6 +89,7 @@ export default function GatewayDetails(props: { name?: string; namespace?: strin
       resourceType={Gateway}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraInfo={gateway =>
         gateway && [
