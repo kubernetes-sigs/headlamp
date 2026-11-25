@@ -275,7 +275,7 @@ LoadingDrivers.parameters = {
   storyshots: { disable: true },
   msw: {
     handlers: {
-      story: [discovery(true), http.get(slicesUrl, () => new Promise(() => {}))],
+      story: [discovery(true), access(true), http.get(slicesUrl, () => new Promise(() => {}))],
     },
   },
 };
