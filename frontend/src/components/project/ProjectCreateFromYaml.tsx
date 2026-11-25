@@ -51,15 +51,69 @@ import { PROJECT_ID_LABEL, toKubernetesName } from './projectUtils';
 export interface RejectedYamlDocument {
   /** The 1-based position of the document in its file. */
   index: number;
+  /** The 1-based position of the rejected item, when the document is a list such as `kind: List`. */
+  item?: number;
   /** The required fields the document does not set, empty if it is not an object at all. */
   missingFields: string[];
 }
 
 /**
+ * Whether a parsed document is a list of resources, such as the `kind: List` that
+ * `kubectl get -o yaml` prints for several objects. Like `kubectl apply`, its items are
+ * created one by one instead of the list itself.
+ */
+function isResourceList(
+  doc: object
+): doc is { apiVersion?: unknown; kind: string; items: unknown[] } {
+  const { kind, items } = doc as { kind?: unknown; items?: unknown };
+  return typeof kind === 'string' && kind.endsWith('List') && Array.isArray(items);
+}
+
+/**
+ * Fills in the type of a list item that sets neither `kind` nor `apiVersion` from its typed
+ * list, as the Kubernetes list decoder does: an item of a `v1` `ConfigMapList` is a `v1`
+ * `ConfigMap`. Items of a plain `kind: List` must set their own type.
+ */
+function withListItemType(list: { apiVersion?: unknown; kind: string }, item: unknown): unknown {
+  if (typeof item !== 'object' || item === null || Array.isArray(item)) {
+    return item;
+  }
+  const { apiVersion, kind } = item as { apiVersion?: unknown; kind?: unknown };
+  const itemKind = list.kind.slice(0, -'List'.length);
+  const isUnset = (field: unknown) => field === undefined || field === '';
+  if (
+    !isUnset(apiVersion) ||
+    !isUnset(kind) ||
+    itemKind === '' ||
+    typeof list.apiVersion !== 'string' ||
+    list.apiVersion === ''
+  ) {
+    return item;
+  }
+  return { ...item, apiVersion: list.apiVersion, kind: itemKind };
+}
+
+/** The required fields a resource does not set, or null if it is not an object at all. */
+function missingResourceFields(value: unknown): string[] | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const resource = value as Partial<KubeObjectInterface>;
+  // An empty string is as unset as a missing field: the API server rejects both.
+  const isSet = (field: unknown) => typeof field === 'string' && field !== '';
+  return [
+    !isSet(resource.apiVersion) && 'apiVersion',
+    !isSet(resource.kind) && 'kind',
+    !isSet(resource.metadata?.name) && 'metadata.name',
+  ].filter((field): field is string => !!field);
+}
+
+/**
  * Splits parsed YAML documents into the Kubernetes resources a project can create and the
  * documents it cannot (scalars, lists or objects without a kind, apiVersion or metadata.name),
- * so each rejected document can be reported, like `kubectl apply` does. Empty documents are
- * dropped silently.
+ * so each rejected document can be reported, like `kubectl apply` does. A list document such as
+ * `kind: List` is replaced by its items, each checked on its own. Empty documents are dropped
+ * silently.
  */
 export function splitKubernetesResources(docs: unknown[]): {
   resources: KubeObjectInterface[];
@@ -67,27 +121,27 @@ export function splitKubernetesResources(docs: unknown[]): {
 } {
   const resources: KubeObjectInterface[] = [];
   const rejected: RejectedYamlDocument[] = [];
+  const add = (value: unknown, index: number, item?: number) => {
+    const missing = missingResourceFields(value);
+    if (missing === null) {
+      rejected.push({ index, item, missingFields: [] });
+    } else if (missing.length > 0) {
+      rejected.push({ index, item, missingFields: missing });
+    } else {
+      resources.push(value as KubeObjectInterface);
+    }
+  };
   docs.forEach((doc, position) => {
     if (doc === null || doc === undefined) {
       return;
     }
     const index = position + 1;
-    if (typeof doc !== 'object' || Array.isArray(doc)) {
-      rejected.push({ index, missingFields: [] });
-      return;
-    }
-    const item = doc as Partial<KubeObjectInterface>;
-    // An empty string is as unset as a missing field: the API server rejects both.
-    const isSet = (value: unknown) => typeof value === 'string' && value !== '';
-    const missingFields = [
-      !isSet(item.apiVersion) && 'apiVersion',
-      !isSet(item.kind) && 'kind',
-      !isSet(item.metadata?.name) && 'metadata.name',
-    ].filter((field): field is string => !!field);
-    if (missingFields.length === 0) {
-      resources.push(item as KubeObjectInterface);
+    if (typeof doc === 'object' && !Array.isArray(doc) && isResourceList(doc)) {
+      doc.items.forEach((item, itemPosition) =>
+        add(withListItemType(doc, item), index, itemPosition + 1)
+      );
     } else {
-      rejected.push({ index, missingFields });
+      add(doc, index);
     }
   });
   return { resources, rejected };
@@ -200,12 +254,19 @@ export function CreateNew() {
   const [rejectedDocuments, setRejectedDocuments] = useState<string[]>([]);
 
   const describeRejected = (source: string, rejected: RejectedYamlDocument[]) =>
-    rejected.map(({ index, missingFields }) => {
+    rejected.map(({ index, item, missingFields }) => {
       const reason =
         missingFields.length === 0
           ? t('not a Kubernetes object')
           : missingFields.map(field => t('{{field}} not set', { field })).join(', ');
-      return t('{{source}}, document {{index}}: {{reason}}', { source, index, reason });
+      return item === undefined
+        ? t('{{source}}, document {{index}}: {{reason}}', { source, index, reason })
+        : t('{{source}}, document {{index}}, item {{item}}: {{reason}}', {
+            source,
+            index,
+            item,
+            reason,
+          });
     });
 
   const { items: allProjectNamespaces } = Namespace.useList({

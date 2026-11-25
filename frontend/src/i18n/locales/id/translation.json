@@ -1073,6 +1073,7 @@
   "not a Kubernetes object": "",
   "{{field}} not set": "",
   "{{source}}, document {{index}}: {{reason}}": "",
+  "{{source}}, document {{index}}, item {{item}}: {{reason}}": "",
   "URL is required": "URL wajib diisi",
   "Failed to load from URL: {{error}}": "Gagal memuat dari URL: {{error}}",
   "Error processing files: {{error}}": "Kesalahan saat memproses file: {{error}}",

@@ -211,6 +211,79 @@ it('keeps Kubernetes resources and reports why each other YAML document is rejec
   });
 });
 
+it('creates the items of a List document, like kubectl apply', () => {
+  const configMap = { apiVersion: 'v1', kind: 'ConfigMap', metadata: { name: 'settings' } };
+  const secret = { apiVersion: 'v1', kind: 'Secret', metadata: { name: 'credentials' } };
+
+  expect(
+    splitKubernetesResources([
+      // What `kubectl get configmaps,secrets -o yaml` prints.
+      {
+        apiVersion: 'v1',
+        kind: 'List',
+        metadata: { resourceVersion: '' },
+        items: [configMap, secret],
+      },
+      {
+        apiVersion: 'v1',
+        kind: 'ConfigMapList',
+        items: [configMap, { kind: 'ConfigMap' }, 'oops'],
+      },
+      { apiVersion: 'v1', kind: 'List', items: [] },
+    ])
+  ).toEqual({
+    resources: [configMap, secret, configMap],
+    rejected: [
+      { index: 2, item: 2, missingFields: ['apiVersion', 'metadata.name'] },
+      { index: 2, item: 3, missingFields: [] },
+    ],
+  });
+});
+
+it('takes the type of list items that set neither kind nor apiVersion from a typed list', () => {
+  expect(
+    splitKubernetesResources([
+      {
+        apiVersion: 'v1',
+        kind: 'ConfigMapList',
+        items: [{ metadata: { name: 'settings' }, data: { mode: 'dark' } }],
+      },
+      // A plain List does not say what its items are, so they must set their own type.
+      { apiVersion: 'v1', kind: 'List', items: [{ metadata: { name: 'untyped' } }] },
+    ])
+  ).toEqual({
+    resources: [
+      {
+        apiVersion: 'v1',
+        kind: 'ConfigMap',
+        metadata: { name: 'settings' },
+        data: { mode: 'dark' },
+      },
+    ],
+    rejected: [{ index: 2, item: 1, missingFields: ['apiVersion', 'kind'] }],
+  });
+});
+
+it('lists the items of a List that are not Kubernetes resources', async () => {
+  const list = `apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: settings
+  - kind: Secret
+`;
+  renderForm();
+  const file = new File([list], 'export.yaml', { type: 'application/x-yaml' });
+  fireEvent.change(screen.getByLabelText('Choose Files'), { target: { files: [file] } });
+
+  expect(await screen.findByText('settings')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'export.yaml, document 1, item 2: apiVersion not set, metadata.name not set'
+  );
+});
+
 it.each([
   ['the file input', 'file'],
   ['a URL', 'url'],

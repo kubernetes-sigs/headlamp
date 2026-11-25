@@ -1097,6 +1097,7 @@
   "not a Kubernetes object": "",
   "{{field}} not set": "",
   "{{source}}, document {{index}}: {{reason}}": "",
+  "{{source}}, document {{index}}, item {{item}}: {{reason}}": "",
   "URL is required": "Je nutné zadat adresu URL.",
   "Failed to load from URL: {{error}}": "Načtení z adresy URL se nezdařilo: {{error}}.",
   "Error processing files: {{error}}": "Chyba při zpracování souborů: {{error}}",

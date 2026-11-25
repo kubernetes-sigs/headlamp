@@ -1081,6 +1081,7 @@
   "not a Kubernetes object": "",
   "{{field}} not set": "",
   "{{source}}, document {{index}}: {{reason}}": "",
+  "{{source}}, document {{index}}, item {{item}}: {{reason}}": "",
   "URL is required": "URL درکار ہے",
   "Failed to load from URL: {{error}}": "URL سے لوڈ کرنے میں ناکامی: {{error}}",
   "Error processing files: {{error}}": "فائلوں پر عملدرآمد میں خرابی: {{error}}",
