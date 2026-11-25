@@ -51,7 +51,7 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
             name: t('translation|Metrics'),
             value: (
               <SimpleTable
-                data={item.metrics(t)}
+                data={item.metrics?.(t) ?? []}
                 columns={[
                   { label: t('translation|Name'), getter: item => item.definition },
                   { label: t('translation|(Current/Target)'), getter: item => item.value },
