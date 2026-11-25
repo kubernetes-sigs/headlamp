@@ -20,7 +20,7 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { labelSelectorToQuery } from '../../lib/k8s';
+import { labelSelectorToQuery, useCluster } from '../../lib/k8s';
 import Endpoint from '../../lib/k8s/endpoints';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Service, { KubeServicePort } from '../../lib/k8s/service';
@@ -38,7 +38,11 @@ export default function ServiceDetails(props: {
   cluster?: string;
 }) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace, cluster } = props;
+  const { name = params.name, namespace = params.namespace } = props;
+  // The details route passes no cluster. Use the Service's cluster from the URL, as DetailsGrid
+  // does, so the lists below don't include every selected cluster.
+  const urlCluster = useCluster();
+  const cluster = props.cluster ?? urlCluster ?? undefined;
   const { t } = useTranslation(['glossary', 'translation']);
 
   const [endpoints, endpointsError] = Endpoint.useList({ namespace, cluster });
