@@ -18,6 +18,8 @@ import { useMemo } from 'react';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import type { LabelSelector } from '../../../../lib/k8s/cluster';
+import ClusterRole from '../../../../lib/k8s/clusterRole';
+import ClusterRoleBinding from '../../../../lib/k8s/clusterRoleBinding';
 import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CustomResourceDefinition from '../../../../lib/k8s/crd';
@@ -392,6 +394,26 @@ const roleBindingToServiceAccount = makeRelation(
     )
 );
 
+const clusterRoleBindingToClusterRole = makeRelation(
+  'clusterrolebinding-clusterrole',
+  ClusterRoleBinding,
+  ClusterRole,
+  (binding, role) => role.metadata.name === binding.roleRef.name
+);
+
+const clusterRoleBindingToServiceAccount = makeRelation(
+  'clusterrolebinding-sa',
+  ClusterRoleBinding,
+  ServiceAccount,
+  (binding, sa) =>
+    binding.subjects?.find(
+      subject =>
+        subject.kind === 'ServiceAccount' &&
+        subject.name === sa.metadata.name &&
+        subject.namespace === sa.metadata.namespace
+    )
+);
+
 const serviceAccountToDeployments = makeRelation(
   'sa-deployment',
   ServiceAccount,
@@ -656,6 +678,8 @@ const staticRelations = [
   networkPolicyToPod,
   roleBindingsToRole,
   roleBindingToServiceAccount,
+  clusterRoleBindingToClusterRole,
+  clusterRoleBindingToServiceAccount,
   serviceAccountToDeployments,
   serviceAccountToDaemonSets,
   serviceAccountToStatefulSets,
