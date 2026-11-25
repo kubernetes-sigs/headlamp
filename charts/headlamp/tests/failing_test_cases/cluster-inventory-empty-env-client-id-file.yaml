@@ -1,0 +1,12 @@
+env:
+  - name: CLIENT_ID_FILE
+    value: ""
+config:
+  oidc:
+    secret:
+      create: false
+  clusterInventory:
+    enabled: true
+  extraArgs:
+    - --oidc-client-id-file=$(CLIENT_ID_FILE)
+    - --oidc-idp-issuer-url=https://idp.example.com

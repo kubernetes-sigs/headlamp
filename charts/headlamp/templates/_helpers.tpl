@@ -77,6 +77,50 @@ Create the name of the service account to use
 
 
 {{/*
+Expand Kubernetes-style environment references once, preserving pod-only values
+as unknown and escaped dollars as literals. Return JSON state.
+*/}}
+{{- define "headlamp.literalEnvValue" -}}
+{{- $known := .state.known -}}
+{{- $value := .state.value -}}
+{{- if and $known (not (default false .state.expanded)) -}}
+  {{- $pattern := "\\$\\$|\\$\\([^)]*\\)" -}}
+  {{- $parts := regexSplit $pattern $value -1 -}}
+  {{- $resolved := index $parts 0 -}}
+  {{- range $index, $token := regexFindAll $pattern $value -1 -}}
+    {{- $replacement := $token -}}
+    {{- if eq $token "$$" -}}
+      {{- $replacement = "$" -}}
+    {{- else -}}
+      {{- $name := trimPrefix "$(" (trimSuffix ")" $token) -}}
+      {{- $entry := get $.environment $name -}}
+      {{- if and $entry $entry.known -}}
+        {{- $replacement = $entry.value -}}
+      {{- else -}}
+        {{- $known = false -}}
+      {{- end -}}
+    {{- end -}}
+    {{- $resolved = printf "%s%s%s" $resolved $replacement (index $parts (add1 $index)) -}}
+  {{- end -}}
+  {{- $value = $resolved -}}
+{{- end -}}
+{{- dict "known" $known "value" $value "expanded" true | toJson -}}
+{{- end -}}
+
+{{/*
+Resolve a discovery boolean using literal environment values.
+Return JSON with known/enabled/valid fields; pod-only values stay unknown.
+*/}}
+{{- define "headlamp.discoveryFlagState" -}}
+{{- $state := include "headlamp.literalEnvValue" . | fromJson -}}
+{{- $known := $state.known -}}
+{{- $value := $state.value -}}
+{{- $enabled := and $known (has $value (list "1" "t" "T" "TRUE" "true" "True")) -}}
+{{- $valid := and $known (or $enabled (has $value (list "0" "f" "F" "FALSE" "false" "False"))) -}}
+{{- dict "known" $known "value" $value "expanded" true "enabled" $enabled "valid" $valid | toJson -}}
+{{- end -}}
+
+{{/*
 Check if readOnlyRootFilesystem is enabled, returns string "true" if enabled, otherwise returns "false".
 */}}
 {{- define "headlamp.readOnlyRootFilesystem" -}}

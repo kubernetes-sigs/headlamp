@@ -1,0 +1,9 @@
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --oidc-client-id-file
+    - --oidc-idp-issuer-url=https://idp.example.com
+  clusterInventory:
+    enabled: true

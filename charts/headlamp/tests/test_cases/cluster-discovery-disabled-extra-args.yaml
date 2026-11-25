@@ -1,0 +1,21 @@
+env:
+  - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY
+    value: "true"
+  - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_API
+    value: "true"
+  - name: DISCOVERY_ENABLED
+    value: "false"
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: headlamp
+    issuerURL: https://idp.example.com
+  clusterInventory:
+    enabled: true
+  clusterAPI:
+    enabled: true
+  extraArgs:
+    - --enable-cluster-inventory=$(DISCOVERY_ENABLED)
+    - --enable-cluster-api=$(DISCOVERY_ENABLED)
+    - --oidc-idp-issuer-url=

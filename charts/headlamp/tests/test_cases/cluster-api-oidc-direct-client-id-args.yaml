@@ -1,0 +1,14 @@
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --oidc-client-id=previous-client-id
+    - -oidc-client-id
+    - -headlamp
+    - -oidc-client-secret-file
+    - /etc/oidc/client-secret
+    - -oidc-idp-issuer-url
+    - https://idp.example.com
+  clusterAPI:
+    enabled: true

@@ -1,0 +1,8 @@
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --oidc-client-id-file=/etc/oidc/client-id
+  clusterInventory:
+    enabled: true

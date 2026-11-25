@@ -1,0 +1,19 @@
+env:
+  - name: DISCOVERY_DEFAULT
+    value: "true"
+  - name: DISCOVERY_ENABLED
+    value: $(DISCOVERY_DEFAULT)
+  - name: RUNTIME_INVENTORY_ENABLED
+    valueFrom:
+      configMapKeyRef:
+        name: discovery-settings
+        key: enabled
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --enable-cluster-inventory=$(RUNTIME_INVENTORY_ENABLED)
+    - --enable-cluster-api=$(DISCOVERY_ENABLED)
+    - --oidc-client-id-file=/etc/oidc/client-id
+    - --oidc-idp-issuer-url=

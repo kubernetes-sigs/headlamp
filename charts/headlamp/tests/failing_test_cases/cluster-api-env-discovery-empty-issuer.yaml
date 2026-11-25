@@ -1,0 +1,10 @@
+env:
+  - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_API
+    value: "true"
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --oidc-client-id-file=/etc/oidc/client-id
+    - --oidc-idp-issuer-url=

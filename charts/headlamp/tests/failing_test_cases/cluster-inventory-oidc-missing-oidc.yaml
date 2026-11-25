@@ -1,5 +1,8 @@
 # Cluster Inventory requires an OIDC client configuration (config.oidc, OIDC env
 # vars, or an external secret).
+env:
+  - name: HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY
+    value: "false"
 config:
   clusterInventory:
     enabled: true

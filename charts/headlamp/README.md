@@ -44,6 +44,53 @@ $ helm install my-headlamp headlamp/headlamp \
   --set config.oidc.issuerURL=https://your-issuer-url
 ```
 
+For mounted credentials, pass `-oidc-client-id-file` and
+`-oidc-client-secret-file` through `config.extraArgs`, or set their
+`HEADLAMP_CONFIG_OIDC_CLIENT_ID_FILE` and `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET_FILE`
+environment variables. File-backed client IDs also satisfy the Cluster Inventory
+and Cluster API discovery checks; the issuer URL is still required. Remove direct
+credential settings that generate flags when switching to files, because direct
+flags take precedence.
+
+For discovery validation, direct client-ID flags in `config.extraArgs` override
+file-backed IDs and other client-ID settings. The last direct flag wins, including
+an empty value; an empty ID cannot fall back to a credential file and is rejected
+when discovery is enabled.
+
+Discovery flags in `config.extraArgs` also override the chart's enabled settings.
+Validation uses the final issuer and credential-file values, so earlier empty
+values are allowed when a later occurrence replaces them.
+
+Literal `HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY` and
+`HEADLAMP_CONFIG_ENABLE_CLUSTER_API` environment values seed discovery validation;
+generated chart flags and final `extraArgs` take precedence. References such as
+`$(DISCOVERY_ENABLED)` are resolved when their environment value is literal.
+Invalid discovery environment strings behave as false, matching the backend;
+explicit discovery argument values still require a valid boolean.
+
+Environment references in discovery and OIDC arguments are expanded once for
+validation, including references to earlier literal environment entries and
+escaped dollars. Known empty client IDs, issuer URLs, and credential-file paths
+are checked after expansion. Pod-only values defer only the checks that depend
+on them to Headlamp's startup validation rather than guessing their values.
+
+When migrating from a chart-created OIDC Secret, first create a separately managed
+Secret with a different name, such as `headlamp-oidc-files`, containing the credential
+keys. Mount that Secret through `volumes` and `volumeMounts` before switching to file
+flags. Set `config.oidc.secret.create=false`, clear the direct credential settings,
+and disable `config.oidc.externalSecret.enabled` if it was generating direct flags.
+Do not use the old chart-managed Secret as the mounted source: removing its values
+can remove its credential keys, and disabling its creation can delete it on upgrade.
+
+If disabling `config.oidc.externalSecret.enabled`, migrate the issuer URL as well,
+for example to `config.oidc.issuerURL` or `HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL`.
+Preserve any required scopes, callback URL, validator settings, and other OIDC
+options; credential files supply only the client ID and secret.
+
+Credential files are read only at startup. Restart Headlamp pods after rotating
+credentials; updating Kubernetes Secret or CSI-mounted files alone does not
+reload the credentials used for sign-in and token refresh.
+
 ### Installation with Ingress
 ```console
 $ helm install my-headlamp headlamp/headlamp \

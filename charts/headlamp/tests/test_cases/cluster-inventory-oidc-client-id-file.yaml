@@ -1,0 +1,13 @@
+config:
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - --oidc-client-id-file=
+    - --oidc-client-id-file=/etc/oidc/client-id
+    - --oidc-client-secret-file=
+    - --oidc-client-secret-file=/etc/oidc/client-secret
+    - --oidc-idp-issuer-url=
+    - --oidc-idp-issuer-url=https://idp.example.com
+  clusterInventory:
+    enabled: true
