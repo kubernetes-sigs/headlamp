@@ -279,6 +279,30 @@ describe('SettingsCluster states and namespaces', () => {
     expect(screen.getByText('zeta')).toBeInTheDocument();
   });
 
+  it('disables Add button and blocks Enter for empty or invalid allowed namespaces', async () => {
+    renderSettings({ allowedNamespaces: ['zeta'] });
+    const input = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+    const addButton = screen.getByRole('button', { name: 'Add namespace' });
+
+    // Empty input: Add button is disabled, and Enter does not add an empty chip
+    expect(addButton).toBeDisabled();
+    await userEvent.click(input);
+    await userEvent.keyboard('{Enter}');
+    expect(
+      JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}')
+    ).not.toMatchObject({ allowedNamespaces: expect.arrayContaining(['']) });
+
+    // Invalid input: shows error, Add button is disabled, and Enter does not add it
+    await userEvent.type(input, 'INVALID_NAME');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(addButton).toBeDisabled();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByText('INVALID_NAME')).not.toBeInTheDocument();
+    expect(
+      JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}')
+    ).not.toMatchObject({ allowedNamespaces: expect.arrayContaining(['INVALID_NAME']) });
+  });
+
   it('clears typed namespaces when switching to another cluster', async () => {
     mockState.clustersConf['other-cluster'] = {
       name: 'other-cluster',
