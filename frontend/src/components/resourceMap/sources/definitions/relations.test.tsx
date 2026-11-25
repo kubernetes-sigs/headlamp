@@ -582,28 +582,32 @@ describe('useGetAllRelations', () => {
       () => ({ items: crds } as ReturnType<typeof CRD.useList>)
     );
     const { result, rerender } = renderUseGetAllRelations();
+    // The map lists custom resources under `crd-<group>/<kind>`, and kinds it already
+    // shows as built-ins (such as Gateway) under `<group>/<kind>`.
+    const sourceIds = ['crd-example.io/Widget', 'example.io/Widget'];
 
-    expect(result.current.some(relation => relation.fromSource === 'example.io/Widget')).toBe(
-      false
-    );
+    expect(result.current.some(relation => sourceIds.includes(relation.fromSource))).toBe(false);
 
     crds = [customResourceDefinition];
     rerender();
 
-    const relation = result.current.find(relation => relation.fromSource === 'example.io/Widget')!;
     const customResource = new CustomResource({ metadata: { uid: 'widget' } } as any, 'cluster-a');
     const child = new KubeObject(
       { metadata: { uid: 'child', ownerReferences: [{ uid: 'widget' }] } } as any,
       'cluster-a'
     );
+    const other = new KubeObject({ metadata: { uid: 'other' } } as any, 'cluster-a');
+    const nodesByUid = new Map(
+      [customResource, child, other].map(object => [object.metadata.uid, node(object)])
+    );
 
-    expect(relation.predicate(node(customResource), node(child))).toBe(true);
-    expect(
-      relation.predicate(
-        node(customResource),
-        node(new KubeObject({ metadata: { uid: 'other' } } as any, 'cluster-a'))
-      )
-    ).toBe(false);
+    for (const sourceId of sourceIds) {
+      const relation = result.current.find(relation => relation.fromSource === sourceId);
+      expect(relation, `owner relation from ${sourceId}`).toBeDefined();
+      expect(relation!.buildEdgesWithIndex!([node(customResource)], nodesByUid)).toEqual([
+        { id: 'widget-child', source: 'widget', target: 'child' },
+      ]);
+    }
   });
 
   it('links pod groups to the workload they were templated from', () => {

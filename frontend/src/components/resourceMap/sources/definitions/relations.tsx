@@ -61,7 +61,7 @@ import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhoo
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { useTypedSelector } from '../../../../redux/hooks';
 import { GraphEdge, GraphNode, Relation } from '../../graph/graphModel';
-import { makeKubeSourceId } from './graphDefinitionUtils';
+import { makeCRSourceId, makeKubeSourceId } from './graphDefinitionUtils';
 import { BUILT_IN_RELATION_IDS } from './relationIds';
 
 /**
@@ -174,9 +174,12 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
   },
 });
 
-const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
-  id: `owner-reversed-${makeKubeSourceId(cl)}`,
-  fromSource: makeKubeSourceId(cl),
+const makeOwnerRelationReversed = (
+  cl: KubeObjectClass,
+  sourceId: string = makeKubeSourceId(cl)
+): Relation => ({
+  id: `owner-reversed-${sourceId}`,
+  fromSource: sourceId,
   predicate(from, to) {
     const obj = to.kubeObject as KubeObject;
 
@@ -480,7 +483,12 @@ const useGetCRToOwnerRelations = () => {
         // CRD with incomplete spec; skip it (#4824).
         return [];
       }
-      return [makeOwnerRelationReversed(CRClass)];
+      // The Custom Resources group lists a CR under its prefixed id, while kinds the map
+      // already has built-in sources for (such as Gateway) keep the plain id.
+      return [
+        makeOwnerRelationReversed(CRClass),
+        makeOwnerRelationReversed(CRClass, makeCRSourceId(CRClass)),
+      ];
     });
   }, [crds]);
 };
