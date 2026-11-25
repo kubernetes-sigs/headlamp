@@ -19,13 +19,14 @@ import {
   ClusterSettings,
   loadClusterSettings,
   storeClusterSettings,
+  subscribeToClusterSettings,
 } from '../../../helpers/clusterSettings';
 
 /**
  * Single source of truth for a cluster's settings, backed by localStorage.
  *
- * Loads settings when `cluster` changes. The returned setter writes to
- * both React state and localStorage synchronously.
+ * Loads settings when `cluster` changes and subscribes to persisted changes.
+ * The returned setter writes to both React state and localStorage synchronously.
  *
  * @param cluster - The cluster name to load/store settings for.
  * @returns A tuple of [settings, setSettings].
@@ -37,21 +38,29 @@ export function useClusterSettings(
     cluster ? loadClusterSettings(cluster) : {}
   );
 
-  // Reload from localStorage when the active cluster changes.
   React.useLayoutEffect(() => {
-    setSettingsState(cluster ? loadClusterSettings(cluster) : {});
+    const reloadSettings = () => {
+      const next = cluster ? loadClusterSettings(cluster) : {};
+      setSettingsState(current =>
+        JSON.stringify(current) === JSON.stringify(next) ? current : next
+      );
+    };
+    const unsubscribe = cluster ? subscribeToClusterSettings(reloadSettings) : undefined;
+    reloadSettings();
+    return unsubscribe;
   }, [cluster]);
 
   // Setter that writes to both React state and localStorage.
   const setSettings: React.Dispatch<React.SetStateAction<ClusterSettings>> = React.useCallback(
     action => {
-      setSettingsState(prev => {
-        const next = typeof action === 'function' ? action(prev) : action;
-        if (cluster) {
-          storeClusterSettings(cluster, next);
-        }
-        return next;
-      });
+      if (!cluster) {
+        setSettingsState(action);
+        return;
+      }
+      const next = typeof action === 'function' ? action(loadClusterSettings(cluster)) : action;
+      // Notify subscribers outside React's state updater, which may run during render.
+      storeClusterSettings(cluster, next);
+      setSettingsState(next);
     },
     [cluster]
   );

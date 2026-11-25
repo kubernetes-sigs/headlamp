@@ -18,3 +18,8 @@ import React from 'react';
 
 /** Identifies the current allowed-namespace selector resolution state. */
 export const AllowedNamespacesResolutionContext = React.createContext('');
+
+export const AllowedNamespacesSelectorContext = React.createContext<{
+  registerCluster: (cluster: string) => () => void;
+  waiting: boolean;
+} | null>(null);

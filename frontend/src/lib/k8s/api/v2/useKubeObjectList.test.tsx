@@ -460,6 +460,47 @@ describe('useKubeObjectList', () => {
     localStorage.clear();
   });
 
+  it('updates combined freshness when identical cached lists are refreshed', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: Infinity } },
+    });
+    const responses = ['a', 'b'].map(namespace => ({
+      list: makeListResponse(),
+      cluster: 'default',
+      namespace,
+    }));
+    const keys = responses.map(
+      response =>
+        kubeObjectListQuery(
+          mockClass,
+          { version: 'v1', resource: 'pods' },
+          response.namespace,
+          response.cluster,
+          {}
+        ).queryKey
+    );
+    queryClient.setQueryData(keys[0], responses[0], { updatedAt: 100 });
+    queryClient.setQueryData(keys[1], responses[1], { updatedAt: 200 });
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['a', 'b'] }],
+          watch: false,
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+    await waitFor(() => expect(result.current.dataUpdatedAt).toBe(100));
+
+    act(() => queryClient.setQueryData(keys[0], responses[0], { updatedAt: 300 }));
+    await waitFor(() => expect(result.current.dataUpdatedAt).toBe(200));
+    act(() => queryClient.setQueryData(keys[1], responses[1], { updatedAt: 400 }));
+    await waitFor(() => expect(result.current.dataUpdatedAt).toBe(300));
+    expect(result.current.items).toEqual([]);
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
   it('returns an empty result without fetching when no list requests are allowed', () => {
     const result = renderHook(
       () =>

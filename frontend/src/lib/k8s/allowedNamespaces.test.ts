@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { createContext, createElement, type ReactNode, useContext } from 'react';
 import {
+  clearResolvedAllowedNamespaces,
+  getCombinedAllowedNamespaces,
   loadResolvedAllowedNamespaces,
+  storeClusterSettings,
   storeResolvedAllowedNamespaces,
 } from '../../helpers/clusterSettings';
 import { useAllowedNamespacesFromSelector } from './allowedNamespaces';
@@ -47,11 +51,13 @@ function mockList(overrides: Record<string, unknown>) {
 describe('useAllowedNamespacesFromSelector', () => {
   beforeEach(() => {
     localStorage.clear();
+    storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
     mockUseList.mockReset();
     mockList({});
   });
 
   it('does not query and clears the cache when no selector is configured', () => {
+    storeClusterSettings('prod', {});
     storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
 
     const { result } = renderHook(() => useAllowedNamespacesFromSelector('prod', ''));
@@ -105,15 +111,56 @@ describe('useAllowedNamespacesFromSelector', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('clears the cache and surfaces the error on a failed resolution (fail closed)', () => {
+  it('stores a tagged empty cache and surfaces the error on a failed resolution (fail closed)', () => {
     storeResolvedAllowedNamespaces('prod', 'team=frontend', ['stale']);
     const error = new Error('boom');
     mockList({ items: null, isError: true, error });
 
     const { result } = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
 
-    expect(loadResolvedAllowedNamespaces('prod')).toBeNull();
+    expect(loadResolvedAllowedNamespaces('prod')).toEqual(
+      expect.objectContaining({ selector: 'team=frontend', namespaces: [] })
+    );
     expect(result.current.error).toBe(error);
+  });
+
+  it('keeps both tabs fail closed after a query failure until fresh successful resolution', () => {
+    const Tab = createContext<'peer' | 'failing'>('peer');
+    const items = [ns('a')];
+    const error = new Error('selector query failed');
+    let failed = true;
+    mockUseList.mockImplementation(function useNamespaceList() {
+      const tab = useContext(Tab);
+      return tab === 'failing' && failed
+        ? { items: null, isError: true, error, isFetching: false }
+        : {
+            items,
+            isError: false,
+            error: null,
+            isFetching: false,
+            dataUpdatedAt: failed ? 1 : Date.now() + 1000,
+          };
+    });
+    const peer = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(Tab.Provider, { value: 'peer' }, children),
+    });
+    const failing = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(Tab.Provider, { value: 'failing' }, children),
+    });
+
+    expect(peer.result.current.isSuccess).toBe(true);
+    expect(failing.result.current.error).toBe(error);
+    expect(getCombinedAllowedNamespaces('prod')).toEqual([]);
+    expect(loadResolvedAllowedNamespaces('prod')).toEqual(
+      expect.objectContaining({ selector: 'team=frontend', namespaces: [] })
+    );
+
+    failed = false;
+    failing.rerender();
+    expect(failing.result.current.isSuccess).toBe(true);
+    expect(getCombinedAllowedNamespaces('prod')).toEqual(['a']);
   });
 
   it('keeps the existing cache while the resolution is still loading', () => {
@@ -126,6 +173,36 @@ describe('useAllowedNamespacesFromSelector', () => {
     expect(result.current.isFetching).toBe(true);
   });
 
+  it('preserves a failure cache when a peer mounts with pre-failure query data', () => {
+    const items = [ns('a')];
+    const dataUpdatedAt = Date.now() - 1000;
+    mockList({ items, dataUpdatedAt });
+    const original = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+    original.unmount();
+
+    mockList({ items, dataUpdatedAt, isError: true, error: new Error('query failed') });
+    const failing = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+    failing.unmount();
+    const failureCache = loadResolvedAllowedNamespaces('prod');
+
+    mockList({ items, dataUpdatedAt, isFetching: true });
+    const peer = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+    expect(loadResolvedAllowedNamespaces('prod')).toEqual(failureCache);
+    expect(getCombinedAllowedNamespaces('prod')).toEqual([]);
+
+    mockList({ items, dataUpdatedAt, isFetching: false });
+    peer.rerender();
+    expect(loadResolvedAllowedNamespaces('prod')).toEqual(failureCache);
+
+    mockList({ items, dataUpdatedAt: failureCache!.resolvedAt });
+    peer.rerender();
+    expect(loadResolvedAllowedNamespaces('prod')).toEqual(failureCache);
+
+    mockList({ items, dataUpdatedAt: failureCache!.resolvedAt + 1 });
+    peer.rerender();
+    expect(getCombinedAllowedNamespaces('prod')).toEqual(['a']);
+  });
+
   it('keeps a fresh cache when the resolved namespaces are unchanged', () => {
     storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
     const resolvedAt = loadResolvedAllowedNamespaces('prod')?.resolvedAt;
@@ -134,5 +211,29 @@ describe('useAllowedNamespacesFromSelector', () => {
     renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
 
     expect(loadResolvedAllowedNamespaces('prod')?.resolvedAt).toBe(resolvedAt);
+  });
+
+  it('reconciles a removed cache without requiring new query results', () => {
+    mockList({ items: [ns('a')] });
+    renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+
+    act(() => clearResolvedAllowedNamespaces('prod'));
+
+    expect(loadResolvedAllowedNamespaces('prod')?.namespaces).toEqual(['a']);
+  });
+
+  it.each([
+    { items: [ns('old')], isError: false, error: null },
+    { items: null, isError: true, error: new Error('late selector error') },
+  ])('does not publish superseded selector results (error: $isError)', result => {
+    storeClusterSettings('prod', { allowedNamespacesSelector: 'team=backend' });
+    storeResolvedAllowedNamespaces('prod', 'team=backend', ['fresh']);
+    mockList(result);
+
+    renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+
+    expect(loadResolvedAllowedNamespaces('prod')).toEqual(
+      expect.objectContaining({ selector: 'team=backend', namespaces: ['fresh'] })
+    );
   });
 });

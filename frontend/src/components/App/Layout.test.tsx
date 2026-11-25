@@ -58,7 +58,10 @@ vi.mock('../Sidebar', () => ({
 vi.mock('./TopBar', () => ({ default: () => null }));
 vi.mock('./RouteSwitcher', () => ({ default: () => null }));
 vi.mock('./VersionDialog', () => ({ default: () => null }));
-vi.mock('./AllowedNamespacesSelectorGate', () => ({ default: () => null }));
+vi.mock('./AllowedNamespacesSelectorGate', () => ({
+  default: () => null,
+  AllowedNamespacesSelectorProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 vi.mock('./ResourceShortcuts', () => ({ default: () => null }));
 vi.mock('./Settings/ShortcutsSettings', () => ({ default: () => null }));
 vi.mock('../activity/Activity', () => ({ ActivitiesRenderer: () => null }));

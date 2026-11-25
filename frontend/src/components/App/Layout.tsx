@@ -58,7 +58,9 @@ import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
-import AllowedNamespacesSelectorGate from './AllowedNamespacesSelectorGate';
+import AllowedNamespacesSelectorGate, {
+  AllowedNamespacesSelectorProvider,
+} from './AllowedNamespacesSelectorGate';
 import ResourceShortcuts from './ResourceShortcuts';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
@@ -377,7 +379,7 @@ export default function Layout({}: LayoutProps) {
   }
 
   return (
-    <>
+    <AllowedNamespacesSelectorProvider clusters={clustersToResolve}>
       <Link
         href="#main"
         sx={{
@@ -444,17 +446,9 @@ export default function Layout({}: LayoutProps) {
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
-                  {clustersToResolve.length > 0 ? (
-                    <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
-                      <RouteSwitcher
-                        requiresToken={() => {
-                          const clusterName = getCluster() || '';
-                          const cluster = clusters ? clusters[clusterName] : undefined;
-                          return cluster?.useToken === undefined || cluster?.useToken;
-                        }}
-                      />
-                    </AllowedNamespacesSelectorGate>
-                  ) : (
+                  <AllowedNamespacesSelectorGate
+                    key={JSON.stringify([pathname, [...clustersToResolve].sort()])}
+                  >
                     <RouteSwitcher
                       requiresToken={() => {
                         const clusterName = getCluster() || '';
@@ -462,7 +456,7 @@ export default function Layout({}: LayoutProps) {
                         return cluster?.useToken === undefined || cluster?.useToken;
                       }}
                     />
-                  )}
+                  </AllowedNamespacesSelectorGate>
                 </Container>
               </Box>
             </Main>
@@ -477,6 +471,6 @@ export default function Layout({}: LayoutProps) {
           <it.component key={it.id} />
         ))}
       </Box>
-    </>
+    </AllowedNamespacesSelectorProvider>
   );
 }
