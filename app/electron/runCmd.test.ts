@@ -55,6 +55,7 @@ vi.mock('electron', () => ({
 vi.mock('cross-spawn', () => ({
   default: spawnMock,
 }));
+import { loadSettings, saveSettings } from './settings';
 
 vi.mock('./plugin-management', () => ({
   defaultPluginsDir: defaultPluginsDirMock,
@@ -89,6 +90,7 @@ vi.mock('./main', () => ({
 
 import {
   addRunCmdConsent,
+  checkCommandConsent,
   checkPermissionSecret,
   createProductCommandCapabilities,
   environmentOverrides,
@@ -586,6 +588,44 @@ describe('checkPermissionSecret', () => {
       permissionSecrets: { 'runCmd-scriptjs-plugins/minikube/myscript.js': 42 },
     };
     expect(checkPermissionSecret(commandData, permissionSecrets)[0]).toBe(true);
+  });
+});
+
+describe('checkCommandConsent', () => {
+  const fakeMainWindow = { id: 1 } as any;
+
+  afterEach(() => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: { 'minikube start': true, 'gh auth': true, 'az account': true },
+    } as any);
+    showMessageBoxSyncMock.mockClear();
+    vi.mocked(saveSettings).mockClear();
+  });
+
+  it('blocks the command on the first run when the user denies it', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    showMessageBoxSyncMock.mockReturnValue(1); // Deny
+
+    expect(checkCommandConsent('minikube', ['delete'], fakeMainWindow)).toBe(false);
+    expect(saveSettings).toHaveBeenCalledWith('/fake/settings.json', {
+      confirmedCommands: { 'minikube delete': false },
+    });
+  });
+
+  it('allows the command on the first run when the user allows it', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    showMessageBoxSyncMock.mockReturnValue(0); // Allow
+
+    expect(checkCommandConsent('minikube', ['delete'], fakeMainWindow)).toBe(true);
+  });
+
+  it('blocks the command without prompting once denial is saved', () => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: { 'minikube delete': false },
+    } as any);
+
+    expect(checkCommandConsent('minikube', ['delete'], fakeMainWindow)).toBe(false);
+    expect(showMessageBoxSyncMock).not.toHaveBeenCalled();
   });
 });
 
