@@ -65,10 +65,11 @@ func TestGetActionStatus_NilErr(t *testing.T) {
 		Status: "failed",
 		Err:    nil,
 	}
-	err := h.Cache.Set(context.Background(), "helm_install_test-release", statusVal)
+	err := h.Cache.Set(context.Background(),
+		statusKey(actionScope{namespace: "default"}, "install", "test-release"), statusVal)
 	require.NoError(t, err)
 
-	url := "/clusters/minikube/helm/releases/status?action=install&name=test-release"
+	url := "/clusters/minikube/helm/releases/status?action=install&name=test-release&namespace=default"
 	req, err := http.NewRequestWithContext(context.Background(), "GET", url, nil)
 	require.NoError(t, err)
 
@@ -78,7 +79,8 @@ func TestGetActionStatus_NilErr(t *testing.T) {
 	// This call should not panic.
 	h.GetActionStatus(nil, rr, req)
 
-	assert.Equal(t, http.StatusAccepted, rr.Code)
+	// A completed (failed) action is reported with 200, not 202.
+	assert.Equal(t, http.StatusOK, rr.Code)
 
 	// The response should indicate "unknown error"
 	assert.Contains(t, rr.Body.String(), "action failed with error: unknown error")
@@ -94,32 +96,38 @@ func TestGetActionStatusErrors(t *testing.T) {
 	}{
 		{
 			name:       "unknown query parameter",
-			query:      "action=install&name=test-release&unexpected=value",
+			query:      "action=install&name=test-release&namespace=default&unexpected=value",
 			wantStatus: http.StatusBadRequest,
 			wantError:  `invalid path "unexpected"`,
 		},
 		{
 			name:       "missing release name",
-			query:      "action=install",
+			query:      "action=install&namespace=default",
 			wantStatus: http.StatusBadRequest,
 			wantError:  "'Name' failed on the 'required' tag",
 		},
 		{
 			name:       "missing action",
-			query:      "name=test-release",
+			query:      "name=test-release&namespace=default",
 			wantStatus: http.StatusBadRequest,
 			wantError:  "'Action' failed on the 'required' tag",
 		},
 		{
 			name:       "unsupported action",
-			query:      "action=delete&name=test-release",
+			query:      "action=delete&name=test-release&namespace=default",
 			wantStatus: http.StatusBadRequest,
 			wantError:  "invalid action",
 		},
 		{
+			name:       "missing namespace",
+			query:      "action=install&name=test-release",
+			wantStatus: http.StatusBadRequest,
+			wantError:  "'Namespace' failed on the 'required' tag",
+		},
+		{
 			name:       "missing cached status",
-			query:      "action=install&name=missing-release",
-			wantStatus: http.StatusInternalServerError,
+			query:      "action=install&name=missing-release&namespace=default",
+			wantStatus: http.StatusNotFound,
 			wantError:  "key not found",
 		},
 	}
@@ -153,14 +161,14 @@ func TestGetChart_InvalidType(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := action.ChartPathOptions{}
-	loadedChart, err := h.getChart("install", chartDir, "test-release", opts, false, h.EnvSettings)
+	loadedChart, err := h.getChart(testScope, "install", chartDir, "test-release", opts, false, h.EnvSettings)
 
 	assert.Nil(t, loadedChart)
 	require.Error(t, err)
 	assert.Equal(t, "chart type \"library\" is not installable", err.Error())
 
 	// Verify that the failed status was logged to the cache
-	statusVal, err := h.Cache.Get(context.Background(), "helm_install_test-release")
+	statusVal, err := h.Cache.Get(context.Background(), statusKey(testScope, "install", "test-release"))
 	require.NoError(t, err)
 
 	statusMap := statusVal.(stat)

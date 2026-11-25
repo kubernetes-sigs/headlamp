@@ -74,10 +74,10 @@ func TestSetAndGetReleaseStatusNoError(t *testing.T) {
 	h, err := NewHandler(newTestCache())
 	require.NoError(t, err)
 
-	err = h.setReleaseStatus("install", "myrelease", "processing", nil)
+	err = h.setReleaseStatus(testScope, "install", "myrelease", "processing", nil)
 	require.NoError(t, err)
 
-	s, err := h.getReleaseStatus("install", "myrelease")
+	s, err := h.getReleaseStatus(testScope, "install", "myrelease")
 	require.NoError(t, err)
 	assert.Equal(t, "processing", s.Status)
 	assert.Nil(t, s.Err)
@@ -88,10 +88,10 @@ func TestSetAndGetReleaseStatusWithError(t *testing.T) {
 	require.NoError(t, err)
 
 	releaseErr := errors.New("something went wrong")
-	err = h.setReleaseStatus("upgrade", "myrelease", "failed", releaseErr)
+	err = h.setReleaseStatus(testScope, "upgrade", "myrelease", "failed", releaseErr)
 	require.NoError(t, err)
 
-	s, err := h.getReleaseStatus("upgrade", "myrelease")
+	s, err := h.getReleaseStatus(testScope, "upgrade", "myrelease")
 	require.NoError(t, err)
 	assert.Equal(t, "failed", s.Status)
 	require.NotNil(t, s.Err)
@@ -102,7 +102,7 @@ func TestGetReleaseStatusCacheMiss(t *testing.T) {
 	h, err := NewHandler(newTestCache())
 	require.NoError(t, err)
 
-	s, err := h.getReleaseStatus("install", "nonexistent")
+	s, err := h.getReleaseStatus(testScope, "install", "nonexistent")
 	// cache miss must return an error and no status
 	assert.Error(t, err)
 	assert.Nil(t, s)
@@ -112,10 +112,10 @@ func TestSetReleaseStatusOverwritesPreviousValue(t *testing.T) {
 	h, err := NewHandler(newTestCache())
 	require.NoError(t, err)
 
-	require.NoError(t, h.setReleaseStatus("install", "myrelease", "processing", nil))
-	require.NoError(t, h.setReleaseStatus("install", "myrelease", "success", nil))
+	require.NoError(t, h.setReleaseStatus(testScope, "install", "myrelease", "processing", nil))
+	require.NoError(t, h.setReleaseStatus(testScope, "install", "myrelease", "success", nil))
 
-	s, err := h.getReleaseStatus("install", "myrelease")
+	s, err := h.getReleaseStatus(testScope, "install", "myrelease")
 	require.NoError(t, err)
 	assert.Equal(t, "success", s.Status)
 }
@@ -124,9 +124,9 @@ func TestSetReleaseStatusSilentDoesNotPanic(t *testing.T) {
 	h, err := NewHandler(newTestCache())
 	require.NoError(t, err)
 	// should not panic even when called with an error value
-	h.setReleaseStatusSilent("delete", "myrelease", "failed", errors.New("oops"))
+	h.setReleaseStatusSilent(testScope, "delete", "myrelease", "failed", errors.New("oops"))
 
-	s, err := h.getReleaseStatus("delete", "myrelease")
+	s, err := h.getReleaseStatus(testScope, "delete", "myrelease")
 	require.NoError(t, err)
 	assert.Equal(t, "failed", s.Status)
 }
@@ -205,14 +205,14 @@ func TestSetReleaseStatusKeyIsolation(t *testing.T) {
 	h, err := NewHandler(newTestCache())
 	require.NoError(t, err)
 
-	require.NoError(t, h.setReleaseStatus("install", "rel", "processing", nil))
-	require.NoError(t, h.setReleaseStatus("upgrade", "rel", "success", nil))
+	require.NoError(t, h.setReleaseStatus(testScope, "install", "rel", "processing", nil))
+	require.NoError(t, h.setReleaseStatus(testScope, "upgrade", "rel", "success", nil))
 
-	install, err := h.getReleaseStatus("install", "rel")
+	install, err := h.getReleaseStatus(testScope, "install", "rel")
 	require.NoError(t, err)
 	assert.Equal(t, "processing", install.Status)
 
-	upgrade, err := h.getReleaseStatus("upgrade", "rel")
+	upgrade, err := h.getReleaseStatus(testScope, "upgrade", "rel")
 	require.NoError(t, err)
 	assert.Equal(t, "success", upgrade.Status)
 }
@@ -249,10 +249,10 @@ func TestGetReleaseStatusUnmarshalError(t *testing.T) {
 	h, err := NewHandler(c)
 	require.NoError(t, err)
 
-	key := "helm_install_badrelease"
+	key := statusKey(testScope, "install", "badrelease")
 	err = c.SetWithTTL(context.Background(), key, "this-is-not-a-stat-struct", statusCacheTimeout)
 	require.NoError(t, err)
 
-	_, err = h.getReleaseStatus("install", "badrelease")
+	_, err = h.getReleaseStatus(testScope, "install", "badrelease")
 	assert.Error(t, err)
 }
