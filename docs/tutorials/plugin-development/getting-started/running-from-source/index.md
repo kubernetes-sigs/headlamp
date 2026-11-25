@@ -56,9 +56,9 @@ Install these tools before proceeding:
 | Tool | Version | Installation |
 |------|---------|--------------|
 | **Git** | Latest | [git-scm.com](https://git-scm.com/downloads) |
-| **Node.js** | ≥22.0.0 LTS  | [nodejs.org](https://nodejs.org/en/download) or use [nvm](https://github.com/nvm-sh/nvm) |
-| **npm**     | ≥11.0.0      | Included with Node.js |
-| **Go**      | ≥1.25.9      | [go.dev/doc/install](https://go.dev/doc/install) |
+| **Node.js** | ≥22.12.0 LTS  | [nodejs.org](https://nodejs.org/en/download) or use [nvm](https://github.com/nvm-sh/nvm) |
+| **npm**     | ≥11.0.0      | Check the bundled version and upgrade npm if needed |
+| **Go**      | ≥1.26.0      | [go.dev/doc/install](https://go.dev/doc/install) |
 
 ### Optional (for testing with a cluster)
 
@@ -71,9 +71,9 @@ Install these tools before proceeding:
 
 ```bash
 # Check versions
-node --version    # Should be v22.0.0 or higher
+node --version    # Should be v22.12.0 or higher
 npm --version     # Should be 11.0.0 or higher
-go version        # Should be go1.25.9 or higher
+go version        # Should be go1.26.0 or higher
 git --version     # Any recent version
 ```
 
@@ -189,7 +189,11 @@ npm run frontend:build
 npm start
 ```
 
-This starts both backend and frontend with live reload. You'll see color-coded output:
+This starts both the frontend development server and the already-built backend.
+The frontend reloads when its source changes. After changing Go code, stop the
+server, run `npm run backend:build`, and start it again.
+
+You'll see color-coded output:
 - 🔵 Blue: Backend logs
 - 🟢 Green: Frontend logs
 
@@ -310,9 +314,9 @@ npm run backend:build
 
 ```bash
 # Check versions match requirements
-node --version  # Need ≥22.0.0
+node --version  # Need ≥22.12.0
 npm --version   # Need ≥11.0.0
-go version      # Need ≥1.25.9
+go version      # Need ≥1.26.0
 ```
 
 ### kubeconfig Not Found
