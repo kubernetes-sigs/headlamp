@@ -22,3 +22,11 @@ export function makeKubeSourceId(kubeObjectClass: KubeObjectClass) {
 
   return group ? group + '/' + kubeObjectClass.kind : kubeObjectClass.kind;
 }
+
+/**
+ * Create the ID of the source that lists a custom resource in the map's Custom Resources group.
+ * The prefix keeps it apart from a built-in source for the same kind.
+ */
+export function makeCRSourceId(kubeObjectClass: KubeObjectClass) {
+  return 'crd-' + makeKubeSourceId(kubeObjectClass);
+}
