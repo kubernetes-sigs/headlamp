@@ -55,7 +55,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   type: NodePort
-  externalTrafficPolicy: 
   
   ports:
     - port: 80
