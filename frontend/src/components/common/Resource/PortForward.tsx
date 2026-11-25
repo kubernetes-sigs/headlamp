@@ -80,18 +80,14 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
-function getPortNumberFromPortName(containers: KubeContainer[], namedPort: string) {
-  let portNumber = 0;
-  containers.every((container: KubeContainer) => {
-    container.ports?.find((port: { name?: string; containerPort: number }) => {
-      if (port.name === namedPort) {
-        portNumber = port.containerPort;
-        return false;
-      }
-    });
-    return true;
-  });
-  return portNumber;
+function getPortNumberFromPortName(containers: KubeContainer[] = [], namedPort: string) {
+  for (const container of containers) {
+    const port = container.ports?.find(p => p.name === namedPort);
+    if (port) {
+      return port.containerPort;
+    }
+  }
+  return 0;
 }
 
 function getPodsSelectorFilter(service?: Service) {
@@ -187,12 +183,15 @@ function PortForwardContent(props: PortForwardProps) {
     return getCluster();
   }, [resource]);
 
-  const numericContainerPort =
-    typeof containerPort === 'string' && isNaN(parseInt(containerPort))
-      ? !pods || pods.length === 0
-        ? 0
-        : getPortNumberFromPortName(pods[0].spec.containers, containerPort)
-      : containerPort;
+  const isNamedPort = typeof containerPort === 'string' && !/^\d+$/.test(containerPort.trim());
+
+  const numericContainerPort = isNamedPort
+    ? !pods || pods.length === 0
+      ? 0
+      : getPortNumberFromPortName(pods[0]?.spec?.containers, containerPort)
+    : typeof containerPort === 'string'
+    ? parseInt(containerPort, 10)
+    : containerPort;
 
   const displayPodName = React.useMemo(() => {
     return isPod ? name : pods && pods.length > 0 ? pods[0].metadata.name : '';
