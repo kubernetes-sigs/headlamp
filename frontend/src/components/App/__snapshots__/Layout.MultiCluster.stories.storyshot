@@ -213,7 +213,7 @@
                             >
                               Clusters
                             </span>
-                            <p
+                            <div
                               class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
                             >
                               <div
@@ -238,7 +238,7 @@
                                   </span>
                                 </div>
                               </div>
-                            </p>
+                            </div>
                           </div>
                           <span
                             class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
