@@ -31,6 +31,8 @@ import Pod from '../../../../lib/k8s/pod';
 import PodGroup from '../../../../lib/k8s/podGroup';
 import ResourceClaim from '../../../../lib/k8s/resourceClaim';
 import ResourceClaimTemplate from '../../../../lib/k8s/resourceClaimTemplate';
+import Role from '../../../../lib/k8s/role';
+import RoleBinding from '../../../../lib/k8s/roleBinding';
 import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
@@ -153,6 +155,16 @@ const clusterRoleBinding = (
 
 const serviceAccount = (metadata: Record<string, any>, cluster = 'cluster-a') =>
   new ServiceAccount({ metadata } as any, cluster);
+
+const role = (metadata: Record<string, any>, cluster = 'cluster-a') =>
+  new Role({ metadata, rules: [] } as any, cluster);
+
+const roleBinding = (
+  metadata: Record<string, any>,
+  roleRef: Record<string, any>,
+  subjects?: Record<string, any>[],
+  cluster = 'cluster-a'
+) => new RoleBinding({ metadata, roleRef, subjects } as any, cluster);
 
 describe('KubeObject class matching', () => {
   it('does not match a generic plugin object to a typed resource class', () => {
@@ -339,10 +351,59 @@ describe('useGetAllRelations', () => {
     ).toBe(false);
   });
 
+  it('routes a role binding to the kind its roleRef names', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const toRole = relationById(result.current, 'rolebinding-role');
+    const toClusterRole = relationById(result.current, 'rolebinding-clusterrole');
+    const namespacedRole = role({ uid: 'role', name: 'view', namespace: 'namespace-a' });
+    const sharedNameClusterRole = clusterRole({ uid: 'cluster-role', name: 'view' });
+    const bindingTo = (kind: string) =>
+      roleBinding(
+        { uid: 'binding', name: 'readers', namespace: 'namespace-a' },
+        { kind, name: 'view' }
+      );
+
+    // Granting the built-in view ClusterRole inside one namespace must reach the
+    // ClusterRole and leave the same-named Role alone.
+    expect(
+      toClusterRole.predicate(node(bindingTo('ClusterRole')), node(sharedNameClusterRole))
+    ).toBe(true);
+    expect(toRole.predicate(node(bindingTo('ClusterRole')), node(namespacedRole))).toBe(false);
+
+    expect(toRole.predicate(node(bindingTo('Role')), node(namespacedRole))).toBe(true);
+    expect(toClusterRole.predicate(node(bindingTo('Role')), node(sharedNameClusterRole))).toBe(
+      false
+    );
+
+    // A ClusterRole is cluster scoped, so a binding in any namespace can reach it.
+    expect(
+      toClusterRole.predicate(
+        node(
+          roleBinding(
+            { uid: 'other', name: 'readers', namespace: 'namespace-b' },
+            { kind: 'ClusterRole', name: 'view' }
+          )
+        ),
+        node(sharedNameClusterRole)
+      )
+    ).toBe(true);
+    expect(
+      toClusterRole.predicate(
+        node(bindingTo('ClusterRole')),
+        node(clusterRole({ uid: 'cluster-role', name: 'view' }, 'cluster-b'))
+      )
+    ).toBe(false);
+  });
+
   it('reserves the cluster scoped RBAC relation IDs against plugin registrations', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
     const { result } = renderUseGetAllRelations();
-    const expectedIds = ['clusterrolebinding-clusterrole', 'clusterrolebinding-sa'];
+    const expectedIds = [
+      'rolebinding-clusterrole',
+      'clusterrolebinding-clusterrole',
+      'clusterrolebinding-sa',
+    ];
 
     expect(result.current.map(relation => relation.id)).toEqual(
       expect.arrayContaining(expectedIds)
