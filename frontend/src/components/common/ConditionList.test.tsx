@@ -215,6 +215,49 @@ describe('ConditionList', () => {
         color: theme.palette.text.primary,
       });
     });
+
+    it('inverts polarity for ReplicaFailure: "True" is error, "False" is success, and "Unknown" is neutral', () => {
+      const conditions: KubeCondition[] = [
+        createMockCondition({
+          type: 'ReplicaFailure',
+          status: 'True',
+          reason: 'FailedCreate',
+        }),
+        createMockCondition({
+          type: 'ReplicaFailure',
+          status: 'False',
+          reason: 'NoFailure',
+        }),
+        createMockCondition({
+          type: 'ReplicaFailure',
+          status: 'Unknown',
+          reason: 'Checking',
+        }),
+      ];
+
+      renderConditionList(conditions);
+
+      const labels = screen.getAllByText('ReplicaFailure');
+      expect(labels).toHaveLength(3);
+
+      const errorBg = (theme.palette.error as any)[800] ?? theme.palette.error.main;
+      const successBg = (theme.palette.success as any)[800] ?? theme.palette.success.main;
+
+      // ReplicaFailure True -> error
+      expect(labels[0]).toHaveStyle({
+        backgroundColor: errorBg,
+      });
+
+      // ReplicaFailure False -> success
+      expect(labels[1]).toHaveStyle({
+        backgroundColor: successBg,
+      });
+
+      // ReplicaFailure Unknown -> neutral muted
+      expect(labels[2]).toHaveStyle({
+        backgroundColor: theme.palette.background.muted,
+      });
+    });
   });
 
   describe('Cell formatters and fallback handling', () => {

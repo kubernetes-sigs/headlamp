@@ -58,8 +58,8 @@ export interface ConditionListProps {
  * crd/CustomResourceDetails.tsx, which currently derive status colour in different ways.
  * The rules used here are:
  *
- * - status === 'True'  -> 'success'
- * - status === 'False' -> 'error'
+ * - status === 'True'  -> 'success' (except for negative-polarity conditions like 'ReplicaFailure' -> 'error')
+ * - status === 'False' -> 'error' (except for negative-polarity conditions like 'ReplicaFailure' -> 'success')
  * - anything else      -> '' (neutral chip)
  *
  * @example
@@ -78,6 +78,13 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
   }
 
   function statusFromCondition(condition: KubeCondition): StatusLabelProps['status'] {
+    // ReplicaFailure has negative polarity: True indicates the controller cannot create pods.
+    if (condition.type?.toLowerCase() === 'replicafailure') {
+      if (condition.status === 'True') return 'error';
+      if (condition.status === 'False') return 'success';
+      return '';
+    }
+
     if (condition.status === 'True') return 'success';
     if (condition.status === 'False') return 'error';
     return '';
