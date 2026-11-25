@@ -443,3 +443,335 @@ describe('Pod.resourceClaims', () => {
     ]);
   });
 });
+
+describe('Pod.getLogs streaming and formatting', () => {
+  const makePod = () =>
+    new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'log-pod', namespace: 'default', uid: 'uid-log' },
+      spec: { containers: [{ name: 'app' }], nodeName: 'n1' },
+      status: { conditions: [], containerStatuses: [], phase: 'Running', startTime: '' },
+    } as any);
+
+  beforeEach(() => {
+    vi.mocked(stream).mockClear();
+  });
+
+  it('supports deprecated 4-argument getLogs signature', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onLogs = vi.fn();
+    makePod().getLogs('app', 50, true, onLogs);
+
+    expect(warnSpy).toHaveBeenCalled();
+    const url = vi.mocked(stream).mock.calls[0][0];
+    expect(url).toContain('tailLines=50');
+    expect(url).toContain('previous=true');
+    warnSpy.mockRestore();
+  });
+
+  it('omits tailLines when tailLines is -1', () => {
+    makePod().getLogs('app', () => {}, { tailLines: -1 });
+    expect(vi.mocked(stream).mock.calls[0][0]).not.toContain('tailLines=');
+  });
+
+  it('decodes, prettifies, unescapes JSON logs, and resets on reconnect', () => {
+    const onLogs = vi.fn();
+    makePod().getLogs('app', onLogs, {
+      prettifyLogs: true,
+      formatJsonValues: true,
+      showTimestamps: true,
+    });
+
+    const [, onResults, opts] = vi.mocked(stream).mock.calls[0];
+    // Empty and whitespace-only items are ignored
+    onResults('');
+    onResults(btoa('   '));
+    expect(onLogs).not.toHaveBeenCalled();
+
+    // Non-JSON log line
+    onResults(btoa('plain message'));
+    expect(onLogs).toHaveBeenLastCalledWith({ logs: ['plain message'], hasJsonLogs: false });
+
+    // Timestamped JSON log with escaped characters
+    const jsonLine = '2025-01-01T00:00:00Z {"msg":"line1\\nline2\\r\\n\\t\\"q\\"\\\\b"}';
+    onResults(btoa(jsonLine));
+    const lastCall = onLogs.mock.calls.at(-1)?.[0];
+    expect(lastCall.hasJsonLogs).toBe(true);
+    expect(lastCall.logs[1]).toContain('2025-01-01T00:00:00Z\n');
+    expect(lastCall.logs[1]).toContain('line1\nline2');
+
+    // Invalid JSON falls back to original line
+    onResults(btoa('{not-valid-json}'));
+    expect(onLogs.mock.calls.at(-1)?.[0].logs[2]).toBe('{not-valid-json}');
+
+    // connectCb resets logs and hasJsonLogs
+    opts.connectCb?.();
+    onResults(btoa('after reconnect'));
+    expect(onLogs.mock.calls.at(-1)?.[0]).toEqual({
+      logs: ['after reconnect'],
+      hasJsonLogs: false,
+    });
+  });
+
+  it('prettifies JSON logs without timestamps or formatJsonValues', () => {
+    const onLogs = vi.fn();
+    makePod().getLogs('app', onLogs, {
+      prettifyLogs: true,
+      formatJsonValues: false,
+      showTimestamps: false,
+    });
+    const [, onResults] = vi.mocked(stream).mock.calls[0];
+    onResults(btoa('{"a":1}'));
+    expect(onLogs).toHaveBeenLastCalledWith({
+      logs: ['{\n  "a": 1\n}\n'],
+      hasJsonLogs: true,
+    });
+  });
+
+  it('calls onReconnectStop once on failCb when follow is true', () => {
+    const onReconnectStop = vi.fn();
+    makePod().getLogs('app', () => {}, { follow: true, onReconnectStop });
+    const opts = vi.mocked(stream).mock.calls[0][2];
+    opts.failCb?.();
+    opts.failCb?.();
+    expect(onReconnectStop).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Pod.attach, Pod.exec, and Pod.getBaseObject', () => {
+  const makePod = () =>
+    new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'exec-pod', namespace: 'ns1', uid: 'uid-exec' },
+      spec: { containers: [{ name: 'app' }], nodeName: 'n1' },
+      status: { conditions: [], containerStatuses: [], phase: 'Running', startTime: '' },
+    } as any);
+
+  beforeEach(() => {
+    vi.mocked(stream).mockClear();
+  });
+
+  it('calls stream with attach URL and channel protocols', () => {
+    const cb = vi.fn();
+    makePod().attach('app', cb);
+    const [url, handler, opts] = vi.mocked(stream).mock.calls[0];
+    expect(url).toBe(
+      '/api/v1/namespaces/ns1/pods/exec-pod/attach?container=app&stdin=true&stderr=true&stdout=true&tty=true'
+    );
+    expect(handler).toBe(cb);
+    expect(opts.additionalProtocols).toContain('v4.channel.k8s.io');
+    expect(opts.isJson).toBe(false);
+  });
+
+  it('calls stream with exec URL using default and custom options', () => {
+    const cb = vi.fn();
+    makePod().exec('app', cb);
+    expect(vi.mocked(stream).mock.calls[0][0]).toBe(
+      '/api/v1/namespaces/ns1/pods/exec-pod/exec?container=app&command=sh&stdin=1&stderr=1&stdout=1&tty=1'
+    );
+
+    vi.mocked(stream).mockClear();
+    makePod().exec('app', cb, {
+      command: ['ls', '-la'],
+      stdin: false,
+      stderr: false,
+      stdout: false,
+      tty: false,
+    });
+    expect(vi.mocked(stream).mock.calls[0][0]).toBe(
+      '/api/v1/namespaces/ns1/pods/exec-pod/exec?container=app&command=ls&command=-la&stdin=0&stderr=0&stdout=0&tty=0'
+    );
+  });
+
+  it('returns default base object', () => {
+    const base = Pod.getBaseObject();
+    expect(base.metadata.labels).toEqual({ app: 'headlamp' });
+    expect(base.spec.containers[0].ports).toEqual([{ containerPort: 80 }]);
+  });
+});
+
+describe('Pod.getDetailedStatus init containers, signals, restarts, and cache', () => {
+  const makePod = (overrides: Record<string, any> = {}) =>
+    new Pod({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: 'p', namespace: 'default', resourceVersion: 'rv1', ...overrides.metadata },
+      spec: { containers: [{ name: 'c1' }], nodeName: 'n1', ...overrides.spec },
+      status: {
+        phase: 'Pending',
+        conditions: [],
+        containerStatuses: [],
+        startTime: '',
+        ...overrides.status,
+      },
+    } as any);
+
+  it('caches detailed status for identical resourceVersion', () => {
+    const pod = makePod();
+    const first = pod.getDetailedStatus();
+    const second = pod.getDetailedStatus();
+    expect(second).toBe(first);
+  });
+
+  it('handles init container terminated with signal, exitCode, reason, waiting, and default', () => {
+    expect(
+      makePod({
+        spec: { initContainers: [{ name: 'i1' }], containers: [{ name: 'c1' }] },
+        status: {
+          initContainerStatuses: [
+            {
+              name: 'i1',
+              restartCount: 1,
+              state: { terminated: { exitCode: 1, signal: 9, reason: '' } },
+              lastState: { terminated: { finishedAt: '2025-01-01T00:00:00Z' } },
+            },
+          ],
+        },
+      }).getDetailedStatus().reason
+    ).toBe('Init:Signal:9');
+
+    expect(
+      makePod({
+        spec: { initContainers: [{ name: 'i1' }], containers: [{ name: 'c1' }] },
+        status: {
+          initContainerStatuses: [
+            {
+              name: 'i1',
+              restartCount: 0,
+              state: { terminated: { exitCode: 2, signal: 0, reason: '' } },
+            },
+          ],
+        },
+      }).getDetailedStatus().reason
+    ).toBe('Init:ExitCode:2');
+
+    expect(
+      makePod({
+        spec: { initContainers: [{ name: 'i1' }], containers: [{ name: 'c1' }] },
+        status: {
+          initContainerStatuses: [
+            {
+              name: 'i1',
+              restartCount: 0,
+              state: { terminated: { exitCode: 1, reason: 'OOMKilled', message: 'oom' } },
+            },
+          ],
+        },
+      }).getDetailedStatus()
+    ).toMatchObject({ reason: 'Init:OOMKilled', message: 'oom' });
+
+    expect(
+      makePod({
+        spec: { initContainers: [{ name: 'i1' }], containers: [{ name: 'c1' }] },
+        status: {
+          initContainerStatuses: [
+            {
+              name: 'i1',
+              restartCount: 0,
+              state: { waiting: { reason: 'CrashLoopBackOff', message: 'loop' } },
+            },
+          ],
+        },
+      }).getDetailedStatus()
+    ).toMatchObject({ reason: 'Init:CrashLoopBackOff', message: 'loop' });
+
+    expect(
+      makePod({
+        spec: { initContainers: [{ name: 'i1' }], containers: [{ name: 'c1' }] },
+        status: {
+          initContainerStatuses: [
+            {
+              name: 'i1',
+              restartCount: 0,
+              state: { waiting: { reason: 'PodInitializing' } },
+            },
+          ],
+        },
+      }).getDetailedStatus().reason
+    ).toBe('Init:0/1');
+  });
+
+  it('handles restartable init containers and Initialized condition', () => {
+    const details = makePod({
+      spec: {
+        initContainers: [{ name: 'sidecar', restartPolicy: 'Always' }],
+        containers: [{ name: 'c1' }],
+      },
+      status: {
+        phase: 'Running',
+        conditions: [{ type: 'Initialized', status: 'True' }],
+        initContainerStatuses: [
+          {
+            name: 'sidecar',
+            started: true,
+            ready: true,
+            restartCount: 2,
+            state: { running: {} },
+            lastState: { terminated: { finishedAt: '2025-01-02T00:00:00Z' } },
+          },
+        ],
+        containerStatuses: [
+          {
+            name: 'c1',
+            ready: true,
+            restartCount: 1,
+            state: { running: {} },
+            lastState: { terminated: { finishedAt: '2025-01-03T00:00:00Z' } },
+          },
+        ],
+      },
+    }).getDetailedStatus();
+
+    expect(details.totalContainers).toBe(2);
+    expect(details.readyContainers).toBe(2);
+    expect(details.restarts).toBe(3);
+    expect(details.lastRestartDate).toEqual(new Date('2025-01-03T00:00:00Z'));
+  });
+
+  it('handles container waiting, signal termination, and Terminating/Unknown deletion states', () => {
+    expect(
+      makePod({
+        status: {
+          containerStatuses: [
+            {
+              name: 'c1',
+              restartCount: 0,
+              state: { waiting: { reason: 'ImagePullBackOff', message: 'pull' } },
+            },
+          ],
+        },
+      }).getDetailedStatus()
+    ).toMatchObject({ reason: 'ImagePullBackOff', message: 'pull' });
+
+    expect(
+      makePod({
+        status: {
+          containerStatuses: [
+            { name: 'c1', restartCount: 0, state: { terminated: { exitCode: 137, signal: 9 } } },
+          ],
+        },
+      }).getDetailedStatus().reason
+    ).toBe('Signal:9');
+
+    expect(
+      makePod({
+        metadata: { deletionTimestamp: '2025-01-01T00:00:00Z' },
+        status: { phase: 'Running' },
+      }).getDetailedStatus().reason
+    ).toBe('Terminating');
+
+    expect(
+      makePod({
+        metadata: { deletionTimestamp: '2025-01-01T00:00:00Z' },
+        status: { phase: 'Running', reason: 'NodeLost' },
+      }).getDetailedStatus().reason
+    ).toBe('Unknown');
+  });
+
+  it('classifies Unknown phase pod as failed in getHealth', () => {
+    const pod = makePod({ status: { phase: 'Unknown' } });
+    expect(pod.getHealth()).toBe('failed');
+  });
+});

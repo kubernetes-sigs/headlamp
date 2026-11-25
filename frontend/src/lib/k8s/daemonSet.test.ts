@@ -17,6 +17,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { jsonPatch } from './api/v1/clusterRequests';
+import ControllerRevision from './controllerRevision';
 import DaemonSet from './daemonSet';
 
 vi.mock('./api/v1/clusterRequests', () => ({
@@ -28,6 +29,38 @@ const mockedJsonPatch = vi.mocked(jsonPatch);
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
+
+function makeControllerRevision(
+  uid: string,
+  ownerUid: string,
+  revision: number,
+  withTemplate = true
+) {
+  return new ControllerRevision({
+    apiVersion: 'apps/v1',
+    kind: 'ControllerRevision',
+    metadata: {
+      name: `ds-rev-${revision}`,
+      namespace: 'default',
+      uid,
+      creationTimestamp: '2025-01-01T00:00:00Z',
+      ownerReferences: ownerUid
+        ? [{ apiVersion: 'apps/v1', kind: 'DaemonSet', name: 'test-daemonset', uid: ownerUid }]
+        : [],
+    },
+    revision,
+    data: withTemplate
+      ? {
+          spec: {
+            template: {
+              metadata: { labels: { app: 'myapp', 'controller-revision-hash': 'hash123' } },
+              spec: { containers: [{ name: 'app', image: `myapp:v${revision}` }] },
+            },
+          },
+        }
+      : {},
+  } as any);
+}
 
 describe('DaemonSet class', () => {
   const mockDaemonSetData = {
@@ -507,6 +540,126 @@ describe('DaemonSet class', () => {
         message: 'Failed to rollback: failed to list revisions',
       });
       expect(mockedJsonPatch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rollback and revision history', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockedJsonPatch.mockResolvedValue({ kind: 'DaemonSet' } as any);
+    });
+
+    it('exposes status, lists owned ControllerRevisions, and caches revision history', async () => {
+      const ds = new DaemonSet(JSON.parse(JSON.stringify(mockDaemonSetData)), 'my-cluster');
+      expect(ds.status.observedGeneration).toBe(3);
+
+      const rev1 = makeControllerRevision('r1', 'ds-uid-123', 1);
+      const rev2 = makeControllerRevision('r2', 'ds-uid-123', 2);
+      const revOther = makeControllerRevision('r3', 'other-uid', 3);
+      const revZero = makeControllerRevision('r4', 'ds-uid-123', 0);
+
+      const cancelFn = vi.fn();
+      const spy = vi.spyOn(ControllerRevision, 'apiList').mockImplementation((cb: any) => {
+        return async () => {
+          setTimeout(() => cb([rev1, rev2, revOther, revZero]), 0);
+          return cancelFn;
+        };
+      });
+
+      const history = await ds.getRevisionHistory();
+      expect(history).toHaveLength(2);
+      expect(history[0]).toMatchObject({ revision: 2, isCurrent: true, images: ['myapp:v2'] });
+      expect(history[1]).toMatchObject({ revision: 1, isCurrent: false, images: ['myapp:v1'] });
+      expect(cancelFn).toHaveBeenCalledTimes(1);
+
+      expect(await ds.getRevisionHistory()).toBe(history);
+      expect(spy).toHaveBeenCalledTimes(1);
+      spy.mockRestore();
+    });
+
+    it('handles rollback error and validation cases', async () => {
+      const ds = new DaemonSet(JSON.parse(JSON.stringify(mockDaemonSetData)));
+      const rev2 = makeControllerRevision('r2', 'ds-uid-123', 2);
+      const spy = vi.spyOn(ControllerRevision, 'apiList').mockImplementation((cb: any) => {
+        return async () => {
+          cb([rev2]);
+          return () => {};
+        };
+      });
+
+      expect(await ds.rollback()).toEqual({
+        success: false,
+        message: 'No previous revision available to rollback to',
+      });
+      expect(await ds.rollback(99)).toEqual({
+        success: false,
+        message: 'Revision 99 not found in history',
+      });
+      expect(await ds.rollback({ toRevision: 2 })).toEqual({
+        success: false,
+        message: 'Cannot rollback to current revision',
+      });
+      spy.mockRestore();
+    });
+
+    it('fails when target revision lacks a pod template and succeeds on valid/dryRun rollback', async () => {
+      const ds = new DaemonSet(JSON.parse(JSON.stringify(mockDaemonSetData)), 'my-cluster');
+      const rev1NoTpl = makeControllerRevision('r1', 'ds-uid-123', 1, false);
+      const rev2 = makeControllerRevision('r2', 'ds-uid-123', 2);
+
+      const spy = vi.spyOn(ControllerRevision, 'apiList').mockImplementation((cb: any) => {
+        return async () => {
+          cb([rev1NoTpl, rev2]);
+          return () => {};
+        };
+      });
+
+      expect(await ds.rollback(1)).toEqual({
+        success: false,
+        message: 'Target revision does not contain a valid pod template',
+      });
+
+      const rev1 = makeControllerRevision('r1', 'ds-uid-123', 1, true);
+      spy.mockImplementation((cb: any) => {
+        return async () => {
+          cb([rev1, rev2]);
+          return () => {};
+        };
+      });
+
+      const dryRes = await ds.rollback({ toRevision: 1, dryRun: true });
+      expect(dryRes).toMatchObject({
+        success: true,
+        message: 'Dry-run: would rollback to revision 1',
+        previousRevision: 1,
+        dryRunResult: { kind: 'DaemonSet' },
+      });
+      expect(jsonPatch).toHaveBeenLastCalledWith(
+        '/apis/apps/v1/namespaces/default/daemonsets/test-daemonset?dryRun=All',
+        [
+          {
+            op: 'replace',
+            path: '/spec/template',
+            value: expect.objectContaining({ metadata: { labels: { app: 'myapp' } } }),
+          },
+        ],
+        true,
+        { cluster: 'my-cluster' }
+      );
+
+      expect(await ds.rollback()).toEqual({
+        success: true,
+        message: 'Rolled back to revision 1',
+        previousRevision: 1,
+        dryRunResult: undefined,
+      });
+
+      vi.mocked(jsonPatch).mockRejectedValueOnce(new Error('denied'));
+      expect(await ds.rollback()).toEqual({
+        success: false,
+        message: 'Failed to rollback: denied',
+      });
+      spy.mockRestore();
     });
   });
 });
