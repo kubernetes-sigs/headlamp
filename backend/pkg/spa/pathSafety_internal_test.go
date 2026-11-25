@@ -16,7 +16,10 @@ limitations under the License.
 
 package spa
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestURLToRelRejectsUnsafePaths(t *testing.T) {
 	tests := []struct {
@@ -43,7 +46,11 @@ func TestURLToRelAcceptsSafeRelativePath(t *testing.T) {
 		t.Fatalf("expected safe path to be accepted")
 	}
 
-	if rel != "headlamp/assets/main.js" {
-		t.Fatalf("unexpected relative path: got %q", rel)
+	// urlToRel returns an OS-relative path, so the expected value must use the
+	// platform separator: "headlamp/assets/main.js" on Unix and
+	// "headlamp\assets\main.js" on Windows.
+	want := filepath.FromSlash("headlamp/assets/main.js")
+	if rel != want {
+		t.Fatalf("unexpected relative path: got %q, want %q", rel, want)
 	}
 }
