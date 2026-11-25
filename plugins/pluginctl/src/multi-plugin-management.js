@@ -381,19 +381,33 @@ class MultiPluginManager {
    * @param {function} [progressCallback] - Progress callback for this specific plugin
    * @returns {Promise<void>}
    */
-  async installPlugin(plugin, progressCallback) {
+  async installPlugin(plugin, progressCallback = () => {}) {
     progressCallback({ message: `Installing plugin ${plugin.name}` });
+
+    // The single-plugin installer reports errors through its callback instead
+    // of rejecting. Preserve those errors so bulk totals do not count failures
+    // as successes, even when the caller ignores progress events.
+    let installationError;
+    const installationProgress = progress => {
+      if (progress.type === 'error') {
+        installationError ||= new Error(progress.message);
+        progressCallback({ ...progress, raise: false });
+      } else {
+        progressCallback(progress);
+      }
+    };
 
     const params = [
       plugin.source,
       this.pluginsDir || undefined,
       this.headlampVersion || undefined,
-      progressCallback,
+      installationProgress,
       this.signal,
       plugin.version || undefined,
     ];
 
     await PluginManager.install(...params);
+    if (installationError) throw installationError;
   }
 
   /**

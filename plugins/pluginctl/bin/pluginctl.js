@@ -467,6 +467,7 @@ yargs(process.argv.slice(2))
               error: error.message,
               stack: error.stack,
             });
+            if (!watch) process.exitCode = 1;
           }
 
           if (watch) {
