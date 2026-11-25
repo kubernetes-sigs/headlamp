@@ -16,6 +16,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDefaultRoutes, setDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { TestContext } from '../../test';
 import ServiceAccountDetails from './Details';
 
@@ -49,8 +50,18 @@ vi.mock('../common/Resource', () => ({
 
 describe('ServiceAccountDetails secret links', () => {
   const originalPath = window.location.pathname;
+  let originalRoutes: ReturnType<typeof getDefaultRoutes>;
 
   beforeEach(() => {
+    originalRoutes = { ...getDefaultRoutes() };
+    setDefaultRoutes({
+      ...originalRoutes,
+      secret: {
+        path: '/secrets/:namespace/:name',
+        sidebar: 'secrets',
+        component: () => null,
+      },
+    });
     mockActivityLaunch.mockReset();
     // Two clusters are selected, and cluster-a comes first in the URL.
     window.history.pushState({}, '', '/c/cluster-a+cluster-b/serviceaccounts');
@@ -67,6 +78,7 @@ describe('ServiceAccountDetails secret links', () => {
   });
 
   afterEach(() => {
+    setDefaultRoutes(originalRoutes);
     window.history.pushState({}, '', originalPath);
   });
 
