@@ -60,6 +60,7 @@ export interface ConditionListProps {
  *
  * - status === 'True'  -> 'success'
  * - status === 'False' -> 'error'
+ * - for negative conditions (e.g. ReplicaFailure): 'False' -> 'success', 'True' -> 'error'
  * - anything else      -> '' (neutral chip)
  *
  * @example
@@ -78,6 +79,12 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
   }
 
   function statusFromCondition(condition: KubeCondition): StatusLabelProps['status'] {
+    const type = condition.type?.toLowerCase();
+    // ReplicaFailure is True when the controller cannot create pods.
+    if (type === 'replicafailure') {
+      return condition.status === 'False' ? 'success' : condition.status === 'True' ? 'error' : '';
+    }
+
     if (condition.status === 'True') return 'success';
     if (condition.status === 'False') return 'error';
     return '';
