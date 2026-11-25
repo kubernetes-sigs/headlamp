@@ -16,8 +16,10 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { getTestDate } from '../../helpers/testHelpers';
+import CronJob from '../../lib/k8s/cronJob';
 import Deployment from '../../lib/k8s/deployment';
 import StatefulSet from '../../lib/k8s/statefulSet';
+import type { Workload } from '../../lib/k8s/Workload';
 import { WorkloadCircleChart, WorkloadCircleChartProps } from './Charts';
 
 const createMockDeployment = (name: string, readyReplicas: number, replicas: number) => {
@@ -128,6 +130,36 @@ const createMockStatefulSet = (name: string, readyReplicas: number, replicas: nu
   );
 };
 
+const createMockCronJob = (name: string, suspend: boolean) => {
+  return new CronJob({
+    apiVersion: 'batch/v1',
+    kind: 'CronJob',
+    metadata: {
+      name: name,
+      namespace: 'default',
+      creationTimestamp: getTestDate().toISOString(),
+      uid: `${name}-uid`,
+    },
+    spec: {
+      schedule: '*/5 * * * *',
+      suspend: suspend,
+      concurrencyPolicy: 'Allow',
+      jobTemplate: {
+        spec: {
+          template: {
+            spec: {
+              containers: [{ name: name, image: 'busybox', imagePullPolicy: 'IfNotPresent' }],
+            },
+          },
+        },
+      },
+    },
+    status: {},
+  });
+};
+
+const categorizeCronJob = (item: Workload) => (item as CronJob).getHealth();
+
 const allRunningDeployment = createMockDeployment('running-deploy', 3, 3);
 const allFailedDeployment = createMockDeployment('failed-deploy', 0, 3);
 const partialRunningDeployment = createMockDeployment('partial-deploy', 2, 3);
@@ -165,8 +197,8 @@ const Template: StoryFn<WorkloadCircleChartProps> = (args: WorkloadCircleChartPr
 export const DefaultDeployment = Template.bind({});
 DefaultDeployment.args = {
   workloadData: [partialRunningDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const LoadingWorkload = Template.bind({});
@@ -180,48 +212,66 @@ LoadingWorkload.args = {
 export const AllRunningDeployment = Template.bind({});
 AllRunningDeployment.args = {
   workloadData: [allRunningDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const AllFailedDeployment = Template.bind({});
 AllFailedDeployment.args = {
   workloadData: [allFailedDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const DefaultStatefulSet = Template.bind({});
 DefaultStatefulSet.args = {
   workloadData: [partialRunningStatefulSet],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const AllRunningStatefulSet = Template.bind({});
 AllRunningStatefulSet.args = {
   workloadData: [allRunningStatefulSet],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const AllFailedStatefulSet = Template.bind({});
 AllFailedStatefulSet.args = {
   workloadData: [allFailedStatefulSet],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const MixedWorkloads = Template.bind({});
 MixedWorkloads.args = {
   workloadData: [allRunningDeployment, partialRunningStatefulSet, allFailedDeployment],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
 };
 
 export const Empty = Template.bind({});
 Empty.args = {
   workloadData: [],
-  partialLabel: 'Ready',
-  totalLabel: 'Total',
+  partialLabel: 'Failed',
+  totalLabel: 'Running',
+};
+
+export const SuspendedCronJobs = Template.bind({});
+SuspendedCronJobs.args = {
+  title: 'Cron Jobs',
+  workloadData: [createMockCronJob('paused-1', true), createMockCronJob('paused-2', true)],
+  partialLabel: 'Failed',
+  totalLabel: 'Healthy',
+  categorize: categorizeCronJob,
+};
+
+export const HealthyAndSuspendedCronJobs = Template.bind({});
+HealthyAndSuspendedCronJobs.args = {
+  title: 'Cron Jobs',
+  workloadData: [createMockCronJob('running', false), createMockCronJob('paused', true)],
+  partialLabel: 'Failed',
+  totalLabel: 'Healthy',
+  categorize: categorizeCronJob,
 };

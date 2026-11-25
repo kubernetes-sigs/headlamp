@@ -84,6 +84,10 @@ export type ResourceTableColumn<RowItem> = {
    * @default true
    **/
   sort?: boolean | ((a: RowItem, b: RowItem) => number);
+  /**
+   * Sort descending on the first click. By default only columns whose values are numbers do.
+   */
+  sortDescFirst?: boolean;
   /** Change how filtering behaves, by default it will just search the text value */
   filterVariant?: TableColumn<any>['filterVariant'];
   disableFiltering?: boolean;
@@ -454,6 +458,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
             filterVariant: column.filterVariant,
             enableMultiSort: !!sort,
             enableSorting: !!sort,
+            sortDescFirst: column.sortDescFirst,
             enableColumnFilter: !column.disableFiltering,
             muiTableBodyCellProps: {
               ...column.cellProps,
@@ -660,7 +665,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
                 <ListItemIcon>
                   <Icon icon={meta.icon} width="20" />
                 </ListItemIcon>
-                <ListItemText>{t(meta.labelKey)}</ListItemText>
+                <ListItemText>{t(meta.labelKey, { ns: ['glossary', 'translation'] })}</ListItemText>
               </MenuItem>
             ))}
           </React.Fragment>

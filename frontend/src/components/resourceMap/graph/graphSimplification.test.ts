@@ -15,6 +15,7 @@
  */
 
 import App from '../../../App';
+import DeviceClass from '../../../lib/k8s/deviceClass';
 import Pod from '../../../lib/k8s/pod';
 import { GraphEdge, GraphNode } from './graphModel';
 import {
@@ -62,6 +63,39 @@ describe('graphSimplification', () => {
       expect(result.nodes.every(node => node.kubeObject?.metadata.namespace === 'small')).toBe(
         true
       );
+    });
+
+    it('keeps the cluster-scoped resources a selected namespace links to', () => {
+      const namespaceNodes = makeNamespacePods(15, 'small');
+      const otherNodes = makeNamespacePods(1000, 'other');
+      const deviceClass = (name: string): GraphNode => ({
+        id: name,
+        kubeObject: new DeviceClass({
+          kind: 'DeviceClass',
+          apiVersion: 'resource.k8s.io/v1',
+          metadata: { name, uid: name },
+          spec: {},
+        } as any),
+      });
+      const edges = [
+        { id: 'small-gpu', source: namespaceNodes[0].id, target: 'gpu' },
+        { id: 'other-nic', source: otherNodes[0].id, target: 'nic' },
+      ];
+      const filteredGraph = {
+        nodes: [...namespaceNodes, ...otherNodes, deviceClass('gpu'), deviceClass('nic')],
+        edges,
+      };
+      const simplifiedGraph = simplifyGraph(filteredGraph.nodes, edges, {
+        enabled: true,
+        maxNodes: SIMPLIFIED_NODE_LIMIT,
+      });
+
+      const result = getGraphForSelectedNamespace(filteredGraph, simplifiedGraph, 'small');
+
+      expect(result.nodes.map(node => node.id)).toContain('gpu');
+      expect(result.nodes.map(node => node.id)).not.toContain('nic');
+      expect(result.nodes).toHaveLength(16);
+      expect(result.edges.map(edge => edge.id)).toEqual(['small-gpu']);
     });
 
     it('simplifies a selected namespace with 10,000 resources', () => {

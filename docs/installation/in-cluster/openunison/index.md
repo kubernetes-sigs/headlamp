@@ -23,7 +23,7 @@ OpenUnison supports multiple identity providers, including [EntraID](https://ope
 
 If you have an existing Headlamp deployment, you can integrate it with OpenUnison instead of using the OpenUnison-managed Headlamp instance.
 
-***NOTE:*** *It's important to use TLS when connecting to Headlamp, since there are tokens being transmitted. If your cluster has a service mesh, you can use that instead of explicitly configuring TLS for Headlamp.  If you don't have a service mesh or haven't deployed cert-manager or something similar for your Headlamp instance, you can use OpenUnison's integrated certificate manager.  If you want to use OpenUnison's certificate manager, create a `RoleBinding` that allowes the `openunison-operator` `ServiceAccount` to create and update `Secrets` and `Pods` so that OpenUnison's certificate manager can create TLS keypairs for Headlamp and restart Headlamp `Pods` when those keypairs need to be renewed:*
+***NOTE:*** *It's important to use TLS when connecting to Headlamp, since there are tokens being transmitted. If your cluster has a service mesh, you can use that instead of explicitly configuring TLS for Headlamp.  If you don't have a service mesh or haven't deployed cert-manager or something similar for your Headlamp instance, you can use OpenUnison's integrated certificate manager.  If you want to use OpenUnison's certificate manager, create a `RoleBinding` that allows the `openunison-operator` `ServiceAccount` to create and update `Secrets` and `Pods` so that OpenUnison's certificate manager can create TLS keypairs for Headlamp and restart Headlamp `Pods` when those keypairs need to be renewed:*
 
 ```yaml
 ---

@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package kubeconfig
 
 import (
@@ -106,7 +122,7 @@ func reAddMissingFiles(
 
 	logger.Log(logger.LevelInfo, nil, nil, "watcher: re-added missing files")
 
-	err := LoadAndStoreKubeConfigs(kubeConfigStore, existingKubeConfigPaths(paths), source, ignoreFunc)
+	err := LoadAndStoreKubeConfigs(kubeConfigStore, ExistingKubeConfigPaths(paths), source, ignoreFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "watcher: error loading kubeconfig files")
 	}
@@ -150,7 +166,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
 func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
-	existingPaths := existingKubeConfigPaths(paths)
+	existingPaths := ExistingKubeConfigPaths(paths)
 
 	// First read all kubeconfig files to get new contexts
 	var newContexts []Context
@@ -209,10 +225,10 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	return nil
 }
 
-// existingKubeConfigPaths drops the watched paths that do not exist on disk.
+// ExistingKubeConfigPaths drops the paths that do not exist on disk.
 // A watched kubeconfig file can be deleted or not created yet, and the watcher
 // treats that as a file with no contexts rather than as a load error.
-func existingKubeConfigPaths(paths string) string {
+func ExistingKubeConfigPaths(paths string) string {
 	var existing []string
 
 	for _, path := range splitKubeConfigPath(paths) {

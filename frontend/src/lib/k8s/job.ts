@@ -73,7 +73,8 @@ class Job extends KubeObject<KubeJob> {
    * chart. Jobs have no replica fields, so the replica-mismatch logic used for
    * other workloads can't apply. This relies on the same conditions the Jobs
    * list shows (Complete / Failed / Suspended); a job with no terminal
-   * condition yet is still running and treated as transitional.
+   * condition yet is still running and treated as transitional. A Suspended job
+   * is paused on purpose, so it is suspended rather than degraded.
    */
   getHealth(): WorkloadHealthCategory {
     const conditions = this.status?.conditions;
@@ -85,7 +86,7 @@ class Job extends KubeObject<KubeJob> {
       return 'healthy';
     }
     if (isConditionTrue(conditions, 'Suspended')) {
-      return 'degraded';
+      return 'suspended';
     }
     return 'transitional';
   }

@@ -59,9 +59,12 @@ export function StatefulSetsListRenderer(props: StatefulSetsListRendererProps) {
   const { t } = useTranslation('glossary');
 
   function renderPods(statefulSet: StatefulSet) {
-    const { readyReplicas, replicas } = statefulSet.status;
+    const { readyReplicas, replicas } = statefulSet.status ?? {};
+    // Ready out of desired, as kubectl does. status.replicas only counts the pods created so
+    // far, so a StatefulSet stuck on its first pod would look complete.
+    const desired = statefulSet.spec?.replicas ?? replicas;
 
-    return `${readyReplicas || 0}/${replicas || 0}`;
+    return `${readyReplicas || 0}/${desired || 0}`;
   }
 
   const commonProps: Omit<ResourceListViewProps<StatefulSet>, 'data'> = {
@@ -87,7 +90,7 @@ export function StatefulSetsListRenderer(props: StatefulSetsListRendererProps) {
       {
         id: 'replicas',
         label: t('Replicas'),
-        getValue: statefulSet => statefulSet.spec.replicas,
+        getValue: statefulSet => statefulSet.spec?.replicas || 0,
         gridTemplate: 'min-content',
       },
       {

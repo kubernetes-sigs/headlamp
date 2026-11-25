@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package config_test
 
 import (
@@ -8,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,15 +74,6 @@ func getTestDataPath() string {
 
 	// Otherwise, assume we're in the workspace root
 	return filepath.Join(cwd, "pkg", "config", "test_data")
-}
-
-func writeClusterInventoryProviderFile(t *testing.T) string {
-	t.Helper()
-
-	path := filepath.Join(t.TempDir(), "providers.json")
-	require.NoError(t, os.WriteFile(path, []byte(`{"providers":[]}`), 0o600))
-
-	return path
 }
 
 func setUserConfigDir(t *testing.T, dir string) {
@@ -406,9 +413,10 @@ func TestParseErrors(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:          "oidc_settings_without_incluster",
-			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
+			name: "oidc_settings_without_incluster",
+			args: []string{"go run ./cmd", "-oidc-client-id=noClient"},
+			errorContains: "flags are only meant to be used in inCluster mode, with --oidc-use-cookie, " +
+				"or with enabled cluster discovery",
 		},
 		{
 			name:          "unsafe_use_service_account_token_without_incluster",
@@ -614,12 +622,11 @@ func TestProxyAuthFlags(t *testing.T) {
 }
 
 func TestParseClusterInventoryFlags(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
-
 	conf, err := config.Parse([]string{
 		"go run ./cmd",
 		"--enable-cluster-inventory",
-		"--cluster-inventory-provider-file=" + providerFile,
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
 		"--cluster-inventory-label-selector=environment=prod,!headlamp.dev/ignore",
 		"--cluster-inventory-namespaces=team-a,team-b",
 		"--cluster-inventory-root-reconcile-interval=15s",
@@ -627,95 +634,111 @@ func TestParseClusterInventoryFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.True(t, conf.EnableClusterInventory)
-	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
-	assert.Equal(t, "environment=prod,!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
-	assert.Equal(t, "team-a,team-b", conf.ClusterInventoryNamespaces)
-	assert.Equal(t, 15*time.Second, conf.ClusterInventoryRootReconcileInterval)
-	assert.Equal(t, time.Minute, conf.ClusterInventoryNoCRDCacheTTL)
+	assert.True(t, conf.DiscoverySources["cluster_inventory"].Enabled)
+	assert.Equal(t, "environment=prod,!headlamp.dev/ignore", conf.DiscoverySources["cluster_inventory"].LabelSelector)
+	assert.Equal(t, "team-a,team-b", conf.DiscoverySources["cluster_inventory"].Namespaces)
+	assert.Equal(t, 15*time.Second, conf.DiscoverySources["cluster_inventory"].RootReconcileInterval)
+	assert.Equal(t, time.Minute, conf.DiscoverySources["cluster_inventory"].NoCRDCacheTTL)
 }
 
 func TestParseClusterInventoryEnv(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
 	t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
-	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", providerFile)
+	t.Setenv("HEADLAMP_CONFIG_OIDC_CLIENT_ID", "headlamp")
+	t.Setenv("HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL", "https://idp.example.com")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR", "!headlamp.dev/ignore")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_NAMESPACES", "*")
 
 	conf, err := config.Parse([]string{"go run ./cmd"})
 	require.NoError(t, err)
 
-	assert.True(t, conf.EnableClusterInventory)
-	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
-	assert.Equal(t, "!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
-	assert.Equal(t, "*", conf.ClusterInventoryNamespaces)
+	assert.True(t, conf.DiscoverySources["cluster_inventory"].Enabled)
+	assert.Equal(t, "!headlamp.dev/ignore", conf.DiscoverySources["cluster_inventory"].LabelSelector)
+	assert.Equal(t, "*", conf.DiscoverySources["cluster_inventory"].Namespaces)
 }
 
 func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
-
 	conf, err := config.Parse([]string{
 		"go run ./cmd",
 		"--enable-cluster-inventory",
-		"--cluster-inventory-provider-file=" + providerFile,
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, clusterinventory.DefaultRootReconcileInterval, conf.ClusterInventoryRootReconcileInterval)
-	assert.Equal(t, clusterinventory.DefaultNoCRDCacheTTL, conf.ClusterInventoryNoCRDCacheTTL)
-	assert.Empty(t, conf.ClusterInventoryLabelSelector)
-	assert.Empty(t, conf.ClusterInventoryNamespaces)
+	assert.Equal(t, clusterdiscovery.DefaultRootReconcileInterval,
+		conf.DiscoverySources["cluster_inventory"].RootReconcileInterval)
+	assert.Equal(t, clusterdiscovery.DefaultNoCRDCacheTTL, conf.DiscoverySources["cluster_inventory"].NoCRDCacheTTL)
+	assert.Empty(t, conf.DiscoverySources["cluster_inventory"].LabelSelector)
+	assert.Empty(t, conf.DiscoverySources["cluster_inventory"].Namespaces)
+}
+
+// Every discovery source gets the same tuning flags, not only Cluster Inventory.
+func TestParseClusterAPITuningFlags(t *testing.T) {
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-api",
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
+		"--cluster-api-root-reconcile-interval=15s",
+		"--cluster-api-no-crd-cache-ttl=1m",
+	})
+	require.NoError(t, err)
+
+	assert.True(t, conf.DiscoverySources["cluster_api"].Enabled)
+	assert.Equal(t, 15*time.Second, conf.DiscoverySources["cluster_api"].RootReconcileInterval)
+	assert.Equal(t, time.Minute, conf.DiscoverySources["cluster_api"].NoCRDCacheTTL)
+	// The sources are configured independently.
+	assert.Equal(t, clusterdiscovery.DefaultRootReconcileInterval,
+		conf.DiscoverySources["cluster_inventory"].RootReconcileInterval)
+}
+
+func TestParseClusterAPIDefaultIntervals(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd"})
+	require.NoError(t, err)
+
+	assert.Equal(t, clusterdiscovery.DefaultRootReconcileInterval,
+		conf.DiscoverySources["cluster_api"].RootReconcileInterval)
+	assert.Equal(t, clusterdiscovery.DefaultNoCRDCacheTTL, conf.DiscoverySources["cluster_api"].NoCRDCacheTTL)
 }
 
 func TestClusterInventoryValidation(t *testing.T) {
-	t.Run("disabled allows empty provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{"go run ./cmd"})
-		require.NoError(t, err)
-		require.NotNil(t, conf)
-		assert.False(t, conf.EnableClusterInventory)
-	})
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "disabled"},
+		{name: "requires OIDC", args: []string{"--enable-cluster-inventory"}, wantErr: "cluster discovery requires"},
+		{
+			name: "requires issuer",
+			args: []string{"--enable-cluster-inventory", "--oidc-client-id=headlamp"}, wantErr: "cluster discovery requires",
+		},
+		{
+			name:    "rejects provider files",
+			args:    []string{"--enable-cluster-inventory", "--cluster-inventory-provider-file=/old/config.json"},
+			wantErr: "no longer supported",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf, err := config.Parse(append([]string{"headlamp"}, tc.args...))
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				require.Nil(t, conf)
 
-	t.Run("enabled requires provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{"go run ./cmd", "--enable-cluster-inventory"})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "cluster-inventory-provider-file is required")
-	})
+				return
+			}
 
-	t.Run("enabled rejects missing provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=/does/not/exist",
+			require.NoError(t, err)
+			assert.False(t, conf.DiscoverySources["cluster_inventory"].Enabled)
 		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "error reading cluster-inventory-provider-file")
-	})
+	}
 
-	t.Run("enabled rejects directory provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=" + t.TempDir(),
-		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "cluster-inventory-provider-file must be a regular file")
-	})
+	t.Run("rejects legacy provider environment", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
+		t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", "/old/config.json")
 
-	t.Run("enabled rejects invalid provider file", func(t *testing.T) {
-		providerFile := filepath.Join(t.TempDir(), "providers.json")
-		require.NoError(t, os.WriteFile(providerFile, []byte(`{`), 0o600))
-
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=" + providerFile,
-		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "invalid cluster-inventory-provider-file")
+		_, err := config.Parse([]string{"headlamp"})
+		require.ErrorContains(t, err, "no longer supported")
 	})
 }
 
@@ -731,32 +754,68 @@ func TestClusterInventoryRejectsInvalidNamespaces(t *testing.T) {
 
 	for _, tt := range invalidNamespaces {
 		t.Run("enabled rejects "+tt.name, func(t *testing.T) {
-			providerFile := writeClusterInventoryProviderFile(t)
 			conf, err := config.Parse([]string{
 				"go run ./cmd",
 				"--enable-cluster-inventory",
-				"--cluster-inventory-provider-file=" + providerFile,
+				"--oidc-client-id=headlamp",
+				"--oidc-idp-issuer-url=https://idp.example.com",
 				"--cluster-inventory-namespaces=" + tt.namespaces,
 			})
 			require.Error(t, err)
 			require.Nil(t, conf)
-			assert.Contains(t, err.Error(), "invalid cluster-inventory-namespaces")
+			assert.Contains(t, err.Error(), "cluster-inventory-namespaces")
 		})
 	}
 }
 
 func TestClusterInventoryRejectsInvalidLabelSelector(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
-
 	conf, err := config.Parse([]string{
 		"go run ./cmd",
 		"--enable-cluster-inventory",
-		"--cluster-inventory-provider-file=" + providerFile,
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
 		"--cluster-inventory-label-selector=headlamp.dev/ignore in (",
 	})
 	require.Error(t, err)
 	require.Nil(t, conf)
 	assert.Contains(t, err.Error(), "invalid cluster-inventory-label-selector")
+}
+
+func TestClusterInventoryOIDCAuthValidation(t *testing.T) {
+	t.Run("oidc auth allows global oidc flags without in-cluster", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+		})
+		require.NoError(t, err)
+		assert.Empty(t, conf.ClusterInventoryProviderFile)
+	})
+
+	t.Run("oidc auth requires oidc identity flags", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster discovery requires")
+	})
+
+	t.Run("oidc auth rejects blank scopes", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--oidc-scopes=, ,\t",
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster discovery requires")
+	})
 }
 
 func TestOIDCTLSValidation(t *testing.T) {
@@ -1271,4 +1330,167 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	path, err := config.GetDefaultKubeConfigPath()
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
+}
+
+type apiProxyValidateTest struct {
+	name          string
+	args          []string
+	verify        func(t *testing.T, conf *config.Config)
+	expectError   bool
+	errorContains string
+}
+
+func apiProxyValidateTests() []apiProxyValidateTest {
+	return append(apiProxyFlagValidateTests(), apiProxyCAValidateTests()...)
+}
+
+func apiProxyFlagValidateTests() []apiProxyValidateTest {
+	oidcArgs := []string{
+		"go run ./cmd", "--in-cluster",
+		"--oidc-client-id=cid", "--oidc-idp-issuer-url=https://idp.example.com",
+	}
+	withOIDC := func(extra ...string) []string {
+		return append(append([]string{}, oidcArgs...), extra...)
+	}
+
+	return []apiProxyValidateTest{
+		{
+			name: "api_proxy_url_parsed",
+			args: withOIDC("--oidc-api-proxy=https://proxy.example.com/kubernetes"),
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, "https://proxy.example.com/kubernetes", conf.OidcAPIProxy)
+			},
+		},
+		{
+			name: "api_proxy_skip_tls_verify_parsed",
+			args: []string{"go run ./cmd", "--oidc-api-proxy-skip-tls-verify"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.True(t, conf.OidcAPIProxySkipTLSVerify)
+			},
+		},
+		{
+			name: "api_proxy_empty_no_error",
+			args: []string{"go run ./cmd"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Empty(t, conf.OidcAPIProxy)
+				assert.Empty(t, conf.OidcAPIProxyCAFile)
+				assert.False(t, conf.OidcAPIProxySkipTLSVerify)
+			},
+		},
+		{
+			name:          "api_proxy_invalid_url",
+			args:          withOIDC("--oidc-api-proxy=not-a-url"),
+			expectError:   true,
+			errorContains: "oidc-api-proxy must be a valid http(s) URL",
+		},
+		{
+			name:          "api_proxy_requires_oidc_client",
+			args:          []string{"go run ./cmd", "--in-cluster", "--oidc-api-proxy=https://proxy.example.com"},
+			expectError:   true,
+			errorContains: "oidc-api-proxy requires oidc-client-id and oidc-idp-issuer-url",
+		},
+		{
+			name: "api_proxy_incompatible_with_service_account_token",
+			args: withOIDC("--oidc-api-proxy=https://proxy.example.com",
+				"--unsafe-use-service-account-token"),
+			expectError:   true,
+			errorContains: "cannot be used together with unsafe-use-service-account-token",
+		},
+	}
+}
+
+func apiProxyCAValidateTests() []apiProxyValidateTest {
+	return []apiProxyValidateTest{
+		{
+			name: "api_proxy_ca_file_valid",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-api-proxy-ca-file=" + filepath.Join(getTestDataPath(), "valid_ca.pem"),
+			},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, filepath.Join(getTestDataPath(), "valid_ca.pem"), conf.OidcAPIProxyCAFile)
+			},
+		},
+		{
+			name: "api_proxy_ca_file_invalid_pem",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-api-proxy-ca-file=" + filepath.Join(getTestDataPath(), "invalid_ca.pem"),
+			},
+			expectError:   true,
+			errorContains: "invalid oidc-api-proxy-ca-file",
+		},
+		{
+			name: "api_proxy_ca_file_not_found",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-api-proxy-ca-file=" + filepath.Join(getTestDataPath(), "nonexistent.pem"),
+			},
+			expectError:   true,
+			errorContains: "error reading oidc-api-proxy-ca-file",
+		},
+	}
+}
+
+// TestValidateAPIProxy verifies the oidc-api-proxy-* flag parsing and
+// validation logic in Config.Validate().
+func TestValidateAPIProxy(t *testing.T) {
+	for _, tt := range apiProxyValidateTests() {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			if tt.verify != nil {
+				tt.verify(t, conf)
+			}
+		})
+	}
+}
+
+func TestClusterAPIDiscoveryConfiguration(t *testing.T) {
+	for _, args := range [][]string{
+		{"headlamp", "--enable-cluster-api"},
+		{
+			"headlamp",
+			"--enable-cluster-api",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--cluster-api-namespaces=team,*",
+		},
+		{
+			"headlamp",
+			"--enable-cluster-api",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--cluster-api-label-selector=bad in (",
+		},
+	} {
+		_, err := config.Parse(args)
+		require.Error(t, err)
+	}
+
+	parsed, err := config.Parse(
+		[]string{
+			"headlamp",
+			"--enable-cluster-api",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--cluster-api-namespaces=workloads",
+			"--cluster-api-label-selector=!headlamp.dev/ignore",
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, parsed.DiscoverySources["cluster_api"].Enabled)
+	require.False(t, parsed.DiscoverySources["cluster_inventory"].Enabled)
+	require.Equal(t, "workloads", parsed.DiscoverySources["cluster_api"].Namespaces)
 }

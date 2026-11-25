@@ -42,6 +42,7 @@ export interface KubeCronJob extends KubeObjectInterface {
           spec: {
             metadata?: Partial<KubeMetadata>;
             containers: KubeContainer[];
+            restartPolicy?: 'Never' | 'OnFailure';
           };
         };
       };
@@ -86,6 +87,7 @@ class CronJob extends KubeObject<KubeCronJob> {
         spec: {
           template: {
             spec: {
+              restartPolicy: 'Never',
               containers: [
                 {
                   name: '',
@@ -108,13 +110,14 @@ class CronJob extends KubeObject<KubeCronJob> {
   /**
    * Classifies the cron job into a coarse health category for the Workloads
    * overview chart. Cron jobs have no replica fields, so the replica-mismatch
-   * logic used for other workloads can't apply. A suspended cron job is
-   * degraded, one with running jobs is transitional, and one whose last run was
-   * scheduled but never recorded a success is treated as failed.
+   * logic used for other workloads can't apply. A suspended cron job is paused
+   * on purpose, so it is suspended rather than degraded. One with running jobs
+   * is transitional, and one whose last run was scheduled but never recorded a
+   * success is treated as failed.
    */
   getHealth(): WorkloadHealthCategory {
     if (this.spec?.suspend) {
-      return 'degraded';
+      return 'suspended';
     }
     if ((this.status?.active?.length ?? 0) > 0) {
       return 'transitional';

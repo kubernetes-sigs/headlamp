@@ -95,8 +95,11 @@ export interface GraphEdge {
    * Being edge-role-specific (rather than a plain boolean flag on the edge) keeps the
    * *other* endpoint — e.g. a Pod that happens to mount only RWX PVCs and so has no
    * "normal" edges — from being misidentified as shareable itself.
+   *
+   * 'both' names both endpoints, for an edge between two shareable resources, such as a
+   * ResourceClaimTemplate used by several workloads and the DeviceClass it asks for.
    */
-  nonGroupingSide?: 'source' | 'target';
+  nonGroupingSide?: 'source' | 'target' | 'both';
 }
 
 /**
@@ -254,6 +257,8 @@ const DEFAULT_NODE_WEIGHTS = {
   // Network supporting resources (cascading from Service/NetworkPolicy)
   Endpoints: 780,
   EndpointSlice: 780,
+  MutatingAdmissionPolicy: 780,
+  MutatingAdmissionPolicyBinding: 780,
   MutatingWebhookConfiguration: 780,
   ValidatingWebhookConfiguration: 780,
   IngressClass: 780,

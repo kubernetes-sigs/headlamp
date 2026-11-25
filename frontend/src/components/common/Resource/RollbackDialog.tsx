@@ -78,6 +78,9 @@ export default function RollbackDialog(props: RollbackDialogProps) {
 
   useEffect(() => {
     if (!open) {
+      // A preview that is still loading belongs to the closed dialog, so drop its result.
+      previewRequestId.current++;
+      setPreviewLoading(false);
       setPreviewData(null);
       setPreviewError(null);
       setPreviewOpen(false);

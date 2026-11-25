@@ -123,17 +123,17 @@ describe('CompositePodGroupList', () => {
       schedulingCondition: { type: 'CompositePodGroupInitiallyScheduled', status: 'False' },
     };
 
-    expect(status.getValue(scheduled)).toBe('translation|Scheduled');
-    expect(status.getValue(pending)).toBe('translation|Pending');
+    expect(status.getValue(scheduled)).toBe('Scheduled');
+    expect(status.getValue(pending)).toBe('Pending');
   });
 
   it('shows an unknown status while the group has no conditions yet', () => {
     const props = renderList();
     const status = column(props, 'status');
 
-    expect(status.getValue({})).toBe('translation|Unknown');
+    expect(status.getValue({})).toBe('Unknown');
 
     render(<TestContext>{status.render({})}</TestContext>);
-    expect(screen.getByText('translation|Unknown')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
   });
 });

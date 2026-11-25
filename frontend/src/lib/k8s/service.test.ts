@@ -130,6 +130,24 @@ describe('Service class', () => {
       expect(service.getExternalAddresses()).toBe('<pending>');
     });
 
+    it('returns <pending> for a LoadBalancer with unpopulated ingress entries', () => {
+      const data = JSON.parse(JSON.stringify(mockServiceData));
+      data.spec.type = 'LoadBalancer';
+      data.spec.externalIPs = [];
+      data.status = { loadBalancer: { ingress: [{}, { ip: '' }] } };
+      const service = new Service(data);
+      expect(service.getExternalAddresses()).toBe('<pending>');
+    });
+
+    it('filters out falsy entries when valid addresses are present', () => {
+      const data = JSON.parse(JSON.stringify(mockServiceData));
+      data.spec.type = 'LoadBalancer';
+      data.spec.externalIPs = ['203.0.113.1', ''];
+      data.status = { loadBalancer: { ingress: [{}, { ip: '192.0.2.1' }] } };
+      const service = new Service(data);
+      expect(service.getExternalAddresses()).toBe('192.0.2.1, 203.0.113.1');
+    });
+
     it('returns externalIPs for a LoadBalancer with no ingress yet', () => {
       const data = JSON.parse(JSON.stringify(mockServiceData));
       data.spec.type = 'LoadBalancer';

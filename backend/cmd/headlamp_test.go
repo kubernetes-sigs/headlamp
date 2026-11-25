@@ -24,12 +24,14 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -60,8 +62,11 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
@@ -308,6 +313,31 @@ func TestLoadKubeConfigClustersLogging(t *testing.T) {
 			assert.Equal(t, test.expectedMsg, entries[0].msg)
 		})
 	}
+}
+
+func TestLoadKubeConfigClustersSkipsMissingFiles(t *testing.T) {
+	logs := captureLogs(t)
+
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	missing := filepath.Join(t.TempDir(), "missing-kubeconfig")
+	path := missing + string(os.PathListSeparator) + "./headlamp_testdata/kubeconfig"
+
+	loadKubeConfigClusters(config, path, nil)
+
+	for _, entry := range logs() {
+		assert.NotEqual(t, logger.LevelError, entry.level, "unexpected error log: %s", entry.msg)
+	}
+
+	contexts, err := config.KubeConfigStore.GetContexts()
+	require.NoError(t, err)
+	assert.NotEmpty(t, contexts, "contexts from the existing file should be loaded")
 }
 
 func TestLoadDynamicClustersLogging(t *testing.T) {
@@ -581,6 +611,10 @@ func TestDynamicClusters(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	caData := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+
 	var (
 		newCluster        = "mynewcluster"
 		newClusterServer  = "https://mysupercluster.io"
@@ -602,18 +636,17 @@ func TestDynamicClusters(t *testing.T) {
 				{
 					Name:                     &newCluster,
 					Server:                   &newClusterServer,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 				{
-					Name:                     &newCluster2,
-					Server:                   &newCluster2Server,
-					InsecureSkipTLSVerify:    true,
-					CertificateAuthorityData: []byte("abcde"),
+					Name:                  &newCluster2,
+					Server:                &newCluster2Server,
+					InsecureSkipTLSVerify: true,
 				},
 				{
 					Name:                     &newCluster3,
 					Server:                   &newCluster3Server,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 			},
 			expectedState:       http.StatusCreated,
@@ -625,12 +658,12 @@ func TestDynamicClusters(t *testing.T) {
 				{
 					Name:                     &newCluster,
 					Server:                   &newClusterServer,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 				{
 					Name:                     &newCluster, // same name will override
 					Server:                   &newCluster2Server,
-					CertificateAuthorityData: []byte("abcde"),
+					CertificateAuthorityData: caData,
 				},
 			},
 			expectedState:       http.StatusCreated,
@@ -653,6 +686,27 @@ func TestDynamicClusters(t *testing.T) {
 			expectedState:       http.StatusBadRequest,
 			expectedNumClusters: 0,
 		},
+		{
+			name: "invalid CA",
+			clusters: []ClusterReq{{
+				Name:                     &newCluster,
+				Server:                   &newClusterServer,
+				CertificateAuthorityData: []byte("abcde"),
+			}},
+			expectedState:       http.StatusBadRequest,
+			expectedNumClusters: 0,
+		},
+		{
+			name: "CA with insecure TLS",
+			clusters: []ClusterReq{{
+				Name:                     &newCluster,
+				Server:                   &newClusterServer,
+				InsecureSkipTLSVerify:    true,
+				CertificateAuthorityData: caData,
+			}},
+			expectedState:       http.StatusBadRequest,
+			expectedNumClusters: 0,
+		},
 	}
 
 	for _, tc := range tests {
@@ -664,6 +718,7 @@ func TestDynamicClusters(t *testing.T) {
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:          false,
 						KubeConfigPath:        "",
+						KubeConfigDir:         t.TempDir(),
 						EnableDynamicClusters: true,
 						KubeConfigStore:       kubeConfigStore,
 					},
@@ -682,7 +737,7 @@ func TestDynamicClusters(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				assert.Equal(t, r.Code, tc.expectedState)
+				assert.Equal(t, tc.expectedState, r.Code, r.Body.String())
 
 				// Verify if the created cluster matches what we asked to be created
 				if r.Code == http.StatusCreated {
@@ -735,8 +790,51 @@ func TestDynamicClusters(t *testing.T) {
 				}
 
 				assert.Equal(t, len(clusterConfig.Clusters), len(config.Clusters))
-				assert.Equal(t, tc.expectedNumClusters, len(c.getClusters()))
 			}
+
+			assert.Len(t, c.getClusters(), tc.expectedNumClusters)
+		})
+	}
+}
+
+// TestDynamicClusterRejectsBlankNameOrServer checks that adding a cluster by name and server
+// fails when either is blank, instead of adding a cluster that cannot be opened by name.
+func TestDynamicClusterRejectsBlankNameOrServer(t *testing.T) {
+	tests := []struct {
+		name   string
+		server string
+	}{
+		{"", "https://1.2.3.4"},
+		{"   ", "https://1.2.3.4"},
+		{"blank-server", "   "},
+	}
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("name %q server %q", tc.name, tc.server), func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("APPDATA", t.TempDir())
+
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						EnableDynamicClusters: true,
+						KubeConfigStore:       kubeconfig.NewContextStore(),
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
+			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
+
+			r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster",
+				ClusterReq{Name: &tc.name, Server: &tc.server})
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, r.Code, r.Body.String())
+			assert.Contains(t, r.Body.String(), "must not be blank")
+			assert.Empty(t, c.getClusters())
 		})
 	}
 }
@@ -811,6 +909,7 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	clusters := c.getClusters()
 	require.Len(t, clusters, 1)
 	assert.Equal(t, "cluster_inventory", clusters[0].Metadata["source"])
+	assert.Equal(t, false, clusters[0].Metadata["canRename"])
 	assert.Equal(t, "cluster-inventory/in-cluster/default/spoke-a", clusters[0].Metadata["clusterID"])
 	inventory, ok := clusters[0].Metadata["clusterInventory"].(*inventorymetadata.Metadata)
 	require.True(t, ok)
@@ -1014,6 +1113,70 @@ func TestExternalProxy(t *testing.T) {
 				rr.Body.String(), "OK")
 		}
 	}
+}
+
+func TestExternalProxyStripsAuthHeaders(t *testing.T) {
+	const proxyAuthTokenHeader = "X-Forwarded-Id-Token" // #nosec G101 -- header name, not a credential
+
+	// The proxy target sends back the headers it received over a channel, so the
+	// test goroutine reads them without racing the server goroutine.
+	receivedCh := make(chan http.Header, 1)
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedCh <- r.Header.Clone()
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	defer target.Close()
+
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{target.URL},
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			ProxyAuthEnabled:     true,
+			ProxyAuthTokenHeader: proxyAuthTokenHeader,
+			Cache:                cache.New[interface{}](),
+		},
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
+	// Both routing headers name the target; proxy-to is the one the handler picks.
+	req.Header.Set("proxy-to", target.URL)
+	req.Header.Set("Forward-to", target.URL)
+	req.Header.Set("Authorization", "Bearer user-kubernetes-token")
+	req.Header.Set("Proxy-Authorization", "Basic proxy-credentials")
+	req.Header.Set(proxyAuthTokenHeader, "proxy-auth-id-token")
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "headlamp-backend-secret")
+	req.Header.Set("Cookie", "headlamp-auth=secret-cookie")
+	req.Header.Set("X-Custom-Header", "keep-me")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var received http.Header
+	select {
+	case received = <-receivedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the proxy target to receive the request")
+	}
+
+	// Sensitive/internal headers must not reach the external target.
+	assert.Empty(t, received.Get("Authorization"), "Authorization should be stripped")
+	assert.Empty(t, received.Get("Proxy-Authorization"), "Proxy-Authorization should be stripped")
+	assert.Empty(t, received.Get(proxyAuthTokenHeader), "proxy auth token header should be stripped")
+	assert.Empty(t, received.Get("X-HEADLAMP_BACKEND-TOKEN"), "backend token should be stripped")
+	assert.Empty(t, received.Get("Cookie"), "Cookie should be stripped")
+	assert.Empty(t, received.Get("proxy-to"), "proxy-to should be stripped")
+	assert.Empty(t, received.Get("Forward-to"), "Forward-to should be stripped")
+
+	// Ordinary headers are still forwarded.
+	assert.Equal(t, "keep-me", received.Get("X-Custom-Header"))
 }
 
 func TestCompileProxyURLPatternsInvalidPattern(t *testing.T) {
@@ -1349,6 +1512,44 @@ func TestDrainAndCordonNode(t *testing.T) {
 	}
 }
 
+func TestDrainNodeStatusNonStringCacheValue(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kubeConfigPath := filepath.Join("headlamp_testdata", "kubeconfig")
+
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  kubeConfigPath,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	})
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(minikubeName+"\x00"+minikubeName)).String()
+
+	// A non-string value under the drain status key must not panic the handler.
+	if err := cache.SetWithTTL(context.Background(), cacheKey, true, DrainNodeCacheTTL*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	url := fmt.Sprintf("/drain-node-status?cluster=%s&nodeName=%s", minikubeName, minikubeName)
+
+	rr, err := getResponse(handler, "GET", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+}
+
 //nolint:funlen // Test simulates node drain pod deletion failures
 func TestDrainNodePodDeletionFailure(t *testing.T) {
 	podOk := &corev1.Pod{
@@ -1392,12 +1593,15 @@ func TestDrainNodePodDeletionFailure(t *testing.T) {
 	}
 
 	fakeClient := fake.NewClientset(node, podOk, podDaemonset, podFail)
+	evictionRemovesPod(fakeClient)
 
-	// Inject error for deleting pod-fail
-	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
-		deleteAction := action.(k8stesting.DeleteAction)
-		if deleteAction.GetName() == "pod-fail" {
-			return true, nil, fmt.Errorf("pod is protected by PodDisruptionBudget")
+	// Inject error for evicting pod-fail
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		createAction := action.(k8stesting.CreateAction)
+
+		eviction, ok := createAction.GetObject().(*policyv1.Eviction)
+		if action.GetSubresource() == "eviction" && ok && eviction.Name == "pod-fail" {
+			return true, nil, fmt.Errorf("eviction webhook denied the request")
 		}
 
 		return false, nil, nil
@@ -1434,7 +1638,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) {
 
 	assert.True(t, strings.HasPrefix(status, "error:"),
 		"expected error status, got: %s", status)
-	assert.Contains(t, status, "failed to delete")
+	assert.Contains(t, status, "failed to evict")
 }
 
 func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
@@ -1455,6 +1659,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	}
 
 	fakeClient := fake.NewClientset(node, pod1)
+	evictionRemovesPod(fakeClient)
 
 	testCache := cache.New[interface{}]()
 	c := &HeadlampConfig{
@@ -1486,6 +1691,135 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "success", status)
+}
+
+// drainTestSetup returns a fake clientset with one pod on test-node, a config and the cache key.
+func drainTestSetup(t *testing.T) (*fake.Clientset, *HeadlampConfig, cache.Cache[interface{}], string) {
+	t.Helper()
+
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "original-uid"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{Cache: testCache}}
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	return fake.NewClientset(node, pod), c, testCache, cacheKey
+}
+
+// waitForDrainStatus waits for the drain to finish and returns its final status.
+func waitForDrainStatus(t *testing.T, testCache cache.Cache[interface{}], cacheKey string) string {
+	t.Helper()
+
+	var status string
+
+	require.Eventually(t, func() bool {
+		item, err := testCache.Get(context.Background(), cacheKey)
+		if err != nil {
+			return false
+		}
+
+		status, _ = item.(string)
+
+		return status != "" && status != drainStatusInProgress
+	}, 5*time.Second, 10*time.Millisecond)
+
+	return status
+}
+
+// evictionRemovesPod makes an accepted eviction delete the pod, which is what the API server ends up
+// doing once the pod has terminated. The fake clientset does not do that by itself.
+func evictionRemovesPod(fakeClient *fake.Clientset) {
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		eviction, ok := action.(k8stesting.CreateAction).GetObject().(*policyv1.Eviction)
+		if action.GetSubresource() != "eviction" || !ok {
+			return false, nil, nil
+		}
+
+		_ = fakeClient.Tracker().Delete(corev1.SchemeGroupVersion.WithResource("pods"), eviction.Namespace, eviction.Name)
+
+		return true, nil, nil
+	})
+}
+
+// TestDrainNodeEvictsInsteadOfDeleting checks that the drain goes through the Eviction API, so that
+// PodDisruptionBudgets and eviction webhooks apply, and never deletes pods directly.
+func TestDrainNodeEvictsInsteadOfDeleting(t *testing.T) {
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+	evictionRemovesPod(fakeClient)
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+
+	var evictions, deletes int
+
+	for _, action := range fakeClient.Actions() {
+		if action.GetSubresource() == "eviction" {
+			evictions++
+
+			eviction := action.(k8stesting.CreateAction).GetObject().(*policyv1.Eviction)
+			require.NotNil(t, eviction.DeleteOptions)
+			require.NotNil(t, eviction.DeleteOptions.Preconditions)
+			assert.Equal(t, k8stypes.UID("original-uid"), *eviction.DeleteOptions.Preconditions.UID)
+		}
+
+		if action.GetVerb() == "delete" && action.GetResource().Resource == "pods" {
+			deletes++
+		}
+	}
+
+	assert.Equal(t, 1, evictions)
+	assert.Zero(t, deletes, "pods must not be deleted directly")
+}
+
+func TestDrainNodeRetriesEvictionBlockedByPDB(t *testing.T) {
+	oldInterval := drainEvictRetryInterval
+	drainEvictRetryInterval = 10 * time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval = oldInterval })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+	evictionRemovesPod(fakeClient)
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		if attempts.Add(1) < 3 {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		return false, nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Equal(t, int32(3), attempts.Load())
+}
+
+func TestDrainNodeFailsWhenPDBBlocksUntilTimeout(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() == "eviction" {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		return false, nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
 }
 
 //nolint:funlen // Test verifies cluster cookie resolution with custom-named contexts
@@ -1582,6 +1916,412 @@ func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testi
 	}
 }
 
+// An accepted eviction only starts graceful termination, so the drain is not done, and must not report
+// success, until the pod is gone.
+func TestDrainNodeWaitsForEvictedPodToTerminate(t *testing.T) {
+	oldPoll := drainTerminationPollInterval
+	drainTerminationPollInterval = 10 * time.Millisecond
+
+	t.Cleanup(func() { drainTerminationPollInterval = oldPoll })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	// accepted, but the pod stays around, terminating
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return action.GetSubresource() == "eviction", nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+
+	assert.Never(t, func() bool {
+		item, err := testCache.Get(context.Background(), cacheKey)
+		status, _ := item.(string)
+
+		return err != nil || status != drainStatusInProgress
+	}, 200*time.Millisecond, 10*time.Millisecond, "the drain must stay in progress while the pod is terminating")
+
+	require.NoError(t, fakeClient.Tracker().Delete(
+		corev1.SchemeGroupVersion.WithResource("pods"), "default", "pdb-pod"))
+
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+}
+
+func TestDrainNodeFailsWhenEvictedPodNeverTerminates(t *testing.T) {
+	oldPoll, oldTimeout := drainTerminationPollInterval, drainTerminationTimeout
+	drainTerminationPollInterval, drainTerminationTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainTerminationPollInterval, drainTerminationTimeout = oldPoll, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return action.GetSubresource() == "eviction", nil, nil
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
+}
+
+// A pod that was recreated under the same name, with a different UID, is not the pod being drained:
+// the drain is finished with it, and does not evict it.
+func TestDrainNodeDoesNotEvictReplacementPod(t *testing.T) {
+	oldInterval := drainEvictRetryInterval
+	drainEvictRetryInterval = 10 * time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval = oldInterval })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		if attempts.Add(1) == 1 {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		// Between the attempts the pod was deleted and recreated, so the UID precondition fails.
+		_ = fakeClient.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "replacement-uid"},
+			Spec:       corev1.PodSpec{NodeName: "other-node"},
+		}, "default")
+
+		return true, nil, apierrors.NewConflict(
+			corev1.Resource("pods"), "pdb-pod", errors.New("precondition failed: UID mismatch"))
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Equal(t, int32(2), attempts.Load(), "the replacement pod must not be evicted")
+}
+
+// A pod that was replaced by one that the PodDisruptionBudget still blocks is refused with 429 before
+// the UID precondition is checked, so every eviction of it looks like a refusal. The pod being drained
+// is gone then, and the drain must finish instead of retrying until the timeout.
+func TestDrainNodeDoesNotWaitForReplacementPodBlockedByPDB(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 5*time.Second
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		// The pod is replaced after the first refusal, and the replacement stays blocked.
+		if attempts.Add(1) == 2 {
+			_ = fakeClient.Tracker().Update(corev1.SchemeGroupVersion.WithResource("pods"), &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "replacement-uid"},
+				Spec:       corev1.PodSpec{NodeName: "other-node"},
+			}, "default")
+		}
+
+		return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+	})
+
+	start := time.Now()
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Less(t, time.Since(start), drainEvictTimeout, "the drain must not wait for the replacement pod")
+	assert.Equal(t, int32(2), attempts.Load())
+}
+
+// blockingCache holds back SetWithTTL until released, to widen the window between a drain winning the
+// guard and publishing its initial status.
+type blockingCache struct {
+	cache.Cache[interface{}]
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingCache) SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	b.once.Do(func() {
+		close(b.entered)
+		<-b.release
+	})
+
+	return b.Cache.SetWithTTL(ctx, key, value, ttl)
+}
+
+// A request that joins a drain that has taken the guard but not yet published its status must wait for
+// it: otherwise its caller polls too early and finds no status, or the result of an earlier drain.
+func TestDrainNodeJoiningRequestWaitsForInitialStatus(t *testing.T) {
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	// The result of an earlier drain, which a premature poll would report.
+	require.NoError(t, testCache.SetWithTTL(context.Background(), cacheKey, "success", time.Minute))
+
+	blocking := &blockingCache{Cache: testCache, entered: make(chan struct{}), release: make(chan struct{})}
+	c.Cache = blocking
+
+	// Stall the drain right after it has published its status, so that it is still running, and make it
+	// end with an error once released.
+	stall := make(chan struct{})
+
+	fakeClient.PrependReactor("get", "nodes", func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		<-stall
+
+		return true, nil, errors.New("node is gone")
+	})
+
+	go c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+
+	<-blocking.entered
+
+	joined := make(chan struct{})
+
+	go func() {
+		c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+		close(joined)
+	}()
+
+	select {
+	case <-joined:
+		t.Fatal("a joining request returned before the drain published its status")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(blocking.release)
+
+	select {
+	case <-joined:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the joining request did not return once the status was published")
+	}
+
+	item, err := testCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Equal(t, drainStatusInProgress, item,
+		"the joining request must see this drain's status, not the earlier result")
+
+	close(stall)
+	waitForDrainToEnd(t, c, cacheKey)
+}
+
+// The timeout is checked inside the pass over the pods, so slow evictions can't keep the drain going.
+func TestDrainNodeStopsEvictingAtTheDeadline(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	for _, name := range []string{"second", "third"} {
+		require.NoError(t, fakeClient.Tracker().Add(&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default", UID: k8stypes.UID(name)},
+			Spec:       corev1.PodSpec{NodeName: "test-node"},
+		}))
+	}
+
+	var attempts atomic.Int32
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		attempts.Add(1)
+		time.Sleep(150 * time.Millisecond) // longer than the whole drain timeout
+
+		return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+	})
+
+	c.drainNode(context.Background(), fakeClient, "test-node", "test-cluster")
+	assert.Equal(t, "error: failed to evict 3 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Equal(t, int32(1), attempts.Load(), "no eviction may be started after the deadline")
+}
+
+// The drain can outlive the cache TTL, so a status has to exist from the moment it starts and be
+// renewed while it runs, or clients polling for it would get a 404 and give up.
+func TestDrainNodeReportsInProgressWhileBlocked(t *testing.T) {
+	oldInterval, oldTimeout := drainEvictRetryInterval, drainEvictTimeout
+	drainEvictRetryInterval, drainEvictTimeout = 10*time.Millisecond, 400*time.Millisecond
+
+	t.Cleanup(func() { drainEvictRetryInterval, drainEvictTimeout = oldInterval, oldTimeout })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() == "eviction" {
+			return true, nil, apierrors.NewTooManyRequests("would violate the pod's disruption budget", 1)
+		}
+
+		return false, nil, nil
+	})
+
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	item, err := testCache.Get(ctx, cacheKey)
+	require.NoError(t, err, "a status must exist as soon as the drain is started")
+	assert.Equal(t, drainStatusInProgress, item)
+
+	assert.Never(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+
+		return err != nil || item != drainStatusInProgress
+	}, 150*time.Millisecond, 10*time.Millisecond, "the status must stay in progress while evictions are blocked")
+
+	// let the drain finish, so that it is not still running when the timings are restored
+	assert.Equal(t, "error: failed to evict 1 pod(s)", waitForDrainStatus(t, testCache, cacheKey))
+}
+
+// A request to the API server can take longer than the cache TTL, so the status is renewed on its own
+// timer, not only when a request finishes.
+func TestDrainNodeRenewsStatusWhileARequestIsStalled(t *testing.T) {
+	oldRenew, oldPoll := drainStatusRenewInterval, drainTerminationPollInterval
+	drainStatusRenewInterval, drainTerminationPollInterval = 10*time.Millisecond, 10*time.Millisecond
+
+	t.Cleanup(func() { drainStatusRenewInterval, drainTerminationPollInterval = oldRenew, oldPoll })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		started <- struct{}{}
+
+		<-release
+
+		return true, nil, nil
+	})
+
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	<-started
+
+	// Simulate the TTL running out while the request is stalled.
+	require.NoError(t, testCache.Delete(ctx, cacheKey))
+
+	assert.Eventually(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+
+		return err == nil && item == drainStatusInProgress
+	}, time.Second, 10*time.Millisecond, "the status must be renewed while the eviction request is stalled")
+
+	// The pod is evicted but not gone, so let it disappear for the drain to finish.
+	close(release)
+	require.NoError(t, fakeClient.Tracker().Delete(
+		corev1.SchemeGroupVersion.WithResource("pods"), "default", "pdb-pod"))
+
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+}
+
+// waitForDrainToEnd waits until the drain guard of the node is released.
+func waitForDrainToEnd(t *testing.T, c *HeadlampConfig, cacheKey string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		_, running := c.activeDrains.Load(cacheKey)
+
+		return !running
+	}, time.Second, 10*time.Millisecond)
+}
+
+// A second request to drain a node that is already being drained must not start another drain, whose
+// renewal timer could overwrite the result of the first. Once the drain is done, the node can be drained again.
+func TestDrainNodeIgnoresRequestsWhileDraining(t *testing.T) {
+	oldRenew, oldPoll := drainStatusRenewInterval, drainTerminationPollInterval
+	drainStatusRenewInterval, drainTerminationPollInterval = 10*time.Millisecond, 10*time.Millisecond
+
+	t.Cleanup(func() { drainStatusRenewInterval, drainTerminationPollInterval = oldRenew, oldPoll })
+
+	fakeClient, c, testCache, cacheKey := drainTestSetup(t)
+
+	var nodeReads atomic.Int32
+
+	fakeClient.PrependReactor("get", "nodes", func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		nodeReads.Add(1)
+
+		return false, nil, nil
+	})
+
+	release := make(chan struct{})
+	started := make(chan struct{}, 1)
+
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() != "eviction" {
+			return false, nil, nil
+		}
+
+		started <- struct{}{}
+
+		<-release
+
+		return true, nil, nil
+	})
+
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	<-started
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	assert.Equal(t, int32(1), nodeReads.Load(), "a drain that is already running must not be started again")
+
+	close(release)
+	require.NoError(t, fakeClient.Tracker().Delete(
+		corev1.SchemeGroupVersion.WithResource("pods"), "default", "pdb-pod"))
+
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+
+	// The guard is released when the drain ends.
+	waitForDrainToEnd(t, c, cacheKey)
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	assert.Equal(t, "success", waitForDrainStatus(t, testCache, cacheKey))
+	assert.Equal(t, int32(2), nodeReads.Load(), "the node must be drainable again after the drain finished")
+
+	// Let the second drain end before the test restores the intervals it shortened.
+	waitForDrainToEnd(t, c, cacheKey)
+}
+
+// When the pods cannot be read, for example without the get permission, the failure says so instead
+// of claiming that the pods are still terminating.
+func TestWaitForPodsGoneReportsReadErrors(t *testing.T) {
+	oldPoll, oldTimeout := drainTerminationPollInterval, drainTerminationTimeout
+	drainTerminationPollInterval, drainTerminationTimeout = 10*time.Millisecond, 100*time.Millisecond
+
+	t.Cleanup(func() { drainTerminationPollInterval, drainTerminationTimeout = oldPoll, oldTimeout })
+
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "pdb-pod", Namespace: "default", UID: "pdb-pod-uid"}}
+	fakeClient := fake.NewClientset(pod)
+
+	fakeClient.PrependReactor("get", "pods", func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return true, nil, apierrors.NewForbidden(corev1.Resource("pods"), "pdb-pod", errors.New("no get permission"))
+	})
+
+	stuck, done := waitForPodsGone(context.Background(), fakeClient, []*corev1.Pod{pod})
+
+	require.True(t, done)
+	require.Len(t, stuck, 1)
+	assert.Contains(t, stuck[0], "default/pdb-pod")
+	assert.Contains(t, stuck[0], "could not confirm termination")
+	assert.Contains(t, stuck[0], "no get permission")
+}
+
 func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 	pod1 := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1648,10 +2388,13 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 
 	fakeClient := fake.NewClientset(node, podDaemonset)
 
-	var deleted atomic.Bool
+	var evicted atomic.Bool
 
-	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
-		deleted.Store(true)
+	fakeClient.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		if action.GetSubresource() == "eviction" {
+			evicted.Store(true)
+		}
+
 		return false, nil, nil
 	})
 
@@ -1678,7 +2421,7 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 		return ok && status == "success"
 	}, 2*time.Second, 50*time.Millisecond)
 
-	assert.False(t, deleted.Load(), "DaemonSet pod should not be deleted during drain")
+	assert.False(t, evicted.Load(), "DaemonSet pod should not be evicted during drain")
 }
 
 func TestDeletePlugin(t *testing.T) {
@@ -2155,21 +2898,24 @@ func handleClusterRenameRequest(
 		expectedState int
 	},
 ) {
-	var r *httptest.ResponseRecorder
-
-	var err error
-
+	url := "/cluster/minikubetest?ClusterID=minikubetest"
 	if tc.clusterReq.Source == "kubeconfig" {
-		url := "/cluster/minikubetestnondynamic?ClusterID=./headlamp_testdata/kubeconfig_rename:minikubetestnondynamic"
-		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedState, r.Code)
-	} else {
-		url := "/cluster/minikubetest?ClusterID=minikubetest"
-		r, err = getResponseFromRestrictedEndpoint(handler, "PUT", url, tc.clusterReq)
-		require.NoError(t, err)
-		assert.Equal(t, tc.expectedState, r.Code)
+		url = "/cluster/minikubetestnondynamic?ClusterID=./headlamp_testdata/kubeconfig_rename:minikubetestnondynamic"
 	}
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "rename-token")
+
+	req, err := makeJSONReq(http.MethodPut, url, tc.clusterReq)
+	require.NoError(t, err)
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "rename-token")
+
+	if tc.clusterReq.Stateless {
+		req.Header.Set("X-HEADLAMP-USER-ID", "rename-user")
+	}
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	assert.Equal(t, tc.expectedState, response.Code)
 }
 
 // TestCheckUniqueName checks the CheckUniqueName function which checks if a new name is unique among existing contexts.
@@ -2438,6 +3184,16 @@ func TestRenameCluster(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, r.Code)
 
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "minikubetest", KubeContext: &api.Context{}, Cluster: &api.Cluster{Server: "https://global.example.com"},
+		KubeConfigPath: c.KubeConfigPath, KubeConfigContextName: "minikubetest",
+	}))
+
+	statelessKey := statelessContextKey("minikubetest", "rename-user")
+	require.NoError(t, kubeConfigStore.AddContextWithKeyAndTTL(&kubeconfig.Context{
+		Internal: true, KubeContext: &api.Context{}, Cluster: &api.Cluster{Server: "https://user.example.com"},
+	}, statelessKey, time.Minute))
+
 	tests := []struct {
 		name          string
 		clusterReq    RenameClusterRequest
@@ -2452,7 +3208,7 @@ func TestRenameCluster(t *testing.T) {
 			expectedState: http.StatusCreated,
 		},
 		{
-			name: "passStatefull",
+			name: "passStateful",
 			clusterReq: RenameClusterRequest{
 				NewClusterName: "minikubetestworkskubeconfig",
 				Stateless:      false,
@@ -2463,6 +3219,11 @@ func TestRenameCluster(t *testing.T) {
 	}
 
 	runClusterRenameTests(t, handler, tests)
+
+	_, err = kubeConfigStore.GetContext(statelessKey)
+	require.Error(t, err)
+	_, err = kubeConfigStore.GetContext("minikubetest")
+	require.NoError(t, err, "stateless rename must preserve the global connection")
 
 	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
 	require.NoError(t, remErr, "Failed to remove context: minikubetest")
@@ -2477,9 +3238,7 @@ func TestRenameCluster(t *testing.T) {
 		clustersByName[cl.Name] = cl
 	}
 
-	// The stateless rename removes the original from the store; the new name is frontend-only.
-	// The failed kubeconfig rename left the original context intact, which was removed above.
-	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
+	assert.NotContains(t, clustersByName, "minikubetest", "expected cleanup to remove the global context")
 	assert.NotContains(t, clustersByName, "minikubetestworkskubeconfig",
 		"expected failed kubeconfig rename not to create a new cluster name in the store")
 	assert.NotContains(t, clustersByName, "minikubetestnondynamic",
@@ -2694,6 +3453,19 @@ func TestFileExists(t *testing.T) {
 	// Test for directory
 	assert.False(t, fileExists("./headlamp_testdata"),
 		"fileExists() should return false for directory")
+}
+
+// TestFileExistsStatError checks that fileExists does not panic when os.Stat
+// fails with an error other than "not exist" (here: a path component that is
+// a regular file, which yields ENOTDIR).
+func TestFileExistsStatError(t *testing.T) {
+	regularFile := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(regularFile, []byte("x"), 0o600))
+
+	require.NotPanics(t, func() {
+		assert.False(t, fileExists(filepath.Join(regularFile, "index.baseUrl.html")),
+			"fileExists() should return false when os.Stat fails with a non-ErrNotExist error")
+	})
 }
 
 //nolint:funlen // Test validates HTML index rewriting for base URL paths
@@ -2999,6 +3771,125 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 		"missing-state log must not carry a stale error from the outer createHeadlampHandler scope")
 }
 
+// TestOidcCallbackDoesNotCacheTokensOnVerificationFailure verifies that if ID token
+// verification fails during /oidc-callback, unverified token material is NOT stored
+// in the server cache.
+//
+//nolint:funlen // Test sets up mock OIDC server, runs auth flow, and verifies cache state
+func TestOidcCallbackDoesNotCacheTokensOnVerificationFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	scratch := t.TempDir()
+
+	t.Setenv("HEADLAMP_STATIC_PLUGINS_DIR", scratch)
+
+	const (
+		unverifiedIDToken = "unverified.invalid.idtoken"
+		testRefreshToken  = "test-refresh-token-12345"
+		clientID          = "test-client-id"
+	)
+
+	// Mock OIDC provider with discovery, jwks, and token endpoints
+	oidcServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"issuer":                 "http://" + r.Host,
+				"authorization_endpoint": "http://" + r.Host + "/auth",
+				"token_endpoint":         "http://" + r.Host + "/token",
+				"jwks_uri":               "http://" + r.Host + "/jwks",
+			})
+		case "/jwks":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"keys":[]}`))
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "access-token",
+				"token_type":    "Bearer",
+				"refresh_token": testRefreshToken,
+				"id_token":      unverifiedIDToken,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	defer oidcServer.Close()
+
+	c := cache.New[interface{}]()
+	store := kubeconfig.NewContextStore()
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  filepath.Join(scratch, "missing-kubeconfig"),
+				KubeConfigStore: store,
+				PluginDir:       scratch,
+				UserPluginDir:   scratch,
+			},
+			Cache:            c,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	kContext := &kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server: "https://k8s.example.com",
+		},
+		OidcConf: &kubeconfig.OidcConfig{
+			ClientID:     clientID,
+			ClientSecret: "test-secret",
+			IdpIssuerURL: oidcServer.URL,
+		},
+	}
+	require.NoError(t, store.AddContext(kContext))
+
+	handler := createHeadlampHandler(ctx, cfg)
+
+	// 1. Initiate OIDC flow via /oidc?cluster=test-cluster
+	oidcReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "/oidc?cluster=test-cluster", nil)
+	require.NoError(t, err)
+
+	oidcRR := httptest.NewRecorder()
+	handler.ServeHTTP(oidcRR, oidcReq)
+
+	require.Equal(t, http.StatusFound, oidcRR.Code)
+	redirectLocation := oidcRR.Header().Get("Location")
+	require.NotEmpty(t, redirectLocation)
+
+	redirectURL, err := url.Parse(redirectLocation)
+	require.NoError(t, err)
+
+	state := redirectURL.Query().Get("state")
+	require.NotEmpty(t, state)
+
+	// 2. Perform callback with unverified ID token from token endpoint
+	callbackURL := "/oidc-callback?state=" + state + "&code=fake-code"
+
+	callbackReq, err := http.NewRequestWithContext(ctx, http.MethodGet, callbackURL, nil)
+	require.NoError(t, err)
+
+	callbackRR := httptest.NewRecorder()
+	handler.ServeHTTP(callbackRR, callbackReq)
+
+	// Verification fails on invalid JWT, so response is 500
+	assert.Equal(t, http.StatusInternalServerError, callbackRR.Code)
+	assert.Contains(t, callbackRR.Body.String(), "Failed to verify ID Token")
+
+	// Neither the refresh token nor the ID token should be in the cache
+	_, err = cfg.Cache.Get(ctx, fmt.Sprintf("oidc-token-%s", unverifiedIDToken))
+	assert.Error(t, err, "unverified refresh token must not be cached")
+
+	_, err = cfg.Cache.Get(ctx, fmt.Sprintf("oidc-id-token-%s", unverifiedIDToken))
+	assert.Error(t, err, "unverified ID token must not be cached")
+}
+
 // TestOidcStateMapEviction verifies that abandoned OIDC state entries (where
 // the user never completes the callback) are evicted from oauthRequestMap once
 // they exceed OidcStateTTL, preventing unbounded memory growth.
@@ -3288,7 +4179,7 @@ func TestHandleClusterHelm(t *testing.T) {
 			"GET",
 			"/clusters/test-cluster/helm/release/history",
 			"test-token",
-			http.StatusInternalServerError,
+			http.StatusBadRequest,
 		},
 		{
 			"List Releases - Invalid Token",
@@ -3456,34 +4347,30 @@ func TestProcessTokenProtocol(t *testing.T) {
 	}
 }
 
-// newFakeK8sServer creates a mock Kubernetes API server for testing the cache
-// mechanism without making requests to a real Kubernetes server.
 const fakeK8sResourceListResponse = `{"kind":"List","apiVersion":"v1","items":[{"metadata":{"name":"resource-test"}}]}`
 
-func newFakeK8sServer(authAllowed bool) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// newFakeK8sServer creates a mock Kubernetes API server for testing the cache
+// mechanism without making requests to a real Kubernetes server. A denied access
+// review makes the middleware answer itself, so resources are never fetched then.
+func newFakeK8sServer(t *testing.T, authAllowed bool) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
+			writeAccessReview(w, authAllowed)
+			return
+		}
 
-			status := fmt.Sprintf(`{"status":{"allowed":%v}}`, authAllowed)
-			_, _ = w.Write([]byte(status))
-
+		if strings.Contains(r.Header.Get("Accept"), "as=PartialObjectMetadata") {
+			serveMetadataListWatch(w, r, nil)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-
-		if authAllowed {
-			_, _ = w.Write([]byte(fakeK8sResourceListResponse))
-		} else {
-			_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","metadata":{"resourceVersion":""},` +
-				`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot get resource ` +
-				`\"resource\" in API group \"\" at the cluster scope","reason":"Forbidden","details":{"kind":"resource"},` +
-				`"code":403}`))
-		}
+		_, _ = w.Write([]byte(fakeK8sResourceListResponse))
 	}))
+	t.Cleanup(server.Close)
+
+	return server
 }
 
 // resetCacheMiddlewareTestState clears package-global k8cache state so
@@ -3500,20 +4387,20 @@ func resetCacheMiddlewareTestState() {
 
 // newHeadlampConfig create mock HeadlampConfig for testing CacheMiddleware
 // mechanism without creating actual HeadlampConfig.
-func newHeadlampConfig(fakeK8s *httptest.Server, testName string) *HeadlampConfig {
+func newHeadlampConfig(t *testing.T, fakeK8s *httptest.Server) *HeadlampConfig {
 	resetCacheMiddlewareTestState()
+	t.Cleanup(resetCacheMiddlewareTestState)
 
 	store := kubeconfig.NewContextStore()
 
 	err := store.AddContext(&kubeconfig.Context{
-		ClusterID: fmt.Sprintf("./home/user/kube/config+test-cluster-%s", testName),
-		Name:      "test",
-		Cluster:   &api.Cluster{Server: fakeK8s.URL},
-		AuthInfo:  &api.AuthInfo{Token: "test-token"},
+		ClusterID:   fmt.Sprintf("./home/user/kube/config+test-cluster-%s", t.Name()),
+		Name:        "test",
+		KubeContext: &api.Context{Cluster: "test", AuthInfo: "test"},
+		Cluster:     &api.Cluster{Server: fakeK8s.URL},
+		AuthInfo:    &api.AuthInfo{Token: "test-token"},
 	})
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	return &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -3559,10 +4446,9 @@ func addBackendTokenHeader(req *http.Request) {
 const istrue = true
 
 func TestCacheMiddleware_BypassesNonKubernetesAPIPaths(t *testing.T) {
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
+	fakeK8s := newFakeK8sServer(t, true)
 
-	c := newHeadlampConfig(fakeK8s, t.Name())
+	c := newHeadlampConfig(t, fakeK8s)
 
 	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -3609,271 +4495,74 @@ func TestCacheMiddleware_BypassesNonKubernetesAPIPaths(t *testing.T) {
 	}
 }
 
-//nolint:funlen // Test verifies caching behavior for versioned resources
-func TestCacheMiddleware_CachesResourceNamedVersion(t *testing.T) {
-	oldCache := k8sResponseCache
-	k8sResponseCache = cache.New[string]()
-
-	t.Cleanup(func() { k8sResponseCache = oldCache })
-
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
+func newFakeCacheRouter(t *testing.T, allowed bool) *mux.Router {
+	t.Helper()
+	fakeK8s := newFakeK8sServer(t, allowed)
+	c := newHeadlampConfig(t, fakeK8s)
+	target, err := url.Parse(fakeK8s.URL)
+	require.NoError(t, err)
 
 	router := mux.NewRouter()
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
+		CacheMiddleWare(c)(httputil.NewSingleHostReverseProxy(target)),
 	)
 
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	resourceURL := ts.URL + "/clusters/test/api/v1/namespaces/ns/configmaps/version"
-	expectedResponse := fakeK8sResourceListResponse
-
-	resp1, err := httpRequestWithContext(context.Background(), resourceURL, http.MethodGet)
-	require.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	require.NoError(t, err)
-
-	resp2, err := httpRequestWithContext(context.Background(), resourceURL, http.MethodGet)
-	require.NoError(t, err)
-
-	defer func() { _ = resp2.Body.Close() }()
-
-	resp2String, err := stringResponse(resp2)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
-	assert.Equal(t, expectedResponse, resp1String)
-	assert.Equal(t, "", resp1.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusOK, resp2.StatusCode)
-	assert.Equal(t, expectedResponse, resp2String)
-	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE"))
+	return router
 }
 
-// TestCacheMiddleware_CacheHitAndCacheMiss test whether the k8s is storing into the cache
-// and returns the data if the data is present in the cache.
+func fakeCacheRequest(t *testing.T, router http.Handler, method, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequestWithContext(t.Context(), method, "/clusters/test"+path, nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	return response
+}
+
+func requireFakeCacheHit(t *testing.T, router http.Handler, path string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		response := fakeCacheRequest(t, router, http.MethodGet, path)
+		return response.Code == http.StatusOK && response.Header().Get("X-HEADLAMP-CACHE") == "true"
+	}, 5*time.Second, 5*time.Millisecond)
+}
+
 func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-		t.Skip("skipping integration test")
+	// A resource named like an API discovery path ("version") is still a cacheable resource.
+	for _, path := range []string{"/api/v1/resource", "/api/v1/namespaces/ns/configmaps/version"} {
+		t.Run(path, func(t *testing.T) {
+			router := newFakeCacheRouter(t, true)
+			first := fakeCacheRequest(t, router, http.MethodGet, path)
+			require.Equal(t, http.StatusOK, first.Code)
+			require.Equal(t, fakeK8sResourceListResponse, first.Body.String())
+			require.Empty(t, first.Header().Get("X-HEADLAMP-CACHE"))
+			requireFakeCacheHit(t, router, path)
+			second := fakeCacheRequest(t, router, http.MethodGet, path)
+			require.Equal(t, fakeK8sResourceListResponse, second.Body.String())
+			require.Equal(t, "true", second.Header().Get("X-HEADLAMP-CACHE"))
+		})
 	}
-
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	ctx := context.Background()
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use the incoming request's context
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
-
-	// 4. Wrap the proxy handler with the CacheMiddleWare
-	router := mux.NewRouter()
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
-	)
-
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	expectedResponse := fakeK8sResourceListResponse
-
-	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp2, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp2.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	assert.NoError(t, err)
-	resp2String, err := stringResponse(resp2)
-	assert.NoError(t, err)
-
-	assert.Equal(t, expectedResponse, resp1String)
-	assert.Equal(t, "", resp1.Header.Get("X-HEADLAMP-CACHE")) // response is from k8s server, hence X-HEADLAMP-CACHE: ""
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
-	assert.Equal(t, expectedResponse, resp2String)
-	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE")) // response is from cache, hence X-HEADLAMP-CACHE: true
-	assert.Equal(t, http.StatusOK, resp2.StatusCode)
 }
 
-// TestCacheMiddleware_AuthErrorResponse test if the user is not authorized
-// to access a resource, CacheMiddleware should return AuthErrorResponse to
-// the client without going to k8 server.
 func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-		t.Skip("skipping integration test")
-	}
-
-	fakeK8s := newFakeK8sServer(false)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use the incoming request's context
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
-
-	router := mux.NewRouter()
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
-	)
-
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	ctx := context.Background()
-
-	expectedResponse := `{"kind":"Status","apiVersion":"v1","metadata":{"resourceVersion":""},` +
-		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot list resource ` +
-		`\"resource\" in API group \"\" at the cluster scope","reason":"Forbidden","details":{"kind":"resource"},` +
-		`"code":403}`
-
-	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedResponse, resp1String) // expected authErroResponse to the client.
-	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusForbidden, resp1.StatusCode)
+	router := newFakeCacheRouter(t, false)
+	response := fakeCacheRequest(t, router, http.MethodGet, "/api/v1/resource")
+	require.Equal(t, http.StatusForbidden, response.Code)
+	require.Contains(t, response.Body.String(), `"reason":"Forbidden"`)
+	require.NotContains(t, response.Body.String(), "resource-test")
 }
 
-// TestCacheMiddlware_CacheInvalidation test if the request is modifying
-// it should delete the keys, making new fresh request to k8s server and store
-// into the cache if the request is same it should return response from the client.
 func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
-	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
-		t.Skip("skipping integration test")
-	}
-
-	fakeK8s := newFakeK8sServer(true)
-	defer fakeK8s.Close()
-
-	c := newHeadlampConfig(fakeK8s, t.Name())
-
-	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use the incoming request's context
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, fakeK8s.URL+r.URL.Path, nil)
-		if err != nil {
-			http.Error(w, "failed to create request", http.StatusInternalServerError)
-			return
-		}
-
-		//nolint:gosec // Test proxy forwards request to local fake test server
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			http.Error(w, "proxy error", http.StatusInternalServerError)
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		_, err = io.Copy(w, resp.Body)
-		assert.NoError(t, err)
-	})
-
-	router := mux.NewRouter()
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
-		CacheMiddleWare(c)(proxyHandler),
-	)
-
-	ts := httptest.NewServer(router)
-	defer ts.Close()
-
-	ctx := context.Background()
-
-	expectedResponse := fakeK8sResourceListResponse
-
-	resp, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "POST")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp.Body.Close() }()
-
-	assert.Equal(t, "", resp.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedResponse, resp1String)
-	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+	router := newFakeCacheRouter(t, true)
+	path := "/api/v1/resource"
+	requireFakeCacheHit(t, router, path)
+	mutation := fakeCacheRequest(t, router, http.MethodPost, path)
+	require.Equal(t, http.StatusOK, mutation.Code)
+	first := fakeCacheRequest(t, router, http.MethodGet, path)
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Equal(t, fakeK8sResourceListResponse, first.Body.String())
+	require.Empty(t, first.Header().Get("X-HEADLAMP-CACHE"))
+	requireFakeCacheHit(t, router, path)
 }
 
 // newRealK8sHeadlampConfig creates a HeadlampConfig for integration tests
@@ -4030,21 +4719,27 @@ func TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s(t *testing.T) {
 	resp1, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
 	require.NoError(t, err)
 
-	defer func() { _ = resp1.Body.Close() }()
+	_, err = io.Copy(io.Discard, resp1.Body)
+	_ = resp1.Body.Close()
 
-	require.Equal(t, http.StatusOK, resp1.StatusCode, "first GET should succeed")
-	firstFromCache := resp1.Header.Get("X-HEADLAMP-CACHE")
-
-	resp2, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
 	require.NoError(t, err)
 
-	defer func() { _ = resp2.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp1.StatusCode, "first GET should succeed")
+	assert.NotEqual(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"), "first request should not be from cache")
 
-	require.Equal(t, http.StatusOK, resp2.StatusCode, "second GET should succeed")
-	secondFromCache := resp2.Header.Get("X-HEADLAMP-CACHE")
+	// Requests bypass the cache until the invalidation watch has synchronized.
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp, err := httpRequestWithContext(ctx, ts.URL+apiPath, "GET")
+		if !assert.NoError(collect, err) {
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
 
-	assert.NotEqual(t, "true", firstFromCache, "first request should not be from cache")
-	assert.Equal(t, "true", secondFromCache, "second request should be from cache")
+		_, err = io.Copy(io.Discard, resp.Body)
+		assert.NoError(collect, err)
+		assert.Equal(collect, http.StatusOK, resp.StatusCode)
+		assert.Equal(collect, "true", resp.Header.Get("X-HEADLAMP-CACHE"))
+	}, 10*time.Second, 50*time.Millisecond, "a synchronized watch should allow cache hits")
 }
 
 // TestCacheMiddleware_CacheInvalidation_RealK8s tests cache invalidation with a
@@ -4750,6 +5445,224 @@ func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "Bearer proxy-token", receivedAuth)
 	assert.Empty(t, receivedProxyAuthToken)
+}
+
+// The refresh middleware renews an expired cookie token and puts the new one in
+// Authorization. The request's cookie still holds the expired token, so the
+// proxy must forward the header rather than read the cookie again.
+func TestClusterRequestHandlerForwardsRefreshedOIDCToken(t *testing.T) {
+	expiredToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"exp":1}`)) + ".signature"
+
+	var issuer, receivedAuth, receivedRefreshToken string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"issuer": issuer, "token_endpoint": issuer + "/token",
+				"authorization_endpoint": issuer + "/authorize", "jwks_uri": issuer + "/keys",
+			})
+
+			return
+		}
+
+		_ = r.ParseForm()
+		receivedRefreshToken = r.Form.Get("refresh_token")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "renewed-access-token", "id_token": "renewed-id-token",
+			"token_type": "Bearer", "refresh_token": "new-refresh", "expires_in": 3600,
+		})
+	}))
+	t.Cleanup(provider.Close)
+	issuer = provider.URL
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name: "main", Source: kubeconfig.InCluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+		OidcConf: &kubeconfig.OidcConfig{IdpIssuerURL: issuer, ClientID: "test-client"},
+	})
+	cfg.SessionTTL = 3600
+	require.NoError(t, cfg.Cache.Set(context.Background(), "oidc-token-"+expiredToken, "refresh-user-token"))
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-main.0", Value: expiredToken,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	cfg.OIDCTokenRefreshMiddleware(router).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "refresh-user-token", receivedRefreshToken)
+	assert.Equal(t, "Bearer renewed-id-token", receivedAuth)
+	assert.Contains(t, strings.Join(rr.Header().Values("Set-Cookie"), "\n"),
+		"headlamp-auth-main.0=renewed-id-token;", "the refreshed token must also reach the browser")
+}
+
+//nolint:funlen,gosec // Test verifies non-Bearer authorization scheme handling
+func TestClusterRequestHandler_NonBearerAuthSchemeHandling(t *testing.T) {
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	const cluster = "main"
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	t.Run("preserves non-Bearer Authorization when no cookie exists", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Basic dXNlcjpwYXNz", receivedAuth)
+	})
+
+	t.Run("cookie replaces non-Bearer Authorization", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+		req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+		req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
+		req.AddCookie(&http.Cookie{Name: "headlamp-auth-main.0", Value: "cookie-token"})
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer cookie-token", receivedAuth)
+	})
+}
+
+// The service proxy must also forward the token that the refresh middleware put
+// in Authorization, rather than the expired one still in the request cookie.
+func TestServiceProxyForwardsRefreshedOIDCToken(t *testing.T) { //nolint:funlen // real provider/API integration.
+	expiredToken := "header." + base64.RawURLEncoding.EncodeToString([]byte(`{"exp":1}`)) + ".signature"
+
+	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("hello from service"))
+	}))
+	t.Cleanup(service.Close)
+
+	serviceURL, err := url.Parse(service.URL)
+	require.NoError(t, err)
+
+	servicePort, err := strconv.Atoi(serviceURL.Port())
+	require.NoError(t, err)
+
+	var issuer, receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+
+		if receivedAuth != "Bearer renewed-id-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"Unauthorized","code":401}`))
+
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "ns"},
+			Spec: corev1.ServiceSpec{
+				ExternalName: serviceURL.Hostname(),
+				Ports:        []corev1.ServicePort{{Name: "http", Port: int32(servicePort)}}, //nolint:gosec // test port
+			},
+		})
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"issuer": issuer, "token_endpoint": issuer + "/token",
+				"authorization_endpoint": issuer + "/authorize", "jwks_uri": issuer + "/keys",
+			})
+
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"access_token": "renewed-access-token", "id_token": "renewed-id-token",
+			"token_type": "Bearer", "refresh_token": "new-refresh", "expires_in": 3600,
+		})
+	}))
+	t.Cleanup(provider.Close)
+	issuer = provider.URL
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name: "main", Source: kubeconfig.InCluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+		OidcConf: &kubeconfig.OidcConfig{IdpIssuerURL: issuer, ClientID: "test-client"},
+	})
+	cfg.SessionTTL = 3600
+	require.NoError(t, cfg.Cache.Set(context.Background(), "oidc-token-"+expiredToken, "refresh-user-token"))
+
+	router := mux.NewRouter()
+	handleClusterServiceProxy(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/main/serviceproxy/ns/web?request=/", nil)
+	req.AddCookie(&http.Cookie{
+		Name: "headlamp-auth-main.0", Value: expiredToken,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	cfg.OIDCTokenRefreshMiddleware(router).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "hello from service", rr.Body.String())
+	assert.Equal(t, "Bearer renewed-id-token", receivedAuth)
 }
 
 func TestAllowedHosts(t *testing.T) {
@@ -5876,4 +6789,145 @@ func TestCreateHeadlampHandlerSetsSecurityHeaders(t *testing.T) {
 			assert.Equal(t, "nosniff", rr.Header().Get("X-Content-Type-Options"))
 		})
 	}
+}
+
+func TestGetConfigIncludesBackstageOrigin(t *testing.T) {
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				BackstageOrigin: "https://backstage.example.com",
+			},
+			Cache: cache.New[interface{}](),
+		},
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	rr := httptest.NewRecorder()
+	cfg.getConfig(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp clientConfig
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "https://backstage.example.com", resp.BackstageOrigin)
+}
+
+func TestRequestBodySizeLimit(t *testing.T) {
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{},
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handlers := []struct {
+		name   string
+		handle http.HandlerFunc
+	}{
+		{"addCluster", cfg.addCluster},
+		{"renameCluster", cfg.renameCluster},
+		{"handleNodeDrain", cfg.handleNodeDrain},
+		{"handleSetToken", cfg.handleSetToken},
+		{"parseKubeConfig", cfg.parseKubeConfig},
+	}
+	bodies := []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{
+			"oversized JSON", `{"padding":"` + strings.Repeat("A", int(maxRequestBodySize)) + `"}`,
+			http.StatusRequestEntityTooLarge,
+		},
+		{
+			"oversized trailing whitespace", `{}` + strings.Repeat(" ", int(maxRequestBodySize)-1),
+			http.StatusRequestEntityTooLarge,
+		},
+		{"trailing JSON", `{} {}`, http.StatusBadRequest},
+		{"trailing garbage", `{} garbage`, http.StatusBadRequest},
+		{"malformed JSON", `{`, http.StatusBadRequest},
+	}
+
+	for _, handler := range handlers {
+		for _, body := range bodies {
+			t.Run(handler.name+"/"+body.name, func(t *testing.T) {
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/",
+					strings.NewReader(body.body))
+				req = mux.SetURLVars(req, map[string]string{"clusterName": "test-cluster"})
+				req.Header.Set("Content-Type", "application/json")
+				req.ContentLength = -1
+				rr := httptest.NewRecorder()
+
+				handler.handle(rr, req)
+
+				assert.Equal(t, body.status, rr.Code, rr.Body.String())
+				assert.Empty(t, rr.Result().Cookies())
+
+				if body.status == http.StatusRequestEntityTooLarge {
+					assert.Contains(t, rr.Body.String(), "http: request body too large")
+				}
+			})
+		}
+	}
+}
+
+func TestSetTokenRequestBodyBoundary(t *testing.T) {
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{},
+		},
+	}
+	body := `{"token":"","extra":true}`
+	tests := []struct {
+		name   string
+		size   int
+		status int
+	}{
+		{"small request with unknown field", len(body), http.StatusOK},
+		{"one byte below limit", int(maxRequestBodySize) - 1, http.StatusOK},
+		{"exactly at limit", int(maxRequestBodySize), http.StatusOK},
+		{"one byte above limit", int(maxRequestBodySize) + 1, http.StatusRequestEntityTooLarge},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := body + strings.Repeat(" ", tt.size-len(body))
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/",
+				strings.NewReader(payload))
+			req = mux.SetURLVars(req, map[string]string{"clusterName": "test-cluster"})
+			rr := httptest.NewRecorder()
+
+			cfg.handleSetToken(rr, req)
+
+			assert.Equal(t, tt.status, rr.Code, rr.Body.String())
+
+			if tt.status == http.StatusOK {
+				assert.NotEmpty(t, rr.Result().Cookies())
+			} else {
+				assert.Empty(t, rr.Result().Cookies())
+			}
+		})
+	}
+}
+
+func TestClusterMetadataSeparatesResourceAndContextNamespaces(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	connection := clusterInventoryConfigContext()
+	connection.Presentation = &kubeconfig.ConnectionPresentation{DisplayName: "workload", Fields: map[string]string{
+		"namespace": "inventory-team", "provider": "oidc", "root": "in-cluster",
+	}}
+	require.NoError(t, store.AddContext(connection))
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+	}}
+	metadata := c.getClusters()[0].Metadata
+	require.Equal(t, "default", metadata["namespace"])
+	presentation, ok := metadata["presentation"].(*kubeconfig.ConnectionPresentation)
+	require.True(t, ok)
+	require.Equal(t, "inventory-team", presentation.Fields["namespace"])
+	require.Equal(t, "workload", presentation.DisplayName)
+	require.Equal(t, connection.Name, c.getClusters()[0].Name)
 }

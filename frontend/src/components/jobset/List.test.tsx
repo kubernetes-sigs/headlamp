@@ -16,15 +16,26 @@
 
 import '../../i18n/config';
 import { ThemeProvider } from '@mui/material/styles';
-import { render, screen, waitFor } from '@testing-library/react';
-import JobSet from '../../lib/k8s/jobSet';
+import { render, screen } from '@testing-library/react';
+import { useClustersServing } from '../../lib/k8s/resourceAvailability';
 import { TestContext } from '../../test';
 import { theme } from '../TestHelpers/theme';
 import JobSetList from './List';
 
+const { mockListView } = vi.hoisted(() => ({ mockListView: vi.fn() }));
+
 vi.mock('../../lib/k8s/jobSet', () => ({
-  default: {
-    isEnabled: vi.fn(),
+  default: { kind: 'JobSet', apiName: 'jobsets' },
+}));
+
+vi.mock('../../lib/k8s/resourceAvailability', () => ({
+  useClustersServing: vi.fn(),
+}));
+
+vi.mock('../common/Resource/ResourceListView', () => ({
+  default: (props: any) => {
+    mockListView(props);
+    return null;
   },
 }));
 
@@ -43,19 +54,36 @@ describe('JobSetList', () => {
     vi.clearAllMocks();
   });
 
-  it('renders disabled state with safe external documentation link attributes', async () => {
-    vi.mocked(JobSet.isEnabled).mockResolvedValue(false);
+  it('renders disabled state with safe external documentation link attributes', () => {
+    vi.mocked(useClustersServing).mockReturnValue([]);
 
     renderJobSetList();
 
-    await waitFor(() => {
-      expect(screen.getByText(/JobSet is not enabled/i)).toBeInTheDocument();
-    });
+    expect(screen.getByText(/JobSet is not enabled/i)).toBeInTheDocument();
+    expect(mockListView).not.toHaveBeenCalled();
 
     const link = screen.getByRole('link', { name: /learn more/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', 'https://jobset.sigs.k8s.io/docs/installation/');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('lists only from the selected clusters that have JobSet', () => {
+    vi.mocked(useClustersServing).mockReturnValue(['cluster-b']);
+
+    renderJobSetList();
+
+    expect(screen.queryByText(/JobSet is not enabled/i)).not.toBeInTheDocument();
+    expect(mockListView.mock.calls[0][0].clusters).toEqual(['cluster-b']);
+  });
+
+  it('shows that it is checking until the selected clusters have answered', () => {
+    vi.mocked(useClustersServing).mockReturnValue(undefined);
+
+    renderJobSetList();
+
+    expect(screen.getByText(/Checking if JobSet is enabled/i)).toBeInTheDocument();
+    expect(mockListView).not.toHaveBeenCalled();
   });
 });

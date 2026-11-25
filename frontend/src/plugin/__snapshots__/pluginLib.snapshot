@@ -535,6 +535,8 @@
       "LeaderWorkerSet": [Function],
       "Lease": [Function],
       "LimitRange": [Function],
+      "MutatingAdmissionPolicy": [Function],
+      "MutatingAdmissionPolicyBinding": [Function],
       "Namespace": [Function],
       "NetworkPolicy": [Function],
       "Node": [Function],
@@ -548,6 +550,7 @@
       "ResourceClaim": [Function],
       "ResourceClaimTemplate": [Function],
       "ResourceQuota": [Function],
+      "ResourceSlice": [Function],
       "Role": [Function],
       "RoleBinding": [Function],
       "RuntimeClass": [Function],
@@ -634,6 +637,7 @@
         "eks.amazonaws.com/nodegroup",
         "kops.k8s.io/instancegroup",
         "cluster.x-k8s.io/deployment-name",
+        "karpenter.sh/nodepool",
       ],
       "default": [Function],
     },
@@ -686,6 +690,9 @@
       "getResourceClaimState": [Function],
     },
     "resourceClaimTemplate": {
+      "default": [Function],
+    },
+    "resourceSlice": {
       "default": [Function],
     },
     "role": {
@@ -862,6 +869,7 @@
   "registerAppTheme": [Function],
   "registerClusterChooser": [Function],
   "registerClusterEmptyState": [Function],
+  "registerClusterProviderDeleteHandler": [Function],
   "registerClusterProviderDialog": [Function],
   "registerClusterProviderMenuItem": [Function],
   "registerClusterStatus": [Function],

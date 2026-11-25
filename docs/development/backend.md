@@ -30,6 +30,51 @@ npm run backend:start
 The development launcher forwards `SIGINT`, `SIGTERM`, `SIGHUP`, and `SIGBREAK`
 to the backend, matching cross-env's signal handling.
 
+### Compiler flags and debugging information
+
+The npm and Makefile backend builds use a shared Go driver with no external
+dependencies. Make backend builds do not require Node.js. The npm path uses a
+small Node.js launcher, which does not add a requirement beyond npm itself.
+The stdlib-only bootstrap ignores surrounding module requirements; the actual
+backend build retains the caller's module and automatic toolchain settings.
+With no linker overrides, both retain the existing `-trimpath`, `-s`, and `-w`
+defaults.
+
+`GOFLAGS` settings, including those saved with `go env -w`, are honored.
+Use Go's `-ldflags` setting in `GOFLAGS` to replace the default stripping flags.
+Makefile builds retain the application version and name, and embedded builds add
+the required `embed` tag without discarding caller-supplied build tags.
+Package-specific `-ldflags` settings keep Go's matching and precedence rules.
+
+To retain symbol tables and DWARF debugging information:
+
+```bash
+GOFLAGS='-ldflags=' npm run backend:build
+GOFLAGS='-ldflags=' make backend
+```
+
+For easier stepping through unoptimized code with local source paths, use Go's
+quoting syntax for settings containing spaces:
+
+```bash
+GOFLAGS="-trimpath=false -ldflags= '-gcflags=all=-N -l'" make backend
+```
+
+These variables are inherited by desktop packaging hooks and embedded
+cross-compilation targets. `CC`, `CXX`, `CGO_CFLAGS`, `CGO_CXXFLAGS`, and
+`CGO_LDFLAGS` are passed through to Go unchanged when cgo is enabled; embedded
+cross-compilation targets continue to disable cgo.
+Generic C/C++ `CFLAGS` and `LDFLAGS` are not reinterpreted as Go options; use the
+Go and cgo variables above.
+The container build accepts `--build-arg GOFLAGS=...` and continues to use Go's
+unstripped defaults unless stripping is explicitly requested.
+
+CI exercises native Make/npm entrypoints on Linux, macOS, and Windows. Desktop
+packaging and a backend-only container build request
+`GOFLAGS='-trimpath=false -ldflags=-compressdwarf=false'`; the artifact verifier
+then checks the recorded flags and uncompressed DWARF entries in the resulting
+backend binaries, including packaged desktop resources.
+
 ## Backend token protection
 
 `HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend
@@ -66,6 +111,17 @@ Imports and deletions lock the same recorded path, including symlinks.
 File updates precede in-memory removal, so failures keep the stored cluster.
 Memory-only deletion does not require file-mutation permission.
 
+## JSON request body limits
+
+Cluster add and rename, node drain, token-setting, and kubeconfig-parsing
+endpoints accept one JSON value with a maximum body size of 1 MiB, including
+trailing whitespace. Larger bodies return `413 Request Entity Too Large`;
+malformed JSON or additional JSON values return `400 Bad Request`.
+Unknown fields remain accepted for compatibility.
+
+The limit is local to these endpoints, not global middleware. Kubernetes
+API proxy requests are unchanged and can still forward larger manifests.
+
 ## Node drain authentication
 
 The frontend submits node drains and polls their status through
@@ -79,6 +135,167 @@ unsafe service-account mode was explicitly enabled. Drain does not implicitly
 fall back to the pod's service account or forward that credential to an external
 context. Legacy unscoped routes remain available for existing callers, but
 cookie-only browser clients should use the cluster-scoped routes.
+
+## Helm release history
+
+`GET /clusters/<cluster>/helm/release/history` requires non-empty `name` and
+`namespace` query parameters. Missing or empty values return `400 Bad Request`
+before Helm accesses the cluster. Valid requests retain the existing
+`{"releases": [...]}` response and release-lookup error handling.
+
+## Helm chart sources
+
+Helm install (`POST /clusters/<cluster>/helm/release/install`) and
+upgrade (`PUT /clusters/<cluster>/helm/releases/upgrade`) requests
+accept only a `chart` of the form
+`<repository>/<chart>`, where `<repository>` is a Helm repository
+registered with the backend through the repository routes. Other values
+are rejected with `400`: `http(s)` and `oci://` URLs, absolute and
+relative paths, and references that also exist as a path on the
+backend's filesystem. This only checks the `chart` value in the request,
+so a client cannot pass a chart URL or a local path. It does not limit
+which repository URLs can be registered, or the chart URLs listed in a
+repository's index; those are not covered by this check. Clients that
+installed charts from a direct URL must add the repository first and
+install from it.
+
+## Kubernetes response cache
+
+With `--cache-enabled`, users share resource responses within the same cluster
+connection. Each GET still checks the caller's permissions through a Kubernetes
+SelfSubjectAccessReview. Keys distinguish API versions, resources, namespaces,
+names, query parameters and the `Accept` representation. For example,
+`/api/v1/namespaces/team/pods/shared` and
+`/api/v1/namespaces/team/secrets/shared` never share an entry.
+
+A shared metadata list/watch invalidates each resource scope. It uses the
+connection's credentials when available, or a requesting user's token for a
+connection without stored credentials. Tokens are not saved to the context
+store. Until the watch is synchronized, and whenever it disconnects, requests go
+directly to Kubernetes. Authorization-check errors also bypass the cache.
+Watch events and writes invalidate both existing responses and pending fills;
+idle watches stop after ten minutes. Streaming, paginated, conditional, range,
+impersonated and subresource requests bypass the response cache, as do requests
+for a specific resource version or with `Cache-Control: no-cache`. Only successful
+Kubernetes objects are stored, and never responses that set cookies, send
+`Cache-Control: no-store` or vary on anything but `Accept` and `Accept-Encoding`.
+
+## Port-forward authentication and ownership
+
+Port-forwarding requires **Kubernetes 1.28+**: every create/list/get/stop/delete
+request authenticates using `authentication.k8s.io/v1` SelfSubjectReview,
+[stable since Kubernetes 1.28](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#self-subject-review).
+The API server must permit the authenticated user to create self-subject reviews.
+On older clusters, the unsupported v1 endpoint causes port-forward requests to
+return HTTP 503 (Service Unavailable), rather than forwarding without verified
+ownership. An unavailable review endpoint also fails closed; unverified JWT
+claims or arbitrary nonempty bearer text are never trusted.
+
+An Authorization bearer token takes precedence over the cluster cookie. Supplied
+user tokens replace stored authentication methods for the request, so invalid
+tokens cannot fall back to a configured certificate or token file. Static
+kubeconfig credentials still work when no user token is supplied.
+Cluster and effective API-proxy URLs containing credentials are rejected when a
+request token is supplied: HTTP URL Basic authentication must not replace the caller's bearer
+identity. Trusted configured URL credentials still work without a request token.
+This check uses client-go's server normalization, including scheme-less
+`user:password@host:port` credentials, while preserving valid `IP:port` servers.
+When proxy authentication is enabled, its configured token header takes
+precedence and is subject to the same Kubernetes identity verification.
+Using `Authorization` itself as that proxy header is supported case-insensitively;
+an existing Bearer prefix is normalized only once. An explicitly supplied empty
+credential is rejected, never replaced by a cookie or stored identity. Static
+contexts with names that cannot form cookie names can still use their configured
+credentials when no Authorization header was supplied.
+The outer cluster OIDC middleware validates supplied Authorization before
+refresh: an expiring cookie cannot replace an invalid header or collapse multiple
+headers into an accepted credential. Legitimate cookie-only refresh still works.
+
+Sessions are scoped by the exact context key, effective API server or
+gateway/TLS/proxy authority, and the Kubernetes-returned username and UID.
+Another user cannot list, inspect,
+stop, delete, or overwrite them by
+supplying the same forwarding ID. Refreshed tokens for the same principal retain
+access; a different UID does not. Public cluster names and response shapes remain
+unchanged. Existing unowned cache entries are not adopted by the next caller.
+The store is in memory; no persistent session migration is required.
+
+Stateless requests resolve their supplied `KUBECONFIG` afresh and use that same
+context snapshot for authentication and forward creation. A cached routing key
+cannot supply another caller's credentials. `X-HEADLAMP-USER-ID` is a routing
+label, not authentication. Requests addressing a cached internal context without
+their own token or request kubeconfig cannot borrow its stored credentials.
+Cached internal contexts and in-cluster request-supplied contexts cannot read backend-local CA
+files, even with an independent request token. They must embed the CA data or
+use default system trust. An embedded CA takes precedence over a filename
+without reading it. Trusted server-configured contexts retain file-backed CAs.
+In-cluster request-supplied kubeconfigs cannot read backend-local token/certificate/key
+files or run exec/auth-provider credential plugins. These methods require an
+independent request token that replaces the configured credentials; otherwise
+the request is rejected before authentication. Embedded credentials remain
+supported, and trusted server-configured kubeconfigs keep their existing
+credential methods.
+The same in-cluster restrictions apply to contexts registered through
+`POST /cluster`, including after persistence reload. Stored dynamic uploads and
+contexts without recorded provenance require a caller-supplied token in-cluster;
+they cannot supply another uploader's embedded identity. File-backed CAs remain
+restricted even with that token. Trust follows the recorded source, not the
+internal routing flag.
+Desktop/development uploads retain local exec/OIDC providers, token and
+certificate/key files, and file-backed CAs after the backend-token middleware.
+Configure a nonempty `HEADLAMP_BACKEND_TOKEN` to protect that local trust boundary.
+OIDC contexts without stored credentials return HTTP 401 before provider lookup.
+API-proxy settings are resolved before credentials are replaced and retained for
+identity verification and forwarding. Gateway CA data and skip-verification
+settings replace the API server's TLS trust; unused API-server CA files are not read.
+Recreating a context with a different endpoint or TLS/proxy trust configuration
+does not grant access to existing sessions even if that endpoint claims the same
+username and UID. Restoring the original authority with valid credentials retains
+access across context-cache expiry.
+File-backed certificate authorities are read into the copied request context
+before authentication. The effective CA bytes determine session ownership and
+are reused for forward creation, without rereading the filename. Replacing a CA
+file at the same path cannot inherit surviving sessions; unreadable or empty
+configured CA files fail closed. Embedded CA data takes precedence over a file.
+
+In-cluster service-account credentials are not used in place of a missing user
+token unless unsafe service-account mode was explicitly enabled. That unsafe
+mode deliberately shares the service-account identity, not individual user
+ownership. Desktop backend-token protection remains an additional boundary.
+
+Run the local HTTP end-to-end and ownership regressions without a Kubernetes cluster:
+
+```bash
+cd backend
+go test -race ./pkg/portforward ./cmd -run 'TestPortForward(AuthenticatedOwnershipEndToEnd|AuthenticationFailsClosed|CreationKeepsOwnerScope|CookieOwnership|RoutesRejectForgedCredentials)$' -count=20
+```
+
+Header, Unicode-name, authority-replacement and stateless-cache regressions:
+
+```bash
+cd backend
+go test -race ./pkg/portforward ./cmd -run '^TestPortForward(ProxyAuthorizationNormalization|RejectsEmptySuppliedCredentials|UnicodeStaticContext|ContextReplacementPinsAuthority|Stateless.*)$' -count=20
+```
+
+The fully wrapped refresh-order regression is
+`go test -race ./cmd -run '^TestPortForwardValidatesAuthorizationBeforeRefresh$' -count=20`.
+
+These tests use the production request handler and real HTTP/TLS connections to a
+local mock of the Kubernetes authentication API. Session-control tests use
+synthetic channels and do not establish live Kubernetes port-forwards.
+
+CI also enables the live Minikube lifecycle test. With a running `minikube`
+context and a Headlamp pod exposing its backend port in the `headlamp` namespace:
+
+```bash
+cd backend
+HEADLAMP_RUN_INTEGRATION_TESTS=true go test -race ./pkg/portforward -run '^TestStartPortForward$' -count=1
+```
+
+This test creates a real forward and uses the authenticated request handler to
+stop, list, inspect, and delete it. Cleanup also deletes the forward if a later
+assertion fails; the test does not access owner-scoped cache records through
+legacy unscoped keys.
 
 ## Telemetry
 
@@ -197,12 +414,11 @@ expiration.
 
 | Rank | Change | Expected memory effect | Trade-off |
 | --- | --- | --- | --- |
-| 1 | Store only object metadata in cache-invalidation informers | 70–99% of informer object heap, depending on resource payload size | Informer handlers cannot later consume spec or status without removing the transform |
-| 2 | Share cache-invalidation watchers for equivalent cluster connections | Avoids duplicated informer stores and goroutines for stateless users | Requires careful authentication and watcher lifecycle isolation |
-| 3 | Add byte and entry limits to the Kubernetes response cache | Prevents unbounded retained response growth and avoids caching oversized responses | Lower cache hit rate |
-| 4 | Cache only the Kubernetes authorization client instead of a full clientset | Removes unused typed clients from each token cache entry | Narrows the internal cache API |
-| 5 | Initialize proxy transports only when a context is first used | Saves per-context TLS and transport state for unused contexts | Adds synchronization to the first request |
-| 6 | Lower `GOGC` for the desktop backend | About 2–4.5 MiB in measured idle/request workloads | More frequent GC and modestly higher CPU use |
+| 1 | Share cache-invalidation watchers for equivalent cluster connections | Avoids duplicated informer stores and goroutines for stateless users | Requires careful authentication and watcher lifecycle isolation |
+| 2 | Add byte and entry limits to the Kubernetes response cache | Prevents unbounded retained response growth and avoids caching oversized responses | Lower cache hit rate |
+| 3 | Cache only the Kubernetes authorization client instead of a full clientset | Removes unused typed clients from each token cache entry | Narrows the internal cache API |
+| 4 | Initialize proxy transports only when a context is first used | Saves per-context TLS and transport state for unused contexts | Adds synchronization to the first request |
+| 5 | Lower `GOGC` for the desktop backend | About 2–4.5 MiB in measured idle/request workloads | More frequent GC and modestly higher CPU use |
 
 The desktop launcher defaults its bundled backend to `GOGC=25`, while preserving
 an explicitly configured `GOGC`. In isolated measurements, `GOGC=50` reduced

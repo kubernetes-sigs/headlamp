@@ -29,9 +29,9 @@ export interface WorkloadCircleChartProps extends Omit<PercentageCircleProps, 'd
   totalLabel: string;
   /**
    * Optional per-item health classifier. When provided, the chart renders a
-   * multi-segment ring (healthy / degraded / transitional / failed) instead of
-   * the default binary ring. Used for Pods, which have no replica fields and
-   * whose health can't be derived from a ready/total replica mismatch.
+   * multi-segment ring (healthy / suspended / degraded / transitional / failed)
+   * instead of the default binary ring. Used for Pods, which have no replica
+   * fields and whose health can't be derived from a ready/total replica mismatch.
    */
   categorize?: (item: Workload) => WorkloadHealthCategory;
 }
@@ -61,7 +61,7 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
     if (!workloadData || !categorize) {
       return null;
     }
-    const buckets = { healthy: 0, degraded: 0, transitional: 0, failed: 0 };
+    const buckets = { healthy: 0, suspended: 0, degraded: 0, transitional: 0, failed: 0 };
     workloadData.forEach(item => {
       buckets[categorize(item)]++;
     });
@@ -76,9 +76,10 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
       return [];
     }
     if (counts) {
-      // Order around the ring: healthy → degraded → transitional → failed.
+      // Order around the ring: healthy → suspended → degraded → transitional → failed.
       return [
         { name: 'healthy', value: counts.healthy, fill: theme.palette.success.main },
+        { name: 'suspended', value: counts.suspended, fill: theme.palette.info.main },
         { name: 'degraded', value: counts.degraded, fill: theme.palette.warning.main },
         { name: 'transitional', value: counts.transitional, fill: theme.palette.grey[500] },
         { name: 'failed', value: counts.failed, fill: theme.palette.error.main },
@@ -95,7 +96,10 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
 
   function getLabel() {
     if (counts) {
-      return total > 0 ? getPercentStr(counts.healthy, total) : '';
+      // Suspended items are paused on purpose, so they don't lower the
+      // percentage. When every item is suspended there's nothing to show.
+      const active = total - counts.suspended;
+      return active > 0 ? getPercentStr(counts.healthy, active) : '';
     }
     return total > 0 ? getPercentStr(total - partial, total) : '';
   }
@@ -114,13 +118,17 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
         counts.failed && `${counts.failed} ${partialLabel}`,
         counts.degraded && `${counts.degraded} ${t('translation|Degraded')}`,
         counts.transitional && `${counts.transitional} ${t('translation|Other')}`,
+        counts.suspended && `${counts.suspended} ${t('translation|Suspended')}`,
       ].filter(Boolean);
 
       return (
         <>
           {`${counts.healthy} ${totalLabel}`}
           {breakdown.length > 0 && (
-            <Box component="span" sx={{ display: 'block', fontSize: '0.85em', opacity: 0.7 }}>
+            <Box
+              component="span"
+              sx={{ display: 'block', fontSize: '0.85em', color: 'text.secondary' }}
+            >
               {breakdown.join(' · ')}
             </Box>
           )}
@@ -129,7 +137,7 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
     }
 
     if (partial !== 0) {
-      return `${partial} ${partialLabel} / ${total} ${totalLabel}`;
+      return `${partial} ${partialLabel} / ${total - partial} ${totalLabel}`;
     }
 
     return `${total} ${totalLabel}`;

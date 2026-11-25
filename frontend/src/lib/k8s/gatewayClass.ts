@@ -25,15 +25,36 @@ import { KubeObject } from './KubeObject';
  *
  * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/gatewayclass/} Gateway API definition for GatewayClass
  */
+export interface GatewayClassParametersReference {
+  group: string;
+  kind: string;
+  name: string;
+  namespace?: string;
+}
+
 export interface KubeGatewayClass extends KubeObjectInterface {
   spec: {
     controllerName: string;
+    /** Free-form description of the GatewayClass. */
+    description?: string;
+    /** Reference to a resource that holds the controller-specific configuration of the class. */
+    parametersRef?: GatewayClassParametersReference;
     [key: string]: any;
   };
   status: {
     conditions?: KubeCondition[];
     [otherProps: string]: any;
   };
+}
+
+/**
+ * Formats a GatewayClass parametersRef as `Kind.group/name`, followed by the namespace of a
+ * namespaced resource in parentheses. A resource in the core API group has an empty group and is
+ * shown as `Kind/name`.
+ */
+export function formatGatewayClassParametersRef(ref: GatewayClassParametersReference): string {
+  const kind = ref.group ? `${ref.kind}.${ref.group}` : ref.kind;
+  return `${kind}/${ref.name}${ref.namespace ? ` (${ref.namespace})` : ''}`;
 }
 
 class GatewayClass extends KubeObject<KubeGatewayClass> {

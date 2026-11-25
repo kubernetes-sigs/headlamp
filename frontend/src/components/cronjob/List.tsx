@@ -22,12 +22,29 @@ import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
+// cronstrue uses "pt_BR"-style names and has no region-less zh or pt.
+const CRONSTRUE_LOCALES: Record<string, string> = {
+  'pt-BR': 'pt_BR',
+  'pt-PT': 'pt_PT',
+  pt: 'pt_PT',
+  'zh-TW': 'zh_TW',
+  zh: 'zh_CN',
+};
+
+/**
+ * Maps a UI language code to a cronstrue locale, falling back to English.
+ */
+export function getCronstrueLocale(language: string): string {
+  const locale = CRONSTRUE_LOCALES[language] ?? language;
+  return locale in cronstrue.locales ? locale : 'en';
+}
+
 export function getSchedule(cronJob: CronJob, locale: string) {
   const { schedule } = cronJob.spec;
   let described = '';
   if (!schedule.startsWith('@')) {
     try {
-      described = cronstrue.toString(schedule, { locale });
+      described = cronstrue.toString(schedule, { locale: getCronstrueLocale(locale) });
     } catch (e) {
       console.debug(
         `Could not describe cron "${schedule}" for cronJob ${cronJob.metadata.namespace}/${cronJob.metadata.name}:`,

@@ -15,6 +15,8 @@
     "test:typescript:compatibility": "node test-typescript-compatibility.js",
     "test:storybook-mocks": "vitest run -c config/vite.config.mjs storybookBaseMocks.test.ts",
     "test:upgrade": "node --test test-upgrade.js",
+    "test:tooling": "node --test test/*.test.cjs",
+    "test:coverage": "node scripts/test-coverage.cjs",
     "update-dependencies": "node dependencies-sync.js update && npm install && node scripts/copy-package-lock.js",
     "check-dependencies": "node dependencies-sync.js check",
     "copy-package-lock": "node scripts/copy-package-lock.js"
@@ -127,6 +129,13 @@
     "vitest": "^5.0.4",
     "yaml": "^2.7.0",
     "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-instrument": "^6.0.3",
+    "istanbul-lib-report": "^3.0.1",
+    "istanbul-reports": "^3.2.0"
   },
   "overrides": {
     "axe-core": "npm:dry-uninstall",

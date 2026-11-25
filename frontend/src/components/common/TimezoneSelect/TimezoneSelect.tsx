@@ -19,6 +19,7 @@ import TextField from '@mui/material/TextField';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import spacetime from 'spacetime';
+import { formatOffset } from './formatOffset';
 
 export interface TimezoneSelectorProps {
   initialTimezone?: string;
@@ -48,9 +49,7 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
       id="timezone-selector-autocomplete"
       disabled={disabled}
       options={timezoneOptions}
-      getOptionLabel={option =>
-        `(UTC${option.offset >= 0 ? '+' : ''}${option.offset}) ${option.name}`
-      }
+      getOptionLabel={option => `(UTC${formatOffset(option.offset)}) ${option.name}`}
       disableClearable
       autoComplete
       includeInputInList

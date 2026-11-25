@@ -126,7 +126,9 @@ class Service extends KubeObject<KubeService> {
         this.status?.loadBalancer?.ingress?.map(
           (ingress: KubeLoadBalancerIngress) => ingress.hostname || ingress.ip
         ) || []
-      ).concat(this.spec?.externalIPs || [])
+      )
+        .concat(this.spec?.externalIPs || [])
+        .filter((addr): addr is string => Boolean(addr))
     );
 
     if (addresses.length === 0 && this.spec?.type === 'LoadBalancer') {

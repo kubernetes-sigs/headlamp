@@ -21,13 +21,10 @@ import (
 	k8cache "github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 )
 
-// BenchmarkStoreK8sResponseInCache measures the allocation overhead of storing
-// a typical Kubernetes API response in the cache. This exercises the JSON
-// marshalling, Failure detection, and cache-write path.
-func BenchmarkStoreK8sResponseInCache(b *testing.B) {
-	mockCache := NewMockCache()
-	targetURL := &url.URL{Path: "/api/v1/pods"}
-
+// BenchmarkEncodeResponse measures the allocation overhead of encoding
+// a typical Kubernetes API response for the cache. This exercises the JSON
+// marshalling and Failure detection path.
+func BenchmarkEncodeResponse(b *testing.B) {
 	// Simulate a realistic pod list response body.
 	podListBody := `{"kind":"PodList","apiVersion":"v1",` +
 		`"metadata":{"resourceVersion":"54321"},"items":[` +
@@ -50,21 +47,15 @@ func BenchmarkStoreK8sResponseInCache(b *testing.B) {
 
 		b.StartTimer()
 
-		if err := k8cache.StoreK8sResponseInCache(
-			mockCache, targetURL, rcw, "bench-key",
-		); err != nil {
+		if _, err := k8cache.ExportedEncodeResponse(rcw); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
-// BenchmarkStoreK8sResponseInCache_FailureSkip measures the early-exit
-// path when the response body contains a Kubernetes error status with
-// "Failure". After the optimization, this path skips json.Marshal.
-func BenchmarkStoreK8sResponseInCache_FailureSkip(b *testing.B) {
-	mockCache := NewMockCache()
-	targetURL := &url.URL{Path: "/api/v1/pods"}
-
+// BenchmarkEncodeResponse_FailureSkip measures the early-exit path for a
+// Kubernetes error status (non-200), which is never parsed or marshalled.
+func BenchmarkEncodeResponse_FailureSkip(b *testing.B) {
 	failureBody := `{"kind":"Status","apiVersion":"v1",` +
 		`"status":"Failure","message":"Forbidden",` +
 		`"reason":"Forbidden","code":403}`
@@ -83,9 +74,7 @@ func BenchmarkStoreK8sResponseInCache_FailureSkip(b *testing.B) {
 
 		b.StartTimer()
 
-		if err := k8cache.StoreK8sResponseInCache(
-			mockCache, targetURL, rcw, "failure-bench-key",
-		); err != nil {
+		if _, err := k8cache.ExportedEncodeResponse(rcw); err != nil {
 			b.Fatal(err)
 		}
 	}

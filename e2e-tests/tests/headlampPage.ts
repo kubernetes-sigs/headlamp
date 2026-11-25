@@ -47,9 +47,58 @@ export class HeadlampPage {
     }
   }
 
+  /**
+   * Opens a cluster, authenticating with the token when one is given.
+   *
+   * The token is stored as the backend's per-cluster auth cookie instead of being submitted
+   * through the login form, which keeps tests fast. The login form itself is covered by the
+   * multi-cluster login/logout tests and the Helm test, which call authenticate() directly.
+   */
   async navigateToCluster(name: string, token?: string) {
-    await this.navigateTopage(`/c/${name}`);
-    await this.authenticate(token);
+    const authHeading = this.page.getByRole('heading', { level: 1, name: 'Authentication' });
+    const overviewHeading = this.page.getByRole('heading', { name: 'Overview' });
+
+    if (!token) {
+      await this.navigateTopage(`/c/${name}`);
+      // Clusters that authenticate with a client certificate open straight to the Overview.
+      await expect(authHeading.or(overviewHeading).first()).toBeVisible();
+      if (await authHeading.isVisible()) {
+        await this.authenticate(token);
+      }
+      return;
+    }
+
+    await this.setAuthCookie(name, token);
+    // Authenticated cluster pages keep polling, so wait for the page itself instead of
+    // network idle.
+    await this.page.goto(`${this.testURL}/c/${name}`);
+
+    await expect(authHeading.or(overviewHeading).first()).toBeVisible();
+    await expect(authHeading, `the auth cookie for cluster "${name}" was rejected`).toBeHidden();
+  }
+
+  /**
+   * Stores a token the same way the backend does after a successful login (see
+   * backend/pkg/auth/cookies.go): the cookie name uses the sanitized cluster name, the path uses
+   * the raw one, and long tokens are split across numbered cookies.
+   */
+  async setAuthCookie(cluster: string, token: string) {
+    const testURL = new URL(process.env.HEADLAMP_TEST_URL || 'http://localhost:3000');
+    const basePath = testURL.pathname.replace(/\/+$/, '');
+    const cookieCluster = cluster.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 50);
+    const chunks = token.match(/[\s\S]{1,3800}/g) ?? [];
+
+    await this.page.context().addCookies(
+      chunks.map((value, index) => ({
+        name: `headlamp-auth-${cookieCluster}.${index}`,
+        value,
+        domain: testURL.hostname,
+        path: `${basePath}/clusters/${cluster}`,
+        httpOnly: true,
+        secure: testURL.protocol === 'https:',
+        sameSite: 'Strict' as const,
+      }))
+    );
   }
 
   async hasURLContaining(pattern: RegExp) {

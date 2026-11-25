@@ -38,6 +38,22 @@ describe('configSlice', () => {
     expect(nextState.clusters).toEqual(clusters);
   });
 
+  it('updates source definitions independently and keeps them on partial config updates', () => {
+    const clusterSources = [
+      { id: 'fleet', label: 'Fleet', nameLabel: 'Cluster', configured: true },
+    ];
+    const updated = configReducer(initialState, setConfig({ clusters: {}, clusterSources }));
+    expect(updated.clusterSources).toEqual(clusterSources);
+    const partial = configReducer(
+      updated,
+      setConfig({ clusters: { legacy: { name: 'legacy', auth_type: '' } } })
+    );
+    expect(partial.clusterSources).toEqual(clusterSources);
+    expect(
+      configReducer(partial, setConfig({ clusters: {}, clusterSources: [] })).clusterSources
+    ).toEqual([]);
+  });
+
   it('should handle setConfig with isDynamicClusterEnabled', () => {
     const clusters: ConfigState['clusters'] = {
       'cluster-1': { name: 'cluster-1' } as Cluster,
@@ -157,6 +173,20 @@ describe('configSlice', () => {
     expect(state.isDynamicClusterEnabled).toBe(true);
   });
 
+  it('should update and clear backstageOrigin while preserving it when omitted', () => {
+    let state = configReducer(
+      initialState,
+      setConfig({ clusters: {}, backstageOrigin: 'https://backstage.example.com' })
+    );
+    expect(state.backstageOrigin).toBe('https://backstage.example.com');
+
+    state = configReducer(state, setConfig({ clusters: {} }));
+    expect(state.backstageOrigin).toBe('https://backstage.example.com');
+
+    state = configReducer(state, setConfig({ clusters: {}, backstageOrigin: '' }));
+    expect(state.backstageOrigin).toBe('');
+  });
+
   it('should handle setStatelessConfig', () => {
     const statelessClusters: ConfigState['statelessClusters'] = {
       'stateless-1': { name: 'stateless-1' } as Cluster,
@@ -211,6 +241,19 @@ describe('configSlice', () => {
 
       const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
       expect(storedSettings.expandLargeGraph).toBe(true);
+    });
+
+    it('should enable tutorialTooltips by default', () => {
+      expect(initialState.settings.tutorialTooltips).toBe(true);
+    });
+
+    it('should handle setAppSettings with tutorialTooltips and update localStorage', () => {
+      const nextState = configReducer(initialState, setAppSettings({ tutorialTooltips: false }));
+
+      expect(nextState.settings.tutorialTooltips).toBe(false);
+
+      const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+      expect(storedSettings.tutorialTooltips).toBe(false);
     });
   });
 

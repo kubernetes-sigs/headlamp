@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/schema"
@@ -39,6 +40,7 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	authv1 "k8s.io/api/authentication/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -231,6 +233,19 @@ func releaseExists(actionConfig *action.Configuration, name string) error {
 	return err
 }
 
+// releaseLookupError gives the HTTP status and log message for an error from
+// releaseExists, so only a missing release is answered with a 404.
+func releaseLookupError(err error) (int, string) {
+	switch {
+	case errors.Is(err, driver.ErrReleaseNotFound):
+		return http.StatusNotFound, "release not found"
+	case apierrors.IsForbidden(err):
+		return http.StatusForbidden, "checking release: forbidden"
+	default:
+		return http.StatusInternalServerError, "checking release"
+	}
+}
+
 func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req, err := decodeGetReleaseRequest(r)
@@ -253,10 +268,11 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetRelease},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -290,20 +306,32 @@ type GetReleaseHistoryRequest struct {
 	Namespace string `json:"namespace" validate:"required"`
 }
 
+func (req *GetReleaseHistoryRequest) Validate() error {
+	validate := validator.New()
+	return validate.Struct(req)
+}
+
+func decodeGetReleaseHistoryRequest(r *http.Request) (GetReleaseHistoryRequest, error) {
+	var req GetReleaseHistoryRequest
+
+	decoder := schema.NewDecoder()
+	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
+		return req, err
+	}
+
+	return req, req.Validate()
+}
+
 type GetReleaseHistoryResponse struct {
 	Releases []*release.Release `json:"releases"`
 }
 
 func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
 	// Parse request
-	var req GetReleaseHistoryRequest
-
-	decoder := schema.NewDecoder()
-
-	err := decoder.Decode(&req, r.URL.Query())
+	req, err := decodeGetReleaseHistoryRequest(r)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory},
-			err, "decoding request")
+			err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
@@ -320,10 +348,11 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetReleaseHistory},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -399,10 +428,11 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opUninstallRelease},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -496,10 +526,11 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
+	if err != nil {
+		status, message := releaseLookupError(err)
 		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name},
-			err, "release not found")
-		http.Error(w, err.Error(), http.StatusNotFound)
+			err, message)
+		http.Error(w, err.Error(), status)
 
 		return
 	}
@@ -609,6 +640,13 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	if status, err := h.checkChartRef(req.Chart); err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart}, err, "validating chart for install")
+		http.Error(w, err.Error(), status)
+
+		return
+	}
+
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "install_release"},
@@ -688,6 +726,10 @@ func (h *Handler) getChart(
 	return chart, nil
 }
 
+// verifyUserTimeout bounds the whoami request, so an unreachable API server
+// fails the install instead of blocking it.
+var verifyUserTimeout = 10 * time.Second
+
 // Verify the user has minimal privileges by performing a whoami check.
 // This prevents spurious downloads by ensuring basic authentication before proceeding.
 func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
@@ -695,7 +737,7 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	if err != nil {
 		logger.Log(logger.LevelError,
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "getting chart")
+			err, "getting REST config to verify user")
 
 		return false
 	}
@@ -704,24 +746,27 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	if err != nil {
 		logger.Log(logger.LevelError,
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "getting chart")
+			err, "creating client to verify user")
 
 		return false
 	}
 
-	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(),
+	ctx, cancel := context.WithTimeout(context.Background(), verifyUserTimeout)
+	defer cancel()
+
+	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(ctx,
 		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
 		logger.Log(logger.LevelError,
 			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "getting chart")
+			err, "checking user identity")
 
 		return false
 	}
 
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
+			errors.New("insufficient privileges"), "user is not authorized to perform this operation")
 
 		return false
 	}
@@ -781,7 +826,6 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 
 type UpgradeReleaseRequest struct {
 	CommonInstallUpdateRequest
-	Install *bool `json:"install"`
 }
 
 func (req *UpgradeReleaseRequest) Validate() error {
@@ -805,6 +849,11 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 		return
 	}
 
+	if status, err := h.checkChartRef(req.Chart); err != nil {
+		handleError(w, req.Name, err, "validating chart for upgrade release", status)
+		return
+	}
+
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "upgrade_release"},
@@ -816,8 +865,10 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 
 	// check if release exists
 	err = releaseExists(actionConfig, req.Name)
-	if errors.Is(err, driver.ErrReleaseNotFound) {
-		handleError(w, req.Name, err, "release not found", http.StatusNotFound)
+	if err != nil {
+		status, message := releaseLookupError(err)
+		handleError(w, req.Name, err, message, status)
+
 		return
 	}
 

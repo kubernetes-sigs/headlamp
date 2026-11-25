@@ -947,33 +947,37 @@ async function build(packageFolder) {
 
     process.chdir(folder);
 
-    // Read package.json to get plugin name
-    const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-    const pluginName = packageJson.name || path.basename(folder);
-
-    console.log(`Building "${folder}" for production with plugin name: ${pluginName}...`);
-
-    const config = await viteConfigPromise;
-    const vite = await vitePromise;
-
-    // Clone the config and add plugin name injection
-    const buildConfig = { ...config.default };
-
-    // Add plugin name injection to the plugins array
-    if (!buildConfig.plugins) {
-      buildConfig.plugins = [];
-    }
-
-    if (typeof process.env.NODE_ENV === 'undefined') {
-      process.env.NODE_ENV = 'production';
-    }
-    injectEnvVars(buildConfig);
-
-    // Import the plugin name injection plugin
-    const { pluginNameInjection } = await import('../config/vite-plugin-name-injection.mjs');
-    buildConfig.plugins.push(pluginNameInjection({ pluginName }));
-
     try {
+      // Read package.json to get plugin name
+      const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+      const pluginName = packageJson.name || path.basename(folder);
+
+      console.log(`Building "${folder}" for production with plugin name: ${pluginName}...`);
+
+      const config = await viteConfigPromise;
+      const vite = await vitePromise;
+
+      // Clone the config and add plugin name injection
+      const buildConfig = {
+        ...config.default,
+        root: process.cwd(),
+        define: { ...config.default.define },
+        plugins: [...(config.default.plugins || [])],
+        build: {
+          ...config.default.build,
+          lib: { ...config.default.build.lib, entry: path.resolve('src/index.tsx') },
+        },
+      };
+
+      if (typeof process.env.NODE_ENV === 'undefined') {
+        process.env.NODE_ENV = 'production';
+      }
+      injectEnvVars(buildConfig);
+
+      // Import the plugin name injection plugin
+      const { pluginNameInjection } = await import('../config/vite-plugin-name-injection.mjs');
+      buildConfig.plugins.push(pluginNameInjection({ pluginName }));
+
       await vite.build(buildConfig);
 
       // Copy extra dist files after successful build
@@ -984,17 +988,18 @@ async function build(packageFolder) {
       await brotliCompressDist(distDir);
 
       console.log(`Finished building "${folder}" for production.`);
+
+      return true;
     } catch (e) {
       console.error(e);
       console.error(`Failed to build "${folder}" for production.`);
-      process.exit(1);
+      return false;
+    } finally {
+      process.chdir(oldCwd);
     }
-
-    process.chdir(oldCwd);
-    return true;
   }
 
-  function buildFolderOfPackages() {
+  async function buildFolderOfPackages() {
     const folders = fs.readdirSync(packageFolder, { withFileTypes: true }).filter(fileName => {
       return (
         fileName.isDirectory() &&
@@ -1002,17 +1007,19 @@ async function build(packageFolder) {
       );
     });
 
-    folders.forEach(folder => {
+    for (const folder of folders) {
       const folderToBuild = path.join(packageFolder, folder.name);
-      if (!buildPackage(folderToBuild)) {
-        console.error(`"${folderToBuild}" does not contain a package. Not building.`);
-      }
-    });
+      if (!(await buildPackage(folderToBuild))) return false;
+    }
     return folders.length !== 0;
   }
 
-  if (!(buildPackage(packageFolder) || buildFolderOfPackages())) {
-    console.error(`"${packageFolder}" does not contain a package or packages. Not building.`);
+  const built = fs.existsSync(path.join(packageFolder, 'package.json'))
+    ? await buildPackage(packageFolder)
+    : await buildFolderOfPackages();
+  if (!built) {
+    console.error(`Failed to build package or packages in "${packageFolder}".`);
+    return 1;
   }
 
   return 0;

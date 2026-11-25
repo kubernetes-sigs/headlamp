@@ -45,6 +45,8 @@ import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
 import ResourceClaimList from '../../components/device/ResourceClaimList';
 import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
 import ResourceClaimTemplateList from '../../components/device/ResourceClaimTemplateList';
+import ResourceSliceDetails from '../../components/device/ResourceSliceDetails';
+import ResourceSliceList from '../../components/device/ResourceSliceList';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -81,6 +83,10 @@ import { LeaseDetails } from '../../components/lease/Details';
 import { LeaseList } from '../../components/lease/List';
 import { LimitRangeDetails } from '../../components/limitRange/Details';
 import { LimitRangeList } from '../../components/limitRange/List';
+import MutatingAdmissionPolicyDetails from '../../components/mutatingAdmissionPolicy/Details';
+import MutatingAdmissionPolicyList from '../../components/mutatingAdmissionPolicy/List';
+import MutatingAdmissionPolicyBindingDetails from '../../components/mutatingAdmissionPolicyBinding/Details';
+import MutatingAdmissionPolicyBindingList from '../../components/mutatingAdmissionPolicyBinding/List';
 import NamespaceDetails from '../../components/namespace/Details';
 import NamespacesList from '../../components/namespace/List';
 import { NetworkPolicyDetails } from '../../components/networkpolicy/Details';
@@ -681,8 +687,9 @@ const defaultRoutes: { [routeName: string]: Route } = {
     component: () => <RoleDetails />,
   },
   clusterRoles: {
-    path: '/roles',
+    path: '/clusterroles',
     exact: true,
+    name: 'Roles',
     sidebar: 'roles',
     component: () => <RoleList />,
   },
@@ -708,10 +715,10 @@ const defaultRoutes: { [routeName: string]: Route } = {
     component: () => <RoleBindingDetails />,
   },
   clusterRoleBindings: {
-    path: '/rolebindings',
+    path: '/clusterrolebindings',
     exact: true,
     sidebar: 'roleBindings',
-    component: () => <RoleBindingDetails />,
+    component: () => <RoleBindingList />,
   },
   secrets: {
     path: '/secrets',
@@ -840,6 +847,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'resourceClaimTemplates',
     component: () => <ResourceClaimTemplateDetails />,
   },
+  resourceslices: {
+    path: '/resourceslices',
+    exact: true,
+    name: 'Resource Slices',
+    sidebar: 'resourceSlices',
+    component: () => <ResourceSliceList />,
+  },
+  resourceSlice: {
+    path: '/resourceslices/:name',
+    exact: true,
+    name: 'Resource Slice',
+    sidebar: 'resourceSlices',
+    component: () => <ResourceSliceDetails />,
+  },
   priorityclasses: {
     path: '/priorityclasses',
     exact: true,
@@ -923,6 +944,34 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Mutating Webhook Configuration',
     sidebar: 'mutatingWebhookConfigurations',
     component: () => <MutatingWebhookConfigurationDetails />,
+  },
+  mutatingAdmissionPolicies: {
+    path: '/mutatingadmissionpolicies',
+    exact: true,
+    name: 'Mutating Admission Policies',
+    sidebar: 'mutatingAdmissionPolicies',
+    component: () => <MutatingAdmissionPolicyList />,
+  },
+  mutatingAdmissionPolicy: {
+    path: '/mutatingadmissionpolicies/:name',
+    exact: true,
+    name: 'Mutating Admission Policy',
+    sidebar: 'mutatingAdmissionPolicies',
+    component: () => <MutatingAdmissionPolicyDetails />,
+  },
+  mutatingAdmissionPolicyBindings: {
+    path: '/mutatingadmissionpolicybindings',
+    exact: true,
+    name: 'Mutating Admission Policy Bindings',
+    sidebar: 'mutatingAdmissionPolicyBindings',
+    component: () => <MutatingAdmissionPolicyBindingList />,
+  },
+  mutatingAdmissionPolicyBinding: {
+    path: '/mutatingadmissionpolicybindings/:name',
+    exact: true,
+    name: 'Mutating Admission Policy Binding',
+    sidebar: 'mutatingAdmissionPolicyBindings',
+    component: () => <MutatingAdmissionPolicyBindingDetails />,
   },
   validatingWebhookConfigurations: {
     path: '/validatingwebhookconfigurations',

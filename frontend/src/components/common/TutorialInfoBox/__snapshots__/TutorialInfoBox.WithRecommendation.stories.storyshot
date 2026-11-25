@@ -1,0 +1,28 @@
+<body>
+  <div>
+    <div
+      aria-label="About loading from KubeConfig"
+      class="MuiBox-root css-u3hsbp"
+      role="note"
+    >
+      <span
+        aria-hidden="true"
+        class="MuiBox-root css-1xr1zrp"
+      />
+      <div
+        class="MuiBox-root css-1rr4qq7"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          Load an existing kubeconfig file to add the clusters it defines to Headlamp.
+        </p>
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ww543d-MuiTypography-root"
+        >
+          If you are using a managed cloud cluster, use this option.
+        </p>
+      </div>
+    </div>
+  </div>
+</body>

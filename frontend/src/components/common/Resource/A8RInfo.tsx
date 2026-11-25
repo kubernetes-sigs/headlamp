@@ -37,6 +37,17 @@ export type A8RMetadataItem = {
   isLink: boolean;
 };
 
+// Label keys are looked up at runtime, so mark the ones not extracted elsewhere
+// (Description, Owner, Documentation, Uptime already are).
+// t('translation|Dependencies')
+// t('translation|Chat')
+// t('translation|Bugs')
+// t('translation|Logs')
+// t('translation|Repository')
+// t('translation|Support')
+// t('translation|Runbook')
+// t('translation|Incidents')
+// t('translation|Performance')
 const A8R_ICON_MAP: Record<string, { icon: string; labelKey: string }> = {
   description: { icon: 'mdi:information-outline', labelKey: 'Description' },
   owner: { icon: 'mdi:account', labelKey: 'Owner' },
@@ -124,7 +135,7 @@ export default function A8RInfo({ annotations }: { annotations?: Record<string, 
         <Box key={item.key} display="flex" alignItems="center">
           <Icon icon={item.icon} width="20" style={{ marginRight: 8 }} />
           <Typography variant="body2">
-            <strong>{t(item.labelKey)}:</strong>{' '}
+            <strong>{t(item.labelKey, { ns: ['glossary', 'translation'] })}:</strong>{' '}
             {item.isLink ? (
               <Link href={item.value} target="_blank" rel="noopener noreferrer">
                 {item.value}

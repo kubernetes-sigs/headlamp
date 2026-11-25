@@ -31,6 +31,7 @@ import { useTypedSelector } from '../../../redux/hooks';
 import { DialogProps } from '../../common/Dialog';
 import { PageGrid } from '../../common/Resource';
 import SectionBox from '../../common/SectionBox';
+import TutorialInfoBox from '../../common/TutorialInfoBox/TutorialInfoBox';
 
 function AddClusterProvider({ title, icon, description, url }: ClusterProviderInfo) {
   const history = useHistory();
@@ -65,6 +66,33 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
   const isPluginCatalogRegistered = Object.values(customSidebarEntries).some(
     entry => entry.url === '/plugin-catalog'
   );
+  const showAddLocalProvider =
+    isElectron() && isPluginCatalogRegistered && addClusterProviders.length === 0;
+
+  const kubeConfigInfo = (
+    <TutorialInfoBox
+      label={t('translation|About loading from KubeConfig')}
+      description={t(
+        'translation|Load an existing kubeconfig file to add the clusters it defines to Headlamp.'
+      )}
+      recommendation={t(
+        'translation|If you are using a managed cloud cluster (such as AKS, EKS or GKE) or already have a kubeconfig file, use this option.'
+      )}
+      sx={{ mt: 2 }}
+    />
+  );
+  const localProviderInfo = (
+    <TutorialInfoBox
+      label={t('translation|About local cluster providers')}
+      description={t(
+        'translation|Install a plugin, such as Minikube, that creates and manages a local Kubernetes cluster on your machine.'
+      )}
+      recommendation={t(
+        "translation|If you are using Headlamp to learn or test Kubernetes and don't have a cluster yet, use this option."
+      )}
+      sx={{ mt: 2 }}
+    />
+  );
 
   return (
     <PageGrid>
@@ -84,13 +112,15 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
                 >
                   {t('translation|Load from KubeConfig')}
                 </Button>
+                {kubeConfigInfo}
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12}>
             <Typography variant="h4">{t('translation|Providers')}</Typography>
+            {!showAddLocalProvider && localProviderInfo}
           </Grid>
-          {isElectron() && isPluginCatalogRegistered && addClusterProviders.length === 0 && (
+          {showAddLocalProvider && (
             <Grid item xs={12}>
               <Button
                 onClick={() => {
@@ -100,6 +130,7 @@ export default function AddCluster(props: DialogProps & { onChoice: () => void }
               >
                 {t('translation|Add Local Cluster Provider')}
               </Button>
+              {localProviderInfo}
             </Grid>
           )}
           {addClusterProviders.length > 0 && (

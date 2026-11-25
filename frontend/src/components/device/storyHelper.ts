@@ -15,8 +15,11 @@
  */
 
 import type { KubeDeviceClass } from '../../lib/k8s/deviceClass';
+import type { KubePod } from '../../lib/k8s/pod';
 import type { KubeResourceClaim } from '../../lib/k8s/resourceClaim';
 import type { KubeResourceClaimTemplate } from '../../lib/k8s/resourceClaimTemplate';
+import type { KubeResourceSlice } from '../../lib/k8s/resourceSlice';
+import { podWithResourceClaims } from '../pod/storyHelper';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
@@ -341,5 +344,130 @@ export const PRIORITIZED_RESOURCE_CLAIM_TEMPLATE: KubeResourceClaimTemplate = {
         ],
       },
     },
+  },
+};
+
+const gpu = (index: number) => ({
+  name: `gpu-${index}`,
+  attributes: {
+    driverVersion: { version: '1.0.0' },
+    index: { int: index },
+    model: { string: 'LATEST-GPU-MODEL' },
+  },
+  capacity: {
+    compute: { value: '100' },
+    memory: { value: '80Gi' },
+  },
+});
+
+export const RESOURCE_SLICE_DUMMY_DATA: KubeResourceSlice[] = [
+  {
+    apiVersion: 'resource.k8s.io/v1',
+    kind: 'ResourceSlice',
+    metadata: {
+      name: `${worker}-gpu.example.com-87fv4`,
+      creationTimestamp,
+      uid: 'resource-slice-uid-1',
+    },
+    spec: {
+      driver: 'gpu.example.com',
+      pool: { name: worker, generation: 1, resourceSliceCount: 1 },
+      nodeName: worker,
+      devices: [gpu(0), gpu(1), gpu(2), gpu(3)],
+    },
+  },
+  {
+    apiVersion: 'resource.k8s.io/v1',
+    kind: 'ResourceSlice',
+    metadata: {
+      name: 'network-pool-0',
+      creationTimestamp,
+      uid: 'resource-slice-uid-2',
+    },
+    spec: {
+      driver: 'nic.example.com',
+      pool: { name: 'network-pool', generation: 1, resourceSliceCount: 1 },
+      allNodes: true,
+      devices: [{ name: 'nic-0', attributes: { speed: { string: '100G' } } }],
+    },
+  },
+];
+
+export const RESOURCE_SLICE_PER_DEVICE: KubeResourceSlice = {
+  apiVersion: 'resource.k8s.io/v1',
+  kind: 'ResourceSlice',
+  metadata: {
+    name: 'shared-gpus-gpu.example.com-x9k2m',
+    creationTimestamp,
+    uid: 'resource-slice-uid-3',
+  },
+  spec: {
+    driver: 'gpu.example.com',
+    pool: { name: 'shared-gpus', generation: 1, resourceSliceCount: 1 },
+    perDeviceNodeSelection: true,
+    devices: [
+      { ...gpu(0), nodeName: worker },
+      { ...gpu(1), allNodes: true },
+    ],
+  },
+};
+
+export const RESOURCE_SLICE_TAINTED: KubeResourceSlice = {
+  ...RESOURCE_SLICE_DUMMY_DATA[0],
+  metadata: {
+    ...RESOURCE_SLICE_DUMMY_DATA[0].metadata,
+    name: `${worker}-gpu.example.com-t4int`,
+    uid: 'resource-slice-uid-4',
+  },
+  spec: {
+    ...RESOURCE_SLICE_DUMMY_DATA[0].spec,
+    devices: [
+      {
+        ...gpu(0),
+        taints: [
+          { key: 'gpu.example.com/ecc-errors', value: 'uncorrectable', effect: 'NoExecute' },
+        ],
+      },
+      { ...gpu(1), taints: [{ key: 'gpu.example.com/maintenance', effect: 'NoSchedule' }] },
+      gpu(2),
+    ],
+  },
+};
+
+/** trainer-2 as the kubelet reports the health of the GPUs in its claim trainer-2-gpus-vfghv. */
+export const DEVICE_HEALTH_POD: KubePod = {
+  ...podWithResourceClaims,
+  metadata: { ...podWithResourceClaims.metadata, name: 'trainer-2', uid: 'pod-uid-4' },
+  spec: {
+    ...podWithResourceClaims.spec,
+    resourceClaims: [{ name: 'gpus', resourceClaimTemplateName: 'multiple-gpus' }],
+    containers: podWithResourceClaims.spec.containers.map(container => ({
+      ...container,
+      resources: { claims: [{ name: 'gpus' }] },
+    })),
+  },
+  status: {
+    ...podWithResourceClaims.status,
+    resourceClaimStatuses: [{ name: 'gpus', resourceClaimName: 'trainer-2-gpus-vfghv' }],
+    extendedResourceClaimStatus: undefined,
+    containerStatuses: podWithResourceClaims.status.containerStatuses.map(status => ({
+      ...status,
+      allocatedResourcesStatus: [
+        {
+          name: 'claim:gpus/gpu-1',
+          resources: [{ resourceID: `gpu.example.com/${worker}/gpu-2`, health: 'Healthy' }],
+        },
+        {
+          name: 'claim:gpus/gpu-2',
+          resources: [
+            {
+              resourceID: `gpu.example.com/${worker}/gpu-3`,
+              health: 'Unhealthy',
+              message: 'ECC error count exceeded threshold',
+            },
+          ],
+        },
+      ],
+    })),
   },
 };

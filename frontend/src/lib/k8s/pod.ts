@@ -89,6 +89,8 @@ export interface KubePodSpec {
   priority?: number;
   priorityClassName?: string;
   runtimeClassName?: string;
+  /** Resources reserved for the pod sandbox, populated from its RuntimeClass at admission. */
+  overhead?: Record<string, string>;
   terminationGracePeriodSeconds?: number;
   tolerations?: any[];
   restartPolicy?: string;
@@ -131,6 +133,8 @@ export interface ExecOptions extends StreamArgs {
 export interface LogOptions {
   /** The number of lines to display from the end side of the log */
   tailLines?: number;
+  /** Only return logs newer than this many seconds. Leave unset to not limit by time. */
+  sinceSeconds?: number;
   /** Whether to show the logs from previous runs of the container (only for restarted containers) */
   showPrevious?: boolean;
   /** Whether to show the timestamps in the logs */
@@ -261,6 +265,7 @@ class Pod extends KubeObject<KubePod> {
     const [container, onLogs, logsOptions] = args as Parameters<newGetLogs>;
     const {
       tailLines = 100,
+      sinceSeconds,
       showPrevious = false,
       showTimestamps = false,
       follow = true,
@@ -277,6 +282,10 @@ class Pod extends KubeObject<KubePod> {
     // the tailLines number of logs.
     if (tailLines !== -1) {
       url += `&tailLines=${tailLines}`;
+    }
+
+    if (sinceSeconds !== undefined && sinceSeconds > 0) {
+      url += `&sinceSeconds=${sinceSeconds}`;
     }
 
     function unescapeStringLiterals(str: string): string {
@@ -573,6 +582,9 @@ class Pod extends KubeObject<KubePod> {
       restarts = restartableInitContainerRestarts;
       lastRestartDate = lastRestartableInitContainerRestartDate;
       let hasRunning = false;
+      // Reason and message of a container that exited with a non-zero code, if any
+      let errorReason = '';
+      let errorMessage = '';
       for (let i = (this.status?.containerStatuses?.length || 0) - 1; i >= 0; i--) {
         const container = this.status?.containerStatuses?.[i];
 
@@ -582,27 +594,34 @@ class Pod extends KubeObject<KubePod> {
         if (!!container.state.waiting?.reason) {
           reason = container.state.waiting.reason;
           message = container.state.waiting.message || '';
-        } else if (!!container.state.terminated?.reason) {
-          reason = container.state.terminated.reason;
-          message = container.state.terminated.message || '';
-        } else if (container.state.terminated?.reason === '') {
-          if (container.state.terminated.signal) {
+        } else if (!!container.state.terminated) {
+          if (!!container.state.terminated.reason) {
+            reason = container.state.terminated.reason;
+          } else if (container.state.terminated.signal) {
             reason = `Signal:${container.state.terminated.signal}`;
           } else {
             reason = `ExitCode:${container.state.terminated.exitCode}`;
           }
           message = container.state.terminated.message || '';
+          if (container.state.terminated.exitCode !== 0) {
+            errorReason = reason;
+            errorMessage = message;
+          }
         } else if (container.ready && !!container.state.running) {
           hasRunning = true;
           readyContainers++;
         }
       }
 
-      // change pod status back to "Running" if there is at least one container still reporting as "Running" status
-      if (reason === 'Completed' && hasRunning) {
-        if (this.hasPodReadyCondition(this.status?.conditions ?? [])) {
+      // A "Completed" container should not hide a running or failed one, as in kubectl:
+      // https://github.com/kubernetes/kubernetes/pull/124766
+      if (reason === 'Completed') {
+        if (hasRunning && this.hasPodReadyCondition(this.status?.conditions ?? [])) {
           reason = 'Running';
-        } else {
+        } else if (errorReason) {
+          reason = errorReason;
+          message = errorMessage;
+        } else if (hasRunning) {
           reason = 'NotReady';
         }
       }

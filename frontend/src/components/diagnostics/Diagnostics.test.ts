@@ -330,4 +330,74 @@ describe('diagnostics helpers', () => {
       }
     }
   );
+
+  it('handles SchedulingGated pods as info rather than critical failure', () => {
+    const pod = makePod({
+      getDetailedStatus: () => ({
+        reason: 'Pending',
+        message: '',
+        readyContainers: 0,
+        totalContainers: 1,
+        restarts: 0,
+      }),
+      spec: {
+        schedulingGates: [{ name: 'example.com/gate-1' }, { name: 'example.com/gate-2' }],
+      },
+      status: {
+        phase: 'Pending',
+        containerStatuses: [],
+        conditions: [
+          {
+            type: 'PodScheduled',
+            status: 'False',
+            reason: 'SchedulingGated',
+            message: 'Scheduling is blocked due to non-empty scheduling gates',
+          },
+        ],
+      },
+    });
+
+    const diagnostics = getPodDiagnostics(pod);
+
+    // PodScheduled condition must not be flagged as a critical failed condition
+    expect(diagnostics.some(item => item.id === 'condition-PodScheduled')).toBe(false);
+
+    const statusDiag = diagnostics.find(item => item.id === 'pod-status');
+    expect(statusDiag).toBeDefined();
+    expect(statusDiag?.severity).toBe('info');
+    expect(statusDiag?.title).toBe('Pod status: SchedulingGated');
+    expect(statusDiag?.message).toContain('Waiting for scheduling gates to be removed.');
+    expect(statusDiag?.details).toContain(
+      'Scheduling gates: example.com/gate-1, example.com/gate-2'
+    );
+  });
+
+  it('aggregates SchedulingGated pods under info severity in workload diagnostics', () => {
+    const workload = {
+      kind: 'Deployment',
+      metadata: { name: 'app', namespace: 'default' },
+      spec: { replicas: 2 },
+      status: { replicas: 2, availableReplicas: 0, readyReplicas: 0 },
+    } as any;
+
+    const gatedPod1 = makePod({
+      status: {
+        phase: 'Pending',
+        conditions: [{ type: 'PodScheduled', status: 'False', reason: 'SchedulingGated' }],
+      },
+    });
+    const gatedPod2 = makePod({
+      status: {
+        phase: 'Pending',
+        conditions: [{ type: 'PodScheduled', status: 'False', reason: 'SchedulingGated' }],
+      },
+    });
+
+    const diagnostics = getWorkloadDiagnostics(workload, [gatedPod1, gatedPod2]);
+    const gatedDiag = diagnostics.find(item => item.id === 'workload-pods-SchedulingGated');
+    expect(gatedDiag).toBeDefined();
+    expect(gatedDiag?.severity).toBe('info');
+    expect(gatedDiag?.title).toBe('2 pods are waiting for scheduling gates');
+    expect(gatedDiag?.message).toBe('Waiting for scheduling gates to be removed.');
+  });
 });

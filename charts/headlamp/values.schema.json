@@ -1,6 +1,59 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
+  "definitions": {
+    "discoveryNamespaces": {
+      "type": "array",
+      "description": "Management namespaces watched for cluster discovery. Empty uses each root default namespace; [\"*\"] watches all and requires equivalent cluster-wide RBAC permissions",
+      "uniqueItems": true,
+      "default": [],
+      "anyOf": [
+        {
+          "description": "\"*\" must be used on its own",
+          "items": { "enum": ["*"] },
+          "maxItems": 1
+        },
+        {
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          }
+        }
+      ]
+    },
+    "customProbe": {
+      "type": "object",
+      "description": "Optional complete Kubernetes probe; replaces the default HTTP probe when nonempty",
+      "default": {},
+      "oneOf": [
+        { "maxProperties": 0 },
+        { "required": ["exec"] },
+        { "required": ["httpGet"] },
+        { "required": ["tcpSocket"] },
+        { "required": ["grpc"] }
+      ],
+      "properties": {
+        "exec": {
+          "type": "object",
+          "required": ["command"],
+          "properties": {
+            "command": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          }
+        },
+        "httpGet": { "type": "object", "required": ["port"] },
+        "tcpSocket": { "type": "object", "required": ["port"] },
+        "grpc": { "type": "object", "required": ["port"] },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "successThreshold": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 },
+        "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 }
+      }
+    }
+  },
   "properties": {
     "replicaCount": {
       "type": "integer",
@@ -55,6 +108,14 @@
     "namespaceOverride": {
       "type": "string",
       "description": "Override the deployment namespace; defaults to .Release.Namespace"
+    },
+    "deploymentLabels": {
+      "type": "object",
+      "description": "Labels to add to the deployment"
+    },
+    "deploymentAnnotations": {
+      "type": "object",
+      "description": "Annotations to add to the deployment"
     },
     "initContainers": {
       "type": "array",
@@ -242,6 +303,10 @@
               "type": "boolean",
               "description": "Enable automatic redirect to the OIDC provider"
             },
+            "useTokenBroadcast": {
+              "type": "boolean",
+              "description": "After a login, also set the auth cookie for other kubeconfig contexts with the same issuer URL and client ID"
+            },
             "externalSecret": {
               "type": "object",
               "description": "External secret to use for OIDC configuration",
@@ -286,6 +351,23 @@
           "type": "string",
           "description": "Path of private key file for TLS"
         },
+        "clusterAPI": {
+          "type": "object",
+          "description": "Cluster API v1beta2 discovery configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable Cluster API discovery with per-user OIDC",
+              "default": false
+            },
+            "labelSelector": {
+              "type": "string",
+              "description": "Kubernetes label selector used to filter Cluster resources",
+              "default": "!headlamp.dev/ignore"
+            },
+            "namespaces": { "$ref": "#/definitions/discoveryNamespaces" }
+          }
+        },
         "clusterInventory": {
           "type": "object",
           "description": "Experimental/alpha Cluster Inventory configuration",
@@ -295,64 +377,12 @@
               "description": "Enable experimental/alpha Cluster Inventory discovery",
               "default": false
             },
-            "accessProvidersConfig": {
-              "type": "object",
-              "description": "Experimental/alpha Cluster Inventory access providers config",
-              "default": {}
-            },
-            "plugins": {
-              "type": "array",
-              "description": "Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries",
-              "items": {
-                "type": "object",
-                "required": ["name", "image", "mountPath"],
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "maxLength": 63,
-                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-                    "description": "DNS label name of the plugin image volume"
-                  },
-                  "image": {
-                    "type": "string",
-                    "description": "Image reference for the plugin image volume"
-                  },
-                  "mountPath": {
-                    "type": "string",
-                    "pattern": "^/",
-                    "description": "Absolute read-only mount path for the plugin image volume"
-                  }
-                },
-                "additionalProperties": false
-              },
-              "default": []
-            },
             "labelSelector": {
               "type": "string",
               "description": "Kubernetes label selector used to filter experimental/alpha ClusterProfile resources",
               "default": "!headlamp.dev/ignore"
             },
-            "namespaces": {
-              "type": "array",
-              "description": "Namespaces watched for experimental/alpha ClusterProfile resources. Empty uses the Headlamp pod namespace for in-cluster roots and the kubeconfig context namespace for kubeconfig roots; [\"*\"] watches all and requires equivalent cluster-wide RBAC permissions",
-              "uniqueItems": true,
-              "default": [],
-              "anyOf": [
-                {
-                  "description": "\"*\" must be used on its own",
-                  "items": { "enum": ["*"] },
-                  "maxItems": 1
-                },
-                {
-                  "items": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 63,
-                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-                  }
-                }
-              ]
-            },
+            "namespaces": { "$ref": "#/definitions/discoveryNamespaces" },
             "rootReconcileInterval": {
               "type": "string",
               "description": "Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default",
@@ -916,6 +946,12 @@
           "type": "object",
           "description": "Liveness probe settings",
           "properties": {
+            "custom": {
+              "allOf": [
+                { "$ref": "#/definitions/customProbe" },
+                { "properties": { "successThreshold": { "const": 1 } } }
+              ]
+            },
             "initialDelaySeconds": {
               "type": "integer",
               "description": "Initial delay in seconds before starting liveness probe",
@@ -954,6 +990,7 @@
           "type": "object",
           "description": "Readiness probe settings",
           "properties": {
+            "custom": { "$ref": "#/definitions/customProbe" },
             "initialDelaySeconds": {
               "type": "integer",
               "description": "Initial delay in seconds before starting readiness probe",

@@ -114,9 +114,9 @@ function handleOpenIssue(
   githubUrl.searchParams.set('title', issueTitle);
   githubUrl.searchParams.set('body', issueBody);
 
-  // Handle popup blocker - window.open returns null if blocked
-  const newWindow = window.open(githubUrl.toString(), '_blank');
-  if (!newWindow) {
+  try {
+    window.open(githubUrl.toString(), '_blank', 'noopener,noreferrer');
+  } catch {
     showOpenWarning();
   }
 }

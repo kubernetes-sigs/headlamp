@@ -44,7 +44,7 @@ export default function WebhookConfigurationDetails(props: WebhookConfigurationD
         item && [
           {
             name: t('API Version'),
-            value: item.metadata.apiVersion,
+            value: item.jsonData.apiVersion,
           },
           {
             name: t('Webhooks'),
@@ -97,10 +97,17 @@ export default function WebhookConfigurationDetails(props: WebhookConfigurationD
                                 })}
                               </Link>
                               <br />
-                              {t('translation|Path: {{ path }}:{{ port }}', {
-                                path: webhook.clientConfig?.service?.path,
+                              {t('translation|Port: {{ port }}', {
                                 port: webhook.clientConfig?.service?.port || 443,
                               })}
+                              {webhook.clientConfig?.service?.path && (
+                                <>
+                                  <br />
+                                  {t('translation|Path: {{ path }}', {
+                                    path: webhook.clientConfig.service.path,
+                                  })}
+                                </>
+                              )}
                             </>
                           ),
                         },

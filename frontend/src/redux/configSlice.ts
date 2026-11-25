@@ -16,9 +16,15 @@
 
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
+import type { ClusterSourceView } from '../helpers/clusterPresentation';
 import type { Cluster } from '../lib/k8s/cluster';
 
 export interface ConfigState {
+  /**
+   * Definitions of the cluster sources known to the backend, used to group and label
+   * clusters. Empty for a backend that does not send them.
+   */
+  clusterSources?: ClusterSourceView[];
   /**
    * Clusters is a map of cluster names to cluster objects.
    * Null indicates that the clusters have not been loaded yet.
@@ -89,6 +95,10 @@ export interface ConfigState {
     sidebarSortAlphabetically: boolean;
     useEvict: boolean;
     expandLargeGraph: boolean;
+    /**
+     * tutorialTooltips shows guided tooltips that help new users navigate Headlamp.
+     */
+    tutorialTooltips: boolean;
     [key: string]: any;
   };
   /**
@@ -100,6 +110,10 @@ export interface ConfigState {
    * Whether OIDC auto-login is enabled. Null indicates the value hasn't been loaded from the backend yet.
    */
   oidcAutoLogin: boolean | null;
+  /**
+   * Comma-separated list of trusted Backstage origins from the backend server.
+   */
+  backstageOrigin?: string;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
@@ -164,6 +178,9 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
     if (isBoolean(parsedSettings.expandLargeGraph)) {
       sanitizedSettings.expandLargeGraph = parsedSettings.expandLargeGraph;
     }
+    if (isBoolean(parsedSettings.tutorialTooltips)) {
+      sanitizedSettings.tutorialTooltips = parsedSettings.tutorialTooltips;
+    }
 
     return sanitizedSettings;
   } catch {
@@ -177,6 +194,7 @@ export const builtInSettings: Record<string, any> = {
   sidebarSortAlphabetically: false,
   expandLargeGraph: false,
   useEvict: true,
+  tutorialTooltips: true,
 };
 
 /**
@@ -197,6 +215,7 @@ function withoutBuiltInValues(
 const storedSettings = withoutBuiltInValues(loadStoredSettings());
 
 export const initialState: ConfigState = {
+  clusterSources: [],
   clusters: null,
   statelessClusters: null,
   allClusters: null,
@@ -214,6 +233,7 @@ export const initialState: ConfigState = {
       storedSettings.sidebarSortAlphabetically ?? builtInSettings.sidebarSortAlphabetically,
     expandLargeGraph: storedSettings.expandLargeGraph ?? builtInSettings.expandLargeGraph,
     useEvict: storedSettings.useEvict ?? builtInSettings.useEvict,
+    tutorialTooltips: storedSettings.tutorialTooltips ?? builtInSettings.tutorialTooltips,
   },
   userSettings: storedSettings,
 };
@@ -231,6 +251,7 @@ const configSlice = createSlice({
       state,
       action: PayloadAction<{
         clusters: ConfigState['clusters'];
+        clusterSources?: ClusterSourceView[];
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
         defaultPodDebugImage?: string;
@@ -240,12 +261,19 @@ const configSlice = createSlice({
         defaultDarkTheme?: string;
         forceTheme?: string;
         oidcAutoLogin?: boolean;
+        backstageOrigin?: string;
       }>
     ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.clusterSources !== undefined) {
+        state.clusterSources = action.payload.clusterSources;
+      }
 
       if (action.payload.oidcAutoLogin !== undefined) {
         state.oidcAutoLogin = action.payload.oidcAutoLogin;
+      }
+      if (action.payload.backstageOrigin !== undefined) {
+        state.backstageOrigin = action.payload.backstageOrigin;
       }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;

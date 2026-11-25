@@ -19,6 +19,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,11 +27,15 @@ import { logout } from '../../lib/auth';
 import { useSelectedClusters } from '../../lib/k8s';
 import { canLogoutFromProvider } from '../../lib/k8s/clusterAuthType';
 import { redirectToOIDCLogout } from '../../lib/oidcLogout';
+import { setWhetherSidebarOpen, type SidebarState } from '../Sidebar/sidebarSlice';
 import TopBar, { AppBarActionsMenu } from './TopBar';
 
 // ── Mocks needed to prevent circular-dependency crashes when TopBar.tsx is ──
 // imported (it transitively loads k8s resource classes through lib/k8s and
 // several child components).
+
+const mockDispatch = vi.hoisted(() => vi.fn());
+let sidebarState: Pick<SidebarState, 'isSidebarOpen' | 'isSidebarOpenUserSelected'>;
 
 vi.mock('../../lib/k8s', () => ({
   useCluster: vi.fn(),
@@ -57,10 +62,7 @@ vi.mock('../../redux/hooks', () => ({
         appBarActions: [],
         appBarActionsProcessors: [],
       },
-      sidebar: {
-        isSidebarOpen: false,
-        isSidebarOpenUserSelected: false,
-      },
+      sidebar: sidebarState,
       ui: {
         hideAppBar: false,
       },
@@ -73,8 +75,11 @@ vi.mock('../cluster/Chooser', () => ({
   useClusterTitleVisible: vi.fn(() => false),
 }));
 vi.mock('../globalSearch/GlobalSearch', () => ({ GlobalSearch: () => null }));
-vi.mock('../Sidebar/HeadlampButton', () => ({ default: () => null }));
-vi.mock('../Sidebar/sidebarSlice', () => ({ setWhetherSidebarOpen: vi.fn() }));
+vi.mock('../Sidebar/HeadlampButton', () => ({
+  default: ({ onToggleOpen }: { onToggleOpen: () => void }) => (
+    <button onClick={onToggleOpen}>Toggle sidebar</button>
+  ),
+}));
 vi.mock('./AppLogo', () => ({ AppLogo: () => null }));
 vi.mock('../App/Settings', () => ({
   navigateToClusterSettings: vi.fn(),
@@ -82,7 +87,7 @@ vi.mock('../App/Settings', () => ({
 }));
 vi.mock('@tanstack/react-query', () => ({ useQueries: vi.fn(() => []) }));
 vi.mock('react-redux', () => ({
-  useDispatch: vi.fn(() => vi.fn()),
+  useDispatch: () => mockDispatch,
   useSelector: vi.fn(),
 }));
 vi.mock('react-router-dom', () => ({
@@ -112,6 +117,56 @@ const theme = createTheme({
 beforeEach(() => {
   vi.clearAllMocks();
   mockUseSelectedClusters.mockReturnValue([]);
+  vi.mocked(useMediaQuery).mockReturnValue(false);
+  sidebarState = { isSidebarOpen: false, isSidebarOpenUserSelected: false };
+});
+
+describe('TopBar sidebar toggle', () => {
+  it.each([
+    {
+      name: 'opens by default on small screens without a user selection',
+      isSidebarOpen: true,
+      isSidebarOpenUserSelected: undefined,
+      expectedOpen: true,
+    },
+    {
+      name: 'closes a user-selected open sidebar on small screens',
+      isSidebarOpen: true,
+      isSidebarOpenUserSelected: true,
+      expectedOpen: false,
+    },
+    {
+      name: 'opens a user-selected closed sidebar on small screens',
+      isSidebarOpen: false,
+      isSidebarOpenUserSelected: false,
+      expectedOpen: true,
+    },
+  ])('$name', ({ isSidebarOpen, isSidebarOpenUserSelected, expectedOpen }) => {
+    sidebarState = { isSidebarOpen, isSidebarOpenUserSelected };
+    vi.mocked(useMediaQuery).mockReturnValue(true);
+
+    render(
+      <ThemeProvider theme={theme}>
+        <TopBar />
+      </ThemeProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle sidebar' }));
+
+    expect(mockDispatch).toHaveBeenCalledWith(setWhetherSidebarOpen(expectedOpen));
+  });
+
+  it('does not render a sidebar toggle on large screens', () => {
+    vi.mocked(useMediaQuery).mockReturnValue(false);
+
+    render(
+      <ThemeProvider theme={theme}>
+        <TopBar />
+      </ThemeProvider>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Toggle sidebar' })).not.toBeInTheDocument();
+  });
 });
 
 describe('AppBarActionsMenu', () => {

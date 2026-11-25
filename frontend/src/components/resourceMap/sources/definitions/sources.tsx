@@ -22,11 +22,13 @@ import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
 import CronJob from '../../../../lib/k8s/cronJob';
 import DaemonSet from '../../../../lib/k8s/daemonSet';
 import Deployment from '../../../../lib/k8s/deployment';
+import DeviceClass from '../../../../lib/k8s/deviceClass';
 import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
@@ -43,19 +45,33 @@ import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import LeaderWorkerSet from '../../../../lib/k8s/leaderWorkerSet';
 import { Lease } from '../../../../lib/k8s/lease';
 import { LimitRange } from '../../../../lib/k8s/limitRange';
+import MutatingAdmissionPolicy from '../../../../lib/k8s/mutatingAdmissionPolicy';
+import MutatingAdmissionPolicyBinding from '../../../../lib/k8s/mutatingAdmissionPolicyBinding';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import Node from '../../../../lib/k8s/node';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PDB from '../../../../lib/k8s/podDisruptionBudget';
+import PodGroup from '../../../../lib/k8s/podGroup';
 import PriorityClass from '../../../../lib/k8s/priorityClass';
 import ReferenceGrant from '../../../../lib/k8s/referenceGrant';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
+import { useClustersServing } from '../../../../lib/k8s/resourceAvailability';
+import ResourceClaim from '../../../../lib/k8s/resourceClaim';
+import ResourceClaimTemplate from '../../../../lib/k8s/resourceClaimTemplate';
 import ResourceQuota from '../../../../lib/k8s/resourceQuota';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
 import { RuntimeClass } from '../../../../lib/k8s/runtime';
+import {
+  ClustersByVersion,
+  useCompositePodGroupClustersByVersion,
+  useListPerVersion,
+  usePodGroupClustersByVersion,
+  useSchedulingWorkloadClustersByVersion,
+} from '../../../../lib/k8s/schedulingApis';
+import SchedulingWorkload from '../../../../lib/k8s/schedulingWorkload';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
@@ -88,15 +104,36 @@ const BUILTIN_CRD_KINDS = [
 
 /**
  * Create a GraphSource from KubeObject class definition
+ * @param cl - The class of the objects to list.
+ * @param clusters - The clusters to list from, for an API that only some clusters serve.
+ * Defaults to the selected clusters.
  */
-const makeKubeSource = (cl: KubeObjectClass): GraphSource => ({
+const makeKubeSource = (cl: KubeObjectClass, clusters?: string[]): GraphSource => ({
   id: makeKubeSourceId(cl),
   label: cl.apiName,
-  icon: <KubeIcon kind={cl.kind as any} />,
+  icon: <KubeIcon kind={cl.kind as any} apiGroup={cl.apiGroupName} />,
   useData() {
-    const [items] = cl.useList({ namespace: useNamespaces() });
+    const [items] = cl.useList({ namespace: useNamespaces(), clusters });
 
     return useMemo(() => (items ? { nodes: items?.map(makeKubeObjectNode) } : null), [items]);
+  },
+});
+
+/**
+ * Create a GraphSource for a resource that the selected clusters may serve under different
+ * versions, listing each cluster only for the version it serves.
+ */
+const makeVersionedKubeSource = (
+  cl: KubeObjectClass,
+  clustersByVersion: ClustersByVersion
+): GraphSource => ({
+  id: makeKubeSourceId(cl),
+  label: cl.apiName,
+  icon: <KubeIcon kind={cl.kind as any} apiGroup={cl.apiGroupName} />,
+  useData() {
+    const items = useListPerVersion(cl, clustersByVersion, useNamespaces());
+
+    return useMemo(() => (items ? { nodes: items.map(makeKubeObjectNode) } : null), [items]);
   },
 });
 
@@ -163,12 +200,18 @@ export function useGetAllSources(): GraphSource[] {
     queryKey: ['api-discovery', ...selectedClusters],
   });
   const { data: availableGatewayL4RouteKinds } = useGatewayL4RouteAvailability();
+  const podGroupClusters = usePodGroupClustersByVersion();
+  const workloadClusters = useSchedulingWorkloadClustersByVersion();
+  const compositePodGroupClusters = useCompositePodGroupClustersByVersion();
+  const schedulingEnabled = Object.keys(podGroupClusters).length > 0;
+  const compositePodGroupsEnabled = Object.keys(compositePodGroupClusters).length > 0;
   const gatewayEnabled =
     (discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false) ||
     !!availableGatewayL4RouteKinds?.length;
   const gatewayKinds = new Set(availableGatewayL4RouteKinds);
   const tcpRouteEnabled = gatewayKinds.has('TCPRoute');
   const udpRouteEnabled = gatewayKinds.has('UDPRoute');
+  const devicesClusters = useClustersServing(DeviceClass);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -221,6 +264,28 @@ export function useGetAllSources(): GraphSource[] {
         ),
         sources: [makeKubeSource(PersistentVolumeClaim)],
       },
+      ...(devicesClusters?.length
+        ? [
+            {
+              id: 'devices',
+              label: t('glossary|Devices (alpha)'),
+              icon: (
+                <Icon
+                  icon="mdi:expansion-card"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('configuration')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [
+                makeKubeSource(DeviceClass, devicesClusters),
+                makeKubeSource(ResourceClaim, devicesClusters),
+                makeKubeSource(ResourceClaimTemplate, devicesClusters),
+              ],
+            },
+          ]
+        : []),
       {
         id: 'cluster',
         label: 'Cluster',
@@ -278,6 +343,8 @@ export function useGetAllSources(): GraphSource[] {
         sources: [
           makeKubeSource(ConfigMap),
           makeKubeSource(Secret),
+          makeKubeSource(MutatingAdmissionPolicy),
+          makeKubeSource(MutatingAdmissionPolicyBinding),
           makeKubeSource(MutatingWebhookConfiguration),
           makeKubeSource(ValidatingWebhookConfiguration),
           makeKubeSource(HPA),
@@ -290,6 +357,30 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Lease),
         ],
       },
+      ...(schedulingEnabled
+        ? [
+            {
+              id: 'scheduling',
+              label: t('glossary|Scheduling (alpha)'),
+              icon: (
+                <Icon
+                  icon="mdi:group"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('workloads')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [
+                makeVersionedKubeSource(SchedulingWorkload, workloadClusters),
+                ...(compositePodGroupsEnabled
+                  ? [makeVersionedKubeSource(CompositePodGroup, compositePodGroupClusters)]
+                  : []),
+                makeVersionedKubeSource(PodGroup, podGroupClusters),
+              ],
+            },
+          ]
+        : []),
       ...(gatewayEnabled
         ? [
             {
@@ -352,5 +443,18 @@ export function useGetAllSources(): GraphSource[] {
     }
 
     return sources;
-  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled, tcpRouteEnabled, udpRouteEnabled, t]);
+  }, [
+    CustomResourceDefinition,
+    vpaEnabled,
+    gatewayEnabled,
+    tcpRouteEnabled,
+    udpRouteEnabled,
+    schedulingEnabled,
+    podGroupClusters,
+    workloadClusters,
+    compositePodGroupsEnabled,
+    compositePodGroupClusters,
+    devicesClusters,
+    t,
+  ]);
 }

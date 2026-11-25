@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,24 @@ func (r AddUpdateRepoRequest) Validate() error {
 
 	if strings.TrimSpace(r.URL) == "" {
 		return errors.New("url is required")
+	}
+
+	u, err := url.ParseRequestURI(r.URL)
+	if err != nil {
+		return errors.New("invalid url")
+	}
+
+	scheme := strings.ToLower(u.Scheme)
+	if scheme == "oci" {
+		return errors.New("OCI registries can't be added as repositories")
+	}
+
+	if scheme != "http" && scheme != "https" {
+		return errors.New("url scheme must be http or https")
+	}
+
+	if u.Hostname() == "" {
+		return errors.New("url host is required")
 	}
 
 	return nil

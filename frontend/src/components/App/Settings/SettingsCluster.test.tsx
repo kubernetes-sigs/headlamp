@@ -16,11 +16,14 @@
 
 import '../../../i18n/config';
 import { ThemeProvider } from '@mui/material/styles';
+import { configureStore } from '@reduxjs/toolkit';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../../../i18n/config';
 import { createMuiTheme } from '../../../lib/themes';
+import { initialState as configInitialState } from '../../../redux/configSlice';
+import reducers from '../../../redux/reducers/reducers';
 import { TestContext } from '../../../test';
 import SettingsCluster from './SettingsCluster';
 
@@ -123,7 +126,7 @@ describe('SettingsCluster appearance controls', () => {
     mockState.clustersConf = {
       [clusterName]: {
         name: clusterName,
-        meta_data: { namespace: 'default', source: 'kubeconfig' },
+        meta_data: { namespace: 'default', source: 'kubeconfig', canRename: true },
       },
     };
   });
@@ -204,7 +207,7 @@ describe('SettingsCluster states and namespaces', () => {
     mockState.clustersConf = {
       [clusterName]: {
         name: clusterName,
-        meta_data: { namespace: 'default', source: 'kubeconfig' },
+        meta_data: { namespace: 'default', source: 'kubeconfig', canRename: true },
       },
     };
   });
@@ -276,6 +279,26 @@ describe('SettingsCluster states and namespaces', () => {
     expect(screen.getByText('zeta')).toBeInTheDocument();
   });
 
+  it('clears typed namespaces when switching to another cluster', async () => {
+    mockState.clustersConf['other-cluster'] = {
+      name: 'other-cluster',
+      meta_data: { namespace: 'default', source: 'kubeconfig' },
+    };
+    renderSettings();
+    const allowedInput = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+    const defaultInput = screen.getByRole('textbox', { name: 'Default namespace' });
+
+    await userEvent.type(allowedInput, 'team-a');
+    // Never a valid namespace, so it isn't saved and only the cluster switch can reset it.
+    await userEvent.type(defaultInput, 'Team');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Cluster' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'other-cluster' }));
+
+    await waitFor(() => expect(allowedInput).toHaveValue(''));
+    expect(defaultInput).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Add namespace' })).toBeDisabled();
+  });
+
   it('renders Electron controls and removes a dynamic cluster', async () => {
     mockState.electron = true;
     mockState.clustersConf[clusterName].meta_data.source = 'dynamic_cluster';
@@ -285,6 +308,37 @@ describe('SettingsCluster states and namespaces', () => {
     expect(screen.getByText('Cluster name editor')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Remove Cluster' }));
     await waitFor(() => expect(mockDeleteCluster).toHaveBeenCalledWith(clusterName));
+  });
+
+  it.each(['cluster_inventory', 'kubeconfig', 'incluster'])(
+    'does not offer renaming for a %s connection without a persistence origin',
+    source => {
+      mockState.electron = true;
+      mockState.clustersConf[clusterName].meta_data = { source, canRename: false };
+      renderSettings();
+
+      expect(screen.queryByText('Cluster name editor')).not.toBeInTheDocument();
+    }
+  );
+
+  it('offers renaming for a connection persisted in IndexedDB', () => {
+    mockState.electron = true;
+    mockState.clustersConf[clusterName].meta_data.canRename = false;
+    const store = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        config: { ...configInitialState, statelessClusters: mockState.clustersConf },
+      },
+    });
+    render(
+      <TestContext store={store} urlSearchParams={{ c: clusterName }}>
+        <ThemeProvider theme={theme}>
+          <SettingsCluster />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    expect(screen.getByText('Cluster name editor')).toBeInTheDocument();
   });
 
   it('handles a dynamic cluster removal failure', async () => {

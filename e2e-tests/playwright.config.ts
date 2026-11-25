@@ -19,6 +19,7 @@ import { devices } from '@playwright/test';
 
 const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim();
 const pomeriumDexHost = process.env.HEADLAMP_POMERIUM_DEX_HOST;
+const baseURL = process.env.HEADLAMP_TEST_URL || 'http://localhost:3000';
 
 /**
  * Read environment variables from file.
@@ -47,18 +48,32 @@ const config: PlaywrightTestConfig = {
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  /* Tests use unique resource names, so two CI workers can share the test clusters. */
+  workers: process.env.CI ? 2 : undefined,
+  /* List each test with its duration in CI logs; the HTML report is uploaded as an artifact. */
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
     actionTimeout: 0,
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.HEADLAMP_TEST_URL || 'http://localhost:3000',
+    baseURL,
 
-    ignoreHTTPSErrors: process.env.HEADLAMP_POMERIUM_E2E === 'true',
+    /* Every context starts with the first-run Welcome dialog dismissed, so its modal
+     * doesn't block other flows. tests/welcome.spec.ts covers the dialog itself. */
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: new URL(baseURL).origin,
+          localStorage: [{ name: 'headlamp.welcome.dismissed', value: 'true' }],
+        },
+      ],
+    },
+
+    ignoreHTTPSErrors:
+      process.env.HEADLAMP_POMERIUM_E2E === 'true' ||
+      process.env.HEADLAMP_CLUSTER_INVENTORY_E2E === 'true',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',

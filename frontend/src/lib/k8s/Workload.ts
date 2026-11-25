@@ -29,8 +29,14 @@ import type StatefulSet from './statefulSet';
  * chart. Replica-based workloads only use the binary healthy/failed distinction,
  * but item-based workloads (Pods) also need to tell genuine failures apart from
  * transitional states (Pending, Terminating) and degraded-but-running items.
+ * Jobs and cron jobs that are paused on purpose are suspended, not degraded.
  */
-export type WorkloadHealthCategory = 'healthy' | 'degraded' | 'transitional' | 'failed';
+export type WorkloadHealthCategory =
+  | 'healthy'
+  | 'suspended'
+  | 'degraded'
+  | 'transitional'
+  | 'failed';
 
 export type Workload =
   | Pod

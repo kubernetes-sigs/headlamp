@@ -17,6 +17,7 @@
 import { Box } from '@mui/system';
 import { lazy, memo, ReactElement, Suspense, useEffect } from 'react';
 // We use React.lazy below to load the workload classes so we don't create circular dependencies.
+import CompositePodGroupDetails from '../../compositePodGroup/Details';
 import ConfigDetails from '../../configmap/Details';
 import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
@@ -25,6 +26,7 @@ import { DetailsGridContext } from '../../DetailsViewSection/detailsViewSectionS
 import DeviceClassDetails from '../../device/DeviceClassDetails';
 import ResourceClaimDetails from '../../device/ResourceClaimDetails';
 import ResourceClaimTemplateDetails from '../../device/ResourceClaimTemplateDetails';
+import ResourceSliceDetails from '../../device/ResourceSliceDetails';
 import EndpointDetails from '../../endpoints/Details';
 import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
@@ -41,16 +43,20 @@ import IngressDetails from '../../ingress/Details';
 import JobDetails from '../../job/Details';
 import { LeaseDetails } from '../../lease/Details';
 import { LimitRangeDetails } from '../../limitRange/Details';
+import MutatingAdmissionPolicyDetails from '../../mutatingAdmissionPolicy/Details';
+import MutatingAdmissionPolicyBindingDetails from '../../mutatingAdmissionPolicyBinding/Details';
 import NamespaceDetails from '../../namespace/Details';
 import { NetworkPolicyDetails } from '../../networkpolicy/Details';
 import NodeDetails from '../../node/Details';
 import PodDetails from '../../pod/Details';
 import PDBDetails from '../../podDisruptionBudget/Details';
+import PodGroupDetails from '../../podGroup/Details';
 import PriorityClassDetails from '../../priorityClass/Details';
 import ResourceQuotaDetails from '../../resourceQuota/Details';
 import RoleBindingDetails from '../../role/BindingDetails';
 import RoleDetails from '../../role/Details';
 import { RuntimeClassDetails } from '../../runtimeClass/Details';
+import SchedulingWorkloadDetails from '../../schedulingWorkload/Details';
 import SecretDetails from '../../secret/Details';
 import ServiceDetails from '../../service/Details';
 import ServiceAccountDetails from '../../serviceaccount/Details';
@@ -135,6 +141,7 @@ const kindComponentMap: Record<
   DeviceClass: DeviceClassDetails,
   ResourceClaim: ResourceClaimDetails,
   ResourceClaimTemplate: ResourceClaimTemplateDetails,
+  ResourceSlice: ResourceSliceDetails,
   ResourceQuota: ResourceQuotaDetails,
   ClusterRole: RoleDetails,
   Role: RoleDetails,
@@ -148,6 +155,8 @@ const kindComponentMap: Record<
   VolumeAttributesClass: VolumeAttributesClassDetails,
   PersistentVolume: VolumeDetails,
   VerticalPodAutoscaler: VpaDetails,
+  MutatingAdmissionPolicy: MutatingAdmissionPolicyDetails,
+  MutatingAdmissionPolicyBinding: MutatingAdmissionPolicyBindingDetails,
   MutatingWebhookConfiguration: MutatingWebhookConfigList,
   ValidatingWebhookConfiguration: ValidatingWebhookConfigurationDetails,
   IngressClass: IngressClassDetails,
@@ -162,6 +171,9 @@ const kindComponentMap: Record<
   ReferenceGrant: ReferenceGrantDetails,
   BackendTLSPolicy: BackendTLSPolicyDetails,
   XBackendTrafficPolicy: BackendTLSPolicyDetails,
+  Workload: SchedulingWorkloadDetails,
+  CompositePodGroup: CompositePodGroupDetails,
+  PodGroup: PodGroupDetails,
 };
 
 export { canRenderDetails } from './supportedKinds';

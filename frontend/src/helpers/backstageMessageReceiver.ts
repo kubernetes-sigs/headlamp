@@ -23,6 +23,84 @@ import { isBackstage } from './isBackstage';
 // BACKSTAGE_TOKEN_STORAGE_KEY is the key used to store the backstage token in the local storage
 const BACKSTAGE_TOKEN_STORAGE_KEY = 'backstage_token';
 
+let runtimeBackstageOrigins = '';
+
+/**
+ * setRuntimeBackstageOrigins sets the runtime Backstage origin allowlist
+ * received from the backend /config endpoint.
+ *
+ * @param origins - comma-separated Backstage origins, or undefined/empty to clear
+ */
+export function setRuntimeBackstageOrigins(origins?: string): void {
+  runtimeBackstageOrigins = origins ?? '';
+}
+
+/**
+ * getTrustedBackstageOrigins returns the origins that are allowed to exchange
+ * postMessage data with the embedded Headlamp instance.
+ *
+ * Configured via the backend `--backstage-origin` flag /
+ * `HEADLAMP_CONFIG_BACKSTAGE_ORIGIN` environment variable (served through
+ * `/config`) and/or the build-time `REACT_APP_BACKSTAGE_ORIGIN` environment
+ * variable. Each may contain a single origin or a comma-separated list of
+ * origins. If unset, no origin is trusted.
+ *
+ * @param runtimeOriginsOverride - optional runtime origins string (e.g. from Redux config)
+ * @returns the list of trusted Backstage origins
+ */
+function normalizeOrigin(rawOrigin: string): string | null {
+  const trimmed = rawOrigin.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.origin === 'null' || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+      return null;
+    }
+
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function getTrustedBackstageOrigins(runtimeOriginsOverride?: string): string[] {
+  const runtimeConfigured = runtimeOriginsOverride ?? runtimeBackstageOrigins;
+  const buildConfigured = import.meta.env.REACT_APP_BACKSTAGE_ORIGIN || '';
+  const origins = new Set<string>();
+
+  for (const source of [runtimeConfigured, buildConfigured]) {
+    if (!source) {
+      continue;
+    }
+
+    for (const raw of source.split(',')) {
+      const normalized = normalizeOrigin(raw);
+      if (normalized) {
+        origins.add(normalized);
+      }
+    }
+  }
+
+  return Array.from(origins);
+}
+
+/**
+ * isTrustedBackstageOrigin checks whether the given origin is a configured, trusted Backstage origin.
+ *
+ * @param origin - the origin to check, e.g. from a MessageEvent
+ * @returns true if the origin is trusted
+ */
+export function isTrustedBackstageOrigin(origin: string): boolean {
+  if (!origin || origin === 'null') {
+    return false;
+  }
+
+  return getTrustedBackstageOrigins().includes(origin);
+}
+
 /**
  * setBackstageToken sets the backstage token in the local storage
  *
@@ -110,6 +188,49 @@ interface BackstageMessage {
 
 const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
 
+const BACKSTAGE_MESSAGE_TYPES: Array<BackstageMessage['type']> = [
+  'BACKSTAGE_AUTH_TOKEN',
+  'BACKSTAGE_KUBECONFIG',
+];
+
+/**
+ * isBackstageMessage is a runtime type guard for BackstageMessage.
+ *
+ * event.data comes from outside the application, so its shape cannot be
+ * relied upon to match the BackstageMessage type just because it is cast to
+ * it. This checks the shape at runtime before the message is processed,
+ * rejecting anything that doesn't match rather than letting mistyped fields
+ * (e.g. a non-string token) flow into token/kubeconfig storage.
+ *
+ * @param data - the raw `event.data` from a postMessage event
+ * @returns true if data is a well-formed BackstageMessage
+ */
+function isBackstageMessage(data: unknown): data is BackstageMessage {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const { type, payload } = data as Record<string, unknown>;
+
+  if (!BACKSTAGE_MESSAGE_TYPES.includes(type as BackstageMessage['type'])) {
+    return false;
+  }
+
+  if (payload === undefined) {
+    return true;
+  }
+
+  if (typeof payload !== 'object' || payload === null) {
+    return false;
+  }
+
+  const { token, kubeconfig } = payload as Record<string, unknown>;
+  return (
+    (token === undefined || typeof token === 'string') &&
+    (kubeconfig === undefined || typeof kubeconfig === 'string')
+  );
+}
+
 /**
  * Sets up a listener for messages from the Backstage app.
  * Handles Backstage auth token messages by storing the Backstage token,
@@ -120,15 +241,24 @@ const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
 export function setupBackstageMessageReceiver(): () => void {
   if (isBackstage()) {
     const handleMessage = async (event: MessageEvent) => {
+      // Reject messages from any origin that isn't an explicitly trusted Backstage origin.
+      if (!isTrustedBackstageOrigin(event.origin)) {
+        return;
+      }
+
+      if (!isBackstageMessage(event.data)) {
+        return;
+      }
+
       try {
-        const { type, payload } = event.data as BackstageMessage;
+        const { type, payload } = event.data;
         if (type === 'BACKSTAGE_AUTH_TOKEN') {
           const { token } = payload || {};
           if (token) {
             setBackstageToken(token);
             // send acknowledgement message back to parent after a timeout to ensure the parent is ready to receive the acknowledgement.
             setTimeout(() => {
-              window.parent.postMessage({ type: 'BACKSTAGE_AUTH_TOKEN_ACK' }, '*');
+              window.parent.postMessage({ type: 'BACKSTAGE_AUTH_TOKEN_ACK' }, event.origin);
             }, BACKSTAGE_ACK_TIMEOUT_MS);
           }
         } else if (type === 'BACKSTAGE_KUBECONFIG') {
@@ -138,7 +268,7 @@ export function setupBackstageMessageReceiver(): () => void {
             await storeKubeconfigFromBackstage(kubeconfig);
             // send acknowledgement message back to parent after a timeout to ensure the parent is ready to receive the acknowledgement.
             setTimeout(() => {
-              window.parent.postMessage({ type: 'BACKSTAGE_KUBECONFIG_ACK' }, '*');
+              window.parent.postMessage({ type: 'BACKSTAGE_KUBECONFIG_ACK' }, event.origin);
             }, BACKSTAGE_ACK_TIMEOUT_MS);
           }
         }

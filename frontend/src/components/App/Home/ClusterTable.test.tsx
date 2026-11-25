@@ -19,15 +19,19 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
 import { ComponentType, ReactNode } from 'react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
+import { getDefaultRoutes, setDefaultRoutes } from '../../../lib/router/getDefaultRoutes';
 import { createMuiTheme } from '../../../lib/themes';
 import ClusterContextMenu from './ClusterContextMenu';
 import ClusterTable from './ClusterTable';
 
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 let ClusterEmptyState: ComponentType<{ defaultContent: ReactNode }> | null = null;
+let ClusterMenuItems: ComponentType<any>[] = [];
+let ClusterDialogs: ComponentType<any>[] = [];
+let ClusterDeleteHandlers: { owns: (cluster: any) => boolean; dialog: string }[] = [];
 const { dispatchMock } = vi.hoisted(() => ({ dispatchMock: vi.fn() }));
 
 function renderWithTheme(ui: ReactNode) {
@@ -67,8 +71,9 @@ vi.mock('../../../redux/hooks', () => ({
     selector({
       clusterProvider: {
         clusterStatuses: [],
-        dialogs: [],
-        menuItems: [],
+        dialogs: ClusterDialogs,
+        menuItems: ClusterMenuItems,
+        deleteHandlers: ClusterDeleteHandlers,
         clusterEmptyState: ClusterEmptyState,
       },
       config: {
@@ -86,6 +91,7 @@ vi.mock('../../common/Table', () => ({
   default: ({ columns, data }: { columns: any[]; data: Cluster[] }) => {
     const originColumn = columns.find(column => column.id === 'origin');
     const statusColumn = columns.find(column => column.id === 'status');
+    const nameColumn = columns.find(column => column.id === 'name');
     return (
       <table>
         <tbody>
@@ -94,8 +100,17 @@ vi.mock('../../common/Table', () => ({
               key={cluster.name}
               data-testid={`cluster-row-${cluster.name}`}
               data-status-accessor={statusColumn.accessorFn(cluster) ?? ''}
+              data-name-accessor={nameColumn.accessorFn(cluster)}
             >
-              <td>{originColumn.Cell({ row: { original: cluster } })}</td>
+              <td>{originColumn?.Cell({ row: { original: cluster } })}</td>
+              {columns
+                .filter(column => column.id.startsWith('field.'))
+                .map(column => (
+                  <td key={column.id}>{column.accessorFn(cluster)}</td>
+                ))}
+              <td>
+                {columns.find(column => column.id === 'name')?.Cell({ row: { original: cluster } })}
+              </td>
               <td>{statusColumn.Cell({ row: { original: cluster } })}</td>
             </tr>
           ))}
@@ -106,9 +121,139 @@ vi.mock('../../common/Table', () => ({
 }));
 
 describe('ClusterTable', () => {
+  let originalRoutes: ReturnType<typeof getDefaultRoutes>;
+
+  beforeEach(() => {
+    originalRoutes = { ...getDefaultRoutes() };
+    setDefaultRoutes({
+      ...originalRoutes,
+      cluster: {
+        path: '/',
+        name: 'Cluster',
+        sidebar: 'cluster',
+        component: () => null,
+      },
+    });
+  });
+
   afterEach(() => {
+    setDefaultRoutes(originalRoutes);
     vi.clearAllMocks();
     ClusterEmptyState = null;
+  });
+
+  it.each([undefined, []])('keeps kubeconfig origins when source columns are %j', columns => {
+    const cluster: Cluster = {
+      name: 'legacy-context',
+      auth_type: '',
+      meta_data: { source: 'kubeconfig', origin: { kubeconfig: '/home/test/.kube/config' } },
+    };
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ [cluster.name]: cluster }}
+          source={{ id: 'kubeconfig', label: 'Kubeconfig', nameLabel: 'Name', columns }}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('Kubeconfig: /home/test/.kube/config')).toBeInTheDocument();
+  });
+
+  it.each(['Cluster API', 'Third discovery source'])(
+    'renders a registered source label %s',
+    sourceLabel => {
+      const cluster = {
+        name: 'discovered',
+        auth_type: 'oidc',
+        meta_data: { source: 'registered_source', sourceLabel },
+      };
+      renderWithTheme(
+        <MemoryRouter>
+          <ClusterTable
+            customNameClusters={[cluster]}
+            clusters={{ discovered: cluster }}
+            versions={{}}
+            errors={{}}
+            warningLabels={{}}
+          />
+        </MemoryRouter>
+      );
+      expect(screen.getByText(sourceLabel)).toBeInTheDocument();
+    }
+  );
+
+  it('renders a third source column and routes its display name using the original ID', () => {
+    const cluster = {
+      name: 'opaque-connection-id',
+      auth_type: 'oidc',
+      meta_data: {
+        source: 'fleet',
+        presentation: { displayName: 'production', fields: { region: 'ap-northeast-1' } },
+      },
+    };
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ [cluster.name]: cluster }}
+          source={{
+            id: 'fleet',
+            label: 'Fleet',
+            nameLabel: 'Fleet cluster',
+            columns: [{ key: 'region', label: 'Region' }],
+          }}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+    expect(screen.getByText('ap-northeast-1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'production' })).toHaveAttribute(
+      'href',
+      '/c/opaque-connection-id/'
+    );
+  });
+
+  it('includes the shown disambiguator in the name value so memoized cells update', () => {
+    const connection = (name: string, displayName: string, root: string): Cluster => ({
+      name,
+      auth_type: 'oidc',
+      meta_data: { source: 'fleet', presentation: { displayName, fields: { root } } },
+    });
+    const clusters = [
+      connection('opaque-a', 'production', 'mgmt-a'),
+      connection('opaque-b', 'production', 'mgmt-b'),
+      connection('opaque-c', 'staging', 'mgmt-a'),
+    ];
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={clusters}
+          clusters={Object.fromEntries(clusters.map(cluster => [cluster.name, cluster]))}
+          source={{ id: 'fleet', label: 'Fleet', nameLabel: 'Fleet cluster' }}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId('cluster-row-opaque-a')).toHaveAttribute(
+      'data-name-accessor',
+      'production · mgmt-a'
+    );
+    expect(screen.getByTestId('cluster-row-opaque-b')).toHaveAttribute(
+      'data-name-accessor',
+      'production · mgmt-b'
+    );
+    expect(screen.getByTestId('cluster-row-opaque-c')).toHaveAttribute(
+      'data-name-accessor',
+      'staging'
+    );
   });
 
   it('renders the standard empty state when no custom state is registered', () => {
@@ -191,7 +336,7 @@ describe('ClusterTable', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Cluster Inventory')).toBeInTheDocument();
+    expect(screen.getByText('Cluster Inventory API')).toBeInTheDocument();
   });
 
   it('renders in-cluster source labels', () => {
@@ -433,6 +578,59 @@ describe('ClusterTable', () => {
 describe('ClusterContextMenu', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    ClusterMenuItems = [];
+    ClusterDialogs = [];
+    ClusterDeleteHandlers = [];
+  });
+
+  function PluginDeleteDialog({ openConfirmDialog }: { openConfirmDialog: string | null }) {
+    return openConfirmDialog === 'deletePlugin' ? <div role="dialog">Plugin delete</div> : null;
+  }
+
+  function renderKubeconfigClusterMenu() {
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            cluster={{ name: 'dev', auth_type: '', meta_data: { source: 'kubeconfig' } } as Cluster}
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByText('Delete'));
+  }
+
+  it('opens only the plugin dialog for a cluster a delete handler owns', () => {
+    // Plugin menu items hide Headlamp's Delete; an owning handler still offers it.
+    ClusterMenuItems = [() => <div role="menuitem">Start proxy</div>];
+    ClusterDialogs = [PluginDeleteDialog];
+    ClusterDeleteHandlers = [{ owns: cluster => cluster.name === 'dev', dialog: 'deletePlugin' }];
+
+    renderKubeconfigClusterMenu();
+
+    expect(screen.getByText('Plugin delete')).toBeInTheDocument();
+    expect(screen.queryByText('Delete Cluster')).not.toBeInTheDocument();
+  });
+
+  it("keeps Headlamp's Delete when no delete handler owns the cluster", () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    ClusterDialogs = [PluginDeleteDialog];
+    ClusterDeleteHandlers = [
+      {
+        owns: () => {
+          throw new Error('owns failed');
+        },
+        dialog: 'deletePlugin',
+      },
+      { owns: () => false, dialog: 'deletePlugin' },
+    ];
+
+    renderKubeconfigClusterMenu();
+
+    expect(screen.getByText('Delete Cluster')).toBeInTheDocument();
+    expect(screen.queryByText('Plugin delete')).not.toBeInTheDocument();
+    errorSpy.mockRestore();
   });
 
   it('updates the config before notifying the page after deleting a cluster', async () => {

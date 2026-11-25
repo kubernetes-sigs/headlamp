@@ -108,6 +108,14 @@ NoClustersButRecent.args = {
   clusters: ourState().config.clusters.slice(0, 3),
 };
 
+// Recent clusters should be ordered by recency (most recent first), not by
+// the order they happen to appear in the clusters list.
+export const RecencyOrder = Template.bind({});
+RecencyOrder.args = {
+  cluster: 'cluster4',
+  recentClusters: ['cluster2', 'cluster0', 'cluster1'],
+};
+
 export const Scrollbar = Template.bind({});
 Scrollbar.args = {
   cluster: 'cluster2',

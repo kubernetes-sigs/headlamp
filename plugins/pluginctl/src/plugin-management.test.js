@@ -163,3 +163,124 @@ describe('validateArchiveURL', () => {
     expect(validateArchiveURL('https://gitlab.com/owner/repo/invalid/path')).toBe(false);
   });
 });
+
+describe('normalizeChecksum', () => {
+  const hex = 'a3b4c5d6e7f8a3b4c5d6e7f8a3b4c5d6e7f8a3b4c5d6e7f8a3b4c5d6e7f80000';
+
+  test('accepts lowercase and uppercase prefixes', () => {
+    expect(pluginManagement.normalizeChecksum(`sha256:${hex}`)).toBe(hex);
+    expect(pluginManagement.normalizeChecksum(`SHA256:${hex}`)).toBe(hex);
+    expect(pluginManagement.normalizeChecksum(`Sha256:${hex}`)).toBe(hex);
+  });
+
+  test('accepts a digest without a prefix', () => {
+    expect(pluginManagement.normalizeChecksum(hex)).toBe(hex);
+  });
+
+  test('lowercases uppercase hex, as printed by Get-FileHash', () => {
+    expect(pluginManagement.normalizeChecksum(`SHA256:${hex.toUpperCase()}`)).toBe(hex);
+  });
+
+  test('trims surrounding whitespace', () => {
+    expect(pluginManagement.normalizeChecksum(`  SHA256:${hex}\n`)).toBe(hex);
+  });
+
+  test('rejects values that are not a SHA-256 hex digest', () => {
+    expect(() => pluginManagement.normalizeChecksum('sha256:dummy')).toThrow(
+      'Invalid plugin/archive-checksum'
+    );
+    expect(() => pluginManagement.normalizeChecksum(`sha256:${hex}00`)).toThrow(
+      'Invalid plugin/archive-checksum'
+    );
+    expect(() => pluginManagement.normalizeChecksum('md5:d41d8cd98f00b204e9800998ecf8427e')).toThrow(
+      'Invalid plugin/archive-checksum'
+    );
+  });
+});
+
+describe('install with an uppercase archive-checksum', () => {
+  const crypto = require('crypto');
+  const tar = require('tar');
+  const archiveURL =
+    'https://github.com/example/checksum-plugin/releases/download/v1.0.0/checksum-plugin-1.0.0.tar.gz';
+  const originalFetch = global.fetch;
+  let workDir;
+  let tarball;
+
+  beforeAll(async () => {
+    workDir = tmp.dirSync({ unsafeCleanup: true }).name;
+    const pkgDir = path.join(workDir, 'checksum-plugin');
+    fs.mkdirSync(pkgDir);
+    fs.writeFileSync(path.join(pkgDir, 'main.js'), 'console.log("checksum plugin");\n');
+    fs.writeFileSync(
+      path.join(pkgDir, 'package.json'),
+      JSON.stringify({ name: 'checksum-plugin', version: '1.0.0' })
+    );
+    const tarballPath = path.join(workDir, 'checksum-plugin-1.0.0.tar.gz');
+    await tar.c({ gzip: true, file: tarballPath, cwd: workDir }, ['checksum-plugin']);
+    tarball = fs.readFileSync(tarballPath);
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
+    fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  function mockArtifactHub(checksumAnnotation) {
+    global.fetch = jest.fn(async url => {
+      if (url.startsWith('https://artifacthub.io/api/v1/packages/headlamp/')) {
+        return new Response(
+          JSON.stringify({
+            name: 'checksum-plugin',
+            display_name: 'Checksum Plugin',
+            version: '1.0.0',
+            repository: { name: 'checksum-repo' },
+            data: {
+              'headlamp/plugin/archive-url': archiveURL,
+              'headlamp/plugin/archive-checksum': checksumAnnotation,
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url === archiveURL) {
+        return new Response(tarball, { status: 200 });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+  }
+
+  test('installs when the checksum is uppercase hex', async () => {
+    const hex = crypto.createHash('sha256').update(tarball).digest('hex');
+    mockArtifactHub(`SHA256:${hex.toUpperCase()}`);
+    const destDir = tmp.dirSync({ unsafeCleanup: true }).name;
+    try {
+      await PluginManager.install(
+        'https://artifacthub.io/packages/headlamp/checksum-repo/checksum-plugin',
+        destDir,
+        '',
+        null
+      );
+      expect(fs.existsSync(path.join(destDir, 'checksum-plugin', 'main.js'))).toBe(true);
+    } finally {
+      fs.rmSync(destDir, { recursive: true, force: true });
+    }
+  });
+
+  test('still rejects a checksum that does not match', async () => {
+    mockArtifactHub(`SHA256:${'0'.repeat(64)}`);
+    const destDir = tmp.dirSync({ unsafeCleanup: true }).name;
+    try {
+      await expect(
+        PluginManager.install(
+          'https://artifacthub.io/packages/headlamp/checksum-repo/checksum-plugin',
+          destDir,
+          '',
+          null
+        )
+      ).rejects.toThrow('Checksum mismatch.');
+    } finally {
+      fs.rmSync(destDir, { recursive: true, force: true });
+    }
+  });
+});

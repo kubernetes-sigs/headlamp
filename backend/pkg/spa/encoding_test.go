@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package spa_test
 
 import (
@@ -9,6 +25,7 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/stretchr/testify/assert"
@@ -384,4 +401,108 @@ func TestSpaHandlerTraversalDoesNotLeakFilesystemError(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.NotContains(t, rr.Body.String(), "escapes from parent")
+}
+
+func TestSpaHandlerSkipsStaleBrotliSidecar(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "index.html", []byte("the-index"))
+	writeFile(t, dir, "app.js", []byte("NEW"))
+	writeFile(t, dir, "app.js.br", []byte("OLD"))
+
+	oldTime := time.Now().Add(-time.Hour)
+	newTime := time.Now()
+
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "app.js.br"), oldTime, oldTime))
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "app.js"), newTime, newTime))
+
+	handler := spa.NewHandler(dir, "index.html", "/headlamp")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/app.js", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "br")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "NEW", rr.Body.String())
+	assert.Empty(t, rr.Header().Get("Content-Encoding"))
+}
+
+func TestSpaHandlerServesFreshBrotliSidecar(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "index.html", []byte("the-index"))
+	writeFile(t, dir, "app.js", []byte("NEW"))
+	writeFile(t, dir, "app.js.br", []byte("COMPRESSED"))
+
+	oldTime := time.Now().Add(-time.Hour)
+	newTime := time.Now()
+
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "app.js"), oldTime, oldTime))
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "app.js.br"), newTime, newTime))
+
+	handler := spa.NewHandler(dir, "index.html", "/headlamp")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/app.js", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "br")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "COMPRESSED", rr.Body.String())
+	assert.Equal(t, "br", rr.Header().Get("Content-Encoding"))
+}
+
+func TestBrotliSidecarsSkipsStaleSidecar(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "myplugin/main.js", []byte("NEW"))
+	writeFile(t, dir, "myplugin/main.js.br", []byte("OLD"))
+
+	oldTime := time.Now().Add(-time.Hour)
+	newTime := time.Now()
+
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "myplugin/main.js.br"), oldTime, oldTime))
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "myplugin/main.js"), newTime, newTime))
+
+	fileServer := http.FileServer(http.Dir(dir))
+	handler := http.StripPrefix("/plugins/", spa.BrotliSidecars(dir, fileServer))
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/plugins/myplugin/main.js", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "br")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "NEW", rr.Body.String())
+	assert.Empty(t, rr.Header().Get("Content-Encoding"))
+}
+
+func TestBrotliSidecarsServesFreshSidecar(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "myplugin/main.js", []byte("NEW"))
+	writeFile(t, dir, "myplugin/main.js.br", []byte("COMPRESSED"))
+
+	oldTime := time.Now().Add(-time.Hour)
+	newTime := time.Now()
+
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "myplugin/main.js"), oldTime, oldTime))
+	require.NoError(t, os.Chtimes(filepath.Join(dir, "myplugin/main.js.br"), newTime, newTime))
+
+	fileServer := http.FileServer(http.Dir(dir))
+	handler := http.StripPrefix("/plugins/", spa.BrotliSidecars(dir, fileServer))
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/plugins/myplugin/main.js", nil)
+	require.NoError(t, err)
+	req.Header.Set("Accept-Encoding", "br")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "COMPRESSED", rr.Body.String())
+	assert.Equal(t, "br", rr.Header().Get("Content-Encoding"))
 }

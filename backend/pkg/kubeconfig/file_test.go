@@ -1,3 +1,19 @@
+/*
+Copyright 2025 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package kubeconfig_test
 
 import (
@@ -105,6 +121,83 @@ users:
 
 	_, hasSecond := merged.Contexts["second-context"]
 	assert.True(t, hasSecond, "expected new context to be merged in")
+}
+
+// TestWriteToFileMergeUpdatesExistingEntry verifies that writing a config whose
+// entries already exist under the same names replaces the stored values instead
+// of keeping the ones already on disk.
+func TestWriteToFileMergeUpdatesExistingEntry(t *testing.T) {
+	dir := t.TempDir()
+
+	confFor := func(server, token string) string {
+		return fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    server: %s
+  name: prod
+contexts:
+- context:
+    cluster: prod
+    user: prod
+  name: prod
+kind: Config
+users:
+- name: prod
+  user:
+    token: %s`, server, token)
+	}
+
+	initial, err := clientcmd.Load([]byte(confFor("https://old.example.com:6443", "old-token")))
+	require.NoError(t, err)
+	require.NoError(t, kubeconfig.WriteToFile(*initial, dir))
+
+	// Same names, new values: the API server moved and the credentials changed.
+	updated, err := clientcmd.Load([]byte(confFor("https://new.example.com:6443", "new-token")))
+	require.NoError(t, err)
+	require.NoError(t, kubeconfig.WriteToFile(*updated, dir))
+
+	merged, err := clientcmd.LoadFromFile(filepath.Join(dir, "config"))
+	require.NoError(t, err)
+
+	require.Contains(t, merged.Clusters, "prod")
+	assert.Equal(t, "https://new.example.com:6443", merged.Clusters["prod"].Server)
+
+	require.Contains(t, merged.AuthInfos, "prod")
+	assert.Equal(t, "new-token", merged.AuthInfos["prod"].Token)
+}
+
+// TestWriteToFileMergeKeepsUnrelatedEntries verifies that updating one entry
+// does not drop entries that exist only in the file on disk.
+func TestWriteToFileMergeKeepsUnrelatedEntries(t *testing.T) {
+	dir := t.TempDir()
+
+	initial, err := clientcmd.Load([]byte(clusterConf))
+	require.NoError(t, err)
+	require.NoError(t, kubeconfig.WriteToFile(*initial, dir))
+
+	other, err := clientcmd.Load([]byte(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://staging:6443
+  name: staging
+contexts:
+- context:
+    cluster: staging
+    user: staging
+  name: staging
+kind: Config
+users:
+- name: staging
+  user:
+    token: staging-token`))
+	require.NoError(t, err)
+	require.NoError(t, kubeconfig.WriteToFile(*other, dir))
+
+	merged, err := clientcmd.LoadFromFile(filepath.Join(dir, "config"))
+	require.NoError(t, err)
+
+	assert.Contains(t, merged.Contexts, "random-cluster-4", "pre-existing context must survive")
+	assert.Contains(t, merged.Contexts, "staging", "new context must be added")
 }
 
 // runConcurrentWriteConfig spawns the given number of goroutines, each writing

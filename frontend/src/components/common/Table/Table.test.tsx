@@ -22,6 +22,7 @@ import Table, { TableProps } from './Table';
 
 const { tableMocks } = vi.hoisted(() => ({
   tableMocks: {
+    bodyCellRenders: 0,
     cellContext: 'plain' as 'dialog' | 'plain' | 'switch',
     columnVisibility: {} as Record<string, boolean>,
     forceNoRows: false,
@@ -64,6 +65,7 @@ vi.mock('./ColumnVisibilityButton', () => ({
 vi.mock('material-react-table', () => ({
   MRT_BottomToolbar: () => <div data-testid="bottom-toolbar" />,
   MRT_TableBodyCell: ({ cell }: any) => {
+    tableMocks.bodyCellRenders++;
     const checkbox = <input aria-label={`Custom selection for ${cell.row.id}`} type="checkbox" />;
     return (
       <td>
@@ -88,6 +90,7 @@ vi.mock('material-react-table', () => ({
     const rows = options.data.map((item: Record<string, unknown>, index: number) => {
       const row: any = {
         id: String(index),
+        original: item,
         getCanSelect: () => true,
         getIsSelected: () => false,
       };
@@ -111,6 +114,7 @@ vi.mock('material-react-table', () => ({
               id: 'selection',
               column: {
                 id: 'selection',
+                columnDef: options.columns[0],
                 getFilterValue: () => undefined,
                 getIsFiltered: () => false,
                 getIsSorted: () => false,
@@ -220,6 +224,7 @@ function toolbarTable(selectedRows: object[] = []) {
 }
 
 beforeEach(() => {
+  tableMocks.bodyCellRenders = 0;
   tableMocks.cellContext = 'plain';
   tableMocks.columnVisibility = {};
   tableMocks.forceNoRows = false;
@@ -238,6 +243,80 @@ describe('Table toolbar and selection props', () => {
     renderTable(props);
 
     expect(screen.getByTestId('top-toolbar')).toBeVisible();
+  });
+
+  it('forwards visibility changes so a caller can save and restore its columns', () => {
+    const onColumnVisibilityChange = vi.fn();
+    renderTable({ state: { columnVisibility: { detail: false } }, onColumnVisibilityChange });
+    tableMocks.options.onColumnVisibilityChange({ detail: true });
+    expect(onColumnVisibilityChange).toHaveBeenCalledWith({ detail: true });
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(false);
+  });
+
+  it('lets local visibility toggles override caller defaults without a change callback', () => {
+    renderTable({ state: { columnVisibility: { cluster: true } } });
+    expect(tableMocks.options.state.columnVisibility.cluster).toBe(true);
+
+    act(() => tableMocks.options.onColumnVisibilityChange({ cluster: false }));
+    expect(tableMocks.options.state.columnVisibility.cluster).toBe(false);
+
+    act(() => {
+      tableMocks.options.onColumnVisibilityChange((previous: Record<string, boolean>) => ({
+        ...previous,
+        cluster: true,
+      }));
+    });
+    expect(tableMocks.options.state.columnVisibility.cluster).toBe(true);
+  });
+
+  it('uses updated caller visibility over initial visibility with a change callback', () => {
+    const onColumnVisibilityChange = vi.fn();
+    const props = {
+      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      data: [{ selected: false }],
+      initialState: { columnVisibility: { detail: true } },
+      onColumnVisibilityChange,
+    };
+    const { rerender } = renderTable({
+      ...props,
+      state: { columnVisibility: { detail: false } },
+    });
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(false);
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} state={{ columnVisibility: { detail: true } }} />
+      </ThemeProvider>
+    );
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(true);
+  });
+
+  it('treats caller visibility as the complete map with a change callback', () => {
+    const props = {
+      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      data: [{ selected: false }],
+      initialState: { columnVisibility: { detail: false } },
+      onColumnVisibilityChange: vi.fn(),
+    };
+    const { rerender } = renderTable({
+      ...props,
+      state: { columnVisibility: { detail: false } },
+    });
+    expect(tableMocks.options.state.columnVisibility).toEqual({ detail: false });
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} state={{ columnVisibility: {} }} />
+      </ThemeProvider>
+    );
+    expect(tableMocks.options.state.columnVisibility).toEqual({});
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} />
+      </ThemeProvider>
+    );
+    expect(tableMocks.options.state.columnVisibility).toEqual({ detail: false });
   });
 
   it('hides the top toolbar when disabled', () => {
@@ -293,6 +372,29 @@ describe('Table toolbar and selection props', () => {
     fireEvent.click(checkboxes[1], { shiftKey: true });
 
     expect(tableMocks.setRowSelection).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Table cell memoization', () => {
+  it('re-renders cells when their row changes but not when only the renderer is rebuilt', () => {
+    const row = { selected: false };
+    // Callers such as resource lists pass inline columns, rebuilding renderers on every render.
+    const renderWith = (data: TestRow[]) => (
+      <ThemeProvider theme={theme}>
+        <Table
+          columns={[{ accessorKey: 'selected', header: 'Selection', Cell: () => null }]}
+          data={data}
+        />
+      </ThemeProvider>
+    );
+    const { rerender } = render(renderWith([row]));
+    const renders = tableMocks.bodyCellRenders;
+
+    rerender(renderWith([row]));
+    expect(tableMocks.bodyCellRenders).toBe(renders);
+
+    rerender(renderWith([{ ...row }]));
+    expect(tableMocks.bodyCellRenders).toBe(renders + 1);
   });
 });
 
@@ -664,6 +766,98 @@ describe('Table select filter faceted values', () => {
     expect(values.has('rare')).toBe(true);
     // The least common unselected value makes room for it, the cap itself holds.
     expect(values.size).toBe(1000);
+  });
+
+  it.each([
+    ['below the cap', 3],
+    ['past the cap', 1001],
+  ])('keeps offering a selected value a refresh took out of the rows, %s', (_description, size) => {
+    // MRT reads the chip label of a selected value back from these options, so a value
+    // that left the data has to stay among them while it is filtered for.
+    const rows = Array.from({ length: size }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const columnDef = tableMocks.options.columns[0];
+    const column = {
+      ...makeFacetedColumn(columnDef, rows),
+      getFilterValue: () => ['gone'],
+    };
+    const values = tableMocks.options.getFacetedUniqueValues(makeFacetedTable(column), 'status')();
+
+    expect(values.get('gone')).toBe(0);
+    expect(values.size).toBe(Math.min(size + 1, 1000));
+  });
+
+  it('does not call a list shortened that only gained an absent selection', () => {
+    const rows = Array.from({ length: 999 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => ['gone'];
+    const props = tableMocks.options.muiFilterTextFieldProps({ column, table });
+
+    expect(column.getFacetedUniqueValues().size).toBe(1000);
+    expect(props.helperText).toBeUndefined();
+  });
+
+  it('serves the same map on every render while an absent selection stands', () => {
+    // MRT memoizes the dropdown on the identity of this map.
+    const rows = Array.from({ length: 3 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => ['gone'];
+
+    const first = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+    expect(first.get('gone')).toBe(0);
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')()).toBe(first);
+  });
+
+  it('does not offer the free text of an autocomplete filter as a value', () => {
+    // The autocomplete shows its own input rather than an option's label, and what it is
+    // filtered by is whatever was typed.
+    const rows = Array.from({ length: 3 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('autocomplete')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => 's';
+
+    expect([...tableMocks.options.getFacetedUniqueValues(table, 'status')().keys()]).toEqual([
+      's0',
+      's1',
+      's2',
+    ]);
+  });
+
+  it('builds a new view when an autocomplete column turns into a dropdown', () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('autocomplete')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => 'gone';
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().has('gone')).toBe(false);
+    // Same row model, so the cached walk is reused, but not the view built for the old variant.
+    column.columnDef = { ...column.columnDef, filterVariant: 'multi-select' };
+    column.getFilterValue = () => ['gone'];
+
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().get('gone')).toBe(0);
+  });
+
+  it('builds a new view when the filter changes to a value that only reads the same', () => {
+    // A non-string filter value cannot be offered, its string twin can. Both must not share
+    // one cached view.
+    const rows = Array.from({ length: 1001 }, (_, index) => ({ status: `s${index}` }));
+    renderTable({ columns: [statusColumn('multi-select')], data: rows as any });
+
+    const { column, table } = makeFilterColumn(rows);
+    column.getFilterValue = () => [5];
+    const forNumber = tableMocks.options.getFacetedUniqueValues(table, 'status')();
+    // MRT sorts the options with localeCompare, which a number would throw on.
+    expect([...forNumber.keys()].every(value => typeof value === 'string')).toBe(true);
+    expect(forNumber.has('5')).toBe(false);
+    column.getFilterValue = () => ['5'];
+
+    expect(tableMocks.options.getFacetedUniqueValues(table, 'status')().get('5')).toBe(0);
   });
 
   it('walks again when the filter moved to a value the cached set does not carry', () => {

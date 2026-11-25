@@ -609,6 +609,196 @@ describe('groupGraph', () => {
     expect((group.nodes ?? []).map(n => n.id).sort()).toEqual(['pod-solo', 'pvc-a', 'pvc-b']);
     expect((group.edges ?? []).map(e => e.id).sort()).toEqual(['e-pod-pvc-a', 'e-pod-pvc-b']);
   });
+
+  describe('Pods of separate workloads sharing a ResourceClaimTemplate', () => {
+    const node = (id: string, kind: string): GraphNode => ({ id, kubeObject: { kind } as any });
+    const nodes = [
+      node('deploy-a', 'Deployment'),
+      node('deploy-b', 'Deployment'),
+      node('pod-a', 'Pod'),
+      node('pod-b', 'Pod'),
+      node('claim-a', 'ResourceClaim'),
+      node('claim-b', 'ResourceClaim'),
+      node('template', 'ResourceClaimTemplate'),
+      node('class', 'DeviceClass'),
+    ];
+    const workloadEdges: GraphEdge[] = [
+      { id: 'e-deploy-a', source: 'deploy-a', target: 'pod-a' },
+      { id: 'e-deploy-b', source: 'deploy-b', target: 'pod-b' },
+      { id: 'e-pod-a-template', source: 'pod-a', target: 'template', nonGroupingSide: 'target' },
+      { id: 'e-pod-b-template', source: 'pod-b', target: 'template', nonGroupingSide: 'target' },
+      { id: 'e-template-class', source: 'template', target: 'class', nonGroupingSide: 'both' },
+    ];
+    const claimEdges: GraphEdge[] = [
+      { id: 'e-pod-a-claim', source: 'pod-a', target: 'claim-a' },
+      { id: 'e-pod-b-claim', source: 'pod-b', target: 'claim-b' },
+      { id: 'e-claim-a-class', source: 'claim-a', target: 'class', nonGroupingSide: 'target' },
+      { id: 'e-claim-b-class', source: 'claim-b', target: 'class', nonGroupingSide: 'target' },
+    ];
+
+    const connectedGroups = (edges: GraphEdge[]) =>
+      (groupGraph(nodes, edges, { namespaces: [], k8sNodes: [] }).nodes ?? []).filter(
+        group => group.id.startsWith('group-') && (group.edges?.length ?? 0) > 0
+      );
+
+    const expectOneGroupPerWorkload = (groups: GraphNode[], ownNodes: string[][]) => {
+      expect(groups).toHaveLength(2);
+      ownNodes.forEach(ids => {
+        const group = groups.find(group => group.nodes?.some(node => node.id === ids[0]))!;
+        const kindOf = (id: string) => group.nodes?.find(node => node.id === id)?.kubeObject?.kind;
+        const idOf = (kind: string) =>
+          group.nodes?.find(node => node.kubeObject?.kind === kind)?.id;
+
+        expect(
+          (group.nodes ?? [])
+            .map(node => node.id)
+            .filter(id => kindOf(id) !== 'ResourceClaimTemplate' && kindOf(id) !== 'DeviceClass')
+            .sort()
+        ).toEqual([...ids].sort());
+        expect(group.edges).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              source: idOf('ResourceClaimTemplate'),
+              target: idOf('DeviceClass'),
+            }),
+          ])
+        );
+      });
+    };
+
+    it('keeps each workload in its own group with the template and its device class', () => {
+      expectOneGroupPerWorkload(connectedGroups([...workloadEdges, ...claimEdges]), [
+        ['deploy-a', 'pod-a', 'claim-a'],
+        ['deploy-b', 'pod-b', 'claim-b'],
+      ]);
+    });
+
+    it('keeps the device class when only the shared template links to it', () => {
+      expectOneGroupPerWorkload(connectedGroups(workloadEdges), [
+        ['deploy-a', 'pod-a'],
+        ['deploy-b', 'pod-b'],
+      ]);
+    });
+  });
+
+  describe('DeviceClasses shared between templates and claims', () => {
+    const node = (id: string, kind: string): GraphNode => ({ id, kubeObject: { kind } as any });
+    const baseId = (id: string) => id.split('--')[0];
+
+    /** The ids of the nodes in each top-level component, without the copies' suffixes. */
+    const componentsOf = (nodes: GraphNode[], edges: GraphEdge[]) =>
+      (groupGraph(nodes, edges, { namespaces: [], k8sNodes: [] }).nodes ?? []).map(component => ({
+        ids: (component.nodes ?? [component]).map(node => baseId(node.id)).sort(),
+        edges: (component.edges ?? []).map(edge => [baseId(edge.source), baseId(edge.target)]),
+      }));
+
+    it('keeps the class edge of a template next to a workload that uses the class directly', () => {
+      const components = componentsOf(
+        [
+          node('deploy-a', 'Deployment'),
+          node('pod-a', 'Pod'),
+          node('template', 'ResourceClaimTemplate'),
+          node('deploy-b', 'Deployment'),
+          node('pod-b', 'Pod'),
+          node('claim-b', 'ResourceClaim'),
+          node('class', 'DeviceClass'),
+        ],
+        [
+          { id: 'e-deploy-a', source: 'deploy-a', target: 'pod-a' },
+          { id: 'e-pod-a', source: 'pod-a', target: 'template', nonGroupingSide: 'target' },
+          { id: 'e-template', source: 'template', target: 'class', nonGroupingSide: 'both' },
+          { id: 'e-deploy-b', source: 'deploy-b', target: 'pod-b' },
+          { id: 'e-pod-b', source: 'pod-b', target: 'claim-b' },
+          { id: 'e-claim-b', source: 'claim-b', target: 'class', nonGroupingSide: 'target' },
+        ]
+      );
+
+      expect(components.map(component => component.ids)).toEqual(
+        expect.arrayContaining([
+          ['class', 'deploy-a', 'pod-a', 'template'],
+          ['claim-b', 'class', 'deploy-b', 'pod-b'],
+        ])
+      );
+      expect(components).toHaveLength(2);
+      const workloadA = components.find(component => component.ids.includes('pod-a'))!;
+      expect(workloadA.edges).toContainEqual(['template', 'class']);
+    });
+
+    it('keeps an unused template out of the workloads that use its class', () => {
+      const components = componentsOf(
+        [
+          node('pod-a', 'Pod'),
+          node('claim-a', 'ResourceClaim'),
+          node('pod-b', 'Pod'),
+          node('claim-b', 'ResourceClaim'),
+          node('unused', 'ResourceClaimTemplate'),
+          node('class', 'DeviceClass'),
+        ],
+        [
+          { id: 'e-pod-a', source: 'pod-a', target: 'claim-a' },
+          { id: 'e-claim-a', source: 'claim-a', target: 'class', nonGroupingSide: 'target' },
+          { id: 'e-pod-b', source: 'pod-b', target: 'claim-b' },
+          { id: 'e-claim-b', source: 'claim-b', target: 'class', nonGroupingSide: 'target' },
+          { id: 'e-unused', source: 'unused', target: 'class', nonGroupingSide: 'both' },
+        ]
+      );
+
+      expect(components.map(component => component.ids)).toEqual(
+        expect.arrayContaining([
+          ['claim-a', 'class', 'pod-a'],
+          ['claim-b', 'class', 'pod-b'],
+          ['class', 'unused'],
+        ])
+      );
+      expect(components).toHaveLength(3);
+    });
+
+    it('shows templates and classes when no Pods or claims are selected', () => {
+      const components = componentsOf(
+        [
+          node('template-1', 'ResourceClaimTemplate'),
+          node('template-2', 'ResourceClaimTemplate'),
+          node('class', 'DeviceClass'),
+        ],
+        [
+          { id: 'e-1', source: 'template-1', target: 'class', nonGroupingSide: 'both' },
+          { id: 'e-2', source: 'template-2', target: 'class', nonGroupingSide: 'both' },
+        ]
+      );
+
+      expect(components.map(component => component.ids)).toEqual(
+        expect.arrayContaining([
+          ['class', 'template-1'],
+          ['class', 'template-2'],
+        ])
+      );
+      expect(components).toHaveLength(2);
+    });
+
+    it('shows a template that asks for two classes when no Pods are selected', () => {
+      const components = componentsOf(
+        [
+          node('template', 'ResourceClaimTemplate'),
+          node('gpu', 'DeviceClass'),
+          node('nic', 'DeviceClass'),
+        ],
+        [
+          { id: 'e-gpu', source: 'template', target: 'gpu', nonGroupingSide: 'both' },
+          { id: 'e-nic', source: 'template', target: 'nic', nonGroupingSide: 'both' },
+        ]
+      );
+
+      expect(components).toEqual([
+        {
+          ids: ['gpu', 'nic', 'template'],
+          edges: expect.arrayContaining([
+            ['template', 'gpu'],
+            ['template', 'nic'],
+          ]),
+        },
+      ]);
+    });
+  });
 });
 
 describe('collapseGraph', () => {

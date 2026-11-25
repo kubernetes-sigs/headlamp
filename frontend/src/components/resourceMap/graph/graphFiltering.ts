@@ -16,6 +16,7 @@
 
 import { getGraphNodeStatus } from '../nodes/KubeObjectStatus';
 import { addPerformanceMetric } from '../PerformanceStats';
+import { isShareableNode } from './graphGrouping';
 import { makeGraphLookup } from './graphLookup';
 import { GraphEdge, GraphNode } from './graphModel';
 
@@ -72,11 +73,84 @@ export function matchesAllFilters(node: GraphNode, filters: GraphFilter[]): bool
 }
 
 /**
+ * Adds a node and the nodes related to it, connected by edges in either direction, to
+ * `visibleNodeIds`.
+ *
+ * A shared resource, such as a DeviceClass or a ResourceClaimTemplate (see
+ * {@link isShareableNode}), is kept beside the nodes it is related to, but the search doesn't
+ * go on from it to the other nodes that share it, which may be in another project or be
+ * healthy. From a shared resource it only follows edges that name both ends as shared, so a
+ * template still brings the DeviceClass it asks for.
+ *
+ * Uses an index-based queue instead of shift() for O(1) dequeue, and iterative BFS instead of
+ * recursive DFS to avoid stack overflow on deep graphs.
+ *
+ * @param startId - The node to start from
+ * @param graphLookup - Lookup structure built over the graph
+ * @param visibleNodeIds - Receives the start node and the nodes related to it
+ * @param expandedNodeIds - Nodes whose relations were all followed already, shared between
+ * calls so no node is expanded twice
+ * @param shareableCache - Remembers which nodes are shared resources, shared between calls
+ */
+function addRelatedNodes(
+  startId: string,
+  graphLookup: ReturnType<typeof makeGraphLookup>,
+  visibleNodeIds: Set<string>,
+  expandedNodeIds: Set<string>,
+  shareableCache: Map<string, boolean>
+) {
+  if (expandedNodeIds.has(startId)) return;
+
+  const isShareable = (nodeId: string) => {
+    let shareable = shareableCache.get(nodeId);
+    if (shareable === undefined) {
+      shareable = isShareableNode(nodeId, graphLookup);
+      shareableCache.set(nodeId, shareable);
+    }
+    return shareable;
+  };
+
+  // Each entry is a node and whether it was reached as a shared resource.
+  const queue: Array<[string, boolean]> = [[startId, false]];
+  const reachedAsShared = new Set<string>();
+  expandedNodeIds.add(startId);
+  visibleNodeIds.add(startId);
+  let queueIndex = 0;
+
+  while (queueIndex < queue.length) {
+    const [nodeId, isShared] = queue[queueIndex++];
+    const edges = isShared
+      ? (graphLookup.getOutgoingEdges(nodeId) ?? []).filter(edge => edge.nonGroupingSide === 'both')
+      : [
+          ...(graphLookup.getOutgoingEdges(nodeId) ?? []),
+          ...(graphLookup.getIncomingEdges(nodeId) ?? []),
+        ];
+
+    for (const edge of edges) {
+      const relatedId = edge.source === nodeId ? edge.target : edge.source;
+      if (!graphLookup.getNode(relatedId)) continue;
+
+      visibleNodeIds.add(relatedId);
+      if (isShareable(relatedId)) {
+        if (!expandedNodeIds.has(relatedId) && !reachedAsShared.has(relatedId)) {
+          reachedAsShared.add(relatedId);
+          queue.push([relatedId, true]);
+        }
+      } else if (!expandedNodeIds.has(relatedId)) {
+        expandedNodeIds.add(relatedId);
+        queue.push([relatedId, false]);
+      }
+    }
+  }
+}
+
+/**
  * Filters the graph nodes and edges based on the provided filters
  * The filters are applied using AND logic, meaning node must match all active filters
  *
  * Along with the matched node result also includes all the nodes that are related to it,
- * even if they don't match the filter
+ * even if they don't match the filter, without going through shared resources (see
+ * {@link addRelatedNodes})
  *
  * Important:
  * First discover every node that should remain visible, including related nodes.
@@ -103,64 +177,13 @@ export function filterGraph(nodes: GraphNode[], edges: GraphEdge[], filters: Gra
   const lookupTime = performance.now() - lookupStart;
   const visibleNodeIds = new Set<string>();
 
-  /**
-   * Add all the nodes that are related to the given node using iterative approach
-   * Related means connected by an edge
-   *
-   * Uses index-based queue instead of shift() for O(1) dequeue (shift is O(n)).
-   * Uses iterative BFS instead of recursive DFS to avoid stack overflow on deep graphs.
-   *
-   * @param node - Given node
-   */
-  function pushRelatedNodes(startNode: GraphNode) {
-    // Skip if already visited by a previous pushRelatedNodes call
-    if (visibleNodeIds.has(startNode.id)) return;
-
-    const queue: GraphNode[] = [startNode];
-    // PERFORMANCE: Mark visited on enqueue to prevent duplicate queue entries in dense graphs.
-    // Without this, the same node can be enqueued O(degree) times before being dequeued,
-    // causing worst-case queue growth much larger than O(nodes+edges).
-    visibleNodeIds.add(startNode.id);
-    // PERFORMANCE: Index-based queue for O(1) dequeue instead of O(n) shift()
-    let queueIndex = 0;
-
-    while (queueIndex < queue.length) {
-      const node = queue[queueIndex++]; // O(1) vs shift() which is O(n)
-
-      // Process outgoing edges
-      const outgoing = graphLookup.getOutgoingEdges(node.id);
-      if (outgoing) {
-        for (const edge of outgoing) {
-          const targetNode = graphLookup.getNode(edge.target);
-          if (targetNode) {
-            if (!visibleNodeIds.has(edge.target)) {
-              visibleNodeIds.add(edge.target);
-              queue.push(targetNode);
-            }
-          }
-        }
-      }
-
-      // Process incoming edges
-      const incoming = graphLookup.getIncomingEdges(node.id);
-      if (incoming) {
-        for (const edge of incoming) {
-          const sourceNode = graphLookup.getNode(edge.source);
-          if (sourceNode) {
-            if (!visibleNodeIds.has(edge.source)) {
-              visibleNodeIds.add(edge.source);
-              queue.push(sourceNode);
-            }
-          }
-        }
-      }
-    }
-  }
+  const expandedNodeIds = new Set<string>();
+  const shareableCache = new Map<string, boolean>();
 
   const filterStart = performance.now();
   nodes.forEach(node => {
     if (matchesAllFilters(node, filters)) {
-      pushRelatedNodes(node);
+      addRelatedNodes(node.id, graphLookup, visibleNodeIds, expandedNodeIds, shareableCache);
     }
   });
   const filterTime = performance.now() - filterStart;
@@ -271,6 +294,8 @@ export function filterGraphIncremental(
   // Process added and modified nodes through filters
   const nodesToCheck = [...addedNodeIds, ...modifiedNodeIds];
   const lookup = makeGraphLookup(currentNodes, currentEdges);
+  const expandedNodeIds = new Set<string>();
+  const shareableCache = new Map<string, boolean>();
 
   for (const nodeId of nodesToCheck) {
     const node = currentNodeMap.get(nodeId);
@@ -280,39 +305,8 @@ export function filterGraphIncremental(
     const matchesFilter = matchesAllFilters(node, filters);
 
     if (matchesFilter) {
-      // Add node and all related nodes (iterative BFS - same as full filter)
-      const queue = [nodeId];
-      let queueIndex = 0;
-      // PERFORMANCE: Mark visited on enqueue to prevent duplicate queue entries in dense graphs.
-      // Without this, the same node can be enqueued O(max_degree) times before being dequeued,
-      // causing queue size to grow to O(nodes × max_degree) instead of O(nodes+edges).
-      const visited = new Set<string>([nodeId]);
-
-      while (queueIndex < queue.length) {
-        const currentId = queue[queueIndex++]!;
-
-        filteredNodeIds.add(currentId);
-
-        // Add parents and children
-        const incomingEdges = lookup.getIncomingEdges(currentId) || [];
-        const outgoingEdges = lookup.getOutgoingEdges(currentId) || [];
-
-        for (const edge of incomingEdges) {
-          const relatedId = edge.source === currentId ? edge.target : edge.source;
-          if (!visited.has(relatedId) && currentNodeMap.has(relatedId)) {
-            visited.add(relatedId);
-            queue.push(relatedId);
-          }
-        }
-
-        for (const edge of outgoingEdges) {
-          const relatedId = edge.source === currentId ? edge.target : edge.source;
-          if (!visited.has(relatedId) && currentNodeMap.has(relatedId)) {
-            visited.add(relatedId);
-            queue.push(relatedId);
-          }
-        }
-      }
+      // Add node and all related nodes (same as full filter)
+      addRelatedNodes(nodeId, lookup, filteredNodeIds, expandedNodeIds, shareableCache);
     }
   }
 

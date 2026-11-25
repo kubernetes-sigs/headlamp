@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { ConnectionPresentation } from '../../helpers/clusterPresentation';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
 import { KubeMetadata } from './KubeMetadata';
@@ -56,7 +57,14 @@ export function getAllowedNamespaces(cluster: string | null = getCluster()): str
 }
 
 export interface Cluster {
+  /** Connection key used for routes, authentication and persisted settings. */
   name: string;
+  /** Metadata the backend sends with the connection, such as its source and origin. */
+  meta_data?: {
+    /** Human-readable name and fields to show for the connection. */
+    presentation?: ConnectionPresentation;
+    [key: string]: any;
+  };
   useToken?: boolean;
   /**
    * Either 'oidc' or ''. '' means unknown.
@@ -569,6 +577,30 @@ export interface ContainerState {
   };
 }
 
+/** The health of one device or resource allocated to a container. */
+export interface ResourceHealth {
+  /**
+   * For DRA devices: the device's first CDI device ID, or `<driver>/<pool>/<device>` when
+   * the driver gives none.
+   */
+  resourceID: string;
+  /** Unknown when the kubelet cannot tell, for example after the driver stopped. */
+  health?: 'Healthy' | 'Unhealthy' | 'Unknown';
+  /** The reason the driver gave, such as an ECC error count. */
+  message?: string;
+}
+
+/** The health of the devices behind one resource or claim of a container. */
+export interface ResourceStatus {
+  /**
+   * For DRA devices: `claim:<name>` or `claim:<name>/<request>`, where the name is the one
+   * the Pod spec gives the claim.
+   */
+  name: string;
+  /** One entry per device. */
+  resources?: ResourceHealth[];
+}
+
 export interface KubeContainerStatus {
   containerID?: string;
   image: string;
@@ -579,4 +611,6 @@ export interface KubeContainerStatus {
   lastState: Partial<ContainerState>;
   state: Partial<ContainerState>;
   started?: boolean;
+  /** The health that device plugins and DRA drivers report for the container's devices. */
+  allocatedResourcesStatus?: ResourceStatus[];
 }

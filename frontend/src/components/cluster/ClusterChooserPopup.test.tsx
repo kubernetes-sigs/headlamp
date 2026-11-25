@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
+import { setRecentCluster } from '../../helpers/recentClusters';
 import { TestContext } from '../../test';
 import ClusterChooserPopup from './ClusterChooserPopup';
 
@@ -35,4 +36,18 @@ it('names the cluster listbox after the filter field', () => {
   );
 
   expect(screen.getByRole('listbox', { name: 'Choose cluster' })).toBeInTheDocument();
+});
+
+it('keeps the recent-cluster divider out of the listbox accessibility tree', () => {
+  setRecentCluster('cluster1');
+
+  render(
+    <TestContext routerMap={{ cluster: 'cluster0' }} urlPrefix="/c">
+      <ClusterChooserPopup anchor={document.body} />
+    </TestContext>
+  );
+
+  const listbox = screen.getByRole('listbox', { name: 'Choose cluster' });
+  expect(within(listbox).getAllByRole('option')).toHaveLength(2);
+  expect(within(listbox).queryByRole('separator')).not.toBeInTheDocument();
 });

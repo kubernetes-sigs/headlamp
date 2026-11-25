@@ -1,0 +1,122 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1fkybvm"
+    >
+      <div
+        class="MuiTabs-root css-tkn350-MuiTabs-root"
+      >
+        <div
+          class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-oqr85h"
+          style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"
+        />
+        <div
+          class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-69z67c-MuiTabs-scroller"
+          style="margin-bottom: 0px;"
+        >
+          <div
+            aria-label="Cluster sources"
+            class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+            role="tablist"
+          >
+            <button
+              aria-controls=":mock-test-id:"
+              aria-selected="true"
+              class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
+              id=":mock-test-id:"
+              role="tab"
+              tabindex="0"
+              type="button"
+            >
+              All (2)
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              aria-controls=":mock-test-id:"
+              aria-selected="false"
+              class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+              id=":mock-test-id:"
+              role="tab"
+              tabindex="-1"
+              type="button"
+            >
+              Cluster Inventory API (2)
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              aria-controls=":mock-test-id:"
+              aria-selected="false"
+              class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+              id=":mock-test-id:"
+              role="tab"
+              tabindex="-1"
+              type="button"
+            >
+              Cluster API (0)
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+          <span
+            class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+            style="left: 0px; width: 0px;"
+          />
+        </div>
+      </div>
+    </div>
+    <div
+      aria-labelledby=":mock-test-id:"
+      class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
+      id=":mock-test-id:"
+      role="tabpanel"
+      tabindex="-1"
+    >
+      <div
+        class="MuiBox-root css-5cned0"
+      >
+        <span
+          aria-label="Loading..."
+          class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+          role="progressbar"
+          style="width: 40px; height: 40px;"
+          title="Loading..."
+        >
+          <svg
+            class="MuiCircularProgress-svg css-1idz92c-MuiCircularProgress-svg"
+            viewBox="22 22 44 44"
+          >
+            <circle
+              class="MuiCircularProgress-circle MuiCircularProgress-circleIndeterminate css-176wh8e-MuiCircularProgress-circle"
+              cx="44"
+              cy="44"
+              fill="none"
+              r="20.2"
+              stroke-width="3.6"
+            />
+          </svg>
+        </span>
+      </div>
+    </div>
+    <div
+      aria-labelledby=":mock-test-id:"
+      class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
+      hidden=""
+      id=":mock-test-id:"
+      role="tabpanel"
+      tabindex="-1"
+    />
+    <div
+      aria-labelledby=":mock-test-id:"
+      class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
+      hidden=""
+      id=":mock-test-id:"
+      role="tabpanel"
+      tabindex="-1"
+    />
+  </div>
+</body>

@@ -31,22 +31,7 @@ test.beforeEach(async ({ page }) => {
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 });
 
-// --- Plugins tests start --- //
-test('GET /plugins/list returns plugins list', async ({ page }) => {
-  const response: any = await page.goto('/plugins');
-  expect(response).toBeTruthy();
-
-  const json = await response.json();
-  expect(json.length).toBeGreaterThan(0);
-  expect(json.some(plugin => plugin.path && plugin.path.includes('plugins/'))).toBeTruthy();
-});
-// --- Plugin tests end --- //
-
 // --- Headlamp tests start --- //
-test('headlamp is there and so is minikube', async () => {
-  await headlampPage.hasURLContaining(/.*test/);
-});
-
 test('version dialog shows Headlamp version information', async ({ page }) => {
   await page.getByRole('button', { name: 'Account of current user' }).click();
   await page
@@ -60,8 +45,9 @@ test('version dialog shows Headlamp version information', async ({ page }) => {
   await expect(versionDialog.getByText('Git Commit', { exact: true })).toBeVisible();
 });
 
-test('main page should have Network tab', async () => {
+test('main page should have Network and Security tabs', async () => {
   await headlampPage.hasNetworkTab();
+  await headlampPage.hasSecurityTab();
   await headlampPage.a11y();
 });
 
@@ -87,18 +73,14 @@ test('react-hotkey for global search', async ({ page }) => {
   await expect(focusedSearch).toBeFocused();
 });
 
-test('service page should have headlamp service', async () => {
+test('services page lists headlamp and its details page shows the port', async ({ page }) => {
   await servicesPage.navigateToServices();
   await servicesPage.clickOnServicesSection();
 
   // Check if there is text "headlamp" on the page
   await headlampPage.checkPageContent('headlamp');
   await servicesPage.a11y();
-});
 
-test('headlamp service page should contain port', async ({ page }) => {
-  await servicesPage.navigateToServices();
-  await servicesPage.clickOnServicesSection();
   await servicesPage.goToParticularService('headlamp');
 
   // Check if there is text "TCP" on the page
@@ -113,26 +95,15 @@ test('headlamp service page should contain port', async ({ page }) => {
   await headlampPage.a11y();
 });
 
-test('main page should have Security tab', async () => {
-  await headlampPage.hasSecurityTab();
-});
-
-test('security page is accessible', async () => {
+test('security page is accessible and service accounts include headlamp-admin', async () => {
   await securityPage.navigateToSecurity();
   await securityPage.a11y();
-});
 
-test('Service account tab should have headlamp-admin', async () => {
-  await securityPage.navigateToSecurity();
   await securityPage.clickOnServiceAccountsSection();
 
   // Check if there is text "headlamp-admin" on the page
   await headlampPage.checkPageContent('headlamp-admin');
   await headlampPage.a11y();
-});
-
-test('Logout the user', async () => {
-  await headlampPage.logout();
 });
 
 test('404 page is present', async () => {

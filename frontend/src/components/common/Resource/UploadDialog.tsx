@@ -91,6 +91,7 @@ const UploadFromFilesystem = ({
       setError('');
       if (files.every(f => f.size === 0)) {
         setError(t('translation|Error: All of the files are empty.'));
+        return;
       }
 
       const texts = await Promise.all(files.map(readFileAsText));
@@ -256,6 +257,7 @@ export function UploadDialog(props: UploadDialogProps) {
       slotProps={{
         backdrop: { sx: { backdropFilter: 'blur(2px)' } },
       }}
+      PaperProps={{ 'aria-label': t('translation|Upload File/URL') }}
     >
       <DialogContent sx={{ pt: 1 }}>
         <Tabs

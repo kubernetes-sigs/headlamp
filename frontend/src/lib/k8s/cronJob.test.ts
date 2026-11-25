@@ -33,8 +33,8 @@ describe('CronJob class', () => {
         status,
       } as any);
 
-    it('classifies a suspended cron job as degraded', () => {
-      expect(makeCronJob({ suspend: true }).getHealth()).toBe('degraded');
+    it('classifies a suspended cron job as suspended', () => {
+      expect(makeCronJob({ suspend: true }).getHealth()).toBe('suspended');
     });
 
     it('classifies a cron job with active jobs as transitional', () => {
@@ -72,7 +72,7 @@ describe('CronJob class', () => {
     it('treats suspend as taking priority over a failing schedule', () => {
       expect(
         makeCronJob({ suspend: true }, { lastScheduleTime: '2026-01-01T00:00:00Z' }).getHealth()
-      ).toBe('degraded');
+      ).toBe('suspended');
     });
   });
 });

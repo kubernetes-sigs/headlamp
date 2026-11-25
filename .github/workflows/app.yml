@@ -9,6 +9,11 @@ on:
     - 'app/**'
     - 'backend/**'
     - 'tools/run-backend.js'
+    - 'tools/build-backend.js'
+    - 'tools/build-backend.go'
+    - 'tools/check-backend-debug/**'
+    - 'tools/build-dependencies.test.js'
+    - 'package.json'
   push:
     branches:
       - main
@@ -21,6 +26,11 @@ on:
     - 'app/**'
     - 'backend/**'
     - 'tools/run-backend.js'
+    - 'tools/build-backend.js'
+    - 'tools/build-backend.go'
+    - 'tools/check-backend-debug/**'
+    - 'tools/build-dependencies.test.js'
+    - 'package.json'
 
 permissions:
   contents: read
@@ -52,6 +62,8 @@ jobs:
           backend/go.sum
     - name: Run tests
       run: make app-test
+    - name: Verify native backend build flags
+      run: node --test --test-name-pattern="native build entrypoints" tools/build-dependencies.test.js
     - name: Verify OAuth callback coverage
       run: npm --prefix app run test:oauth-coverage
     - name: Run tsc type checker
@@ -59,9 +71,13 @@ jobs:
     - name: Run app-i18n-check
       run: make app-i18n-check
     - name: App linux
+      env:
+        GOFLAGS: -trimpath=false -ldflags=-compressdwarf=false
       run: |
         make app-linux
         make backend
+    - name: Verify packaged backend debug information
+      run: go run tools/check-backend-debug/main.go app/dist
     - name: Install desktop e2e dependencies
       run: |
         cd app/e2e-tests
@@ -124,10 +140,16 @@ jobs:
         args: install make
     - name: Run tests
       run: make app-test
+    - name: Verify native backend build flags
+      run: node --test --test-name-pattern="native build entrypoints" tools/build-dependencies.test.js
     - name: Run tsc type checker
       run: make app-tsc
     - name: App Windows ${{ matrix.arch }}
+      env:
+        GOFLAGS: -trimpath=false -ldflags=-compressdwarf=false
       run: make app-win-${{ matrix.arch }}
+    - name: Verify packaged backend debug information
+      run: go run tools/check-backend-debug/main.go app/dist
     - name: Install desktop e2e dependencies
       run: npm --prefix app/e2e-tests ci
     - name: Test external backend token
@@ -162,10 +184,16 @@ jobs:
       run: brew install make
     - name: Run tests
       run: make app-test
+    - name: Verify native backend build flags
+      run: node --test --test-name-pattern="native build entrypoints" tools/build-dependencies.test.js
     - name: Run tsc type checker
       run: make app-tsc
     - name: App Mac
+      env:
+        GOFLAGS: -trimpath=false -ldflags=-compressdwarf=false
       run: |
         make app-mac
+    - name: Verify packaged backend debug information
+      run: go run tools/check-backend-debug/main.go app/dist
     - name: Verify Mac build
       run: npm run app:verify-build-mac

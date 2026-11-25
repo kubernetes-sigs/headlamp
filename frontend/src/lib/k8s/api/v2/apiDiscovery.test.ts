@@ -337,6 +337,75 @@ describe('apiDiscovery', () => {
     `);
   });
 
+  it.each(['aggregated', 'legacy'])(
+    'discovers List-suffixed kinds via %s discovery',
+    async mode => {
+      const group = 'example.com';
+      if (mode === 'aggregated') {
+        mockClusterFetch
+          .mockResolvedValueOnce(mockJsonResponse({ items: [] }))
+          .mockResolvedValueOnce(
+            mockJsonResponse({
+              items: [
+                {
+                  metadata: { name: group },
+                  versions: [
+                    {
+                      version: 'v1',
+                      resources: [
+                        {
+                          resource: 'allowlists',
+                          responseKind: { kind: 'AllowList' },
+                          verbs: ['get', 'list'],
+                          scope: 'Namespaced',
+                        },
+                        {
+                          resource: 'getonly',
+                          responseKind: { kind: 'GetOnly' },
+                          verbs: ['get'],
+                          scope: 'Namespaced',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            })
+          );
+      } else {
+        mockClusterFetch
+          .mockRejectedValueOnce(new Error('aggregated discovery unavailable'))
+          .mockRejectedValueOnce(new Error('aggregated discovery unavailable'))
+          .mockResolvedValueOnce(mockJsonResponse({ versions: [] }))
+          .mockResolvedValueOnce(
+            mockJsonResponse({
+              groups: [{ name: group, preferredVersion: { version: 'v1' } }],
+            })
+          )
+          .mockResolvedValueOnce(
+            mockJsonResponse({
+              resources: [
+                { name: 'allowlists', kind: 'AllowList', verbs: ['get', 'list'], namespaced: true },
+                { name: 'getonly', kind: 'GetOnly', verbs: ['get'], namespaced: true },
+              ],
+            })
+          );
+      }
+
+      expect(await apiDiscovery(['cluster1'])).toEqual([
+        {
+          apiVersion: 'example.com/v1',
+          groupName: group,
+          version: 'v1',
+          kind: 'AllowList',
+          pluralName: 'allowlists',
+          singularName: '',
+          isNamespaced: true,
+        },
+      ]);
+    }
+  );
+
   it('should fall back to legacy discovery if aggregated fails', async () => {
     mockClusterFetch
       // Aggregated discovery fails

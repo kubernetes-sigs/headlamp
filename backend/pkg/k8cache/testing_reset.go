@@ -13,8 +13,6 @@
 
 package k8cache
 
-import "context"
-
 // ResetForTesting clears package-global k8cache state between integration tests.
 func ResetForTesting() {
 	mu.Lock()
@@ -29,18 +27,18 @@ func ResetForTesting() {
 }
 
 func clearWatcherRegistriesForTesting() {
-	contextCancel.Range(func(key, value interface{}) bool {
-		if cancel, ok := value.(context.CancelFunc); ok {
-			cancel()
-		}
+	watcherMu.Lock()
 
-		contextCancel.Delete(key)
+	watches := make([]*resourceWatcher, 0, len(resourceWatchers))
+	for scope, w := range resourceWatchers {
+		w.cancel()
+		delete(resourceWatchers, scope)
 
-		return true
-	})
-	watcherRegistry.Range(func(key, _ interface{}) bool {
-		watcherRegistry.Delete(key)
+		watches = append(watches, w)
+	}
+	watcherMu.Unlock()
 
-		return true
-	})
+	for _, w := range watches {
+		<-w.done
+	}
 }

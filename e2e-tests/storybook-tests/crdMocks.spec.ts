@@ -26,14 +26,19 @@ test('Storybook mocks custom resource definition discovery', async ({ page }) =>
 
   await expect
     .poll(
-      () =>
-        page.evaluate(async url => {
-          try {
-            return (await fetch(url)).status;
-          } catch {
-            return null;
-          }
-        }, crdV1Url),
+      async () => {
+        try {
+          return await page.evaluate(async url => {
+            try {
+              return (await fetch(url)).status;
+            } catch {
+              return null;
+            }
+          }, crdV1Url);
+        } catch {
+          return null;
+        }
+      },
       { timeout: 30_000 }
     )
     .toBe(200);

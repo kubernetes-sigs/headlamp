@@ -1,0 +1,12 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1tzj0y2"
+      data-testid="project-resource-categories"
+    >
+      <ul
+        class="MuiList-root MuiList-padding MuiList-dense css-h4y409-MuiList-root"
+      />
+    </div>
+  </div>
+</body>

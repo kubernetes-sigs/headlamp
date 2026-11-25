@@ -41,13 +41,14 @@ class JobSet extends KubeObject<KubeJobSet> {
   static isNamespaced = true;
 
   /**
-   * Whether the JobSet API is available on the current cluster.
+   * Whether the JobSet API is available on a cluster.
    * Probes the API group for the `jobsets` resource; missing group or
    * resource means JobSet is not installed.
+   * @param cluster - The cluster to check. Defaults to the current cluster.
    */
-  static async isEnabled(): Promise<boolean> {
+  static async isEnabled(cluster?: string): Promise<boolean> {
     try {
-      const res = await request('/apis/jobset.x-k8s.io/v1alpha2');
+      const res = await request('/apis/jobset.x-k8s.io/v1alpha2', cluster ? { cluster } : {});
       const resources = (res as { resources?: Array<{ name: string }> } | undefined)?.resources;
       return !!resources?.some(r => r.name === 'jobsets');
     } catch (e) {
@@ -69,7 +70,8 @@ class JobSet extends KubeObject<KubeJobSet> {
    * logic used for other workloads can't apply. This relies on the same
    * conditions the Job Sets list shows (Failed / Completed / Suspended); a job
    * set with no terminal condition yet is still running and treated as
-   * transitional.
+   * transitional. A Suspended job set is paused on purpose, so it is suspended
+   * rather than degraded.
    */
   getHealth(): WorkloadHealthCategory {
     const conditions = this.status?.conditions;
@@ -81,7 +83,7 @@ class JobSet extends KubeObject<KubeJobSet> {
       return 'healthy';
     }
     if (isConditionTrue(conditions, 'Suspended')) {
-      return 'degraded';
+      return 'suspended';
     }
     return 'transitional';
   }

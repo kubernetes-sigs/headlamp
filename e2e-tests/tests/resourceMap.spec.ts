@@ -134,7 +134,7 @@ async function mockResourceMapCollections(page: Page, cluster: string, podItems:
 }
 
 test('keeps a simplified namespace expanded while resizing', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
   const headlampPage = new HeadlampPage(page);
   const mockedResources = await mockResourceMapCollections(page, cluster);
@@ -152,8 +152,10 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
     const parent = page.locator(`.react-flow__node.parent[data-id="${namespace.metadata.uid}"]`);
     const children = page.locator(`.react-flow__node[data-id^="resize-test-pod-"]:not(.parent)`);
 
-    await expect(parent).toHaveCount(1);
-    await expect(children).toHaveCount(500);
+    // Laying out 500 nodes again after a resize can take a while on a busy CI runner. A
+    // collapsed namespace still fails: its children never come back.
+    await expect(parent).toHaveCount(1, { timeout: 20_000 });
+    await expect(children).toHaveCount(500, { timeout: 20_000 });
   };
 
   await assertExpandedTopology();

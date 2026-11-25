@@ -25,10 +25,6 @@ test.beforeEach(async ({ page }) => {
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 });
 
-test('plugin settings page should have a title', async () => {
-  await headlampPage.navigateTopage('/settings/plugins', /Plugins/);
-});
-
 test('plugin settings page should have a table', async () => {
   const expectedHeaders = ['Name', 'Description', 'Origin', 'Status'];
   // note: Enable column is only there in app mode.

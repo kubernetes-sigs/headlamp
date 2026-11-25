@@ -64,8 +64,8 @@ export interface KubeIngress extends KubeObjectInterface {
     ingressClassName?: string;
     rules?: IngressRule[] | LegacyIngressRule[];
     tls?: {
-      hosts: string[];
-      secretName: string;
+      hosts?: string[];
+      secretName?: string;
     }[];
     defaultBackend?: {
       resource?: {
@@ -105,7 +105,8 @@ class Ingress extends KubeObject<KubeIngress> {
           http: {
             paths: [
               {
-                path: '',
+                path: '/',
+                pathType: 'Prefix',
                 backend: {
                   service: {
                     name: '',

@@ -115,8 +115,11 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   );
   const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [lines, setLines] = useState<number>(100);
+  // Time window in seconds. 0 means all time (no limit).
+  const [sinceSeconds, setSinceSeconds] = useState<number>(0);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
+  const [reconnectCount, setReconnectCount] = useState(0);
   const [storedSeverities, setStoredSeverities] = useLocalStorageState<LogSeverity[]>(
     'headlamp.logs.severityFilter',
     [...ALL_SEVERITIES]
@@ -205,6 +208,11 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
     setLines(event.target.value);
   }
 
+  function handleSinceChange(event: any) {
+    setSinceSeconds(event.target.value);
+    clearLogs();
+  }
+
   function handleTimestampsChange() {
     setShowTimestamps(prev => !prev);
   }
@@ -280,6 +288,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
     if (pods.length && selectedContainer) {
       setShowReconnectButton(false);
       setLogs({ logs: [], lastLineShown: -1 });
+      setReconnectCount(count => count + 1);
     }
   }
 
@@ -337,6 +346,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
           },
           {
             tailLines: lines,
+            sinceSeconds: sinceSeconds || undefined,
             showPrevious,
             showTimestamps,
             follow,
@@ -350,7 +360,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
 
       return () => cleanups.forEach(cleanup => cleanup());
     },
-    [clearLogs, lines, showPrevious, showTimestamps, follow]
+    [clearLogs, lines, sinceSeconds, showPrevious, showTimestamps, follow]
   );
 
   // Effect for fetching and updating logs
@@ -419,6 +429,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
           },
           {
             tailLines: lines,
+            sinceSeconds: sinceSeconds || undefined,
             showPrevious,
             showTimestamps,
             follow,
@@ -442,7 +453,9 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   }, [
     selectedPodIndex,
     selectedContainer,
+    reconnectCount,
     lines,
+    sinceSeconds,
     showPrevious,
     showTimestamps,
     follow,
@@ -558,6 +571,25 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
             </MenuItem>
           ))}
           <MenuItem value={-1}>{t('translation|All')}</MenuItem>
+        </Select>
+      </FormControl>
+
+      {/* Since (time window) selector */}
+      <FormControl sx={{ minWidth: 140 }}>
+        <InputLabel id={`${selectLabelId}-since-label`}>{t('translation|Since')}</InputLabel>
+        <Select
+          labelId={`${selectLabelId}-since-label`}
+          id={`${selectLabelId}-since`}
+          label={t('translation|Since')}
+          value={sinceSeconds}
+          onChange={handleSinceChange}
+        >
+          <MenuItem value={0}>{t('translation|All time')}</MenuItem>
+          <MenuItem value={300}>{t('translation|Last 5 minutes')}</MenuItem>
+          <MenuItem value={900}>{t('translation|Last 15 minutes')}</MenuItem>
+          <MenuItem value={3600}>{t('translation|Last hour')}</MenuItem>
+          <MenuItem value={21600}>{t('translation|Last 6 hours')}</MenuItem>
+          <MenuItem value={86400}>{t('translation|Last 24 hours')}</MenuItem>
         </Select>
       </FormControl>
 

@@ -78,6 +78,15 @@ cd frontend && npm run ci-lint
 
 You can run `ci-lint` locally before pushing to catch any react-hooks violations that CI would flag.
 
+## Welcome accessibility checks
+
+The welcome experience has keyboard, narrow-screen reflow, and WCAG A/AA
+regression checks. With the frontend running at `localhost:3000`, run them with:
+
+```bash
+cd e2e-tests && npx playwright test tests/welcome.spec.ts --project=chromium
+```
+
 ## Unit test reliability
 
 Sidebar hook tests mock CRD listing and resource availability rather than
@@ -166,6 +175,10 @@ This command will:
 3. Report any accessibility violations found
 
 The tests will fail if any accessibility issues are detected, making it useful for CI/CD pipelines.
+
+Listboxes must expose selectable items as options. Keep decorative dividers
+presentation-only so they do not appear as unsupported separator children.
+When changing component markup, update the affected Storybook snapshots as well.
 
 #### Baseline Storybook a11y Configuration
 

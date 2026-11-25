@@ -18,6 +18,8 @@ import { FormControl, InputLabel, MenuItem, Select } from '@mui/material';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
+import { useClusterPresentation } from '../../../helpers/useClusterPresentation';
+import ClusterBadge from '../../Sidebar/ClusterBadge';
 
 export interface ClusterSelectorProps {
   currentCluster?: string;
@@ -26,6 +28,7 @@ export interface ClusterSelectorProps {
 
 const ClusterSelector: React.FC<ClusterSelectorProps> = ({ currentCluster = '', clusters }) => {
   const history = useHistory();
+  const { getLabel } = useClusterPresentation();
   const { t } = useTranslation('glossary');
 
   return (
@@ -35,7 +38,7 @@ const ClusterSelector: React.FC<ClusterSelectorProps> = ({ currentCluster = '', 
         labelId="settings--cluster-selector"
         value={currentCluster}
         onChange={event => {
-          history.replace(`/settings/cluster?c=${event.target.value}`);
+          history.replace(`/settings/cluster?c=${encodeURIComponent(event.target.value)}`);
         }}
         label={t('glossary|Cluster')}
         autoWidth
@@ -43,7 +46,10 @@ const ClusterSelector: React.FC<ClusterSelectorProps> = ({ currentCluster = '', 
       >
         {clusters.map(clusterName => (
           <MenuItem key={clusterName} value={clusterName}>
-            {clusterName}
+            <ClusterBadge
+              name={getLabel(clusterName).name}
+              secondary={getLabel(clusterName).secondary}
+            />
           </MenuItem>
         ))}
       </Select>

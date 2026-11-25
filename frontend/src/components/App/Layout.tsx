@@ -23,10 +23,17 @@ import Link from '@mui/material/Link';
 import { styled } from '@mui/material/styles';
 import { Dispatch, UnknownAction } from '@reduxjs/toolkit';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { isEqual } from 'lodash';
+import { useEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
+import {
+  getTrustedBackstageOrigins,
+  setRuntimeBackstageOrigins,
+  setupBackstageMessageReceiver,
+} from '../../helpers/backstageMessageReceiver';
+import { isBackstage } from '../../helpers/isBackstage';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
@@ -146,27 +153,33 @@ declare global {
 const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
   const clusters = store.getState().config.clusters;
   const statelessClusters = store.getState().config.statelessClusters;
+  const currentBackstageOrigin = store.getState().config.backstageOrigin ?? '';
 
   return request('/config', { timeout: CONFIG_FETCH_TIMEOUT_MS }, false, false).then(config => {
     const clustersToConfig: ConfigState['clusters'] = {};
     config?.clusters.forEach((cluster: Cluster) => {
-      if (cluster.meta_data?.extensions?.headlamp_info?.customName) {
-        cluster.name = cluster.meta_data?.extensions?.headlamp_info?.customName;
-      }
       clustersToConfig[cluster.name] = cluster;
     });
 
+    const nextBackstageOrigin = config?.backstageOrigin ?? '';
+    setRuntimeBackstageOrigins(nextBackstageOrigin);
+
     const configToStore = {
       ...config,
+      clusterSources: config.clusterSources ?? [],
       clusters: clustersToConfig,
       oidcAutoLogin: config.oidcAutoLogin,
+      backstageOrigin: nextBackstageOrigin,
     };
 
     if (clusters === null) {
       dispatch(setConfig(configToStore));
     } else {
       // Check if the config is different
-      const configDifferent = isEqualClusterConfigs(clusters, clustersToConfig);
+      const configDifferent =
+        isEqualClusterConfigs(clusters, clustersToConfig) ||
+        currentBackstageOrigin !== nextBackstageOrigin ||
+        !isEqual(store.getState().config.clusterSources, configToStore.clusterSources);
 
       if (configDifferent) {
         // Merge the new config with the current config
@@ -282,6 +295,27 @@ export default function Layout({}: LayoutProps) {
       dispatch(setNamespaceFilter(saved));
     }
   }, [cluster, dispatch]);
+
+  const backstageOrigin = useTypedSelector(state => state.config.backstageOrigin);
+  const notifiedBackstageOriginsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (isBackstage()) {
+      return setupBackstageMessageReceiver();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isBackstage()) {
+      // Only announce readiness to configured, trusted Backstage origins.
+      getTrustedBackstageOrigins(backstageOrigin).forEach(origin => {
+        if (!notifiedBackstageOriginsRef.current.has(origin)) {
+          notifiedBackstageOriginsRef.current.add(origin);
+          window.parent.postMessage({ type: 'HEADLAMP_READY' }, origin);
+        }
+      });
+    }
+  }, [backstageOrigin]);
 
   const selectedClusters = useSelectedClusters();
   const { pathname } = location;

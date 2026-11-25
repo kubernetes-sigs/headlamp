@@ -63,7 +63,12 @@ export function DialogTitle(props: OurDialogTitleProps) {
   }
 
   return (
-    <MuiDialogTitle style={{ display: 'flex' }} {...other}>
+    <MuiDialogTitle
+      component="div"
+      id={id ? `${id}-container` : undefined}
+      style={{ display: 'flex' }}
+      {...other}
+    >
       <Grid container justifyContent="space-between" alignItems="center">
         {children && (
           <Grid item>

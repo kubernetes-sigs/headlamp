@@ -16,12 +16,13 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { baseMocks } from '../../../.storybook/baseMocks';
 import type { KubeResourceClaim } from '../../lib/k8s/resourceClaim';
 import { API_BASE, TestContext } from '../../test';
 import ResourceClaimDetails from './ResourceClaimDetails';
-import { RESOURCE_CLAIM_DUMMY_DATA } from './storyHelper';
+import { DEVICE_HEALTH_POD, RESOURCE_CLAIM_DUMMY_DATA } from './storyHelper';
 
-const [pendingClaim, sharedClaim] = RESOURCE_CLAIM_DUMMY_DATA;
+const [pendingClaim, sharedClaim, fallbackClaim, trainerClaim] = RESOURCE_CLAIM_DUMMY_DATA;
 const namespace = 'default';
 
 const collectionUrl = `${API_BASE}/apis/resource.k8s.io/v1/namespaces/${namespace}/resourceclaims`;
@@ -38,10 +39,16 @@ const emptyEvents = http.get(`${API_BASE}/api/v1/namespaces/${namespace}/events`
   })
 );
 
+/** The Pods a claim is reserved for, which most stories do not have. */
+const missingPods = http.get(`${API_BASE}/api/v1/namespaces/${namespace}/pods/:name`, () =>
+  HttpResponse.json({ kind: 'Status', reason: 'NotFound', code: 404 }, { status: 404 })
+);
+
 const handlersFor = (claim: KubeResourceClaim) => [
   http.get(detailsUrl(claim.metadata.name), () => HttpResponse.json(claim)),
   collectionWatch,
   emptyEvents,
+  missingPods,
 ];
 
 export default {
@@ -62,6 +69,30 @@ const Template: StoryFn<{ name: string }> = args => {
 export const InUse = Template.bind({});
 InUse.args = { name: sharedClaim.metadata.name };
 InUse.parameters = { msw: { handlers: { story: handlersFor(sharedClaim) } } };
+
+/** Allocated from the second alternative of a prioritized list. */
+export const ChosenAlternative = Template.bind({});
+ChosenAlternative.args = { name: fallbackClaim.metadata.name };
+ChosenAlternative.parameters = { msw: { handlers: { story: handlersFor(fallbackClaim) } } };
+
+/** The kubelet reports one GPU healthy and the other unhealthy. */
+export const DeviceHealth = Template.bind({});
+DeviceHealth.args = { name: trainerClaim.metadata.name };
+DeviceHealth.parameters = {
+  msw: {
+    handlers: {
+      base: null,
+      story: [
+        http.get(
+          `${API_BASE}/api/v1/namespaces/${namespace}/pods/${DEVICE_HEALTH_POD.metadata.name}`,
+          () => HttpResponse.json(DEVICE_HEALTH_POD)
+        ),
+        ...handlersFor(trainerClaim),
+        ...baseMocks,
+      ],
+    },
+  },
+};
 
 /** Waiting for the scheduler: no allocation, so no node either. */
 export const Pending = Template.bind({});

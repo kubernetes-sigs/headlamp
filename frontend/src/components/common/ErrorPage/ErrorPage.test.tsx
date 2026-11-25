@@ -104,7 +104,7 @@ describe('ErrorComponent', () => {
 
     expect(writeText).toHaveBeenCalledWith('Request stack');
     await waitFor(() =>
-      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('translation|Copied to clipboard', {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('Copied to clipboard', {
         variant: 'success',
       })
     );
@@ -124,13 +124,13 @@ describe('ErrorComponent', () => {
     await user.click(screen.getByRole('button', { name: /Copy$/ }));
 
     await waitFor(() =>
-      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('translation|Failed to copy to clipboard', {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith('Failed to copy to clipboard', {
         variant: 'error',
       })
     );
   });
 
-  it('reports a truncated error when the issue popup is blocked', async () => {
+  it('reports a truncated error during isolated navigation returning null', async () => {
     const user = userEvent.setup();
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     const error = new Error(`Request\n${'failed'.repeat(20)}`);
@@ -149,15 +149,29 @@ describe('ErrorComponent', () => {
     expect(issueUrl.searchParams.get('body')).toContain('... (truncated)');
     expect(issueUrl.searchParams.get('body')).toContain('Headlamp Version\n');
     expect(issueUrl.searchParams.get('body')).toContain('Git Commit\n');
+    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('warns when opening the issue window throws', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'open').mockImplementation(() => {
+      throw new Error('popup blocked');
+    });
+    const error = new Error('Popup error');
+
+    render(<ErrorComponent error={error} />);
+    await user.click(screen.getByRole('button', { name: /Error Details$/ }));
+    await user.click(screen.getByRole('button', { name: /Open Issue on GitHub$/ }));
+
     expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-      'translation|Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
+      'Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
       { variant: 'warning' }
     );
   });
 
   it('opens an issue with fallback error text and configured versions', async () => {
     const user = userEvent.setup();
-    const open = vi.spyOn(window, 'open').mockReturnValue(window);
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
     vi.stubEnv('REACT_APP_HEADLAMP_VERSION', '1.2.3');
     vi.stubEnv('REACT_APP_HEADLAMP_GIT_VERSION', 'abc123');
     const error = new Error('');
@@ -190,7 +204,7 @@ describe('ErrorComponent', () => {
 
       expect(open).not.toHaveBeenCalled();
       expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
-        'translation|Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
+        'Unable to open GitHub. Please check your popup blocker settings or copy the error details manually.',
         { variant: 'warning' }
       );
     }
@@ -198,7 +212,7 @@ describe('ErrorComponent', () => {
 
   it('uses the product-configured GitHub issue URL and button label', async () => {
     const user = userEvent.setup();
-    const open = vi.spyOn(window, 'open').mockReturnValue(window);
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
     vi.stubEnv(
       'REACT_APP_HEADLAMP_ERROR_REPORT_GITHUB_URL',
       'https://github.com/example/product/issues/new?labels=product-bug&template=crash.yml'
@@ -219,5 +233,23 @@ describe('ErrorComponent', () => {
     expect(issueUrl.searchParams.get('template')).toBe('crash.yml');
     expect(issueUrl.searchParams.get('title')).toBe('Crash Report: Product failed');
     expect(issueUrl.searchParams.get('body')).toContain('Product stack');
+    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
+  });
+
+  it('opens the issue reporting URL with noopener and noreferrer', async () => {
+    const user = userEvent.setup();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const error = new Error('Security test error');
+
+    render(<ErrorComponent error={error} />);
+    await user.click(screen.getByRole('button', { name: /Error Details$/ }));
+    await user.click(screen.getByRole('button', { name: /Open Issue on GitHub$/ }));
+
+    expect(open).toHaveBeenCalledWith(
+      expect.stringContaining('https://github.com/kubernetes-sigs/headlamp/issues/new'),
+      '_blank',
+      'noopener,noreferrer'
+    );
+    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
   });
 });
