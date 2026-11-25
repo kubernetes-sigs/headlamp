@@ -21,6 +21,7 @@ import ClusterRole from '../../lib/k8s/clusterRole';
 import Role from '../../lib/k8s/role';
 import { useNamespaces } from '../../redux/filterSlice';
 import Link from '../common/Link';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { ColumnType } from '../common/Resource/ResourceTable';
 
@@ -56,6 +57,7 @@ export default function RoleList({ namespaces }: { namespaces?: string[] }) {
       title={t('Roles')}
       headerProps={{ noNamespaceFilter: false }}
       errors={allErrors}
+      emptyActions={<EmptyStateActions />}
       columns={[
         'type',
         {

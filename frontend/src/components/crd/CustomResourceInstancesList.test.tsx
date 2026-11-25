@@ -69,6 +69,12 @@ vi.mock('../common/', async importOriginal => {
   };
 });
 
+// The empty state's Refresh action needs a QueryClient; stub it so these
+// tests stay focused on which branch renders.
+vi.mock('../common/Resource/EmptyStateActions', () => ({
+  EmptyStateActions: () => <div data-testid="mock-empty-state-actions" />,
+}));
+
 interface QueryResult {
   items?: Array<Record<string, any>>;
   isLoading?: boolean;
@@ -132,6 +138,7 @@ describe('CrInstanceList', () => {
     renderList();
 
     expect(screen.getByText('No custom resources instances found.')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-empty-state-actions')).toBeInTheDocument();
   });
 
   it('renders the empty state when every CRD list errored out (all-failed)', () => {
