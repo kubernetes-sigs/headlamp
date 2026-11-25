@@ -253,6 +253,43 @@ export const RESOURCE_CLAIM_DUMMY_DATA: KubeResourceClaim[] = [
 ];
 
 /** Templates as the example driver's demo workloads write them. */
+/**
+ * A claim for a network card whose driver reports the device ready and the interface it
+ * set up in the Pod.
+ */
+export const RESOURCE_CLAIM_DEVICE_STATUS: KubeResourceClaim = {
+  ...RESOURCE_CLAIM_DUMMY_DATA[1],
+  metadata: {
+    ...RESOURCE_CLAIM_DUMMY_DATA[1].metadata,
+    name: 'nic-claim',
+    uid: 'resource-claim-uid-5',
+  },
+  status: {
+    ...RESOURCE_CLAIM_DUMMY_DATA[1].status,
+    devices: [
+      {
+        driver: 'gpu.example.com',
+        pool: worker,
+        device: 'gpu-5',
+        conditions: [
+          {
+            type: 'Ready',
+            status: 'True',
+            reason: 'InterfaceConfigured',
+            message: 'The interface is up',
+            lastTransitionTime: creationTimestamp,
+          },
+        ],
+        networkData: {
+          interfaceName: 'net1',
+          ips: ['10.10.0.5/24', 'fd00::5/64'],
+          hardwareAddress: '0a:58:0a:0a:00:05',
+        },
+      },
+    ],
+  },
+};
+
 export const RESOURCE_CLAIM_TEMPLATE_DUMMY_DATA: KubeResourceClaimTemplate[] = [
   {
     apiVersion: 'resource.k8s.io/v1',

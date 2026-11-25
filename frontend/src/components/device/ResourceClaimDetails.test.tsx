@@ -15,7 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
@@ -25,7 +25,11 @@ import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import ResourceClaimAllocatedDevices from './ResourceClaimAllocatedDevices';
 import ResourceClaimConsumers from './ResourceClaimConsumers';
-import { DEVICE_HEALTH_POD, RESOURCE_CLAIM_DUMMY_DATA } from './storyHelper';
+import {
+  DEVICE_HEALTH_POD,
+  RESOURCE_CLAIM_DEVICE_STATUS,
+  RESOURCE_CLAIM_DUMMY_DATA,
+} from './storyHelper';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -165,6 +169,116 @@ describe('ResourceClaimAllocatedDevices', () => {
     renderInContext(<ResourceClaimAllocatedDevices claim={trainerClaim} />);
 
     expect(healthLabels()).toEqual(['Unknown', 'Unknown']);
+  });
+
+  it('shows the conditions and network data the driver reports, only when it reports them', () => {
+    const { unmount } = renderInContext(<ResourceClaimAllocatedDevices claim={sharedClaim} />);
+    expect(screen.queryByText('Conditions')).not.toBeInTheDocument();
+    expect(screen.queryByText('Network')).not.toBeInTheDocument();
+    unmount();
+
+    renderInContext(
+      <ResourceClaimAllocatedDevices
+        claim={new ResourceClaim(RESOURCE_CLAIM_DEVICE_STATUS, cluster)}
+      />
+    );
+    const row = within(screen.getByText('gpu-5').closest('tr')!);
+    expect(row.getByText('Ready: True')).toBeVisible();
+    expect(row.getByText('Interface: net1')).toBeVisible();
+    expect(row.getByText('IPs: 10.10.0.5/24, fd00::5/64')).toBeVisible();
+    expect(row.getByText('Hardware Address: 0a:58:0a:0a:00:05')).toBeVisible();
+  });
+
+  it('describes a condition with its reason and message, reachable by keyboard', async () => {
+    renderInContext(
+      <ResourceClaimAllocatedDevices
+        claim={new ResourceClaim(RESOURCE_CLAIM_DEVICE_STATUS, cluster)}
+      />
+    );
+
+    const condition = screen.getByText('Ready: True').closest('[tabindex]') as HTMLElement;
+    expect(condition).toHaveAttribute('tabindex', '0');
+    // The diagnostics must not replace the condition as its accessible name.
+    expect(condition).not.toHaveAttribute('aria-label');
+
+    fireEvent.mouseOver(condition);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'InterfaceConfigured: The interface is up'
+    );
+    expect(condition).toHaveAccessibleDescription('InterfaceConfigured: The interface is up');
+  });
+
+  it('shows the reason of a condition when the driver sets no message', async () => {
+    const [status] = RESOURCE_CLAIM_DEVICE_STATUS.status!.devices!;
+    const claim = new ResourceClaim(
+      {
+        ...RESOURCE_CLAIM_DEVICE_STATUS,
+        status: {
+          ...RESOURCE_CLAIM_DEVICE_STATUS.status,
+          devices: [
+            {
+              ...status,
+              conditions: [{ type: 'Ready', status: 'True', reason: 'NetworkReady' }],
+            },
+          ],
+        },
+      },
+      cluster
+    );
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={claim} />);
+
+    const condition = screen.getByText('Ready: True').closest('[tabindex]') as HTMLElement;
+    expect(condition).toHaveAttribute('tabindex', '0');
+    fireEvent.mouseOver(condition);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('NetworkReady');
+  });
+
+  it('shows the status of each share of a shared device', () => {
+    const allocation = RESOURCE_CLAIM_DEVICE_STATUS.status!.allocation!;
+    const [result] = allocation.devices!.results!;
+    const [status] = RESOURCE_CLAIM_DEVICE_STATUS.status!.devices!;
+    const sharedClaim = new ResourceClaim(
+      {
+        ...RESOURCE_CLAIM_DEVICE_STATUS,
+        status: {
+          ...RESOURCE_CLAIM_DEVICE_STATUS.status,
+          allocation: {
+            ...allocation,
+            devices: {
+              results: [
+                { ...result, request: 'first', shareID: 'share-a' },
+                { ...result, request: 'second', shareID: 'share-b' },
+              ],
+            },
+          },
+          devices: [
+            {
+              ...status,
+              shareID: 'share-a',
+              conditions: [{ type: 'Ready', status: 'True' }],
+              networkData: { ips: ['10.10.0.5/24'] },
+            },
+            {
+              ...status,
+              shareID: 'share-b',
+              conditions: [{ type: 'Ready', status: 'False' }],
+              networkData: { ips: ['10.10.0.6/24'] },
+            },
+          ],
+        },
+      },
+      cluster
+    );
+
+    renderInContext(<ResourceClaimAllocatedDevices claim={sharedClaim} />);
+
+    const first = within(screen.getByText('first').closest('tr')!);
+    expect(first.getByText('Ready: True')).toBeVisible();
+    expect(first.getByText('IPs: 10.10.0.5/24')).toBeVisible();
+    const second = within(screen.getByText('second').closest('tr')!);
+    expect(second.getByText('Ready: False')).toBeVisible();
+    expect(second.getByText('IPs: 10.10.0.6/24')).toBeVisible();
   });
 });
 

@@ -20,7 +20,11 @@ import { baseMocks } from '../../../.storybook/baseMocks';
 import type { KubeResourceClaim } from '../../lib/k8s/resourceClaim';
 import { API_BASE, TestContext } from '../../test';
 import ResourceClaimDetails from './ResourceClaimDetails';
-import { DEVICE_HEALTH_POD, RESOURCE_CLAIM_DUMMY_DATA } from './storyHelper';
+import {
+  DEVICE_HEALTH_POD,
+  RESOURCE_CLAIM_DEVICE_STATUS,
+  RESOURCE_CLAIM_DUMMY_DATA,
+} from './storyHelper';
 
 const [pendingClaim, sharedClaim, fallbackClaim, trainerClaim] = RESOURCE_CLAIM_DUMMY_DATA;
 const namespace = 'default';
@@ -92,6 +96,13 @@ DeviceHealth.parameters = {
       ],
     },
   },
+};
+
+/** The driver reports the device ready and the network interface it set up. */
+export const DeviceStatus = Template.bind({});
+DeviceStatus.args = { name: RESOURCE_CLAIM_DEVICE_STATUS.metadata.name };
+DeviceStatus.parameters = {
+  msw: { handlers: { story: handlersFor(RESOURCE_CLAIM_DEVICE_STATUS) } },
 };
 
 /** Waiting for the scheduler: no allocation, so no node either. */

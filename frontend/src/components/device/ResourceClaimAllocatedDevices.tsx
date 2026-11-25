@@ -14,14 +14,19 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ResourceHealth } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import type ResourceClaim from '../../lib/k8s/resourceClaim';
-import type { DeviceRequestAllocationResult } from '../../lib/k8s/resourceClaim';
+import type {
+  AllocatedDeviceCondition,
+  DeviceRequestAllocationResult,
+} from '../../lib/k8s/resourceClaim';
 import { StatusLabel } from '../common/Label';
 import SimpleTable from '../common/SimpleTable';
+import { LightTooltip } from '../common/Tooltip';
 import { splitAllocatedRequest } from './allocatedRequest';
 import { getDeviceHealth } from './deviceHealth';
 import { isPod } from './ResourceClaimConsumers';
@@ -52,6 +57,34 @@ function DeviceHealthLabel({ report }: { report?: ResourceHealth }) {
   );
 }
 
+/**
+ * A condition the driver reports for a device. Its reason and message are shown in a tooltip
+ * that can also be reached with the keyboard. Some drivers set only the reason.
+ */
+function DeviceConditionLabel({ condition }: { condition: AllocatedDeviceCondition }) {
+  const details = [condition.reason, condition.message].filter(Boolean).join(': ');
+  const label = (
+    <StatusLabel status="">
+      {condition.type}: {condition.status}
+    </StatusLabel>
+  );
+  if (!details) {
+    return label;
+  }
+
+  // describeChild keeps "Ready: True" as the accessible name and announces the
+  // reason and message as its description, instead of replacing the name. The
+  // tooltip wraps a span because StatusLabel turns a title into its own
+  // tooltip, which would name the label after the diagnostics again.
+  return (
+    <LightTooltip title={details} describeChild>
+      <Box component="span" tabIndex={0}>
+        {label}
+      </Box>
+    </LightTooltip>
+  );
+}
+
 function ConsumerPod(props: {
   name: string;
   namespace?: string;
@@ -73,6 +106,8 @@ function ConsumerPod(props: {
 export default function ResourceClaimAllocatedDevices({ claim }: { claim: ResourceClaim }) {
   const { t } = useTranslation(['glossary', 'translation']);
   const results = claim.allocatedDevices;
+  const hasConditions = results.some(result => !!claim.deviceStatus(result)?.conditions?.length);
+  const hasNetworkData = results.some(result => !!claim.deviceStatus(result)?.networkData);
   const hasAlternative = results.some(result => !!splitAllocatedRequest(result.request).subrequest);
   const podConsumers = results.length ? claim.consumers.filter(isPod) : [];
   const [loadedPods, setLoadedPods] = useState<Record<string, Pod | null>>({});
@@ -133,6 +168,51 @@ export default function ResourceClaimAllocatedDevices({ claim }: { claim: Resour
                 <DeviceHealthLabel report={getDeviceHealth(result, claim, consumerPods)} />
               ) : null,
           },
+          ...(hasConditions
+            ? [
+                {
+                  label: t('translation|Conditions'),
+                  getter: (result: DeviceRequestAllocationResult) =>
+                    claim.deviceStatus(result)?.conditions?.map(condition => (
+                      <div key={condition.type}>
+                        <DeviceConditionLabel condition={condition} />
+                      </div>
+                    )),
+                },
+              ]
+            : []),
+          ...(hasNetworkData
+            ? [
+                {
+                  label: t('translation|Network'),
+                  getter: (result: DeviceRequestAllocationResult) => {
+                    const network = claim.deviceStatus(result)?.networkData;
+                    if (!network) {
+                      return null;
+                    }
+                    return (
+                      <>
+                        {network.interfaceName && (
+                          <div>
+                            {t('translation|Interface')}: {network.interfaceName}
+                          </div>
+                        )}
+                        {!!network.ips?.length && (
+                          <div>
+                            {t('translation|IPs')}: {network.ips.join(', ')}
+                          </div>
+                        )}
+                        {network.hardwareAddress && (
+                          <div>
+                            {t('translation|Hardware Address')}: {network.hardwareAddress}
+                          </div>
+                        )}
+                      </>
+                    );
+                  },
+                },
+              ]
+            : []),
         ]}
         data={results}
         emptyMessage={t('translation|No devices are allocated yet.')}
