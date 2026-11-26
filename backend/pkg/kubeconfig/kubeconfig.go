@@ -276,6 +276,18 @@ type OidcConfig struct {
 	// APIProxy is an optional external Kubernetes API proxy that all cluster
 	// traffic of the context is routed through instead of the kube-apiserver.
 	APIProxy *APIProxySettings
+	// Static OIDC endpoint URLs. These are populated from Headlamp's CLI flags
+	// (not from kubeconfig files) and, when AuthURL, TokenURL and JWKSURL are all
+	// set, let the provider be built directly instead of via OIDC discovery.
+	// UserInfoURL is optional.
+	AuthURL     string
+	TokenURL    string
+	JWKSURL     string
+	UserInfoURL string
+	// SigningAlgorithms optionally restricts the JWT signing algorithms accepted
+	// when verifying ID tokens in static mode (for example RS256, ES256). Empty
+	// keeps the go-oidc default, which only accepts RS256.
+	SigningAlgorithms []string
 }
 
 // APIProxySettings describes an external Kubernetes API proxy (an OIDC-aware
@@ -293,6 +305,12 @@ type APIProxySettings struct {
 	SkipTLSVerify bool
 }
 
+// HasStaticOIDCEndpoints reports whether the static OIDC endpoint URLs required to
+// bypass discovery (authorization, token and JWK Set endpoints) are all configured.
+func (c *OidcConfig) HasStaticOIDCEndpoints() bool {
+	return c != nil && c.AuthURL != "" && c.TokenURL != "" && c.JWKSURL != ""
+}
+
 // Copy creates a deep copy of the OidcConfig.
 func (o *OidcConfig) Copy() *OidcConfig {
 	if o == nil {
@@ -301,6 +319,10 @@ func (o *OidcConfig) Copy() *OidcConfig {
 
 	oidcConf := *o
 	oidcConf.Scopes = append([]string{}, o.Scopes...)
+
+	if o.SigningAlgorithms != nil {
+		oidcConf.SigningAlgorithms = append([]string{}, o.SigningAlgorithms...)
+	}
 
 	// Deep copy pointer fields
 	if o.SkipTLSVerify != nil {
@@ -1655,6 +1677,7 @@ func GetInClusterContext(
 	oidcAPIProxy string,
 	oidcAPIProxyCACert string,
 	oidcAPIProxySkipTLSVerify bool,
+	oidcStaticEndpoints OidcStaticEndpoints,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) (*Context, error) {
@@ -1679,9 +1702,21 @@ func GetInClusterContext(
 		oidcAPIProxy,
 		oidcAPIProxyCACert,
 		oidcAPIProxySkipTLSVerify,
+		oidcStaticEndpoints,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
 	), nil
+}
+
+// OidcStaticEndpoints groups the optional static OIDC endpoint URLs sourced from
+// Headlamp's CLI flags. When AuthURL, TokenURL and JWKSURL are all set, the OIDC
+// provider is built from these endpoints instead of through discovery.
+type OidcStaticEndpoints struct {
+	AuthURL           string
+	TokenURL          string
+	JWKSURL           string
+	UserInfoURL       string
+	SigningAlgorithms []string
 }
 
 func newInClusterContextFromConfig(
@@ -1696,6 +1731,7 @@ func newInClusterContextFromConfig(
 	oidcAPIProxy string,
 	oidcAPIProxyCACert string,
 	oidcAPIProxySkipTLSVerify bool,
+	oidcStaticEndpoints OidcStaticEndpoints,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) *Context {
@@ -1724,17 +1760,9 @@ func newInClusterContextFromConfig(
 	var oidcConf *OidcConfig
 
 	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
-		oidcConf = newInClusterOidcConfig(
-			oidcClientID,
-			oidcClientSecret,
-			oidcIssuerURL,
-			oidcScopes,
-			oidcSkipTLSVerify,
-			oidcCACert,
-			oidcAPIProxy,
-			oidcAPIProxyCACert,
-			oidcAPIProxySkipTLSVerify,
-		)
+		oidcConf = newInClusterOidcConfig(oidcClientID, oidcClientSecret, oidcIssuerURL,
+			oidcScopes, oidcSkipTLSVerify, oidcCACert, oidcAPIProxy, oidcAPIProxyCACert,
+			oidcAPIProxySkipTLSVerify, oidcStaticEndpoints)
 	}
 
 	return &Context{
@@ -1749,6 +1777,8 @@ func newInClusterContextFromConfig(
 
 // newInClusterOidcConfig builds the OidcConfig for the in-cluster context.
 // Empty CA bundles are stored as nil so that no TLS pool is built for them.
+// Static endpoint URLs are attached so the auth flow can bypass discovery when
+// they are all set.
 func newInClusterOidcConfig(
 	oidcClientID string,
 	oidcClientSecret string,
@@ -1759,6 +1789,7 @@ func newInClusterOidcConfig(
 	oidcAPIProxy string,
 	oidcAPIProxyCACert string,
 	oidcAPIProxySkipTLSVerify bool,
+	oidcStaticEndpoints OidcStaticEndpoints,
 ) *OidcConfig {
 	var caCert *string
 	if oidcCACert != "" {
@@ -1776,13 +1807,18 @@ func newInClusterOidcConfig(
 
 	// client secret is optional for in-cluster OIDC configuration
 	return &OidcConfig{
-		ClientID:      oidcClientID,
-		ClientSecret:  oidcClientSecret,
-		IdpIssuerURL:  oidcIssuerURL,
-		Scopes:        strings.Split(oidcScopes, ","),
-		SkipTLSVerify: &oidcSkipTLSVerify,
-		CACert:        caCert,
-		APIProxy:      apiProxy,
+		ClientID:          oidcClientID,
+		ClientSecret:      oidcClientSecret,
+		IdpIssuerURL:      oidcIssuerURL,
+		Scopes:            strings.Split(oidcScopes, ","),
+		SkipTLSVerify:     &oidcSkipTLSVerify,
+		CACert:            caCert,
+		APIProxy:          apiProxy,
+		AuthURL:           oidcStaticEndpoints.AuthURL,
+		TokenURL:          oidcStaticEndpoints.TokenURL,
+		JWKSURL:           oidcStaticEndpoints.JWKSURL,
+		UserInfoURL:       oidcStaticEndpoints.UserInfoURL,
+		SigningAlgorithms: oidcStaticEndpoints.SigningAlgorithms,
 	}
 }
 

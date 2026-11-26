@@ -18,20 +18,28 @@ package auth_test
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -989,6 +997,358 @@ func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
 	assert.Contains(t, err.Error(), "refreshing token")
 	assert.Len(t, fc.setCalls, 0)
 	assert.Len(t, fc.setWithTTLCalls, 0)
+}
+
+// newDiscoveryTrackingServer returns an OIDC-like server that fails and counts any
+// request to the discovery endpoint, while serving the token endpoint from
+// tokenHandler. It is used to assert that static endpoint configuration bypasses
+// discovery entirely.
+func newDiscoveryTrackingServer(t *testing.T, discoveryHits *int32, tokenHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(discoveryHits, 1)
+		http.Error(w, "discovery endpoint must not be called in static mode", http.StatusInternalServerError)
+	})
+
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := w.Write([]byte(`{"keys":[]}`)); err != nil {
+			t.Fatalf("write jwks: %v", err)
+		}
+	})
+
+	if tokenHandler != nil {
+		mux.HandleFunc("/token", tokenHandler)
+	}
+
+	return srv
+}
+
+func TestBuildProvider_StaticEndpointsSkipDiscovery(t *testing.T) {
+	var discoveryHits int32
+
+	srv := newDiscoveryTrackingServer(t, &discoveryHits, nil)
+
+	config := &kubeconfig.OidcConfig{
+		AuthURL:     srv.URL + "/authorize",
+		TokenURL:    srv.URL + "/token",
+		JWKSURL:     srv.URL + "/jwks",
+		UserInfoURL: srv.URL + "/userinfo",
+	}
+
+	provider, err := auth.BuildProvider(context.Background(), config, srv.URL, "")
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	assert.Equal(t, srv.URL+"/authorize", provider.Endpoint().AuthURL)
+	assert.Equal(t, srv.URL+"/token", provider.Endpoint().TokenURL)
+	assert.Equal(t, srv.URL+"/userinfo", provider.UserInfoEndpoint())
+	assert.Equal(t, int32(0), atomic.LoadInt32(&discoveryHits),
+		"static endpoint configuration must not trigger OIDC discovery")
+}
+
+func TestBuildProvider_FallsBackToDiscovery(t *testing.T) {
+	srv := newOIDCProviderServer(t, "", nil)
+
+	provider, err := auth.BuildProvider(context.Background(), &kubeconfig.OidcConfig{}, srv.URL, "")
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	// The token endpoint is sourced from the discovery document.
+	assert.Equal(t, srv.URL+"/token", provider.Endpoint().TokenURL)
+}
+
+func TestBuildProvider_PartialStaticFallsBackToDiscovery(t *testing.T) {
+	srv := newOIDCProviderServer(t, "", nil)
+
+	// Only auth and token URLs set (JWKS missing) must not enable static mode.
+	// staticBase is concatenated (not a bare literal) so the endpoints stay distinct
+	// from the discovery server's without tripping the gosec credential heuristic.
+	staticBase := "https://static.example.com"
+	config := &kubeconfig.OidcConfig{
+		AuthURL:  staticBase + "/authorize",
+		TokenURL: staticBase + "/token",
+	}
+
+	provider, err := auth.BuildProvider(context.Background(), config, srv.URL, "")
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	// The endpoint comes from discovery, not the incomplete static config.
+	assert.Equal(t, srv.URL+"/token", provider.Endpoint().TokenURL)
+}
+
+// staticProviderTestClientID is the audience of the ID tokens signed in the
+// static provider verification tests.
+const staticProviderTestClientID = "static-test-client"
+
+// testSigningKey is an RSA key pair used to sign ID tokens for static-provider
+// verification tests, together with the JWK set the test server advertises.
+type testSigningKey struct {
+	key *rsa.PrivateKey
+	kid string
+	alg string
+}
+
+func newTestSigningKey(t *testing.T) *testSigningKey {
+	t.Helper()
+
+	return newTestSigningKeyWithAlg(t, "RS256")
+}
+
+// newTestSigningKeyWithAlg returns a key that signs and advertises the given RSA
+// signing algorithm (RS256, RS384 or RS512).
+func newTestSigningKeyWithAlg(t *testing.T, alg string) *testSigningKey {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	return &testSigningKey{key: key, kid: "test-signing-key", alg: alg}
+}
+
+// jwksJSON renders the public key as a compact JWK Set document.
+func (k *testSigningKey) jwksJSON(t *testing.T) []byte {
+	t.Helper()
+
+	doc := map[string]any{
+		"keys": []map[string]string{{
+			"kty": "RSA",
+			"kid": k.kid,
+			"use": "sig",
+			"alg": k.alg,
+			"n":   base64.RawURLEncoding.EncodeToString(k.key.N.Bytes()),
+			"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(k.key.E)).Bytes()),
+		}},
+	}
+
+	out, err := json.Marshal(doc)
+	require.NoError(t, err)
+
+	return out
+}
+
+// signIDToken builds an ID token issued by issuer for the test client, signed with
+// the key's configured signing algorithm.
+func (k *testSigningKey) signIDToken(t *testing.T, issuer string) string {
+	t.Helper()
+
+	encode := func(v any) string {
+		raw, err := json.Marshal(v)
+		require.NoError(t, err)
+
+		return base64.RawURLEncoding.EncodeToString(raw)
+	}
+
+	now := time.Now()
+	header := encode(map[string]string{"alg": k.alg, "typ": "JWT", "kid": k.kid})
+	claims := encode(map[string]any{
+		"iss": issuer,
+		"aud": staticProviderTestClientID,
+		"sub": "test-user",
+		"iat": now.Unix(),
+		"exp": now.Add(time.Hour).Unix(),
+	})
+
+	signingInput := header + "." + claims
+
+	var (
+		hashed   []byte
+		hashFunc crypto.Hash
+	)
+
+	switch k.alg {
+	case "RS384":
+		sum := sha512.Sum384([]byte(signingInput))
+		hashed, hashFunc = sum[:], crypto.SHA384
+	case "RS512":
+		sum := sha512.Sum512([]byte(signingInput))
+		hashed, hashFunc = sum[:], crypto.SHA512
+	default:
+		sum := sha256.Sum256([]byte(signingInput))
+		hashed, hashFunc = sum[:], crypto.SHA256
+	}
+
+	signature, err := rsa.SignPKCS1v15(rand.Reader, k.key, hashFunc, hashed)
+	require.NoError(t, err)
+
+	return signingInput + "." + base64.RawURLEncoding.EncodeToString(signature)
+}
+
+// newStaticOIDCTestServer serves the key's JWK Set and counts discovery requests,
+// which must stay at zero when static endpoints are configured.
+func newStaticOIDCTestServer(t *testing.T, key *testSigningKey) (*httptest.Server, *int32) {
+	t.Helper()
+
+	var discoveryHits int32
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&discoveryHits, 1)
+		http.Error(w, "discovery endpoint must not be called in static mode", http.StatusInternalServerError)
+	})
+
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if _, err := w.Write(key.jwksJSON(t)); err != nil {
+			t.Fatalf("write jwks: %v", err)
+		}
+	})
+
+	return srv, &discoveryHits
+}
+
+func staticOIDCTestConfig(srvURL string) *kubeconfig.OidcConfig {
+	return &kubeconfig.OidcConfig{
+		ClientID: staticProviderTestClientID,
+		AuthURL:  srvURL + "/authorize",
+		TokenURL: srvURL + "/token",
+		JWKSURL:  srvURL + "/jwks",
+	}
+}
+
+func verifyStaticIDToken(t *testing.T, provider *oidc.Provider, rawIDToken string) error {
+	t.Helper()
+
+	_, err := provider.Verifier(&oidc.Config{ClientID: staticProviderTestClientID}).Verify(
+		context.Background(), rawIDToken)
+
+	return err
+}
+
+// TestBuildProvider_StaticEndpointsVerifyIDToken checks that a provider built from
+// static endpoints validates signed ID tokens through the configured JWK Set,
+// accepts the default issuer, rejects a mismatched one, and never performs OIDC
+// discovery.
+func TestBuildProvider_StaticEndpointsVerifyIDToken(t *testing.T) {
+	const (
+		defaultIssuer   = "https://issuer.example.com"
+		unrelatedIssuer = "https://unrelated.example.com"
+	)
+
+	signingKey := newTestSigningKey(t)
+	srv, discoveryHits := newStaticOIDCTestServer(t, signingKey)
+
+	provider, err := auth.BuildProvider(
+		context.Background(), staticOIDCTestConfig(srv.URL), defaultIssuer, "")
+	require.NoError(t, err)
+
+	t.Run("default issuer", func(t *testing.T) {
+		token := signingKey.signIDToken(t, defaultIssuer)
+		require.NoError(t, verifyStaticIDToken(t, provider, token))
+	})
+
+	t.Run("mismatched issuer rejected", func(t *testing.T) {
+		token := signingKey.signIDToken(t, unrelatedIssuer)
+		err := verifyStaticIDToken(t, provider, token)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "issuer")
+	})
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(discoveryHits),
+		"static provider ID-token validation must not trigger OIDC discovery")
+}
+
+// TestBuildProvider_StaticEndpointsValidatorIssuerOverride checks that the explicit
+// validator issuer override replaces the discovery issuer as the expected identity.
+func TestBuildProvider_StaticEndpointsValidatorIssuerOverride(t *testing.T) {
+	const (
+		discoveryIssuer = "https://issuer.example.com"
+		overrideIssuer  = "https://override.example.com"
+	)
+
+	signingKey := newTestSigningKey(t)
+	srv, discoveryHits := newStaticOIDCTestServer(t, signingKey)
+
+	provider, err := auth.BuildProvider(
+		context.Background(), staticOIDCTestConfig(srv.URL), discoveryIssuer, overrideIssuer)
+	require.NoError(t, err)
+
+	token := signingKey.signIDToken(t, overrideIssuer)
+	require.NoError(t, verifyStaticIDToken(t, provider, token))
+
+	// The discovery issuer is no longer the expected identity once overridden.
+	err = verifyStaticIDToken(t, provider, signingKey.signIDToken(t, discoveryIssuer))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "issuer")
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(discoveryHits),
+		"static provider ID-token validation must not trigger OIDC discovery")
+}
+
+// TestBuildProvider_StaticEndpointsSigningAlgorithms checks that the static
+// provider accepts the ID-token signing algorithms explicitly allowed by
+// configuration, instead of only the RS256 default.
+func TestBuildProvider_StaticEndpointsSigningAlgorithms(t *testing.T) {
+	const issuer = "https://issuer.example.com"
+
+	signingKey := newTestSigningKeyWithAlg(t, "RS384")
+	srv, discoveryHits := newStaticOIDCTestServer(t, signingKey)
+
+	oidcConfig := staticOIDCTestConfig(srv.URL)
+	oidcConfig.SigningAlgorithms = []string{"RS384"}
+
+	provider, err := auth.BuildProvider(context.Background(), oidcConfig, issuer, "")
+	require.NoError(t, err)
+
+	token := signingKey.signIDToken(t, issuer)
+	require.NoError(t, verifyStaticIDToken(t, provider, token))
+
+	// Without the allowlist the provider keeps the RS256 default and rejects RS384.
+	oidcConfig.SigningAlgorithms = nil
+
+	provider, err = auth.BuildProvider(context.Background(), oidcConfig, issuer, "")
+	require.NoError(t, err)
+	require.Error(t, verifyStaticIDToken(t, provider, token))
+
+	assert.Equal(t, int32(0), atomic.LoadInt32(discoveryHits),
+		"static provider ID-token validation must not trigger OIDC discovery")
+}
+
+func TestRefreshAndCacheNewToken_StaticEndpointsSkipDiscovery(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		oldKey   = "oidc-token-" + oldToken
+	)
+
+	var discoveryHits int32
+
+	srv := newDiscoveryTrackingServer(t, &discoveryHits, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
+	config := &kubeconfig.OidcConfig{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		AuthURL:      srv.URL + "/authorize",
+		TokenURL:     srv.URL + "/token",
+		JWKSURL:      srv.URL + "/jwks",
+	}
+
+	tok, err := auth.RefreshAndCacheNewToken(
+		context.Background(), config, fc, "id_token", oldToken, srv.URL, "", time.Hour,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, tok)
+	assert.Equal(t, refreshNew, tok.RefreshToken)
+	assert.Equal(t, int32(0), atomic.LoadInt32(&discoveryHits),
+		"token refresh with static endpoints must not trigger OIDC discovery")
 }
 
 func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {

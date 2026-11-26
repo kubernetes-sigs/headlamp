@@ -239,7 +239,7 @@ func TestContextURLAndClientSetErrors(t *testing.T) {
 		t.Setenv("KUBERNETES_SERVICE_HOST", "")
 		t.Setenv("KUBERNETES_SERVICE_PORT", "")
 
-		_, err := GetInClusterContext("incluster", "", "", "", "", false, "", "", "", false, false, "")
+		_, err := GetInClusterContext("incluster", "", "", "", "", false, "", "", "", false, OidcStaticEndpoints{}, false, "")
 		require.Error(t, err)
 	})
 }

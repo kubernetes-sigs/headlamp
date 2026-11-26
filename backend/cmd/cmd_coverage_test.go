@@ -144,6 +144,11 @@ func TestGlobalOidcConfigAndCopyStaticFiles(t *testing.T) {
 	cfg.OidcClientID = "cid"
 	cfg.OidcSkipTLSVerify = true
 	cfg.OidcCACert = "CERT"
+	cfg.OidcAuthURL = "https://idp.example.com/authorize"
+	cfg.OidcTokenURL = "https://idp.example.com/token"
+	cfg.OidcJWKSURL = "https://idp.example.com/keys"
+	cfg.OidcUserinfoURL = "https://idp.example.com/userinfo"
+	cfg.OidcSigningAlgorithms = []string{"RS256", "ES256"}
 
 	oidcCfg := globalOidcConfig(cfg)
 	require.NotNil(t, oidcCfg.CACert)
@@ -151,6 +156,15 @@ func TestGlobalOidcConfigAndCopyStaticFiles(t *testing.T) {
 	assert.Equal(t, "cid", oidcCfg.ClientID)
 	require.NotNil(t, oidcCfg.SkipTLSVerify)
 	assert.True(t, *oidcCfg.SkipTLSVerify)
+
+	// Discovered contexts copy this config, so the static endpoints must be
+	// carried over or their login and refresh fall back to discovery.
+	assert.Equal(t, cfg.OidcAuthURL, oidcCfg.AuthURL)
+	assert.Equal(t, cfg.OidcTokenURL, oidcCfg.TokenURL)
+	assert.Equal(t, cfg.OidcJWKSURL, oidcCfg.JWKSURL)
+	assert.Equal(t, cfg.OidcUserinfoURL, oidcCfg.UserInfoURL)
+	assert.Equal(t, cfg.OidcSigningAlgorithms, oidcCfg.SigningAlgorithms)
+	assert.True(t, oidcCfg.HasStaticOIDCEndpoints())
 
 	srcDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "index.html"), []byte("ok"), 0o600))

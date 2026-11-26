@@ -109,6 +109,7 @@ func TestInClusterHelpersAndProcessContext(t *testing.T) {
 	oidc := newInClusterOidcConfig(
 		"cid", "csec", "https://issuer.example.com", "openid,profile",
 		true, "CA", "https://proxy.example.com", "PCA", true,
+		OidcStaticEndpoints{},
 	)
 	require.NotNil(t, oidc.CACert)
 	assert.Equal(t, "CA", *oidc.CACert)
