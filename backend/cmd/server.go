@@ -92,6 +92,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
+		CacheMaxClientsets:     conf.CacheMaxClientsets,
 		Port:                   conf.Port,
 		DevMode:                conf.DevMode,
 		StaticDir:              conf.StaticDir,
@@ -228,6 +229,7 @@ func splitOIDCScopes(scopes string) []string {
 	return result
 }
 
+//nolint:funlen // Function initializes server dependencies, proxy settings, and cache limits.
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -278,6 +280,14 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading admin settings")
 		os.Exit(1)
+	}
+
+	if conf.CacheMaxClientsetsExplicit ||
+		(conf.CacheMaxClientsets > 0 && conf.CacheMaxClientsets != config.DefaultCacheMaxClientsets) {
+		if err := k8cache.SetMaxClientsets(conf.CacheMaxClientsets); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to configure authorization clientset cache capacity")
+			os.Exit(1)
+		}
 	}
 
 	return &HeadlampConfig{

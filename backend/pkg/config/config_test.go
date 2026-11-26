@@ -160,6 +160,39 @@ func TestParseOidcAutoLogin(t *testing.T) {
 	assert.True(t, conf.OidcAutoLogin)
 }
 
+func TestParseCacheMaxClientsets(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		verify func(*testing.T, *config.Config)
+	}{
+		{
+			name: "default_value",
+			args: nil,
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, config.DefaultCacheMaxClientsets, conf.CacheMaxClientsets)
+			},
+		},
+		{
+			name: "flag_configured",
+			args: []string{"go run ./cmd", "--cache-max-clientsets=512"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, 512, conf.CacheMaxClientsets)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			tt.verify(t, conf)
+		})
+	}
+}
+
 func TestParseAppName(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1377,6 +1410,77 @@ func TestValidatePort(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateCacheMaxClientsets(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "cache_max_clientsets_zero",
+			args:          []string{"go run ./cmd", "--cache-max-clientsets=0"},
+			expectError:   true,
+			errorContains: "cache-max-clientsets cannot be negative or equal to zero",
+		},
+		{
+			name:          "cache_max_clientsets_negative",
+			args:          []string{"go run ./cmd", "--cache-max-clientsets=-1"},
+			expectError:   true,
+			errorContains: "cache-max-clientsets cannot be negative or equal to zero",
+		},
+		{
+			name:        "cache_max_clientsets_valid",
+			args:        []string{"go run ./cmd", "--cache-max-clientsets=512"},
+			expectError: false,
+		},
+		{
+			name:        "cache_max_clientsets_default",
+			args:        []string{"go run ./cmd"},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestCacheMaxClientsetsExplicitTracking(t *testing.T) {
+	t.Run("omitted option leaves CacheMaxClientsetsExplicit false", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		assert.Equal(t, config.DefaultCacheMaxClientsets, conf.CacheMaxClientsets)
+		assert.False(t, conf.CacheMaxClientsetsExplicit)
+	})
+
+	t.Run("explicit default flag sets CacheMaxClientsetsExplicit true", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd", "--cache-max-clientsets=256"})
+		require.NoError(t, err)
+		assert.Equal(t, config.DefaultCacheMaxClientsets, conf.CacheMaxClientsets)
+		assert.True(t, conf.CacheMaxClientsetsExplicit)
+	})
+
+	t.Run("explicit default env sets CacheMaxClientsetsExplicit true", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_CACHE_MAX_CLIENTSETS", "256")
+
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		assert.Equal(t, config.DefaultCacheMaxClientsets, conf.CacheMaxClientsets)
+		assert.True(t, conf.CacheMaxClientsetsExplicit)
+	})
 }
 
 func TestValidateLogLevel(t *testing.T) {

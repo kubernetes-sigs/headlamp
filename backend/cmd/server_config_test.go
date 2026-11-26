@@ -24,6 +24,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterdiscovery"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +47,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 			WatchPluginsChanges:    false,
 			BaseURL:                "/headlamp",
 			ProxyURLs:              "http://proxy1,http://proxy2",
+			CacheMaxClientsets:     512,
 		}
 
 		headlampCFG := buildHeadlampCFG(conf, store)
@@ -63,6 +65,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.Equal(t, "/headlamp", headlampCFG.BaseURL)
 		assert.Equal(t, []string{"http://proxy1", "http://proxy2"}, headlampCFG.ProxyURLs)
 		assert.Equal(t, store, headlampCFG.KubeConfigStore)
+		assert.Equal(t, 512, headlampCFG.CacheMaxClientsets)
 	})
 
 	t.Run("empty proxy urls yields empty slice", func(t *testing.T) {
@@ -144,4 +147,47 @@ func TestSplitOIDCScopes(t *testing.T) {
 		splitOIDCScopes("profile, email, , offline_access"),
 	)
 	assert.Empty(t, splitOIDCScopes(" ,\t"))
+}
+
+func TestCreateHeadlampConfig_ConfiguresCacheMaxClientsets(t *testing.T) {
+	k8cache.ResetForTesting()
+	t.Cleanup(k8cache.ResetForTesting)
+
+	conf := &config.Config{
+		AppName:            "Headlamp Test",
+		CacheMaxClientsets: 128,
+		SessionTTL:         86400,
+	}
+
+	headlampConfig := createHeadlampConfig(conf)
+	assert.NotNil(t, headlampConfig)
+	assert.Equal(t, 128, k8cache.MaxClientsets())
+}
+
+func TestCreateHeadlampConfig_CacheMaxClientsetsPrecedence(t *testing.T) {
+	t.Run("omitted option preserves legacy HEADLAMP_MAX_CLIENTSETS", func(t *testing.T) {
+		k8cache.ResetForTesting()
+		t.Cleanup(k8cache.ResetForTesting)
+		t.Setenv("HEADLAMP_MAX_CLIENTSETS", "1024")
+
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+
+		headlampConfig := createHeadlampConfig(conf)
+		assert.NotNil(t, headlampConfig)
+		assert.Equal(t, 1024, k8cache.MaxClientsets())
+	})
+
+	t.Run("explicit --cache-max-clientsets=256 overrides HEADLAMP_MAX_CLIENTSETS", func(t *testing.T) {
+		k8cache.ResetForTesting()
+		t.Cleanup(k8cache.ResetForTesting)
+		t.Setenv("HEADLAMP_MAX_CLIENTSETS", "1024")
+
+		conf, err := config.Parse([]string{"go run ./cmd", "--cache-max-clientsets=256"})
+		require.NoError(t, err)
+
+		headlampConfig := createHeadlampConfig(conf)
+		assert.NotNil(t, headlampConfig)
+		assert.Equal(t, 256, k8cache.MaxClientsets())
+	})
 }
