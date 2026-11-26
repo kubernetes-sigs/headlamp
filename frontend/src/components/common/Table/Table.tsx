@@ -936,6 +936,16 @@ export default function Table<RowItem extends Record<string, any>>({
     [table]
   );
 
+  // Explicitly visible columns may not fit. Keep their minimum widths inside the
+  // existing table scroll container, leaving toolbar layout and normal tables intact.
+  const needsHorizontalScroll =
+    containerWidth > 0 &&
+    tableColumns.filter(col => mergedColumnVisibility[col.id ?? ''] !== false).length *
+      DEFAULT_MIN_COLUMN_WIDTH +
+      (tableProps.enableRowSelection ? 44 : 0) +
+      (tableProps.enableRowActions ? 52 : 0) >
+      containerWidth;
+
   const gridTemplateColumns = useMemo(() => {
     let preGridTemplateColumns = tableProps.columns
       .filter((it, i) => {
@@ -944,17 +954,23 @@ export default function Table<RowItem extends Record<string, any>>({
         return !isHidden;
       })
       .map(it => {
-        if (typeof it.gridTemplate === 'number') {
-          return `${it.gridTemplate}fr`;
+        const track =
+          typeof it.gridTemplate === 'number' ? `${it.gridTemplate}fr` : it.gridTemplate ?? '1fr';
+        // Preserve explicit CSS sizing (such as minmax), while flexible and intrinsic
+        // tracks need a minimum to produce real overflow rather than crushed cells.
+        if (needsHorizontalScroll && /^(\d*\.?\d+fr|auto|min-content|max-content)$/.test(track)) {
+          return `minmax(${DEFAULT_MIN_COLUMN_WIDTH}px, ${track})`;
         }
-        return it.gridTemplate ?? '1fr';
+        return track;
       })
       .join(' ');
     if (
       tableProps.enableRowActions &&
       mergedColumnVisibility[MRT_ROW_ACTIONS_COLUMN_ID] !== false
     ) {
-      preGridTemplateColumns = `${preGridTemplateColumns} 0.05fr`;
+      preGridTemplateColumns = `${preGridTemplateColumns} ${
+        needsHorizontalScroll ? 'minmax(52px, 0.05fr)' : '0.05fr'
+      }`;
     }
     if (tableProps.enableRowSelection) {
       preGridTemplateColumns = `44px ${preGridTemplateColumns}`;
@@ -966,6 +982,7 @@ export default function Table<RowItem extends Record<string, any>>({
     mergedColumnVisibility,
     tableProps.enableRowActions,
     tableProps.enableRowSelection,
+    needsHorizontalScroll,
   ]);
 
   const rows = useMRT_Rows(table);
@@ -1046,6 +1063,7 @@ export default function Table<RowItem extends Record<string, any>>({
       <>
         {(tableProps.enableTopToolbar ?? true) && <MRT_TopToolbar table={table} />}
         <MuiTable
+          tabIndex={needsHorizontalScroll ? 0 : undefined}
           sx={{
             display: 'grid',
             border: '1px solid',

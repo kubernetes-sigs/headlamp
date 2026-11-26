@@ -17,7 +17,7 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MRT_VisibilityState } from 'material-react-table';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import Table, { TableProps } from './Table';
 
@@ -522,6 +522,153 @@ describe('Table cell memoization', () => {
     rerender(renderWith([{ ...row }]));
     expect(tableMocks.bodyCellRenders).toBe(renders + 1);
   });
+});
+
+describe('Table responsive visibility and horizontal scrolling', () => {
+  const columns = [
+    { id: 'selection', accessorKey: 'selected', header: 'Selection' },
+    { id: 'name', accessorKey: 'name', header: 'Name' },
+    { id: 'detail', accessorKey: 'detail', header: 'Detail' },
+  ];
+  let resize: (width: number) => void;
+
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(150);
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resize = width => callback([{ contentRect: { width } } as ResizeObserverEntry], this);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps normal responsive hiding and the existing table structure', () => {
+    renderTable({ columns });
+    expect(tableMocks.options.state.columnVisibility).toEqual({ name: false, detail: false });
+    const table = screen.getByRole('table');
+    expect(table).not.toHaveAttribute('tabindex');
+    expect(getComputedStyle(table).gridTemplateColumns).toBe('1fr');
+    expect(screen.getByTestId('top-toolbar').parentElement).toBe(table.parentElement);
+    expect(screen.getByTestId('bottom-toolbar').parentElement).toBe(table.parentElement);
+  });
+
+  it('preserves a local show/hide choice while resizing without remounting or losing focus', () => {
+    renderTable({ columns });
+    const table = screen.getByRole('table');
+    const checkbox = screen.getByRole('checkbox');
+    checkbox.focus();
+    act(() => tableMocks.options.onColumnVisibilityChange({ name: true, detail: false }));
+    expect(tableMocks.options.state.columnVisibility).toEqual({ name: true, detail: false });
+    expect(table).toHaveAttribute('tabindex', '0');
+    expect(getComputedStyle(table).gridTemplateColumns).toBe(
+      'minmax(100px, 1fr) minmax(100px, 1fr)'
+    );
+    expect(checkbox).toHaveFocus();
+
+    act(() => resize(600));
+    expect(tableMocks.options.state.columnVisibility).toEqual({ name: true, detail: false });
+    expect(table).not.toHaveAttribute('tabindex');
+    expect(getComputedStyle(table).gridTemplateColumns).toBe('1fr 1fr');
+    act(() => resize(150));
+    expect(screen.getByRole('table')).toBe(table);
+    expect(screen.getByRole('checkbox')).toBe(checkbox);
+    expect(checkbox).toHaveFocus();
+
+    act(() => tableMocks.options.onColumnVisibilityChange({ name: false, detail: false }));
+    expect(tableMocks.options.state.columnVisibility.name).toBe(false);
+    expect(table).not.toHaveAttribute('tabindex');
+    act(() => resize(600));
+    expect(tableMocks.options.state.columnVisibility.name).toBe(false);
+  });
+
+  it('honors initial visibility and excludes hidden columns from the width budget', () => {
+    const columnVisibility = { selection: false, name: false, detail: true };
+    renderTable({ columns, initialState: { columnVisibility } });
+    expect(tableMocks.options.state.columnVisibility).toEqual(columnVisibility);
+    expect(screen.getByRole('table')).not.toHaveAttribute('tabindex');
+  });
+
+  it('keeps the Node column after the user explicitly shows it', () => {
+    renderTable({
+      columns: [
+        { id: 'selection', accessorKey: 'selected', header: 'Selection' },
+        { id: 'status', accessorKey: 'status', header: 'Status' },
+        { id: 'node', accessorKey: 'node', header: 'Node' },
+        { id: 'ip', accessorKey: 'ip', header: 'IP' },
+      ],
+    });
+
+    act(() =>
+      tableMocks.options.onColumnVisibilityChange({
+        status: false,
+        node: true,
+        ip: false,
+      })
+    );
+
+    expect(tableMocks.options.state.columnVisibility).toMatchObject({
+      status: false,
+      node: true,
+      ip: false,
+    });
+    expect(screen.getByRole('table')).toHaveAttribute('tabindex', '0');
+  });
+
+  it('keeps caller control authoritative, including a replacement empty map', () => {
+    const onColumnVisibilityChange = vi.fn();
+    const props = { columns, data: [{ selected: false }], onColumnVisibilityChange };
+    const { rerender } = renderTable({ ...props, state: { columnVisibility: { name: true } } });
+    expect(tableMocks.options.state.columnVisibility.name).toBe(true);
+    act(() => tableMocks.options.onColumnVisibilityChange({ name: false }));
+    expect(onColumnVisibilityChange).toHaveBeenCalledWith({ name: false });
+    expect(tableMocks.options.state.columnVisibility.name).toBe(true);
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} state={{ columnVisibility: {} }} />
+      </ThemeProvider>
+    );
+    expect(tableMocks.options.state.columnVisibility).toEqual({ name: false, detail: false });
+    expect(screen.getByRole('table')).not.toHaveAttribute('tabindex');
+  });
+
+  it.each([
+    [undefined, 'minmax(100px, 1fr)'],
+    [2, 'minmax(100px, 2fr)'],
+    ['1.5fr', 'minmax(100px, 1.5fr)'],
+    ['auto', 'minmax(100px, auto)'],
+    ['min-content', 'minmax(100px, min-content)'],
+    ['minmax(120px, 2fr)', 'minmax(120px, 2fr)'],
+  ])(
+    'provides real minimum tracks for %s without replacing explicit CSS sizing',
+    (gridTemplate, expected) => {
+      renderTable({
+        columns: columns.slice(0, 2).map(column => ({ ...column, gridTemplate })),
+        enableRowActions: true,
+        enableRowSelection: true,
+      });
+      act(() => tableMocks.options.onColumnVisibilityChange({ selection: true, name: true }));
+      const table = screen.getByRole('table');
+      expect(table).toHaveAttribute('tabindex', '0');
+      expect(getComputedStyle(table).overflowX).toBe('auto');
+      expect(getComputedStyle(table).gridTemplateColumns).toBe(
+        `44px ${expected} ${expected} minmax(52px, 0.05fr)`
+      );
+      expect(table).not.toContainElement(screen.getByTestId('top-toolbar'));
+      expect(table).not.toContainElement(screen.getByTestId('bottom-toolbar'));
+      table.focus();
+      expect(table).toHaveFocus();
+    }
+  );
 });
 
 describe('Table states and options', () => {
