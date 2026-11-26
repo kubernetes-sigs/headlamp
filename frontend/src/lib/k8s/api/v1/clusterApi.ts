@@ -25,6 +25,7 @@ import { deleteClusterKubeconfig } from '../../../../stateless/deleteClusterKube
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster, getSelectedClusters } from '../../../cluster';
+import { ApiError } from '../v2/ApiError';
 import type { ClusterRequest } from './clusterRequests';
 import { clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
@@ -128,7 +129,10 @@ export async function testClusterHealth(cluster?: string) {
 
   const healthChecks = clusterNames.map(clusterName => {
     return clusterRequest('/healthz', { isJSON: false, cluster: clusterName }).catch(error => {
-      throw new Error(`Cluster ${clusterName} is not healthy: ${error.message}`);
+      throw new ApiError(`Cluster ${clusterName} is not healthy: ${error.message}`, {
+        status: error?.status,
+        cluster: clusterName,
+      });
     });
   });
 
