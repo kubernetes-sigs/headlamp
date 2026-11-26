@@ -19,6 +19,7 @@ package kubeconfig
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -610,6 +611,91 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 	return clientConfig.ClientConfig()
 }
 
+// useOwnTransport gives the proxy of a KubeConfig context a transport of its
+// own when its client certificate and key are files. The watcher sets that
+// proxy up again whenever it reloads the context, but client-go shares one
+// transport, with its open connections, between configs that name the same
+// certificate files, so the reloaded proxy would keep presenting the old
+// certificate. client-go does not share the transport of a config with a
+// Proxy function, and ProxyFromEnvironment is the one it uses by default.
+// The transport still loads the files itself, so a rotation the watcher does
+// not reload, for example when it failed to start, is picked up as before.
+func useOwnTransport(conf *rest.Config) {
+	if conf.CertFile != "" && conf.KeyFile != "" && conf.Proxy == nil {
+		conf.Proxy = http.ProxyFromEnvironment
+	}
+}
+
+// retainLastClientCertificate keeps the last usable file-backed pair while a
+// rotation has temporarily left the files missing or mismatched. client-go
+// continues reloading the files, so a completed rotation is still picked up
+// independently and existing connections continue to rotate normally.
+func retainLastClientCertificate(conf *rest.Config) {
+	if conf.CertFile == "" || conf.KeyFile == "" {
+		return
+	}
+
+	conf.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+		base := rt
+		for {
+			t, ok := base.(*http.Transport)
+			if ok {
+				retainLastClientCertificateForTransport(t, conf.CertFile, conf.KeyFile)
+
+				return rt
+			}
+
+			wrapper, ok := base.(interface {
+				WrappedRoundTripper() http.RoundTripper
+			})
+			if !ok {
+				return rt
+			}
+
+			base = wrapper.WrappedRoundTripper()
+		}
+	})
+}
+
+func retainLastClientCertificateForTransport(t *http.Transport, certFile, keyFile string) {
+	if t.TLSClientConfig == nil || t.TLSClientConfig.GetClientCertificate == nil {
+		return
+	}
+
+	t.TLSClientConfig = t.TLSClientConfig.Clone()
+
+	var (
+		mu   sync.Mutex
+		last *tls.Certificate
+	)
+
+	// Seed this transport before any request. Load the files directly rather
+	// than through client-go's rotating callback, whose background reload can
+	// later fail without retaining its previous pair.
+	if cert, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+		last = &cert
+	}
+
+	t.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if err == nil {
+			last = &cert
+
+			return last, nil
+		}
+
+		if last != nil {
+			return last, nil
+		}
+
+		return nil, err
+	}
+}
+
 // makeTransportFor creates an HTTP transport configuration with special handling for
 // Windows systems to prevent terminal window flashing during exec-based authentication.
 func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
@@ -783,6 +869,19 @@ func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request
 
 // ClientSetWithToken returns a kubernetes clientset for the context.
 func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error) {
+	return c.clientSetWithToken(token, false)
+}
+
+// ClientSetWithOwnTransport is ClientSetWithToken for a clientset kept per
+// context, such as the response cache's authorization clientsets, which are
+// created again for a reloaded context. Like the proxy, see useOwnTransport,
+// the clientset of a KubeConfig context gets a transport of its own, so after
+// a rotation the new one does not present the old client certificate.
+func (c *Context) ClientSetWithOwnTransport(token string) (*kubernetes.Clientset, error) {
+	return c.clientSetWithToken(token, c.Source == KubeConfig)
+}
+
+func (c *Context) clientSetWithToken(token string, ownTransport bool) (*kubernetes.Clientset, error) {
 	restConf, err := c.RESTConfig()
 	if err != nil {
 		return nil, err
@@ -791,6 +890,11 @@ func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error
 	if token != "" {
 		restConf.BearerToken = token
 		restConf.BearerTokenFile = ""
+	}
+
+	if ownTransport {
+		useOwnTransport(restConf)
+		retainLastClientCertificate(restConf)
 	}
 
 	return kubernetes.NewForConfig(restConf)
@@ -853,6 +957,11 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 	restConf, err := c.RESTConfig()
 	if err != nil {
 		return fmt.Errorf("build proxy configuration: %w", err)
+	}
+
+	if c.Source == KubeConfig {
+		useOwnTransport(restConf)
+		retainLastClientCertificate(restConf)
 	}
 
 	roundTripper, err := makeTransportFor(restConf)
@@ -1204,6 +1313,27 @@ func rawContextDefinition(contextName string, raw map[interface{}]interface{}, s
 	context.KubeContext = kubeContext
 
 	return context
+}
+
+func yamlValueToJSON(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{}, len(typed))
+		for key, child := range typed {
+			result[fmt.Sprint(key)] = yamlValueToJSON(child)
+		}
+
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(typed))
+		for i, child := range typed {
+			result[i] = yamlValueToJSON(child)
+		}
+
+		return result
+	default:
+		return typed
+	}
 }
 
 // failedContextDefinition preserves the raw definition, especially extensions
