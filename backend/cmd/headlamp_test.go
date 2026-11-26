@@ -4170,6 +4170,7 @@ func TestStartHeadlampServer(t *testing.T) {
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				// port comes from net.TCPAddr.Port and is always in [0, 65535], so uint conversion is safe.
 				Port:            uint(port),
+				ListenAddr:      "127.0.0.1",
 				PluginDir:       tempDir,
 				KubeConfigStore: kubeconfig.NewContextStore(),
 			},
@@ -4228,6 +4229,7 @@ func TestStartHeadlampServerTLS(t *testing.T) {
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				Port:            8185,
+				ListenAddr:      "127.0.0.1",
 				PluginDir:       tempDir,
 				KubeConfigStore: kubeconfig.NewContextStore(),
 				TLSCertPath:     "headlamp_testdata/headlamp.crt",
