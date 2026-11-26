@@ -93,7 +93,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `conditions` | [`KubeCondition`](../interfaces/lib_k8s_cluster.KubeCondition.md)[] |
+| `conditions` | [`PodCondition`](../interfaces/lib_k8s_cluster.PodCondition.md)[] |
 | `containerStatuses` | [`KubeContainerStatus`](../interfaces/lib_k8s_cluster.KubeContainerStatus.md)[] |
 | `ephemeralContainerStatuses?` | [`KubeContainerStatus`](../interfaces/lib_k8s_cluster.KubeContainerStatus.md)[] |
 | `hostIP?` | `string` |

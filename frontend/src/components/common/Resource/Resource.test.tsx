@@ -16,7 +16,7 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Base64 } from 'js-base64';
 import { PropsWithChildren } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -37,6 +37,7 @@ import {
 } from '../../DetailsViewSection/detailsViewSectionSlice';
 import {
   buildEnvironmentVariables,
+  ConditionsTable,
   DataField,
   DetailsGrid,
   extractEnvVarReferences,
@@ -108,6 +109,57 @@ function build(
 ) {
   return buildEnvironmentVariables(references, secrets, configMaps, resource, container, started);
 }
+
+describe('ConditionsTable', () => {
+  it('renders numeric timestamp zero while null and undefined updates remain missing', () => {
+    const resource = {
+      kind: 'Deployment',
+      metadata,
+      status: {
+        conditions: [
+          {
+            type: 'Epoch',
+            status: 'True',
+            lastTransitionTime: '2025-01-01T00:00:00Z',
+            lastUpdateTime: 0,
+          },
+          {
+            type: 'Null',
+            status: 'True',
+            lastTransitionTime: '2025-01-01T00:00:00Z',
+            lastUpdateTime: null,
+          },
+          {
+            type: 'Undefined',
+            status: 'True',
+            lastTransitionTime: '2025-01-01T00:00:00Z',
+            lastUpdateTime: undefined,
+          },
+        ],
+      },
+    };
+
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ConditionsTable resource={resource} />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    const rows = screen.getAllByRole('row');
+    const epochUpdateCell = within(rows[1]).getAllByRole('cell')[3];
+    const nullUpdateCell = within(rows[2]).getAllByRole('cell')[3];
+    const undefinedUpdateCell = within(rows[3]).getAllByRole('cell')[3];
+
+    expect(epochUpdateCell.querySelector('p')).toHaveAttribute(
+      'aria-label',
+      '1970-01-01T00:00:00.000Z'
+    );
+    expect(nullUpdateCell).toHaveTextContent('-');
+    expect(undefinedUpdateCell).toHaveTextContent('-');
+  });
+});
 
 describe('environment variable resolution', () => {
   it('extracts literal, downward API and bulk references, preserving optional flags and prefixes', () => {

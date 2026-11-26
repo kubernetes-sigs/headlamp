@@ -85,7 +85,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `conditions` | [`KubeCondition`](lib_k8s_cluster.KubeCondition.md)[] |
+| `conditions` | [`PodCondition`](lib_k8s_cluster.PodCondition.md)[] |
 | `containerStatuses` | [`KubeContainerStatus`](lib_k8s_cluster.KubeContainerStatus.md)[] |
 | `ephemeralContainerStatuses?` | [`KubeContainerStatus`](lib_k8s_cluster.KubeContainerStatus.md)[] |
 | `hostIP?` | `string` |
