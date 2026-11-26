@@ -41,9 +41,8 @@ export class Lease extends KubeObject<KubeLease> {
     const baseObject = super.getBaseObject() as KubeLease;
     baseObject.spec = {
       holderIdentity: '',
-      leaseDurationSeconds: 0,
+      leaseDurationSeconds: 15,
       leaseTransitions: 0,
-      renewTime: '',
     };
     return baseObject;
   }
