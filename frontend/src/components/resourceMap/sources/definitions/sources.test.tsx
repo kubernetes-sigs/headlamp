@@ -19,6 +19,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import App from '../../../../App';
 import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
+import ClusterTrustBundle from '../../../../lib/k8s/clusterTrustBundle';
 import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
@@ -151,11 +152,22 @@ describe('useGetAllSources', () => {
     expect(findLeaf(result.current, 'Pod')).toBeDefined();
   });
 
-  it('puts the namespaced and cluster scoped RBAC kinds in the Security group', () => {
-    const { result } = renderHook(() => useGetAllSources());
-    const security = findGroup(result.current, 'security');
+  it('includes RBAC and certificate resources in Security as their APIs are available', () => {
+    let servingClusters: string[] | undefined;
+    const bundleSourceId = 'certificates.k8s.io/ClusterTrustBundle';
+    vi.mocked(useSelectedClusters).mockReturnValue(['cluster-a', 'cluster-b']);
+    vi.mocked(useQuery).mockImplementation(
+      ({ queryKey }) =>
+        ({
+          data:
+            queryKey[0] === 'clustersServing' && queryKey[2] === ClusterTrustBundle.apiName
+              ? servingClusters
+              : [],
+        } as ReturnType<typeof useQuery>)
+    );
+    const { result, rerender } = renderHook(() => useGetAllSources());
 
-    expect(security.sources.map(source => source.id)).toEqual([
+    expect(findGroup(result.current, 'security').sources.map(source => source.id)).toEqual([
       'ServiceAccount',
       'rbac.authorization.k8s.io/Role',
       'rbac.authorization.k8s.io/RoleBinding',
@@ -163,6 +175,28 @@ describe('useGetAllSources', () => {
       'rbac.authorization.k8s.io/ClusterRoleBinding',
       'certificates.k8s.io/CertificateSigningRequest',
     ]);
+
+    servingClusters = [];
+    rerender();
+    expect(findLeaf(result.current, bundleSourceId)).toBeUndefined();
+
+    servingClusters = ['cluster-b'];
+    rerender();
+    const bundleSource = findLeaf(findGroup(result.current, 'security').sources, bundleSourceId);
+    expect(bundleSource).toBeDefined();
+
+    const bundle = new ClusterTrustBundle(
+      {
+        ...ClusterTrustBundle.getBaseObject(),
+        metadata: { name: 'bundle', uid: 'bundle-1', creationTimestamp: '2026-01-01T00:00:00Z' },
+      },
+      'cluster-b'
+    );
+    const useList = vi.spyOn(ClusterTrustBundle, 'useList').mockReturnValue([[bundle]] as any);
+    const { result: data } = renderHook(() => bundleSource!.useData());
+
+    expect(useList).toHaveBeenCalledWith({ namespace: ['namespace-a'], clusters: ['cluster-b'] });
+    expect(data.current).toEqual({ nodes: [{ id: 'bundle-1', kubeObject: bundle }] });
   });
 
   it('loads leaf data as null and then converts Kubernetes objects to graph nodes', () => {
