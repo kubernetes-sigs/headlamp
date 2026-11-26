@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -200,11 +201,18 @@ func TestSharedCacheChecksExactResourceForEachUser(t *testing.T) {
 			denied := cacheResourceRequest(t, router, sensitivePath, "reader", "", "")
 			require.Equal(t, http.StatusForbidden, denied.Code)
 			require.NotContains(t, denied.Body.String(), "sensitive-value")
+
 			a.revoked.Store(true)
+			beforeGets, beforeReviews, beforeWatches := gets, a.reviews.Load(), watches
+
+			k8cache.ExpireSSARForTesting()
 
 			denied = cacheResourceRequest(t, router, pod, "reader", "", "")
 			require.Equal(t, http.StatusForbidden, denied.Code)
 			require.NotContains(t, denied.Body.String(), `"kind":"Pod"`)
+			require.Equal(t, beforeGets, a.gets.Load())
+			require.Equal(t, beforeReviews+1, a.reviews.Load())
+			require.Equal(t, beforeWatches, a.watches.Load())
 		})
 	}
 }
@@ -280,7 +288,7 @@ func TestCacheAuthorizationWithInClusterTokenFile(t *testing.T) {
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusForbidden, response.Code)
 	require.NotContains(t, response.Body.String(), "sensitive-value")
-	require.Equal(t, reviews+2, a.reviews.Load())
+	require.Equal(t, reviews+1, a.reviews.Load())
 }
 
 func TestCacheFallsBackWhenAuthorizationOrWatchIsUnavailable(t *testing.T) {
@@ -299,6 +307,8 @@ func TestCacheFallsBackWhenAuthorizationOrWatchIsUnavailable(t *testing.T) {
 	a.watchDenied.Store(false)
 	requireCachedResource(t, router, path, "admin", "")
 	a.reviewError.Store(true)
+	k8cache.ExpireSSARForTesting()
+
 	before := a.gets.Load()
 	response := cacheResourceRequest(t, router, path, "reader", "", "")
 	require.Equal(t, http.StatusOK, response.Code)

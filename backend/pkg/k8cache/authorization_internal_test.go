@@ -371,13 +371,7 @@ func TestIsAllowed_WithFakeAPIServer(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	k := &kubeconfig.Context{
-		Name:        "fake-cluster",
-		ClusterID:   "fake-cluster",
-		Cluster:     &api.Cluster{Server: srv.URL},
-		AuthInfo:    &api.AuthInfo{Token: "tok"},
-		KubeContext: &api.Context{Cluster: "fake-cluster"},
-	}
+	k := fakeSSARContext(srv.URL)
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/fake-cluster/api/v1/pods", nil)
 	req = mux.SetURLVars(req, map[string]string{"api": "api/v1/pods"})
@@ -389,16 +383,38 @@ func TestIsAllowed_WithFakeAPIServer(t *testing.T) {
 	assert.True(t, ok)
 
 	allowed = false
+
+	ResetForTesting()
+
 	ok, err = IsAllowed("fake-cluster", k, req)
 	require.NoError(t, err)
 	assert.False(t, ok)
 
 	statusCode = http.StatusInternalServerError
+
+	ResetForTesting()
+
 	ok, err = IsAllowed("fake-cluster", k, req)
 	require.Error(t, err)
 	assert.False(t, ok)
 
+	requireIsAllowedRejectsInvalidRequest(t, k)
+}
+
+func fakeSSARContext(serverURL string) *kubeconfig.Context {
+	return &kubeconfig.Context{
+		Name:        "fake-cluster",
+		ClusterID:   "fake-cluster",
+		Cluster:     &api.Cluster{Server: serverURL},
+		AuthInfo:    &api.AuthInfo{Token: "tok"},
+		KubeContext: &api.Context{Cluster: "fake-cluster"},
+	}
+}
+
+func requireIsAllowedRejectsInvalidRequest(t *testing.T, k *kubeconfig.Context) {
+	t.Helper()
+
 	badReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/fake-cluster/invalid", nil)
-	_, err = IsAllowed("fake-cluster", k, badReq)
+	_, err := IsAllowed("fake-cluster", k, badReq)
 	require.Error(t, err)
 }
