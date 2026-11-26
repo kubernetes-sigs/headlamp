@@ -118,7 +118,16 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
             gap={0.5}
             sx={{ color: theme.palette.navbar.searchHint, pointerEvents: 'none' }}
           >
-            <Trans>
+            <Trans
+              t={t}
+              i18nKey="Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search"
+              values={{
+                'formatShortcutKey(searchShortcutKey)': formatShortcutKey(searchShortcutKey),
+              }}
+              tOptions={{
+                interpolation: { prefix: '{', suffix: '}' },
+              }}
+            >
               Press
               <Box
                 component="kbd"
