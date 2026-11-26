@@ -17,20 +17,22 @@
 import type Deployment from '../../lib/k8s/deployment';
 
 /**
- * Compares deployments by their available and total replicas, as shown in the Pods column.
+ * Compares deployments by their ready and desired replicas, as shown in the Pods column.
  *
- * The API omits replicas and availableReplicas when they are zero, so they are treated
+ * The API omits replicas and readyReplicas when they are zero, so they are treated
  * as such here. Subtracting them directly would give NaN and leave those rows in an
  * arbitrary order.
  */
 export function sortByPods(d1: Deployment, d2: Deployment) {
-  const { replicas: r1, availableReplicas: avail1 } = d1.status ?? {};
-  const { replicas: r2, availableReplicas: avail2 } = d2.status ?? {};
+  const ready1 = d1.status?.readyReplicas ?? 0;
+  const ready2 = d2.status?.readyReplicas ?? 0;
+  const desired1 = d1.spec?.replicas ?? 0;
+  const desired2 = d2.spec?.replicas ?? 0;
 
-  const availSorted = (avail1 ?? 0) - (avail2 ?? 0);
-  if (availSorted === 0) {
-    return (r1 ?? 0) - (r2 ?? 0);
+  const readySorted = ready1 - ready2;
+  if (readySorted === 0) {
+    return desired1 - desired2;
   }
 
-  return availSorted;
+  return readySorted;
 }

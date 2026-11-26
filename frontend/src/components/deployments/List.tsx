@@ -27,9 +27,10 @@ export default function DeploymentsList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
   function renderPods(deployment: Deployment) {
-    const { replicas, availableReplicas } = deployment.status ?? {};
+    const { replicas } = deployment.spec ?? {};
+    const { readyReplicas } = deployment.status ?? {};
 
-    return `${availableReplicas || 0}/${replicas || 0}`;
+    return `${readyReplicas || 0}/${replicas || 0}`;
   }
 
   function renderConditions(deployment: Deployment) {
@@ -88,7 +89,7 @@ export default function DeploymentsList() {
           id: 'pods',
           label: t('Pods'),
           disableFiltering: true,
-          getValue: deployment => deployment.status?.availableReplicas ?? 0,
+          getValue: deployment => deployment.status?.readyReplicas ?? 0,
           render: deployment => renderPods(deployment),
           sort: sortByPods,
           gridTemplate: 'min-content',
