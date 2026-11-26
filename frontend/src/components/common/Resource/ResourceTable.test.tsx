@@ -108,6 +108,12 @@ describe('ResourceTable Column Visibility', () => {
         getValue: (item: any) => item.metadata.namespace,
         show: false,
       },
+      {
+        id: 'status',
+        label: 'Status',
+        getValue: () => '',
+        show: true,
+      },
     ];
 
     renderTable({
@@ -117,7 +123,7 @@ describe('ResourceTable Column Visibility', () => {
     });
 
     expect(lastTablePropsHolder.current).not.toBeNull();
-    // Only columns with explicit show parameter or labels column default are present
+    // Only columns hidden by default are present, so the others can still hide responsively
     expect(lastTablePropsHolder.current.state.columnVisibility).toEqual({
       namespace: false,
     });
