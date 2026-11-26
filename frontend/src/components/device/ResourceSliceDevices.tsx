@@ -22,7 +22,7 @@ import { formatTaint } from '../node/utils';
 import { formatDeviceAttribute } from './resourceSliceDevice';
 import { ResourceSliceDeviceNode } from './ResourceSliceNode';
 
-function NameValueLines({ values }: { values: [string, string | undefined][] }) {
+export function NameValueLines({ values }: { values: [string, string | undefined][] }) {
   return (
     <>
       {[...values]
@@ -39,6 +39,7 @@ function NameValueLines({ values }: { values: [string, string | undefined][] }) 
 export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }) {
   const { t } = useTranslation(['glossary', 'translation']);
   const hasTaints = slice.devices.some(device => !!device.taints?.length);
+  const consumesCounters = slice.devices.some(device => !!device.consumesCounters?.length);
 
   return (
     <SimpleTable
@@ -76,6 +77,24 @@ export default function ResourceSliceDevices({ slice }: { slice: ResourceSlice }
                 getter: (device: ResourceSliceDevice) => (
                   <ResourceSliceDeviceNode slice={slice} device={device} />
                 ),
+              },
+            ]
+          : []),
+        ...(consumesCounters
+          ? [
+              {
+                label: t('translation|Consumed Counters'),
+                getter: (device: ResourceSliceDevice) =>
+                  device.consumesCounters?.map(consumption => (
+                    <div key={consumption.counterSet}>
+                      <strong>{consumption.counterSet}</strong>
+                      <NameValueLines
+                        values={Object.entries(consumption.counters ?? {}).map(
+                          ([name, counter]) => [name, counter.value]
+                        )}
+                      />
+                    </div>
+                  )),
               },
             ]
           : []),

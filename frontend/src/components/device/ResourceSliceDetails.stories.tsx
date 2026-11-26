@@ -21,7 +21,9 @@ import { API_BASE, TestContext } from '../../test';
 import ResourceSliceDetails from './ResourceSliceDetails';
 import {
   RESOURCE_SLICE_DUMMY_DATA,
+  RESOURCE_SLICE_PARTITIONED,
   RESOURCE_SLICE_PER_DEVICE,
+  RESOURCE_SLICE_SHARED_COUNTERS,
   RESOURCE_SLICE_TAINTED,
 } from './storyHelper';
 
@@ -76,6 +78,20 @@ PerDevice.parameters = { msw: { handlers: { story: handlersFor(RESOURCE_SLICE_PE
 export const Tainted = Template.bind({});
 Tainted.args = { name: RESOURCE_SLICE_TAINTED.metadata.name };
 Tainted.parameters = { msw: { handlers: { story: handlersFor(RESOURCE_SLICE_TAINTED) } } };
+
+/** The slice that publishes the memory and multiprocessors of a GPU as a shared counter set. */
+export const SharedCounters = Template.bind({});
+SharedCounters.args = { name: RESOURCE_SLICE_SHARED_COUNTERS.metadata.name };
+SharedCounters.parameters = {
+  msw: { handlers: { story: handlersFor(RESOURCE_SLICE_SHARED_COUNTERS) } },
+};
+
+/** The slice with the two partitions of that GPU, which consume its shared counters. */
+export const PartitionedDevices = Template.bind({});
+PartitionedDevices.args = { name: RESOURCE_SLICE_PARTITIONED.metadata.name };
+PartitionedDevices.parameters = {
+  msw: { handlers: { story: handlersFor(RESOURCE_SLICE_PARTITIONED) } },
+};
 
 export const Loading = Template.bind({});
 Loading.args = { name: nodeSlice.metadata.name };

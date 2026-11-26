@@ -25,6 +25,7 @@ import { TestContext } from '../../test';
 import ResourceSliceDevices from './ResourceSliceDevices';
 import {
   RESOURCE_SLICE_DUMMY_DATA,
+  RESOURCE_SLICE_PARTITIONED,
   RESOURCE_SLICE_PER_DEVICE,
   RESOURCE_SLICE_TAINTED,
 } from './storyHelper';
@@ -105,5 +106,17 @@ describe('ResourceSliceDevices', () => {
         'gpu.example.com/maintenance:NoSchedule'
       )
     ).toBeVisible();
+  });
+  it('shows the counters each device consumes only when a device consumes some', () => {
+    const { unmount } = renderDevices(nodeSlice);
+    expect(screen.queryByText('Consumed Counters')).not.toBeInTheDocument();
+    unmount();
+
+    renderDevices(RESOURCE_SLICE_PARTITIONED);
+    expect(screen.getByText('Consumed Counters')).toBeVisible();
+    const row = within(screen.getByText('gpu-0-part-0').closest('tr')!);
+    expect(row.getByText('gpu-0-counters')).toBeVisible();
+    expect(row.getByText('memory: 40Gi')).toBeVisible();
+    expect(row.getByText('multiprocessors: 66')).toBeVisible();
   });
 });
