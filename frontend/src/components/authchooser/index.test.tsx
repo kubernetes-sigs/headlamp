@@ -18,8 +18,9 @@ import { ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { Provider } from 'react-redux';
-import { MemoryRouter, Route } from 'react-router-dom';
+import { MemoryRouter, Route, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useClustersConf } from '../../lib/k8s';
 import { createMuiTheme } from '../../lib/themes';
 import { setConfig } from '../../redux/configSlice';
 import store from '../../redux/stores/store';
@@ -61,12 +62,19 @@ vi.mock('react-i18next', async importOriginal => {
 
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
 
+function CurrentPath() {
+  const location = useLocation();
+
+  return <div data-testid="current-route">{location.pathname}</div>;
+}
+
 describe('AuthChooser component', () => {
   let queryClient: QueryClient;
   const originalLocation = window.location;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useClustersConf).mockImplementation(() => store.getState().config.clusters);
     sessionStorage.clear();
     localStorage.clear();
 
@@ -184,6 +192,44 @@ describe('AuthChooser component', () => {
     });
 
     expect(sessionStorage.getItem('oidc_return_url')).toBe('/c/test-cluster/pods');
+  });
+
+  it('redirects from the login route to the cluster root after successful authentication', async () => {
+    vi.mocked(testAuth).mockResolvedValueOnce({} as any);
+    vi.mocked(useClustersConf).mockReturnValue({
+      'test-cluster': {
+        name: 'test-cluster',
+        auth_type: '',
+      } as any,
+    });
+
+    render(
+      <Provider store={store}>
+        <ThemeProvider theme={theme}>
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter
+              initialEntries={[
+                {
+                  pathname: '/c/test-cluster/login',
+                  state: { from: { pathname: '/c/test-cluster/' } },
+                },
+              ]}
+            >
+              <CurrentPath />
+              <Route path="/c/test-cluster/login">
+                <AuthChooser />
+              </Route>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </ThemeProvider>
+      </Provider>
+    );
+
+    expect(screen.getByTestId('current-route')).toHaveTextContent('/c/test-cluster/login');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('current-route')).toHaveTextContent(/^\/c\/test-cluster\/$/);
+    });
   });
 
   it('does NOT redirect to IdP when testAuth fails with 502 Bad Gateway and shows error UI', async () => {
