@@ -39,19 +39,15 @@ export { matchExpressionSimplifier, matchLabelsSimplifier };
  * */
 export function useClustersConf(): ConfigState['allClusters'] {
   const state = useTypedSelector(state => state.config);
-  const clusters = _.cloneDeep(state.clusters || {});
-  const allClusters = _.cloneDeep(state.allClusters || {});
-  Object.assign(allClusters, clusters);
-
-  if (state.statelessClusters) {
-    // Combine statelessClusters with clusters
-    const statelessClusters = _.cloneDeep(state.statelessClusters || {});
-    Object.assign(allClusters, statelessClusters);
-  }
-
   return useMemo(
-    () => (state.clusters === null ? null : allClusters),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () =>
+      state.clusters === null
+        ? null
+        : _.cloneDeep({
+            ...state.allClusters,
+            ...state.clusters,
+            ...state.statelessClusters,
+          }),
     [state.clusters, state.allClusters, state.statelessClusters]
   );
 }

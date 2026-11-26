@@ -196,7 +196,7 @@ func TestDispatchHelmRoute(t *testing.T) {
 	require.Empty(t, cfg.updateCustomContextToCache(&api.Config{
 		Clusters: map[string]*api.Cluster{"c1": {Server: "http://127.0.0.1:1"}},
 		Contexts: map[string]*api.Context{"c1": {Cluster: "c1"}},
-	}, ""))
+	}, "c1", "c1", kubeConfigSource))
 
 	routes := []struct {
 		method      string
@@ -284,14 +284,14 @@ func TestClusterSetupAndCacheHelpers(t *testing.T) {
 	assert.Len(t, cfg.handleSetupErrors([]error{errors.New("boom")}, ctx, rr, span), 1)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	emptyErrs := cfg.updateCustomContextToCache(&api.Config{}, "missing")
+	emptyErrs := cfg.updateCustomContextToCache(&api.Config{}, "missing", "missing", kubeConfigSource)
 	require.NotEmpty(t, emptyErrs)
 
 	validAPIConfig := &api.Config{
 		Clusters: map[string]*api.Cluster{"c1": {Server: "https://c1.example.com"}},
 		Contexts: map[string]*api.Context{"c1": {Cluster: "c1"}},
 	}
-	updateErrs := cfg.updateCustomContextToCache(validAPIConfig, "old")
+	updateErrs := cfg.updateCustomContextToCache(validAPIConfig, "c1", "c1", kubeConfigSource)
 	assert.Empty(t, updateErrs)
 
 	gotCtx, getErr := cfg.KubeConfigStore.GetContext("c1")

@@ -18,6 +18,7 @@ package auth_test
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -445,6 +446,10 @@ func (cacheStub) Get(ctx context.Context, k string) (interface{}, error) {
 	return nil, nil
 }
 
+func (cacheStub) UpdateIf(context.Context, string, interface{}, func(interface{}) bool) error {
+	return cache.ErrNotFound
+}
+
 func (cacheStub) GetAll(ctx context.Context, _ cache.Matcher) (map[string]interface{}, error) {
 	return map[string]interface{}{}, nil
 }
@@ -502,6 +507,29 @@ func (f *fakeCache) Set(_ context.Context, key string, val interface{}) error {
 	}{key, val})
 
 	return f.errOnSet
+}
+
+func (f *fakeCache) UpdateIf(ctx context.Context, key string, val interface{}, matches func(interface{}) bool) error {
+	if f.errOnGet != nil {
+		return f.errOnGet
+	}
+
+	current, ok := f.store[key]
+	if !ok {
+		return cache.ErrNotFound
+	}
+
+	if !matches(current) {
+		return errors.New("cache entry changed")
+	}
+
+	if err := f.Set(ctx, key, val); err != nil {
+		return err
+	}
+
+	f.store[key] = val
+
+	return nil
 }
 
 func (f *fakeCache) SetWithTTL(_ context.Context, key string, val interface{}, ttl time.Duration) error {
@@ -1366,6 +1394,49 @@ func TestConfigureTLSContext_CACert_PreservesDefaults(t *testing.T) {
 	assert.Equal(t, defaultTr.TLSHandshakeTimeout, tr.TLSHandshakeTimeout, "TLSHandshakeTimeout should be preserved")
 	assert.Equal(t, defaultTr.IdleConnTimeout, tr.IdleConnTimeout, "IdleConnTimeout should be preserved")
 	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be set")
+}
+
+func TestConfigureTLSContextPreservesClonedMinimumVersion(t *testing.T) {
+	original := http.DefaultTransport
+	base := original.(*http.Transport).Clone()
+	base.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS13}
+	http.DefaultTransport = base
+
+	t.Cleanup(func() {
+		http.DefaultTransport = original
+	})
+
+	skipTLSVerify := true
+	ctx := auth.ConfigureTLSContext(context.Background(), &skipTLSVerify, nil)
+	client, ok := ctx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok)
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+	assert.Equal(t, uint16(tls.VersionTLS13), transport.TLSClientConfig.MinVersion)
+}
+
+func TestConfigureTLSContextConnectsToTLS12OnlyOIDCProvider(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	//nolint:gosec // Intentionally only accepts TLS 1.2 to verify backwards compatibility.
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS12, MaxVersion: tls.VersionTLS12}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	skipTLSVerify := true
+	ctx := auth.ConfigureTLSContext(context.Background(), &skipTLSVerify, nil)
+	client := ctx.Value(oauth2.HTTPClient).(*http.Client)
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	response, err := client.Do(request)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, response.Body.Close())
+	})
+
+	assert.Equal(t, http.StatusNoContent, response.StatusCode)
 }
 
 func makeTestToken(t *testing.T, claims map[string]interface{}) string {

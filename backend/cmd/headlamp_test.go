@@ -3564,6 +3564,24 @@ func TestHandleClusterRename_BackToDNSFriendlyName(t *testing.T) {
 	assert.Empty(t, customNameOf())
 }
 
+func TestRedirectToOIDCProvider(t *testing.T) {
+	for _, rawURL := range []string{
+		"/relative",
+		"javascript:alert(1)",
+		"https://user:password@example.com/authorize",
+		"://invalid",
+	} {
+		recorder := httptest.NewRecorder()
+		assert.False(t, redirectToOIDCProvider(recorder, rawURL))
+		assert.Empty(t, recorder.Header().Get("Location"))
+	}
+
+	recorder := httptest.NewRecorder()
+	require.True(t, redirectToOIDCProvider(recorder, "https://issuer.example/authorize?state=value"))
+	assert.Equal(t, http.StatusFound, recorder.Code)
+	assert.Equal(t, "https://issuer.example/authorize?state=value", recorder.Header().Get("Location"))
+}
+
 // TestHandleError_NilError ensures handleError does not panic when a caller
 // passes a nil error. Calling err.Error() on a nil error would otherwise crash
 // the request handler; handleError falls back to the message instead.

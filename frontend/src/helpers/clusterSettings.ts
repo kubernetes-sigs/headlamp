@@ -43,6 +43,11 @@ export interface ClusterSettings {
     accentColor?: string;
     icon?: string;
   };
+  /**
+   * Headlamp tags used to filter and group clusters on the Home page.
+   * Keys and values follow key/value syntax (e.g. "environment": "production").
+   */
+  tags?: Record<string, string>;
 }
 
 export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/busybox:latest';
