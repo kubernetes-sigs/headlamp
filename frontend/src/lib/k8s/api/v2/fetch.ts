@@ -17,6 +17,7 @@
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
+import { requestPluginReload } from '../../../../plugin/pluginsSlice';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { ApiError } from './ApiError';
@@ -46,7 +47,7 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
   // See plugins.go
   const headerVal = response.headers.get('X-Reload');
   if (headerVal && headerVal.indexOf('reload') !== -1) {
-    window.location.reload();
+    requestPluginReload();
   }
 
   if (!response.ok) {

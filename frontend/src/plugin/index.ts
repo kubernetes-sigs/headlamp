@@ -25,6 +25,7 @@ import * as MuiLab from '@mui/lab';
 import * as MuiMaterial from '@mui/material';
 import * as MuiMaterialStyles from '@mui/material/styles';
 import { styled } from '@mui/system';
+import { SHOULD_AUTOBATCH } from '@reduxjs/toolkit';
 import * as Lodash from 'lodash';
 import * as MonacoEditor from 'monaco-editor';
 import * as Notistack from 'notistack';
@@ -51,6 +52,7 @@ import * as Notification from '../lib/notification';
 import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
+import { resetPluginRegistrations, RootState } from '../redux/reducers/reducers';
 import store from '../redux/stores/store';
 import { PluginSettingsAPI } from '../settings/pluginSettings';
 import * as stateless from '../stateless/index';
@@ -67,11 +69,18 @@ import {
 } from './developmentPlugins';
 import { fetchPluginResource } from './fetchPluginResource';
 import { Headlamp, Plugin } from './lib';
-import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
+import { changePluginLanguage, initializePluginI18n, resetPluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import {
+  getInfoForRunningPlugins,
+  identifyPackages,
+  PluginRegistration,
+  runPlugin,
+  runPluginProps,
+  withPluginRegistration,
+} from './runPlugin';
 import { createPluginSecureStorage, getPluginSecureStorageNamespace } from './secureStorage';
 
 window.pluginLib = {
@@ -131,6 +140,14 @@ window.pluginLib.MuiCore = window.pluginLib.MuiMaterial;
 window.plugins = {};
 
 const PLUGIN_STARTUP_TIMEOUT_MS = 30000;
+let pluginBaseline: RootState | undefined;
+let loadedPluginSources: string | undefined;
+const registrations = new Map<
+  string,
+  PluginRegistration & { signature: string; legacyNames: string[]; packageName: string }
+>();
+const legacyRegistrations = new Map<string, PluginRegistration>();
+const pluginLibrary = window.pluginLib;
 
 function remainingStartupTime(deadline: number): number {
   return Math.max(0, deadline - Date.now());
@@ -156,14 +173,28 @@ export async function beforePluginStartupDeadline<T>(
 /**
  * Load external, then local plugins. Then initialize() them in order with a Registry.
  */
-export async function initializePlugins() {
+export async function initializePlugins(pluginNames = Object.keys(window.plugins)) {
   // Initialize every plugin in the order they were loaded.
   return new Promise(resolve => {
-    for (const pluginName of Object.keys(window.plugins)) {
+    for (const pluginName of pluginNames) {
       const plugin = window.plugins[pluginName];
       try {
         // @todo: what should happen if this fails?
-        plugin.initialize(new Registry());
+        const registration = legacyRegistrations.get(pluginName);
+        if (registration) {
+          const registry = new Proxy(new Registry(), {
+            get(target, property, receiver) {
+              const value = Reflect.get(target, property, receiver);
+              return typeof value === 'function'
+                ? (...args: unknown[]) =>
+                    withPluginRegistration(registration, () => Reflect.apply(value, target, args))
+                : value;
+            },
+          });
+          withPluginRegistration(registration, () => plugin.initialize(registry));
+        } else {
+          plugin.initialize(new Registry());
+        }
       } catch (e) {
         console.error(`Plugin initialize() error in ${pluginName}:`, e);
       }
@@ -485,7 +516,8 @@ async function fetchWithRetry<T>(
 export async function fetchAndExecutePlugins(
   settingsPackages: PluginInfo[],
   onSettingsChange: (plugins: PluginInfo[]) => void,
-  onIncompatible: (plugins: Record<string, PluginInfo>) => void
+  onIncompatible: (plugins: Record<string, PluginInfo>) => void,
+  reload = false
 ) {
   const deadline = Date.now() + PLUGIN_STARTUP_TIMEOUT_MS;
   const permissionSecretsPromise = permissionSecretsFromApp();
@@ -521,13 +553,16 @@ export async function fetchAndExecutePlugins(
       fetchPluginResource(
         `${getAppUrl()}${path}/main.js`,
         headers,
-        response => response.text(),
+        response => {
+          if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+          return response.text();
+        },
         remainingStartupTime(deadline)
       )
     )
   );
 
-  const packageInfosPromise = await Promise.all<PluginInfo>(
+  const packageInfosPromise = Promise.all<PluginInfo>(
     pluginPaths.map((path, index) =>
       fetchPluginResource(
         `${getAppUrl()}${path}/package.json`,
@@ -566,11 +601,21 @@ export async function fetchAndExecutePlugins(
     )
   );
 
-  const sources = await sourcesPromise;
-  const packageInfos = await packageInfosPromise;
+  const [sources, packageInfos] = await Promise.all([sourcesPromise, packageInfosPromise]);
+  const sourceSignature = JSON.stringify([pluginMetadataList, packageInfos, sources]);
+  if (reload && sourceSignature === loadedPluginSources) {
+    return;
+  }
+  const previousSettings = reload
+    ? settingsPackages.map(plugin => ({
+        ...plugin,
+        settingsComponent: undefined,
+        displaySettingsComponentWithSaveButton: undefined,
+      }))
+    : settingsPackages;
   const permissionSecrets = await beforePluginStartupDeadline(permissionSecretsPromise, deadline);
   // Update settings to include all plugin versions (by name + type)
-  let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
+  let updatedSettingsPackages = updateSettingsPackages(packageInfos, previousSettings);
 
   // Apply priority-based loading logic
   updatedSettingsPackages = applyPluginPriority(updatedSettingsPackages);
@@ -636,9 +681,20 @@ export async function fetchAndExecutePlugins(
     packageInfos.findIndex(p => p.name === plugin.name && p.type === plugin.type)
   );
 
-  const sourcesToExecute = indicesToExecute.map(index => sources[index]);
-  const pluginPathsToExecute = indicesToExecute.map(index => pluginPaths[index]);
-  const packageInfosToExecute = indicesToExecute.map(index => packageInfos[index]);
+  const signatures = new Map(
+    indicesToExecute.map(index => [
+      pluginPaths[index],
+      JSON.stringify([packageInfos[index], sources[index]]),
+    ])
+  );
+  const changedIndices = indicesToExecute.filter(
+    index =>
+      !reload ||
+      registrations.get(pluginPaths[index])?.signature !== signatures.get(pluginPaths[index])
+  );
+  const sourcesToExecute = changedIndices.map(index => sources[index]);
+  const pluginPathsToExecute = changedIndices.map(index => pluginPaths[index]);
+  const packageInfosToExecute = changedIndices.map(index => packageInfos[index]);
   const secureStorageBridge = window?.desktopApi?.secureStorage;
   const secureStorageNamespaces = packageInfosToExecute.map(getPluginSecureStorageNamespace);
   const secureStorageCapabilities: Record<string, string> = secureStorageBridge
@@ -773,12 +829,77 @@ export async function fetchAndExecutePlugins(
     return 0;
   });
 
-  infoForRunningPlugins.forEach(runPluginInner);
+  const changedPaths = new Set(pluginPathsToExecute);
+  for (const [path, registration] of registrations) {
+    if (!signatures.has(path) || changedPaths.has(path)) {
+      registration.active = false;
+      resetPluginI18n(registration.packageName);
+      for (const name of registration.legacyNames) {
+        delete window.plugins[name];
+        legacyRegistrations.delete(name);
+      }
+      if (!signatures.has(path)) {
+        registrations.delete(path);
+      }
+    }
+  }
 
-  // Initialize plugin i18n after plugins are loaded
   await initializePluginsI18n(packageInfos, pluginPaths, deadline);
 
-  await beforePluginStartupDeadline(afterPluginsRun(pluginsLoaded), deadline);
+  if (pluginBaseline) {
+    store.dispatch({
+      ...resetPluginRegistrations({
+        baseline: pluginBaseline,
+        actions: [...registrations.values()].flatMap(registration =>
+          registration.active ? registration.actions : []
+        ),
+      }),
+      meta: { [SHOULD_AUTOBATCH]: true },
+    });
+  } else {
+    pluginBaseline = store.getState();
+  }
+  const legacyNames: string[] = [];
+  infoForRunningPlugins.forEach(info => {
+    const index = packageInfosToExecute.findIndex(
+      plugin => plugin.name === info[1] && plugin.version === info[2]
+    );
+    const path = pluginPathsToExecute[index];
+    const registration = {
+      active: true,
+      batch: true,
+      actions: [],
+      signature: signatures.get(path)!,
+      packageName: packageInfosToExecute[index].name,
+      legacyNames: [] as string[],
+    };
+    registrations.set(path, registration);
+    const previousPlugins = { ...window.plugins };
+    window.pluginLib = Object.fromEntries(
+      Object.entries(pluginLibrary).map(([name, value]) => [
+        name,
+        name.startsWith('register') && typeof value === 'function'
+          ? (...args: unknown[]) =>
+              withPluginRegistration(registration, () => Reflect.apply(value, undefined, args))
+          : value,
+      ])
+    ) as typeof window.pluginLib;
+    try {
+      withPluginRegistration(registration, () => runPluginInner(info));
+    } finally {
+      window.pluginLib = pluginLibrary;
+    }
+    for (const name of Object.keys(window.plugins)) {
+      if (window.plugins[name] !== previousPlugins[name]) {
+        registration.legacyNames.push(name);
+        legacyNames.push(name);
+        legacyRegistrations.set(name, registration);
+      }
+    }
+  });
+
+  await beforePluginStartupDeadline(afterPluginsRun(pluginsLoaded, legacyNames), deadline);
+  loadedPluginSources = sourceSignature;
 }
 
 /**
@@ -800,9 +921,8 @@ async function initializePluginsI18n(
   }
 
   // Set up language change synchronization
-  i18next.on('languageChanged', language => {
-    changePluginLanguage(language);
-  });
+  i18next.off('languageChanged', changePluginLanguage);
+  i18next.on('languageChanged', changePluginLanguage);
 }
 
 /**
@@ -814,9 +934,24 @@ async function afterPluginsRun(
     name: string;
     version: string | undefined;
     isEnabled: boolean | undefined;
-  }[]
+  }[],
+  legacyNames: string[]
 ) {
-  await initializePlugins();
+  await initializePlugins(legacyNames);
+
+  for (const registration of registrations.values()) {
+    registration.batch = false;
+  }
+  if (pluginBaseline) {
+    store.dispatch(
+      resetPluginRegistrations({
+        baseline: pluginBaseline,
+        actions: [...registrations.values()].flatMap(registration =>
+          registration.active ? registration.actions : []
+        ),
+      })
+    );
+  }
 
   store.dispatch(
     eventAction({

@@ -22,6 +22,7 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
+import { requestPluginReload } from '../../../../plugin/pluginsSlice';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
@@ -180,7 +181,7 @@ export async function clusterRequest(
   // See plugins.go
   const headerVal = response.headers.get('X-Reload');
   if (headerVal && headerVal.indexOf('reload') !== -1) {
-    window.location.reload();
+    requestPluginReload();
   }
 
   if (!response.ok) {
