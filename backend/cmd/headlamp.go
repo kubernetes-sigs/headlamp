@@ -1526,6 +1526,20 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
+		// The provider reports a failed authorization request with an error
+		// instead of a code (RFC 6749 section 4.1.2.1). Show it rather than
+		// exchanging an empty code.
+		if providerErr := r.URL.Query().Get("error"); providerErr != "" {
+			errDescription := r.URL.Query().Get("error_description")
+
+			logger.Log(logger.LevelError,
+				map[string]string{"error": providerErr, "error_description": errDescription, logFieldCluster: oauthConfig.Cluster},
+				nil, "OIDC provider returned an error")
+			http.Error(w, "OIDC provider returned an error: "+providerErr+": "+errDescription, http.StatusBadRequest)
+
+			return
+		}
+
 		var oauth2Token *oauth2.Token
 
 		// Exchange authorization code for token, with or without PKCE

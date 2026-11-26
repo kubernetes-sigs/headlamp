@@ -77,6 +77,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -524,6 +525,36 @@ func TestOIDCCallback_TokenExchangeFailure(t *testing.T) {
 		"token exchange failure should surface as 500")
 	assert.Contains(t, rr.Body.String(), "Failed to exchange token",
 		"error body should identify the failure stage; current handler echoes the IdP error")
+}
+
+// TestOIDCCallback_ProviderError checks that an error from the IdP (RFC 6749
+// section 4.1.2.1) is shown as a 400 with the error and its description,
+// that no token exchange is attempted, and that the state is consumed.
+func TestOIDCCallback_ProviderError(t *testing.T) {
+	var tokenCalls atomic.Int32
+
+	oidcSrv := newOIDCTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		tokenCalls.Add(1)
+		w.WriteHeader(http.StatusBadRequest)
+	})
+	handler, cluster := newOIDCTestHandler(t, oidcSrv)
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+
+	rr := callOIDCCallback(t, handler, url.Values{
+		"state":             {state},
+		"error":             {"invalid_scope"},
+		"error_description": {"scope openid is duplicated"},
+	}.Encode())
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "invalid_scope: scope openid is duplicated")
+	assert.Zero(t, tokenCalls.Load(), "no token exchange should be attempted")
+
+	replay := callOIDCCallback(t, handler, "state="+url.QueryEscape(state)+"&code=fake")
+	assert.Equal(t, http.StatusBadRequest, replay.Code)
+	assert.Equal(t, "invalid request", strings.TrimSpace(replay.Body.String()),
+		"the state should be consumed by the error callback")
 }
 
 // TestOIDCCallback_StateIsSingleUse covers target #6: a state is consumed
