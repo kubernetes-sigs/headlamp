@@ -18,6 +18,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Base64 } from 'js-base64';
+import { SnackbarProvider } from 'notistack';
 import { PropsWithChildren } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
@@ -38,6 +39,7 @@ import {
 import {
   buildEnvironmentVariables,
   ConditionsTable,
+  ContainerEnvironmentVariables,
   DataField,
   DetailsGrid,
   extractEnvVarReferences,
@@ -755,4 +757,79 @@ it('renders volume mount permissions and arranges all section grid items', () =>
   expect(screen.getByText('/data')).toBeInTheDocument();
   expect(screen.getByText('ReadWrite')).toBeInTheDocument();
   expect(screen.getByText('Extra section')).toBeInTheDocument();
+});
+
+describe('ContainerEnvironmentVariables clipboard handling', () => {
+  const pod = {
+    metadata: { name: 'test-pod', namespace: 'default', creationTimestamp: '2026-01-01T00:00:00Z' },
+    status: { containerStatuses: [{ name: 'app', started: true }] },
+  } as unknown as KubePod;
+
+  const container = {
+    name: 'app',
+    env: [{ name: 'LOG_LEVEL', value: 'debug' }],
+  } as KubeContainer;
+
+  function renderEnvVars() {
+    return render(
+      <TestContext>
+        <ThemeProvider theme={createMuiTheme({ base: 'light', name: 'light' })}>
+          <SnackbarProvider>
+            <ContainerEnvironmentVariables pod={pod} container={container} />
+          </SnackbarProvider>
+        </ThemeProvider>
+      </TestContext>
+    );
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('shows an error snackbar instead of crashing when navigator.clipboard is unavailable', async () => {
+    vi.stubGlobal('navigator', {});
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    renderEnvVars();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'Clipboard is not available. This can happen when Headlamp is served over an insecure (non-HTTPS) connection.'
+        )
+      ).toBeInTheDocument()
+    );
+    expect(log).toHaveBeenCalled();
+  });
+
+  it('shows an error snackbar when clipboard writeText rejects', async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error('clipboard denied'));
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    renderEnvVars();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await waitFor(() =>
+      expect(screen.getByText('Failed to copy to clipboard')).toBeInTheDocument()
+    );
+    expect(writeText).toHaveBeenCalledWith('debug');
+    expect(log).toHaveBeenCalled();
+  });
+
+  it('copies the env var value and shows a success snackbar when clipboard succeeds', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+    renderEnvVars();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+
+    await waitFor(() => expect(screen.getByText('Copied')).toBeInTheDocument());
+    expect(writeText).toHaveBeenCalledWith('debug');
+  });
 });

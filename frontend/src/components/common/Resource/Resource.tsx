@@ -1199,9 +1199,25 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
   // Copy handler using notistack
   const handleCopy = React.useCallback(
     (text: string) => {
+      if (!navigator.clipboard) {
+        console.error(
+          'Failed to copy to clipboard: navigator.clipboard is unavailable (Headlamp is likely being served over an insecure, non-HTTPS connection).'
+        );
+        enqueueSnackbar(
+          t(
+            'translation|Clipboard is not available. This can happen when Headlamp is served over an insecure (non-HTTPS) connection.'
+          ),
+          { variant: 'error' }
+        );
+        return;
+      }
+
       navigator.clipboard.writeText(text).then(
         () => enqueueSnackbar(t('translation|Copied'), { variant: 'success' }),
-        err => console.error('Failed to copy: ', err)
+        err => {
+          console.error('Failed to copy: ', err);
+          enqueueSnackbar(t('translation|Failed to copy to clipboard'), { variant: 'error' });
+        }
       );
     },
     [enqueueSnackbar, t]
