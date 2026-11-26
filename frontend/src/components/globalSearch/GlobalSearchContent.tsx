@@ -64,7 +64,10 @@ import { setTheme, useAppThemes } from '../App/themeSlice';
 import { LightTooltip } from '../common/Tooltip';
 import { KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
-import { rememberThemeChoiceIfEnabled } from '../Sidebar/ThemeToggleButton/ThemeToggleButton';
+import {
+  rememberThemeChoiceIfEnabled,
+  useIsThemeLocked,
+} from '../Sidebar/ThemeToggleButton/ThemeToggleButton';
 import { Delayed } from './Delayed';
 import { useLocalStorageState } from './useLocalStorageState';
 import { useRecent } from './useRecent';
@@ -338,10 +341,10 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   // Themes
   const appThemes = useAppThemes();
-  const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const themeLocked = useIsThemeLocked();
   const themeActions = useMemo(() => {
-    // A theme forced by configuration can't be changed, so don't offer to switch.
-    if (forceTheme) {
+    // A theme forced by configuration or locked by the administrator can't be changed.
+    if (themeLocked) {
       return [];
     }
     return appThemes.map(theme => ({
@@ -355,7 +358,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       },
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appThemes, forceTheme]);
+  }, [appThemes, themeLocked]);
 
   const [, setAdvancedSearchQueryKey] = useLocalStorageState(ADVANCED_SEARCH_QUERY_KEY, '');
 

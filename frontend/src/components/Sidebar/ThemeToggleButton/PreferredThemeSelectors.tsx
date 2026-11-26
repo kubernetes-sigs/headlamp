@@ -43,6 +43,7 @@ import {
   setPreferredLightThemeName,
   setQuickSwapEnabled,
   setRememberThemeChoices,
+  useIsThemeLocked,
   useQuickSwapSettingsRevision,
 } from './ThemeToggleButton';
 
@@ -53,7 +54,7 @@ import {
 export function PreferredThemeSelectors() {
   const { t } = useTranslation(['translation']);
   const appThemes = useAppThemes();
-  const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const themeLocked = useIsThemeLocked();
   const configuredLight = useTypedSelector(state => state.config.defaultLightTheme);
   const configuredDark = useTypedSelector(state => state.config.defaultDarkTheme);
   const dispatch = useDispatch();
@@ -101,7 +102,7 @@ export function PreferredThemeSelectors() {
     setRememberThemeChoices(remember);
   };
 
-  const disabled = !!forceTheme;
+  const disabled = themeLocked;
   const featureOff = disabled || !quickSwapOn;
   const customEnabled = !rememberEnabled;
   // The light/dark pair is used by custom quick swap and by following the system appearance.

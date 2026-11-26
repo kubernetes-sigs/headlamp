@@ -22,6 +22,10 @@ import { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppTheme } from '../../../lib/AppTheme';
 import { AUTOMATIC_THEME_PREFERENCE_KEY, createMuiTheme, getThemeName } from '../../../lib/themes';
+import {
+  AdminSettingsState,
+  initialAdminSettingsState,
+} from '../../../settings/adminSettingsSlice';
 import { TestContext } from '../../../test';
 import defaultAppThemes, { darkTheme, lightTheme } from '../../App/defaultAppThemes';
 import themeReducer, {
@@ -53,12 +57,14 @@ function makeStore(
   forceTheme = '',
   appThemes: AppTheme[] = defaultAppThemes,
   configuredDefaults: { defaultLightTheme?: string; defaultDarkTheme?: string } = {},
-  themeState: Partial<ThemeState> = {}
+  themeState: Partial<ThemeState> = {},
+  adminSettings: AdminSettingsState = initialAdminSettingsState
 ) {
   return configureStore({
     reducer: {
       theme: themeReducer,
       config: (state = { forceTheme, ...configuredDefaults }) => state,
+      adminSettings: (state = adminSettings) => state,
     },
     preloadedState: {
       theme: { ...themeInitialState, name: themeName, appThemes, ...themeState },
@@ -444,6 +450,70 @@ describe('quick swap cross-tab sync', () => {
 
     fireStorageEvent(QUICK_SWAP_ENABLED_KEY);
     expect(toggleButton()).not.toBeInTheDocument();
+  });
+});
+
+/** Admin settings that set the theme to Light with the given display mode. */
+function adminTheme(display?: 'disabled' | 'hidden'): AdminSettingsState {
+  return {
+    ...initialAdminSettingsState,
+    defaults: { theme: 'Light' },
+    display: display ? { theme: display } : {},
+  };
+}
+
+describe('theme locked by the administrator', () => {
+  const lockedStore = (display: 'disabled' | 'hidden') =>
+    makeStore('Light', '', defaultAppThemes, {}, {}, adminTheme(display));
+
+  it.each(['disabled', 'hidden'] as const)('hides the toggle when the theme is %s', display => {
+    const { container } = renderWithProviders(
+      <ThemeToggleButton />,
+      lightTheme,
+      lockedStore(display)
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('still shows the toggle when the admin theme is only a default', async () => {
+    const store = makeStore('Light', '', defaultAppThemes, {}, {}, adminTheme());
+    renderWithProviders(<ThemeToggleButton />, lightTheme, store);
+
+    await userEvent.click(screen.getByRole('button', { name: /switch to dark mode/i }));
+    expect(store.getState().theme.name).toBe('Dark');
+  });
+
+  it('disables the quick swap settings when the theme is disabled', () => {
+    renderWithProviders(<PreferredThemeSelectors />, lightTheme, lockedStore('disabled'));
+
+    expect(screen.getByRole('checkbox', { name: /quick swap/i })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: /follow system appearance/i })).toBeDisabled();
+  });
+
+  it('does not follow the system appearance when the theme is disabled', () => {
+    localStorage.setItem(FOLLOW_SYSTEM_APPEARANCE_KEY, 'true');
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      query =>
+        ({
+          matches: query === '(prefers-color-scheme: dark)',
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        } as any)
+    );
+    const store = makeStore(
+      'Light',
+      '',
+      defaultAppThemes,
+      {},
+      { backendConfigReady: true },
+      adminTheme('disabled')
+    );
+    renderWithProviders(<SystemAppearanceSync />, lightTheme, store);
+
+    expect(store.getState().theme.name).toBe('Light');
+    vi.restoreAllMocks();
   });
 });
 
