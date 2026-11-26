@@ -15,7 +15,7 @@
  */
 
 import { Base64 } from 'js-base64';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import store from '../redux/stores/store';
 import { deleteTokens, getUserInfo, logout, setToken } from './auth';
 import { backendFetch } from './k8s/api/v2/fetch';
@@ -32,12 +32,6 @@ vi.mock('../redux/stores/store', () => ({
   },
 }));
 vi.mock('./k8s/clusterAuthType');
-vi.mock('./queryClient', () => ({
-  queryClient: {
-    removeQueries: vi.fn(),
-    invalidateQueries: vi.fn(),
-  },
-}));
 
 const mockBackendFetch = vi.mocked(backendFetch);
 const mockStore = vi.mocked(store);
@@ -48,11 +42,18 @@ describe('auth', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    vi.spyOn(queryClient, 'removeQueries');
+    vi.spyOn(queryClient, 'invalidateQueries');
     mockStore.getState.mockReturnValue({
       ui: { functionsToOverride: {} },
       config: { allClusters: {} },
     } as any);
     mockProviderLogout.mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    vi.unstubAllGlobals();
   });
 
   describe('setToken', () => {
@@ -185,6 +186,60 @@ describe('auth', () => {
   });
 
   describe('logout', () => {
+    it.each([
+      { providerLogout: false, skipRedirect: false },
+      { providerLogout: true, skipRedirect: false },
+      { providerLogout: true, skipRedirect: true },
+    ])(
+      'clears only the logged-out cluster resource cache (providerLogout=$providerLogout, skipRedirect=$skipRedirect)',
+      async ({ providerLogout, skipRedirect }) => {
+        mockProviderLogout.mockReturnValue(providerLogout);
+        mockBackendFetch.mockResolvedValue(
+          new Response(JSON.stringify({ redirectURL: 'https://idp.example/logout' }))
+        );
+        vi.stubGlobal('location', { href: '' });
+
+        queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'prod', '', {}], {
+          items: ['prod-list'],
+        });
+        queryClient.setQueryData(['object', 'prod', '/api/v1/pods', 'default', 'nginx', {}], {
+          metadata: { name: 'nginx' },
+        });
+        queryClient.setQueryData(['auth', 'prod'], { allowed: true });
+        queryClient.setQueryData(['clusterMe', 'prod'], { username: 'test-user' });
+        queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', '', {}], {
+          items: ['staging-list'],
+        });
+        // 'prod' is the namespace here, not the cluster.
+        queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', 'prod', {}], {
+          items: ['staging-prod-namespace-list'],
+        });
+        queryClient.setQueryData(['object', 'staging', '/api/v1/pods', 'prod', 'nginx', {}], {
+          metadata: { name: 'nginx' },
+        });
+
+        await logout('prod', skipRedirect);
+
+        expect(
+          queryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'prod', '', {}])
+        ).toBeUndefined();
+        expect(
+          queryClient.getQueryData(['object', 'prod', '/api/v1/pods', 'default', 'nginx', {}])
+        ).toBeUndefined();
+        expect(queryClient.getQueryData(['auth', 'prod'])).toBeUndefined();
+        expect(queryClient.getQueryData(['clusterMe', 'prod'])).toBeUndefined();
+        expect(
+          queryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', '', {}])
+        ).toEqual({ items: ['staging-list'] });
+        expect(
+          queryClient.getQueryData(['kubeObject', 'list', 'v1', 'pods', 'staging', 'prod', {}])
+        ).toEqual({ items: ['staging-prod-namespace-list'] });
+        expect(
+          queryClient.getQueryData(['object', 'staging', '/api/v1/pods', 'prod', 'nginx', {}])
+        ).toEqual({ metadata: { name: 'nginx' } });
+      }
+    );
+
     it.each([false, true])(
       'keeps stateless OIDC logout local-only (same-named global context=%s)',
       async sameName => {
