@@ -18,11 +18,15 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { KubeObject } from '../../../lib/k8s/cluster';
 import ViewButton from './ViewButton';
 
-const { mockActivityClose, mockActivityLaunch, mockFetchLatestKubeObject } = vi.hoisted(() => ({
-  mockActivityClose: vi.fn(),
-  mockActivityLaunch: vi.fn(),
-  mockFetchLatestKubeObject: vi.fn(),
-}));
+const { mockActivityClose, mockActivityLaunch, mockFetchLatestKubeObject, mockEnqueueSnackbar } =
+  vi.hoisted(() => ({
+    mockActivityClose: vi.fn(),
+    mockActivityLaunch: vi.fn(),
+    mockFetchLatestKubeObject: vi.fn(),
+    mockEnqueueSnackbar: vi.fn(),
+  }));
+
+vi.mock('notistack', () => ({ useSnackbar: () => ({ enqueueSnackbar: mockEnqueueSnackbar }) }));
 
 vi.mock('../../activity/Activity', () => ({
   Activity: {
@@ -71,6 +75,7 @@ const latestItem = {
 
 describe('ViewButton', () => {
   beforeEach(() => {
+    mockEnqueueSnackbar.mockReset();
     mockActivityClose.mockReset();
     mockActivityLaunch.mockReset();
     mockFetchLatestKubeObject.mockReset();
@@ -153,6 +158,24 @@ describe('ViewButton', () => {
     });
     consoleError.mockRestore();
   });
+
+  it.each([0, 2])(
+    'does not view a partial Secret with %i keys after a failed fetch',
+    async dataCount => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mockFetchLatestKubeObject.mockRejectedValue({ status: 403 });
+      const partialSecret = {
+        ...item,
+        kind: 'Secret',
+        jsonData: { ...item.jsonData, data: {}, dataCount },
+      } as KubeObject;
+      render(<ViewButton item={partialSecret} />);
+      fireEvent.click(screen.getByRole('button', { name: 'View' }));
+      await waitFor(() => expect(mockEnqueueSnackbar).toHaveBeenCalled());
+      expect(mockActivityLaunch).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    }
+  );
 
   it('ignores a stale successful request', async () => {
     let resolveFirstRequest!: (value: KubeObject) => void;

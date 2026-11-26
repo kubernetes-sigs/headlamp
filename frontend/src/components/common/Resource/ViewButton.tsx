@@ -15,6 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
+import { useSnackbar } from 'notistack';
 import React, { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeObject } from '../../../lib/k8s/cluster';
@@ -46,6 +47,7 @@ function getActivityLocation() {
 
 function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const activityId = 'yaml-' + item.metadata.uid;
   const launchRequestRef = React.useRef(0);
 
@@ -69,6 +71,12 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
         },
         err
       );
+      if (item.kind === 'Secret' && 'dataCount' in item.jsonData) {
+        enqueueSnackbar(t('translation|Failed to load resources'), {
+          variant: 'error',
+        });
+        return;
+      }
     }
 
     if (requestId !== launchRequestRef.current) {
@@ -93,7 +101,7 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
         />
       ),
     });
-  }, [activityId, item]);
+  }, [activityId, enqueueSnackbar, item, t]);
 
   const initialToggleRef = React.useRef(initialToggle);
 
