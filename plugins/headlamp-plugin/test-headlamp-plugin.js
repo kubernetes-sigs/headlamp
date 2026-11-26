@@ -24,6 +24,7 @@ This tests unpublished @kinvolk/headlamp-plugin package in repo.
 Assumes being run within the plugins/headlamp-plugin folder
 `;
 const PACKAGE_NAME = 'headlamp-myfancy';
+const AGENTS_PACKAGE_NAME = 'headlamp-myfancy-agents';
 
 function testHeadlampPlugin() {
   // remove some temporary files.
@@ -276,6 +277,69 @@ export const Default: Story = {};
   if (fs.readFileSync(indexTsxPath, 'utf8').includes('@material-ui')) {
     exit(`Error: @material-ui imports in ${indexTsxPath}`);
   }
+
+  // test "create --with-agent-skills" scaffolds the harness for every supported agent.
+  curDir = '.';
+  const harnessAgentsMd = fs.readFileSync(join('template-agents', 'AGENTS.md'), 'utf8');
+  const checkHarnessAgentsMd = () => {
+    if (fs.readFileSync(join(AGENTS_PACKAGE_NAME, 'AGENTS.md'), 'utf8') !== harnessAgentsMd) {
+      exit(`Error: ${AGENTS_PACKAGE_NAME}/AGENTS.md is not the harness AGENTS.md.`);
+    }
+  };
+  fs.rmSync(AGENTS_PACKAGE_NAME, { recursive: true, force: true });
+  run('node', [
+    'bin/headlamp-plugin.js',
+    'create',
+    AGENTS_PACKAGE_NAME,
+    '--link',
+    '--noinstall',
+    '--with-agent-skills',
+  ]);
+  checkHarnessAgentsMd();
+  checkFileContains(join(AGENTS_PACKAGE_NAME, 'CLAUDE.md'), '@AGENTS.md');
+  checkFileExists(join(AGENTS_PACKAGE_NAME, '.mcp.json'));
+  checkFileContains(
+    join(AGENTS_PACKAGE_NAME, '.claude', 'skills', 'create-cncf-plugin', 'SKILL.md'),
+    'allowed-tools:'
+  );
+  checkFileExists(join(AGENTS_PACKAGE_NAME, '.codex', 'config.toml'));
+  const codexSkill = join(
+    AGENTS_PACKAGE_NAME,
+    '.agents',
+    'skills',
+    'create-cncf-plugin',
+    'SKILL.md'
+  );
+  checkFileExists(codexSkill);
+  // The .agents/skills copy of each skill drops the Claude-specific allowed-tools frontmatter.
+  if (fs.readFileSync(codexSkill, 'utf8').match(/^allowed-tools:/m)) {
+    exit(`Error: ${codexSkill} still has allowed-tools frontmatter.`);
+  }
+  // The default scaffold must NOT include the harness.
+  checkFileDoesNotExist(join(PACKAGE_NAME, 'CLAUDE.md'));
+  checkFileDoesNotExist(join(PACKAGE_NAME, '.agents'));
+  fs.rmSync(AGENTS_PACKAGE_NAME, { recursive: true, force: true });
+
+  // test "upgrade --with-agent-skills" opts a default plugin into the harness,
+  // replacing the default AGENTS.md.
+  run('node', ['bin/headlamp-plugin.js', 'create', AGENTS_PACKAGE_NAME, '--link', '--noinstall']);
+  run('node', [
+    'bin/headlamp-plugin.js',
+    'upgrade',
+    AGENTS_PACKAGE_NAME,
+    '--skip-package-updates',
+    '--with-agent-skills',
+  ]);
+  checkHarnessAgentsMd();
+  checkFileExists(join(AGENTS_PACKAGE_NAME, '.agents', 'skills', 'plan-plugin', 'SKILL.md'));
+  checkFileExists(join(AGENTS_PACKAGE_NAME, '.claude', 'skills', 'plan-plugin', 'SKILL.md'));
+  checkFileExists(join(AGENTS_PACKAGE_NAME, '.codex', 'config.toml'));
+  checkFileExists(join(AGENTS_PACKAGE_NAME, 'CLAUDE.md'));
+  // a plain upgrade keeps the harness AGENTS.md rather than resetting it to the default.
+  fs.rmSync(join(AGENTS_PACKAGE_NAME, 'AGENTS.md'));
+  run('node', ['bin/headlamp-plugin.js', 'upgrade', AGENTS_PACKAGE_NAME, '--skip-package-updates']);
+  checkHarnessAgentsMd();
+  fs.rmSync(AGENTS_PACKAGE_NAME, { recursive: true, force: true });
 }
 
 const fs = require('fs');
@@ -292,7 +356,7 @@ function cleanup() {
     .filter(file => file.match('kinvolk-headlamp-plugin-.*gz'))
     .forEach(file => fs.rmSync(file));
 
-  const foldersToRemove = [path.join('.plugins', PACKAGE_NAME), PACKAGE_NAME];
+  const foldersToRemove = [path.join('.plugins', PACKAGE_NAME), PACKAGE_NAME, AGENTS_PACKAGE_NAME];
   console.log('Temp foldersToRemove', foldersToRemove);
   foldersToRemove
     .filter(folder => fs.existsSync(folder))
@@ -397,6 +461,11 @@ function checkTemplateLockHasNoPluginIntegrity() {
     exit(`Error: ${lockPath} pins an integrity for @kinvolk/headlamp-plugin.`);
   }
   console.log('✓ template package-lock.json has no integrity for @kinvolk/headlamp-plugin');
+}
+function checkFileDoesNotExist(fname) {
+  if (fs.existsSync(fname)) {
+    exit(`Error: ${fname} exists but should not.`);
+  }
 }
 function exit(message) {
   console.error(message);
