@@ -142,4 +142,9 @@ beforeEach(() => {
   // Clears the database and adds some testing data.
   // Jest will wait for this promise to resolve before running tests.
   localStorage.clear();
+  try {
+    window?.history?.replaceState?.({}, '', '/');
+  } catch {
+    // Ignore when window or history is not available or mocked
+  }
 });

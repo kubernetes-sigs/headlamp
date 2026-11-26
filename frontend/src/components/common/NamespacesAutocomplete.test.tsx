@@ -23,7 +23,7 @@ import { setConfig } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { NamespacesAutocomplete } from './NamespacesAutocomplete';
+import { NamespacesAutocomplete, PureNamespacesAutocomplete } from './NamespacesAutocomplete';
 
 /** Makes the namespace list (of all the selected clusters) return these names. */
 function listNamespaces(names: string[]) {
@@ -224,5 +224,297 @@ describe('NamespacesAutocomplete', () => {
         expect([...store.getState().filter.namespaces]).toEqual([]);
       }
     );
+  });
+
+  describe('exclusive select and toggle behavior', () => {
+    it('toggles a namespace when clicking its checkbox and keeps the dropdown open', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a', 'team-b']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      fireEvent.focus(screen.getByRole('combobox'));
+      const checkboxTeamC = screen.getByRole('checkbox', {
+        name: 'Toggle team-c in selection',
+      });
+      fireEvent.click(checkboxTeamC);
+
+      expect(onChange).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.arrayContaining(['team-a', 'team-b', 'team-c'])
+      );
+      // Dropdown should remain open (options still visible)
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    });
+
+    it('removes a namespace when unchecking its checkbox and keeps dropdown open', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a', 'team-b']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      fireEvent.focus(screen.getByRole('combobox'));
+      const checkboxTeamA = screen.getByRole('checkbox', {
+        name: 'Toggle team-a in selection',
+      });
+      fireEvent.click(checkboxTeamA);
+
+      expect(onChange).toHaveBeenCalledWith(expect.anything(), ['team-b']);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    });
+
+    it('selects exclusively when clicking the namespace name and closes dropdown', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a', 'team-b']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      fireEvent.focus(screen.getByRole('combobox'));
+      const teamCText = screen.getByText('team-c');
+      fireEvent.click(teamCText);
+
+      expect(onChange).toHaveBeenCalledWith(expect.anything(), ['team-c']);
+      // Dropdown should close
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('selects exclusively when clicking the name of an already-selected namespace', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a', 'team-b']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      fireEvent.focus(screen.getByRole('combobox'));
+      const teamAText = screen.getByText('team-a');
+      fireEvent.click(teamAText);
+
+      expect(onChange).toHaveBeenCalledWith(expect.anything(), ['team-a']);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('selects exclusively via keyboard Enter on highlighted option and closes dropdown', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a', 'team-b']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox');
+      fireEvent.focus(input);
+      // Option 0 ('team-a') is initial, 1 ArrowDown moves to option 1 ('team-b')
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(onChange).toHaveBeenCalledWith(expect.anything(), ['team-c']);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('toggles via keyboard Space on highlighted option and keeps dropdown open', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox');
+      fireEvent.focus(input);
+      // Option 0 ('team-a') is initial, 1 ArrowDown moves to option 1 ('team-b')
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      fireEvent.keyDown(input, { key: ' ' });
+
+      expect(onChange).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.arrayContaining(['team-a', 'team-b'])
+      );
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    });
+
+    it('selects exclusively via keyboard Enter when the highlighted option is already selected', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a', 'team-b']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox');
+      fireEvent.focus(input);
+      // Move highlight to already-selected 'team-a' (Home) and press Enter.
+      fireEvent.keyDown(input, { key: 'Home' });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(onChange).toHaveBeenCalledWith(expect.anything(), ['team-a']);
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    });
+
+    it('preserves remaining selections when removing a namespace with Backspace', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a', 'team-b']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox');
+      fireEvent.focus(input);
+      fireEvent.keyDown(input, { key: 'Backspace' });
+
+      expect(onChange).toHaveBeenCalledWith(expect.anything(), ['team-b']);
+    });
+
+    it('removes the last selected namespace when pressing Backspace', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox');
+      fireEvent.focus(input);
+      fireEvent.keyDown(input, { key: 'Backspace' });
+
+      expect(onChange).toHaveBeenCalledWith(expect.anything(), []);
+    });
+
+    it('ignores Space key events during IME composition', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox') as HTMLInputElement;
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: 'team' } });
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      const valueBeforeSpace = input.value;
+      expect(valueBeforeSpace).not.toBe('');
+
+      // Native KeyboardEvent with isComposing: true
+      fireEvent(
+        input,
+        new KeyboardEvent('keydown', { key: ' ', isComposing: true, bubbles: true })
+      );
+      expect(onChange).not.toHaveBeenCalled();
+      expect(input.value).toBe(valueBeforeSpace);
+
+      // IME keyCode/which === 229 fallback
+      fireEvent.keyDown(input, { key: ' ', which: 229, keyCode: 229 });
+      expect(onChange).not.toHaveBeenCalled();
+      expect(input.value).toBe(valueBeforeSpace);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    });
+
+    it('ignores Enter key events during IME composition', () => {
+      const onChange = vi.fn();
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b', 'team-c']}
+            filter={{ namespaces: new Set(['team-a']) }}
+            onChange={onChange}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox') as HTMLInputElement;
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: 'team' } });
+      fireEvent.keyDown(input, { key: 'ArrowDown' });
+      const valueBeforeEnter = input.value;
+      expect(valueBeforeEnter).not.toBe('');
+
+      // Native KeyboardEvent with isComposing: true and non-229 keyCode/which
+      fireEvent(
+        input,
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          keyCode: 13,
+          which: 13,
+          isComposing: true,
+          bubbles: true,
+        })
+      );
+      expect(onChange).not.toHaveBeenCalled();
+      expect(input.value).toBe(valueBeforeEnter);
+      expect(screen.getByRole('listbox')).toBeInTheDocument();
+    });
+
+    it('links translated keyboard instructions via aria-describedby while keeping option names clean', () => {
+      render(
+        <TestContext>
+          <PureNamespacesAutocomplete
+            namespaceNames={['team-a', 'team-b']}
+            filter={{ namespaces: new Set(['team-a']) }}
+            onChange={vi.fn()}
+          />
+        </TestContext>
+      );
+
+      const input = screen.getByRole('combobox');
+      expect(input).not.toHaveAttribute('aria-describedby');
+
+      fireEvent.focus(input);
+
+      const expectedInstructions =
+        'Press Enter to select only the highlighted namespace, or Space to toggle it in the selection.';
+      expect(input).toHaveAccessibleDescription(expectedInstructions);
+
+      const optionA = screen.getByRole('option', { name: 'team-a' });
+      expect(optionA).toHaveAccessibleName('team-a');
+      expect(optionA).toHaveAccessibleDescription(expectedInstructions);
+    });
   });
 });
