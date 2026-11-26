@@ -451,6 +451,9 @@ spec:
             {{- if hasKey .Values.config "sessionTTL" }}
             - "-session-ttl={{ int .Values.config.sessionTTL }}"
             {{- end }}
+            {{- with .Values.config.allowedFrameAncestors }}
+            - "-allowed-frame-ancestors={{ . }}"
+            {{- end }}
             {{- with .Values.config.podDebugImage }}
             - "-pod-debug-image={{ . }}"
             {{- end }}
