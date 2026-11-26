@@ -17,7 +17,7 @@
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 
 export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K> {
-  return new Promise((resolve, reject) => {
+  return new Promise<K>((resolve, reject) => {
     let cancel: (() => void) | undefined;
     let cancelScheduled = false;
     let settled = false;
@@ -67,5 +67,63 @@ export function fetchLatestKubeObject<K extends KubeObject>(item: K): Promise<K>
         }
       })
       .catch(rejectOnce);
+  }).catch((error: unknown) => {
+    // Table rows omit Secret values. A caller allowed to list but not get Secrets
+    // can still retrieve the selected object through a narrowly scoped full list.
+    if (
+      item.kind !== 'Secret' ||
+      !('dataCount' in item.jsonData) ||
+      (error as { status?: number })?.status !== 403
+    ) {
+      throw error;
+    }
+    return new Promise<K>((resolve, reject) => {
+      let cancel: (() => void) | undefined;
+      let settled = false;
+      let cancelScheduled = false;
+      const finish = () => {
+        settled = true;
+        if (cancel && !cancelScheduled) {
+          cancelScheduled = true;
+          queueMicrotask(() => cancel?.());
+        }
+      };
+      const fail = (err: unknown) => {
+        if (settled) return;
+        finish();
+        reject(err);
+      };
+      const request = item._class().apiList(
+        resources => {
+          if (settled) return;
+          const latest = resources.find(
+            resource =>
+              resource.getName() === item.getName() &&
+              resource.getNamespace() === item.getNamespace()
+          );
+          if (!latest) {
+            fail(new Error('Secret was not returned by the scoped list request'));
+            return;
+          }
+          // SecretList items may omit type metadata; YAML actions need it.
+          latest.jsonData.apiVersion ??= 'v1';
+          latest.cluster = item.cluster;
+          finish();
+          resolve(latest as K);
+        },
+        fail,
+        {
+          cluster: item.cluster,
+          namespace: item.getNamespace(),
+          queryParams: { fieldSelector: `metadata.name=${item.getName()}` },
+        }
+      );
+      request()
+        .then(cancelFn => {
+          cancel = cancelFn;
+          if (settled) finish();
+        })
+        .catch(fail);
+    });
   });
 }

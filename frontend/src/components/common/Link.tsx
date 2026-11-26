@@ -105,7 +105,9 @@ function KubeObjectLink(props: {
           name,
         });
         // prepopulate the query cache with existing object
-        client.setQueryData(key, kubeObject);
+        if (kubeObject._class().kind !== 'Secret' || !('dataCount' in kubeObject.jsonData)) {
+          client.setQueryData(key, kubeObject);
+        }
         // and invalidate it (mark as stale)
         // so that the latest version will be downloaded in the background
         client.invalidateQueries({ queryKey: key });
