@@ -843,6 +843,124 @@ describe('connectStreamWithParams protocols', () => {
       expect(normalized.message).toBe('Standard error');
     });
   });
+
+  describe('stream retryOnFail backoff', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('uses exponential backoff (3s, 6s, 12s, ..., capped at 30s) on consecutive failures', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const sockets: { triggerClose: () => void }[] = [];
+      const WebSocketMock = vi.fn(function () {
+        const listeners: Record<string, (() => void)[]> = {};
+        const instance = {
+          binaryType: '',
+          close: vi.fn(),
+          addEventListener: (type: string, listener: () => void) => {
+            (listeners[type] = listeners[type] ?? []).push(listener);
+          },
+          removeEventListener: vi.fn(),
+          triggerClose: () => {
+            (listeners.close ?? []).forEach(l => l());
+          },
+        };
+        sockets.push(instance);
+        return instance;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const conn = stream('/api/v1/pods', vi.fn(), { cluster: '' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+
+      // 1st failure -> retry at 3s
+      sockets[0].triggerClose();
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(WebSocketMock).toHaveBeenCalledTimes(2);
+
+      // 2nd failure -> retry at 6s
+      sockets[1].triggerClose();
+      await vi.advanceTimersByTimeAsync(5999);
+      expect(WebSocketMock).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(WebSocketMock).toHaveBeenCalledTimes(3);
+
+      // 3rd failure -> retry at 12s
+      sockets[2].triggerClose();
+      await vi.advanceTimersByTimeAsync(11999);
+      expect(WebSocketMock).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(WebSocketMock).toHaveBeenCalledTimes(4);
+
+      conn.cancel();
+    });
+
+    it('preserves exponential backoff when watch sends ERROR frames before closing', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const sockets: {
+        triggerMessage: (data: unknown) => void;
+        triggerClose: () => void;
+      }[] = [];
+      const WebSocketMock = vi.fn(function () {
+        const listeners: Record<string, ((ev: any) => void)[]> = {};
+        const instance = {
+          binaryType: '',
+          close: vi.fn(),
+          addEventListener: (type: string, listener: (ev: any) => void) => {
+            (listeners[type] = listeners[type] ?? []).push(listener);
+          },
+          removeEventListener: vi.fn(),
+          triggerMessage: (data: unknown) => {
+            const event = new MessageEvent('message', { data: JSON.stringify(data) });
+            (listeners.message ?? []).forEach(l => l(event));
+          },
+          triggerClose: () => {
+            (listeners.close ?? []).forEach(l => l({}));
+          },
+        };
+        sockets.push(instance);
+        return instance;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      const conn = stream('/api/v1/pods', vi.fn(), { cluster: '', isJson: true });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+
+      // 1st ERROR + close -> retry at 3s
+      sockets[0].triggerMessage({ type: 'ERROR', object: { code: 429, message: 'rate limited' } });
+      sockets[0].triggerClose();
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(WebSocketMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(WebSocketMock).toHaveBeenCalledTimes(2);
+
+      // 2nd ERROR + close -> retry at 6s (not reset to 3s)
+      sockets[1].triggerMessage({ type: 'ERROR', object: { code: 503, message: 'unavailable' } });
+      sockets[1].triggerClose();
+      await vi.advanceTimersByTimeAsync(5999);
+      expect(WebSocketMock).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(WebSocketMock).toHaveBeenCalledTimes(3);
+
+      // Normal watch frame resets backoff back to 3s on next close
+      sockets[2].triggerMessage({ type: 'ADDED', object: { metadata: { name: 'pod-1' } } });
+      sockets[2].triggerClose();
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(WebSocketMock).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(WebSocketMock).toHaveBeenCalledTimes(4);
+
+      conn.cancel();
+    });
+  });
 });
 
 describe('cancelling a stream from its first callback', () => {

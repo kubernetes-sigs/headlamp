@@ -515,6 +515,7 @@ export interface StreamArgs {
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
   let connection: StreamConnection | null = null;
   let isCancelled = false;
+  let reconnectAttempts = 0;
   const { failCb, cluster = '' } = args;
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
   const { isJson = false, additionalProtocols, connectCb, reconnectOnFailure = !failCb } = args;
@@ -539,7 +540,23 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   async function connect() {
     if (connectCb) connectCb();
     try {
-      connection = await connectStream(url, cb, onFail, isJson, additionalProtocols, cluster);
+      connection = await connectStream(
+        url,
+        (data: T) => {
+          const isWatchError =
+            typeof data === 'object' &&
+            data !== null &&
+            (data as { type?: unknown }).type === 'ERROR';
+          if (!isWatchError) {
+            reconnectAttempts = 0;
+          }
+          cb(data);
+        },
+        onFail,
+        isJson,
+        additionalProtocols,
+        cluster
+      );
     } catch (error) {
       console.error('Error connecting stream:', error);
       onFail();
@@ -550,11 +567,14 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
     if (isCancelled) return;
 
     if (reconnectOnFailure) {
+      const delay = Math.min(3000 * Math.pow(2, reconnectAttempts), 30000);
+      reconnectAttempts++;
+
       if (isDebugVerbose('k8s/apiProxy@stream retryOnFail')) {
-        console.debug('k8s/apiProxy@stream retryOnFail', 'Reconnecting in 3 seconds', { url });
+        console.debug('k8s/apiProxy@stream retryOnFail', `Reconnecting in ${delay}ms`, { url });
       }
 
-      setTimeout(connect, 3000);
+      setTimeout(connect, delay);
     }
   }
 
