@@ -15,8 +15,9 @@
  */
 
 import { app, dialog } from 'electron';
+import { EventEmitter } from 'events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { startHeadlessMode } from './headless';
+import { startHeadlessMode, waitForServerListening } from './headless';
 
 const electronMocks = vi.hoisted(() => ({
   showErrorBox: vi.fn(),
@@ -90,5 +91,48 @@ describe('startHeadlessMode', () => {
     const startServer = vi.fn().mockResolvedValue({ pid: 12345 });
     await startHeadlessMode({ startServer });
     expect(app.quit).not.toHaveBeenCalled();
+  });
+});
+
+describe('waitForServerListening', () => {
+  it('invokes onListening once when stdout emits Listen address', () => {
+    vi.useFakeTimers();
+    try {
+      const proc = new EventEmitter() as any;
+      proc.stdout = new EventEmitter();
+      const onListening = vi.fn();
+
+      waitForServerListening(proc, onListening, 5000);
+
+      proc.stdout.emit('data', Buffer.from('Creating Headlamp handler\n'));
+      expect(onListening).not.toHaveBeenCalled();
+
+      proc.stdout.emit('data', Buffer.from('Listen address: 127.0.0.1:4466\n'));
+      expect(onListening).toHaveBeenCalledOnce();
+
+      // Subsequent lines or fallback timer must not fire again
+      proc.stdout.emit('data', Buffer.from('Listen address: 127.0.0.1:4466\n'));
+      vi.advanceTimersByTime(5000);
+      expect(onListening).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not invoke onListening if process exits before listening', () => {
+    vi.useFakeTimers();
+    try {
+      const proc = new EventEmitter() as any;
+      proc.stdout = new EventEmitter();
+      const onListening = vi.fn();
+
+      waitForServerListening(proc, onListening, 5000);
+      proc.emit('exit', 1);
+      vi.advanceTimersByTime(5000);
+
+      expect(onListening).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

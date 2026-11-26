@@ -26,6 +26,51 @@ export interface HeadlessOptions {
 }
 
 /**
+ * Waits for the backend server to emit its first "Listen address" stdout line
+ * before invoking `onListening`, with a fallback timeout if stdout is buffered.
+ */
+export function waitForServerListening(
+  serverProcess: ChildProcessWithoutNullStreams,
+  onListening: () => void,
+  fallbackTimeoutMs = 10000
+): () => void {
+  let done = false;
+
+  const cleanup = () => {
+    serverProcess.stdout.off('data', onData);
+    serverProcess.off('exit', onExit);
+    serverProcess.off('close', onExit);
+    clearTimeout(fallbackTimer);
+  };
+
+  const trigger = () => {
+    if (done) return;
+    done = true;
+    cleanup();
+    onListening();
+  };
+
+  const onData = (chunk: Buffer | string) => {
+    if (chunk.toString().includes('Listen address')) {
+      trigger();
+    }
+  };
+
+  const onExit = () => {
+    if (done) return;
+    done = true;
+    cleanup();
+  };
+
+  const fallbackTimer = setTimeout(trigger, fallbackTimeoutMs);
+  serverProcess.stdout.on('data', onData);
+  serverProcess.once('exit', onExit);
+  serverProcess.once('close', onExit);
+
+  return cleanup;
+}
+
+/**
  * Starts the backend server in headless mode and handles any startup failure cleanly.
  */
 export async function startHeadlessMode(options: HeadlessOptions): Promise<void> {

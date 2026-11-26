@@ -51,7 +51,7 @@ import { createCertificateSetup } from './certificates';
 import { setupClusterRegistrationHandler } from './cluster-registration';
 import { setupDevelopmentPluginsHandlers } from './developmentPlugins';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
-import { startHeadlessMode } from './headless';
+import { startHeadlessMode, waitForServerListening } from './headless';
 import i18n from './i18next.config';
 import {
   getLegalDocumentsResourcePath,
@@ -2188,9 +2188,9 @@ if (isHeadlessMode) {
       startServer(['-html-static-dir', path.join(process.resourcesPath, './frontend')]),
     onSuccess: serverProcess => {
       attachServerEventHandlers(serverProcess);
-
-      // Give 1s for backend to start
-      setTimeout(() => shell.openExternal(`http://localhost:${actualPort}`), 1000);
+      waitForServerListening(serverProcess, () => {
+        shell.openExternal(`http://localhost:${actualPort}`);
+      });
     },
   });
 } else {
