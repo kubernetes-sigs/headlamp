@@ -128,6 +128,10 @@
   "Hosts": "Hôtes",
   "Completions": "Achèvements",
   "Failed": "Échoué",
+  "Completed Indexes": "Index achevés",
+  "Failed Indexes": "",
+  "Backoff Limit Per Index": "",
+  "Max Failed Indexes": "",
   "Jobs": "Jobs",
   "Job Sets": "Ensembles de jobs",
   "Checking if JobSet is enabled…": "Vérification de l'activation de JobSet…",
@@ -348,6 +352,5 @@
   "TTL After Finished": "TTL après achèvement",
   "Pods Status": "État des Pods",
   "Completion Time": "Heure d'achèvement",
-  "Duration": "Durée",
-  "Completed Indexes": "Index achevés"
+  "Duration": "Durée"
 }

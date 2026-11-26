@@ -166,6 +166,28 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
             value: `${item.spec.ttlSecondsAfterFinished}s`,
             hide: item.spec?.ttlSecondsAfterFinished === undefined,
           },
+          {
+            // Indexes are listed as ranges, for example "0,2-4".
+            name: t('glossary|Completed Indexes'),
+            value: item.status?.completedIndexes,
+            hide: !item.status?.completedIndexes,
+          },
+          {
+            // Set for Indexed Jobs with backoffLimitPerIndex.
+            name: t('glossary|Failed Indexes'),
+            value: item.status?.failedIndexes,
+            hide: !item.status?.failedIndexes,
+          },
+          {
+            name: t('glossary|Backoff Limit Per Index'),
+            value: item.spec?.backoffLimitPerIndex,
+            hide: item.spec?.backoffLimitPerIndex === undefined,
+          },
+          {
+            name: t('glossary|Max Failed Indexes'),
+            value: item.spec?.maxFailedIndexes,
+            hide: item.spec?.maxFailedIndexes === undefined,
+          },
         ];
       }}
       extraSections={item =>

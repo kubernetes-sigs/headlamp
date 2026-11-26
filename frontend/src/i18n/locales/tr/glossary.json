@@ -128,6 +128,10 @@
   "Hosts": "Ana bilgisayarlar",
   "Completions": "Tamamlamalar",
   "Failed": "",
+  "Completed Indexes": "",
+  "Failed Indexes": "",
+  "Backoff Limit Per Index": "",
+  "Max Failed Indexes": "",
   "Jobs": "İşler",
   "Job Sets": "",
   "Checking if JobSet is enabled…": "",
@@ -348,6 +352,5 @@
   "TTL After Finished": "",
   "Pods Status": "",
   "Completion Time": "",
-  "Duration": "",
-  "Completed Indexes": ""
+  "Duration": ""
 }
