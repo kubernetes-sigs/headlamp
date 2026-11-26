@@ -373,6 +373,99 @@ describe('PluginSettingsPure', () => {
       expect(screen.getAllByLabelText('Delete Plugin')).toHaveLength(2);
     });
   });
+
+  it('renders Origin as a link only for http/https URLs and rejects dangerous schemes', () => {
+    const plugins: PluginInfo[] = [
+      {
+        name: 'safe-plugin',
+        description: 'Safe plugin',
+        origin: 'ArtifactHub',
+        homepage: 'https://artifacthub.io/packages/headlamp/example/safe',
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: true,
+        type: 'user',
+      },
+      {
+        name: 'xss-homepage-plugin',
+        description: 'Untrusted homepage',
+        origin: 'EvilVendor',
+        homepage: 'javascript:alert(1)',
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: true,
+        type: 'user',
+      },
+      {
+        name: 'xss-repo-fallback-plugin',
+        description: 'Unsafe homepage with safe repo fallback',
+        origin: 'FallbackVendor',
+        homepage: 'javascript:alert(2)',
+        repository: { url: 'https://github.com/example/plugin' },
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: true,
+        type: 'user',
+      },
+      {
+        name: 'data-repo-plugin',
+        description: 'Untrusted repo url',
+        origin: 'DataVendor',
+        homepage: '',
+        repository: { url: 'data:text/html,<script>alert(1)</script>' },
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: true,
+        type: 'user',
+      },
+    ];
+
+    renderPluginSettings({ plugins });
+
+    expect(screen.getByRole('link', { name: 'ArtifactHub' })).toHaveAttribute(
+      'href',
+      'https://artifacthub.io/packages/headlamp/example/safe'
+    );
+    expect(screen.getByRole('link', { name: 'FallbackVendor' })).toHaveAttribute(
+      'href',
+      'https://github.com/example/plugin'
+    );
+
+    expect(screen.getByText('EvilVendor')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'EvilVendor' })).not.toBeInTheDocument();
+
+    expect(screen.getByText('DataVendor')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'DataVendor' })).not.toBeInTheDocument();
+  });
+
+  it('handles non-string metadata without throwing and falls back to a valid repository URL', () => {
+    const base = createPlugins(1)[0];
+    renderPluginSettings({
+      plugins: [
+        {
+          ...base,
+          name: 'non-string-homepage-fallback',
+          origin: 'MalformedHomepageVendor',
+          homepage: 42 as any,
+          repository: { url: 'https://github.com/example/non-string-fallback' },
+        },
+        {
+          ...base,
+          name: 'non-string-both',
+          origin: 'MalformedBothVendor',
+          homepage: 42 as any,
+          repository: { url: { href: 'https://example.com' } as any },
+        },
+      ],
+    });
+
+    expect(screen.getByRole('link', { name: 'MalformedHomepageVendor' })).toHaveAttribute(
+      'href',
+      'https://github.com/example/non-string-fallback'
+    );
+    expect(screen.getByText('MalformedBothVendor')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'MalformedBothVendor' })).not.toBeInTheDocument();
+  });
 });
 
 describe('PluginSettings events', () => {

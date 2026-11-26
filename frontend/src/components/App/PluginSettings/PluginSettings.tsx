@@ -62,6 +62,21 @@ export interface PluginSettingsPureProps {
   onDevelopmentPluginsChange?: (enabled: boolean) => void;
 }
 
+/** Returns the trimmed URL when it uses an explicit http/https scheme; rejects javascript:, data:, etc. */
+function getSafeHttpUrl(value: unknown): string | null {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? trimmed : null;
+  } catch {
+    return null;
+  }
+}
+
 /** PluginSettingsProp intentially left empty to remain malleable */
 export interface PluginSettingsProps {}
 
@@ -377,7 +392,8 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
             {
               header: t('translation|Origin'),
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
-                const url = plugin?.homepage || plugin?.repository?.url;
+                const url =
+                  getSafeHttpUrl(plugin?.homepage) || getSafeHttpUrl(plugin?.repository?.url);
                 return plugin?.origin ? (
                   url ? (
                     <Link href={url}>{plugin.origin}</Link>
