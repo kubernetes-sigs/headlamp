@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitForElementToBeRemoved } from '@testing-library/react';
+import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TestContext } from '../../../test';
 import UpdatePopup from './UpdatePopup';
 
 vi.mock('@iconify/react', () => ({ Icon: () => null }));
@@ -29,6 +32,16 @@ vi.mock('@iconify/react', () => ({ Icon: () => null }));
 // would trivially pass even if the dangling reference came back, since an
 // absent attribute is indistinguishable from a fixed one under that check.
 describe('UpdatePopup', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
   it('does not set aria-describedby on the container while fetching', () => {
     render(
       <UpdatePopup
@@ -102,5 +115,106 @@ describe('UpdatePopup', () => {
     const describedBy = readMore.getAttribute('aria-describedby');
     expect(describedBy).toBeTruthy();
     expect(document.getElementById(describedBy!)).toHaveTextContent(/new tab/i);
+  });
+
+  it('renders nothing when no update URL, fetch, or failure state is active', () => {
+    const { container } = render(
+      <TestContext>
+        <UpdatePopup releaseDownloadURL={null} skipUpdateHandler={vi.fn()} />
+      </TestContext>
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows fetching snackbar and invokes skipUpdateHandler when Skip is clicked', () => {
+    const skipUpdateHandler = vi.fn();
+
+    render(
+      <TestContext>
+        <UpdatePopup
+          releaseDownloadURL={null}
+          fetchingRelease
+          skipUpdateHandler={skipUpdateHandler}
+        />
+      </TestContext>
+    );
+
+    expect(screen.getByText('Fetching release information…')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skip' }));
+    expect(skipUpdateHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows fetch-failed snackbar and hides it after autoHideDuration expires', () => {
+    vi.useFakeTimers();
+
+    render(
+      <TestContext>
+        <UpdatePopup
+          releaseDownloadURL={null}
+          fetchingRelease={false}
+          releaseFetchFailed
+          skipUpdateHandler={vi.fn()}
+        />
+      </TestContext>
+    );
+
+    expect(screen.getByText('Failed to fetch release information')).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(6000);
+    });
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(screen.queryByText('Failed to fetch release information')).not.toBeInTheDocument();
+  });
+
+  it('opens releaseDownloadURL safely when Read more is clicked', () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const releaseURL = 'https://github.com/kubernetes-sigs/headlamp/releases/tag/v0.25.0';
+
+    render(
+      <TestContext>
+        <UpdatePopup releaseDownloadURL={releaseURL} skipUpdateHandler={vi.fn()} />
+      </TestContext>
+    );
+
+    expect(screen.getByText('An update is available')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Read more' }));
+
+    expect(openSpy).toHaveBeenCalledWith(releaseURL, '_blank', 'noopener,noreferrer');
+    expect(screen.getByText('An update is available')).toBeInTheDocument();
+  });
+
+  it('persists disable_update_check and closes when Disable update notifications is clicked', async () => {
+    render(
+      <TestContext>
+        <UpdatePopup releaseDownloadURL="https://example.com/release" skipUpdateHandler={vi.fn()} />
+      </TestContext>
+    );
+
+    const removal = waitForElementToBeRemoved(() => screen.queryByText('An update is available'));
+    fireEvent.click(screen.getByRole('button', { name: 'Disable update notifications' }));
+
+    expect(localStorage.getItem('disable_update_check')).toBe('true');
+    await removal;
+  });
+
+  it('closes without disabling future update checks when Dismiss is clicked', async () => {
+    render(
+      <TestContext>
+        <UpdatePopup releaseDownloadURL="https://example.com/release" skipUpdateHandler={vi.fn()} />
+      </TestContext>
+    );
+
+    const removal = waitForElementToBeRemoved(() => screen.queryByText('An update is available'));
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+    expect(localStorage.getItem('disable_update_check')).toBeNull();
+    await removal;
   });
 });
