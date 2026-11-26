@@ -54,6 +54,52 @@ describe('MultiPluginManagement', () => {
   });
 
   describe('validateConfig', () => {
+    describe('name and version rules', () => {
+      function config(overrides) {
+        const value = { plugins: [{ name: 'example',
+          source: 'https://artifacthub.io/packages/headlamp/example/example', ...overrides }] };
+        fs.writeFileSync(configPath, JSON.stringify(value));
+        return value;
+      }
+      const validNames = ['a', '0', 'ab', 'plugin-name', 'plugin_name', 'plugin-_name'];
+      const invalidNames = ['', '-a', '_a', 'a-', 'a_', 'A', 'a.b', 'a/b', 'a b', 'a:b', 'a\nb', 'a\n', 'a\r', ' a', 'a '];
+      for (const dependency of [false, true]) {
+        const label = dependency ? 'dependency name' : 'plugin name';
+        test.each(validNames)(`accepts ${label} %j`, async name => {
+          const value = config(dependency ? { dependencies: [name] } : { name });
+          if (dependency) {
+            value.plugins.push({ name, source: `https://artifacthub.io/packages/headlamp/other/${name}` });
+            fs.writeFileSync(configPath, JSON.stringify(value));
+          }
+          await expect(installer.validateConfig(configPath)).resolves.toEqual(value);
+        });
+        test.each(invalidNames)(`rejects ${label} %j`, async name => {
+          config(dependency ? { dependencies: [name] } : { name });
+          await expect(installer.validateConfig(configPath)).rejects.toThrow(/Configuration validation failed/);
+        });
+      }
+      test.each(['0.0.0', '1.2.3', '12.34.56', '1.2.3-alpha', '1.2.3-alpha.1',
+        '1.2.3-0', '1.2.3+build.001', '1.2.3-rc.1+build.42'])(
+        'accepts complete SemVer %j', async version => {
+          const value = config({ version });
+          await expect(installer.validateConfig(configPath)).resolves.toEqual(value);
+        }
+      );
+      test.each(['1.2.3junk', '1.2.3.4', '1.2', '1', '01.2.3', '1.02.3', '1.2.03',
+        '1.2.3-01', '1.2.3-', '1.2.3+', '1.2.3-alpha..1', '1.2.3+build..1',
+        'v1.2.3', '=1.2.3', '^1.2.3', '~1.2.3', '>=1.2.3', '1.2.x',
+        ' 1.2.3', '1.2.3 ', '1.2.3\n', '1.2.3\njunk', '', 123, null])(
+        'rejects incomplete or noncanonical version %j', async version => {
+          config({ version });
+          await expect(installer.validateConfig(configPath)).rejects.toThrow(/Configuration validation failed/);
+        }
+      );
+      test('allows an omitted version', async () => {
+        const value = config({});
+        await expect(installer.validateConfig(configPath)).resolves.toEqual(value);
+      });
+    });
+
     it('should validate a valid configuration', async () => {
       const config = `
 plugins:
