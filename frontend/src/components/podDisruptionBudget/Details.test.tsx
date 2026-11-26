@@ -114,4 +114,27 @@ describe('PDBDetails', () => {
     const props = mockDetailsGrid.mock.calls[0][0];
     expect(props.extraInfo(null)).toBeFalsy();
   });
+
+  it('shows the unhealthy pod eviction policy only when it is set', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
+        <PDBDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const policyRow = (item: any) =>
+      props
+        .extraInfo(item)
+        .find((f: any) => String(f.name).endsWith('Unhealthy Pod Eviction Policy'));
+
+    const withPolicy = policyRow({
+      ...pdb,
+      spec: { ...pdb.spec, unhealthyPodEvictionPolicy: 'AlwaysAllow' },
+    });
+    expect(withPolicy.value).toBe('AlwaysAllow');
+    expect(withPolicy.hide).toBe(false);
+
+    expect(policyRow(pdb).hide).toBe(true);
+  });
 });

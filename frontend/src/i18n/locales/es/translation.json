@@ -1062,6 +1062,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Min. Disponible",
+  "Unhealthy Pod Eviction Policy": "",
   "All pods in the namespace": "",
   "Allowed disruptions": "Perturbaciones permitidas",
   "Current//context:pods": "Actuales",

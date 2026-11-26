@@ -1054,6 +1054,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Minimum tillgängligt",
+  "Unhealthy Pod Eviction Policy": "",
   "All pods in the namespace": "",
   "Allowed disruptions": "Tillåtna störningar",
   "Current//context:pods": "Nuvarande",

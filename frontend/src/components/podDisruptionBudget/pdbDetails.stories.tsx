@@ -146,6 +146,24 @@ WithEmptySelector.parameters = {
   },
 };
 
+export const WithUnhealthyPodEvictionPolicy = Template.bind({});
+WithUnhealthyPodEvictionPolicy.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint`,
+          () =>
+            HttpResponse.json({
+              ...mockPDB,
+              spec: { ...mockPDB.spec, unhealthyPodEvictionPolicy: 'AlwaysAllow' },
+            })
+        ),
+      ],
+    },
+  },
+};
+
 export const Error = Template.bind({});
 Error.parameters = {
   msw: {

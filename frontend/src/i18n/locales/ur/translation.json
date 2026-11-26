@@ -1054,6 +1054,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "کم سے کم دستیاب",
+  "Unhealthy Pod Eviction Policy": "",
   "All pods in the namespace": "",
   "Allowed disruptions": "اجازت شدہ رکاوٹیں",
   "Current//context:pods": "موجودہ",

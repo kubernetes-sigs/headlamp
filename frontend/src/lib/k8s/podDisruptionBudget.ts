@@ -24,6 +24,11 @@ export interface KubePDB extends KubeObjectInterface {
     selector: LabelSelector;
     minAvailable?: number;
     maxUnavailable?: number;
+    /**
+     * When unhealthy pods can be evicted: `IfHealthyBudget` (the default) only
+     * while the budget is met, `AlwaysAllow` at any time.
+     */
+    unhealthyPodEvictionPolicy?: 'IfHealthyBudget' | 'AlwaysAllow' | string;
   };
   status: {
     currentHealthy: number;

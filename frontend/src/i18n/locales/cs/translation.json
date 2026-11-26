@@ -1070,6 +1070,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Min. k dispozici",
+  "Unhealthy Pod Eviction Policy": "",
   "All pods in the namespace": "",
   "Allowed disruptions": "Povolená přerušení",
   "Current//context:pods": "Aktuální",
