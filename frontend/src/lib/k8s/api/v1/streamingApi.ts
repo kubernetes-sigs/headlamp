@@ -328,6 +328,7 @@ export interface StreamArgs {
  */
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
   let connection: StreamConnection | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let isCancelled = false;
   const { failCb, cluster = '' } = args;
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
@@ -346,14 +347,34 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   }
 
   function cancel() {
-    if (connection) connection.close();
     isCancelled = true;
+    // Stop a pending reconnect, otherwise it fires after cancellation and
+    // opens a WebSocket nothing will ever close.
+    if (reconnectTimer !== undefined) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = undefined;
+    }
+    if (connection) connection.close();
   }
 
   async function connect() {
+    reconnectTimer = undefined;
+    if (isCancelled) return;
     if (connectCb) connectCb();
     try {
-      connection = await connectStream(url, cb, onFail, isJson, additionalProtocols, cluster);
+      connection = await connectStreamWithParams(url, cb, onFail, {
+        isJson,
+        cluster: cluster || getCluster() || '',
+        additionalProtocols,
+        isCancelled: () => isCancelled,
+      });
+      // The stream may have been cancelled while connecting.
+      if (isCancelled) {
+        connection.close();
+        connection = null;
+
+        return;
+      }
     } catch (error) {
       console.error('Error connecting stream:', error);
       onFail();
@@ -368,7 +389,10 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
         console.debug('k8s/apiProxy@stream retryOnFail', 'Reconnecting in 3 seconds', { url });
       }
 
-      setTimeout(connect, 3000);
+      if (reconnectTimer !== undefined) {
+        clearTimeout(reconnectTimer);
+      }
+      reconnectTimer = setTimeout(connect, 3000);
     }
   }
 
@@ -420,6 +444,8 @@ interface StreamParams {
   isJson?: boolean;
   /** Additional WebSocket protocols to use when connecting. */
   additionalProtocols?: string[];
+  /** Optional cancellation check invoked before opening the WebSocket. */
+  isCancelled?: () => boolean;
 }
 
 /**
@@ -445,7 +471,7 @@ export async function connectStreamWithParams<T>(
   onFail: () => void,
   params?: StreamParams
 ): Promise<StreamConnection> {
-  const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
+  const { isJson = false, additionalProtocols = [], cluster = '', isCancelled } = params || {};
   let isClosing = false;
 
   const userID = getUserIdFromLocalStorage();
@@ -476,6 +502,10 @@ export async function connectStreamWithParams<T>(
   }
 
   let socket: WebSocket | null = null;
+  if (isCancelled?.()) {
+    return { close, socket };
+  }
+
   try {
     socket = new WebSocket(url, protocols);
     socket.binaryType = 'arraybuffer';
