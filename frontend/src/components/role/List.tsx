@@ -70,8 +70,8 @@ export default function RoleList({ namespaces }: { namespaces?: string[] }) {
               params={{
                 namespace: item.metadata.namespace || '',
                 name: item.metadata.name,
-                cluster: item.cluster,
               }}
+              activeCluster={item.cluster}
             >
               {item.metadata.name}
             </Link>
