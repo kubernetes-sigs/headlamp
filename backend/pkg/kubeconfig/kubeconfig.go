@@ -124,6 +124,9 @@ func buildUserAgent() string {
 // DefaultInClusterContextName is the default name used for the in-cluster context.
 const DefaultInClusterContextName = "main"
 
+// logFieldContext is the structured-log field name for context names.
+const logFieldContext = "context"
+
 const (
 	KubeConfig = 1 << iota
 	DynamicCluster
@@ -836,7 +839,7 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 
 			if resp.StatusCode == http.StatusUnauthorized && strings.HasPrefix(authHeader, "Bearer ") {
 				warnOnce.Do(func() {
-					logger.Log(logger.LevelWarn, map[string]string{"context": c.Name}, nil,
+					logger.Log(logger.LevelWarn, map[string]string{logFieldContext: c.Name}, nil,
 						"API server rejected the forwarded bearer token (401); the token may be "+
 							"expired/invalid, or the API server may not trust the same OIDC issuer "+
 							"and client-id as Headlamp")
@@ -901,6 +904,8 @@ func (c *Context) buildProxy() (*httputil.ReverseProxy, error) {
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
 	if err := c.setupProxyTransport(proxy); err != nil {
+		logger.Log(logger.LevelError, map[string]string{logFieldContext: c.Name}, err, "Failed to set up proxy transport")
+
 		return nil, err
 	}
 
