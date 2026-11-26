@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Base64 } from 'js-base64';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { post } from './api/v1/clusterRequests';
@@ -278,6 +279,115 @@ describe('Pod class', () => {
       expect(pod.getHealth()).toBe('healthy');
     });
   });
+  describe('getLogs', () => {
+    const chunk =
+      '{"level":"info","message":"test0"}\n' +
+      '{"level":"warn","message":"test1"}\n' +
+      '{"level":"error","message":"test2"}\n';
+
+    function startLogStream(logsOptions: object = {}) {
+      let onResults: (item: string) => void = () => {};
+      let onFail: () => void = () => {};
+      const cancelStream = vi.fn();
+
+      vi.mocked(stream).mockImplementation(((
+        _url: string,
+        cb: (item: string) => void,
+        args: { failCb?: () => void }
+      ) => {
+        onResults = cb;
+        onFail = args.failCb ?? (() => {});
+        return { cancel: cancelStream, getSocket: () => null };
+      }) as any);
+
+      const pod = new Pod(JSON.parse(JSON.stringify(mockPodData)));
+      const updates: string[][] = [];
+      const cancel = pod.getLogs('container-1', ({ logs }) => updates.push([...logs]), {
+        follow: true,
+        ...logsOptions,
+      });
+
+      return {
+        send: (text: string) => onResults(Base64.encode(text)),
+        endStream: () => onFail(),
+        cancel,
+        cancelStream,
+        last: () => updates[updates.length - 1],
+        updateCount: () => updates.length,
+      };
+    }
+
+    it('gives each line of a chunk its own entry', () => {
+      const logStream = startLogStream();
+      logStream.send(chunk);
+
+      expect(logStream.last()).toEqual([
+        '{"level":"info","message":"test0"}\n',
+        '{"level":"warn","message":"test1"}\n',
+        '{"level":"error","message":"test2"}\n',
+      ]);
+    });
+
+    it('rejoins the lines to the original text', () => {
+      const logStream = startLogStream();
+      logStream.send(chunk);
+
+      expect(logStream.last().join('')).toBe(chunk);
+    });
+
+    it('waits for the rest of a line split across two chunks', () => {
+      const logStream = startLogStream();
+
+      logStream.send('{"level":"error","mess');
+      expect(logStream.last()).toEqual([]);
+
+      logStream.send('age":"split"}\n');
+      expect(logStream.last()).toEqual(['{"level":"error","message":"split"}\n']);
+    });
+
+    it('keeps a fragmented pending line when later chunks contain several lines', () => {
+      const logStream = startLogStream();
+
+      for (let index = 0; index < 1000; index++) {
+        logStream.send('x');
+      }
+      logStream.send(' first\nsecond\nthird');
+      logStream.endStream();
+
+      expect(logStream.last()).toEqual([`${'x'.repeat(1000)} first\n`, 'second\n', 'third']);
+    });
+
+    it('emits a trailing line without a newline once the stream ends', () => {
+      const logStream = startLogStream();
+
+      logStream.send('{"level":"error","message":"last"}');
+      expect(logStream.last()).toEqual([]);
+
+      logStream.endStream();
+      expect(logStream.last()).toEqual(['{"level":"error","message":"last"}']);
+    });
+
+    it('does not report logs while being cancelled', () => {
+      const logStream = startLogStream();
+
+      logStream.send('{"level":"error","message":"last"}');
+      const updatesBeforeCancel = logStream.updateCount();
+
+      logStream.cancel();
+      expect(logStream.updateCount()).toBe(updatesBeforeCancel);
+      expect(logStream.cancelStream).toHaveBeenCalled();
+    });
+
+    it('prettifies every line of a chunk, not only the first', () => {
+      const logStream = startLogStream({ prettifyLogs: true });
+      logStream.send(chunk);
+
+      const output = logStream.last().join('');
+      expect(output).toContain('test0');
+      expect(output).toContain('test1');
+      expect(output).toContain('test2');
+    });
+  });
 });
 
 describe('Pod.addEphemeralContainer targetContainerName', () => {
@@ -484,32 +594,31 @@ describe('Pod.getLogs streaming and formatting', () => {
     });
 
     const [, onResults, opts] = vi.mocked(stream).mock.calls[0];
-    // Empty and whitespace-only items are ignored
+    // An empty item is ignored
     onResults('');
-    onResults(btoa('   '));
     expect(onLogs).not.toHaveBeenCalled();
 
     // Non-JSON log line
-    onResults(btoa('plain message'));
-    expect(onLogs).toHaveBeenLastCalledWith({ logs: ['plain message'], hasJsonLogs: false });
+    onResults(btoa('plain message\n'));
+    expect(onLogs).toHaveBeenLastCalledWith({ logs: ['plain message\n'], hasJsonLogs: false });
 
     // Timestamped JSON log with escaped characters
     const jsonLine = '2025-01-01T00:00:00Z {"msg":"line1\\nline2\\r\\n\\t\\"q\\"\\\\b"}';
-    onResults(btoa(jsonLine));
+    onResults(btoa(jsonLine + '\n'));
     const lastCall = onLogs.mock.calls.at(-1)?.[0];
     expect(lastCall.hasJsonLogs).toBe(true);
     expect(lastCall.logs[1]).toContain('2025-01-01T00:00:00Z\n');
     expect(lastCall.logs[1]).toContain('line1\nline2');
 
     // Invalid JSON falls back to original line
-    onResults(btoa('{not-valid-json}'));
-    expect(onLogs.mock.calls.at(-1)?.[0].logs[2]).toBe('{not-valid-json}');
+    onResults(btoa('{not-valid-json}\n'));
+    expect(onLogs.mock.calls.at(-1)?.[0].logs[2]).toBe('{not-valid-json}\n');
 
     // connectCb resets logs and hasJsonLogs
     opts.connectCb?.();
-    onResults(btoa('after reconnect'));
+    onResults(btoa('after reconnect\n'));
     expect(onLogs.mock.calls.at(-1)?.[0]).toEqual({
-      logs: ['after reconnect'],
+      logs: ['after reconnect\n'],
       hasJsonLogs: false,
     });
   });
@@ -522,7 +631,7 @@ describe('Pod.getLogs streaming and formatting', () => {
       showTimestamps: false,
     });
     const [, onResults] = vi.mocked(stream).mock.calls[0];
-    onResults(btoa('{"a":1}'));
+    onResults(btoa('{"a":1}\n'));
     expect(onLogs).toHaveBeenLastCalledWith({
       logs: ['{\n  "a": 1\n}\n'],
       hasJsonLogs: true,
