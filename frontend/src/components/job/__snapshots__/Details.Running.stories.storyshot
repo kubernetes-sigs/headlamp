@@ -243,6 +243,26 @@
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
+                    Status
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      aria-label=""
+                      class="MuiBox-root css-6n7j50"
+                      data-mui-internal-clone-element="true"
+                    >
+                      <span
+                        class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
+                      >
+                        Running
+                      </span>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
                     Service Account
                   </dt>
                   <dd
@@ -344,7 +364,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      -
+                      90d
                     </span>
                   </dd>
                   <dt
