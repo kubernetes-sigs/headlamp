@@ -53,7 +53,7 @@ func TestLoadOIDCConfigFromFileAndMemory(t *testing.T) {
 		},
 	}}
 	config.Contexts["team/spoke"] = &api.Context{Cluster: "cluster", AuthInfo: "user", Namespace: "apps"}
-	memory, loadErrors := kubeconfig.LoadContextsFromAPIConfig(config, true)
+	memory, loadErrors := kubeconfig.LoadContextsFromAPIConfig(config, kubeconfig.KubeConfig, true)
 	require.Empty(t, loadErrors)
 	require.Len(t, memory, 1)
 	path := filepath.Join(t.TempDir(), "config")
@@ -257,7 +257,7 @@ func TestLoadContextsFromAPIConfigPreservesOrigin(t *testing.T) {
 				LocationOfOrigin: origin,
 			}
 
-			contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, true)
+			contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, kubeconfig.KubeConfig, true)
 
 			require.Empty(t, errs)
 			require.Len(t, contexts, 1)
@@ -266,6 +266,40 @@ func TestLoadContextsFromAPIConfigPreservesOrigin(t *testing.T) {
 			assert.Equal(t, origin, contexts[0].KubeConfigPath)
 		})
 	}
+}
+
+// TestRESTConfigRejectsExecForDynamicCluster covers the RESTConfig guard
+// directly, since both loaders reject exec credentials before reaching it.
+func TestRESTConfigRejectsExecForDynamicCluster(t *testing.T) {
+	newContext := func(source int) *kubeconfig.Context {
+		return &kubeconfig.Context{
+			Name: "exec-context",
+			KubeContext: &api.Context{
+				Cluster:  "exec-cluster",
+				AuthInfo: "exec-user",
+			},
+			Cluster: &api.Cluster{Server: "https://127.0.0.1:6443"},
+			AuthInfo: &api.AuthInfo{
+				Exec: &api.ExecConfig{
+					APIVersion:      "client.authentication.k8s.io/v1beta1",
+					Command:         "should-not-run",
+					InteractiveMode: api.NeverExecInteractiveMode,
+				},
+			},
+			Source: source,
+		}
+	}
+
+	restConf, err := newContext(kubeconfig.DynamicCluster).RESTConfig()
+	require.Error(t, err)
+	assert.Nil(t, restConf)
+	assert.ErrorContains(t, err, "exec credential plugins are not permitted in dynamic clusters")
+
+	restConf, err = newContext(kubeconfig.KubeConfig).RESTConfig()
+	require.NoError(t, err)
+	require.NotNil(t, restConf)
+	require.NotNil(t, restConf.ExecProvider)
+	assert.Equal(t, "should-not-run", restConf.ExecProvider.Command)
 }
 
 // TestLoadContextsWithDuplicateNames validates the behavior of the LoadContextsFromMultipleFiles function.
@@ -1563,6 +1597,38 @@ func TestLoadContextsFromMultipleFilesResolvesRelativeToEachFile(t *testing.T) {
 	assert.Equal(t, filepath.Join(dirB, "pki", "admin.pem"), byName["cluster-b"].AuthInfo.ClientCertificate)
 	assert.Equal(t, filepath.Join(dirB, "pki", "admin.key"), byName["cluster-b"].AuthInfo.ClientKey)
 	assert.Equal(t, filepath.Join(dirB, "pki", "token"), byName["cluster-b"].AuthInfo.TokenFile)
+}
+
+func TestLoadContextsFromBase64StringRejectsExecInDynamicCluster(t *testing.T) {
+	t.Parallel()
+
+	content := `apiVersion: v1
+clusters:
+- cluster:
+    server: https://127.0.0.1:6443
+  name: dynamic-cluster
+contexts:
+- context:
+    cluster: dynamic-cluster
+    user: exec-user
+  name: dynamic-context
+current-context: dynamic-context
+kind: Config
+users:
+- name: exec-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: /bin/sh
+      args: ["-c", "echo test"]
+`
+	encoded := base64.StdEncoding.EncodeToString([]byte(content))
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(encoded, kubeconfig.DynamicCluster)
+	require.NoError(t, err)
+	require.Len(t, contexts, 0)
+	require.Len(t, contextErrors, 1)
+	assert.Contains(t, contextErrors[0].Error.Error(), "exec credential plugins are not permitted in dynamic clusters")
 }
 
 func TestLoadContextsFromBase64StringLeavesRelativePKIPathsUnresolved(t *testing.T) {

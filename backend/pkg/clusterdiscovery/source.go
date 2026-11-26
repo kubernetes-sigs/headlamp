@@ -202,7 +202,7 @@ func (r *Runner) loadGenerated(
 		return nil, err
 	}
 
-	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, false)
+	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, kubeconfig.DiscoveredCluster, false)
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}

@@ -114,6 +114,118 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Covers both parsing and stateless loading across the desktop trust boundary.
+func TestDynamicClusterExecCredentialBoundary(t *testing.T) {
+	const rawKubeconfig = `apiVersion: v1
+kind: Config
+clusters:
+- name: desktop-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+users:
+- name: desktop-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: cloud-auth-plugin
+      interactiveMode: Never
+contexts:
+- name: desktop-context
+  context:
+    cluster: desktop-cluster
+    user: desktop-user
+current-context: desktop-context
+`
+
+	encoded := base64.StdEncoding.EncodeToString([]byte(rawKubeconfig))
+
+	tests := []struct {
+		name         string
+		useInCluster bool
+		backendToken string
+		wantStatus   int
+		wantLoaded   bool
+	}{
+		{
+			name:         "desktop backend",
+			backendToken: "desktop-token",
+			wantStatus:   http.StatusOK,
+			wantLoaded:   true,
+		},
+		{
+			name:         "in-cluster server",
+			useInCluster: true,
+			backendToken: "configured-but-bypassed",
+			wantStatus:   http.StatusBadRequest,
+		},
+		{
+			name:       "standalone server without backend token",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("HEADLAMP_BACKEND_TOKEN", test.backendToken)
+
+			store := kubeconfig.NewContextStore()
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:          test.useInCluster,
+						EnableDynamicClusters: true,
+						KubeConfigStore:       store,
+					},
+					Cache: cache.New[interface{}](),
+				},
+			}
+			handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
+
+			parseReq, err := makeJSONReq(http.MethodPost, "/parseKubeConfig", KubeconfigRequest{
+				Kubeconfigs: []string{encoded},
+			})
+			require.NoError(t, err)
+
+			if test.backendToken != "" {
+				parseReq.Header.Set("X-HEADLAMP_BACKEND-TOKEN", test.backendToken)
+			}
+
+			parseResp := httptest.NewRecorder()
+			handler.ServeHTTP(parseResp, parseReq)
+			assert.Equal(t, test.wantStatus, parseResp.Code)
+
+			statelessReq := httptest.NewRequestWithContext(
+				context.Background(),
+				http.MethodGet,
+				"/clusters/desktop-context/version",
+				nil,
+			)
+			statelessReq = mux.SetURLVars(statelessReq, map[string]string{"clusterName": "desktop-context"})
+			statelessReq.Header.Set("X-HEADLAMP-USER-ID", "desktop-user")
+
+			contextKey, loadErr := c.handleStatelessReq(statelessReq, encoded)
+			if !test.wantLoaded {
+				require.Error(t, loadErr)
+				assert.Empty(t, contextKey)
+
+				return
+			}
+
+			require.NoError(t, loadErr)
+			assert.Equal(t, statelessContextKey("desktop-context", "desktop-user"), contextKey)
+
+			stored, err := store.GetContext(contextKey)
+			require.NoError(t, err)
+			assert.Equal(t, "dynamic_cluster", stored.SourceStr())
+
+			restConfig, err := stored.RESTConfig()
+			require.NoError(t, err)
+			require.NotNil(t, restConfig.ExecProvider)
+			assert.Equal(t, "cloud-auth-plugin", restConfig.ExecProvider.Command)
+		})
+	}
+}
+
 func TestParseKubeConfigInvalidJSONReturnsBadRequest(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
