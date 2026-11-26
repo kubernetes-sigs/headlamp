@@ -256,6 +256,14 @@ func withBaseURL(u string) oidcTestOption {
 func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestOption) (http.Handler, string) {
 	t.Helper()
 
+	c, clusterName := newOIDCTestConfig(t, oidcSrv, opts...)
+
+	return createHeadlampHandler(newTestHandlerCtx(t), c), clusterName
+}
+
+func newOIDCTestConfig(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestOption) (*HeadlampConfig, string) {
+	t.Helper()
+
 	const clusterName = "oidc-char-test"
 
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -292,7 +300,7 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestO
 		opt(c)
 	}
 
-	return createHeadlampHandler(newTestHandlerCtx(t), c), clusterName
+	return c, clusterName
 }
 
 // driveOIDCStart calls /oidc?cluster=<cluster> against the supplied handler
@@ -733,6 +741,89 @@ func TestOIDCCallback_Success(t *testing.T) {
 
 	assert.Equal(t, "/auth?cluster="+cluster, rr.Header().Get("Location"),
 		"non-DevMode, empty BaseURL redirects to /auth?cluster=<cluster>")
+}
+
+func TestOIDCRefreshAndMeWithBaseURL(t *testing.T) {
+	const baseURL = "/dev/internal/headlamp"
+
+	srv := newOIDCTestServer(t, nil)
+	tokenCache := cache.New[interface{}]()
+	config, cluster := newOIDCTestConfig(t, srv,
+		withBaseURL(baseURL),
+		withCache(tokenCache),
+		withAccessToken(),
+	)
+	config.SessionTTL = 3600
+
+	expiredToken, renewedToken := configureBaseURLRefreshTokens(t, srv, tokenCache)
+	handler := config.OIDCTokenRefreshMiddleware(
+		createHeadlampHandler(newTestHandlerCtx(t), config),
+	)
+	req := httptest.NewRequestWithContext(
+		t.Context(), http.MethodGet, baseURL+"/clusters/"+cluster+"/me", nil,
+	)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-" + auth.SanitizeClusterName(cluster) + ".0",
+		Value:    expiredToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var got struct {
+		Username string `json:"username"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "alice", got.Username)
+
+	var refreshedCookie *http.Cookie
+
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == "headlamp-auth-"+auth.SanitizeClusterName(cluster)+".0" &&
+			cookie.Value == renewedToken {
+			refreshedCookie = cookie
+			break
+		}
+	}
+
+	require.NotNil(t, refreshedCookie, "renewed auth cookie was not set")
+	assert.Equal(t, baseURL+"/clusters/"+cluster, refreshedCookie.Path)
+}
+
+func configureBaseURLRefreshTokens(
+	t *testing.T, srv *oidcTestServer, tokenCache cache.Cache[interface{}],
+) (string, string) {
+	t.Helper()
+
+	expiredToken := srv.signToken(t, map[string]any{
+		"exp": float64(time.Now().Add(-time.Hour).Unix()),
+	})
+	renewedToken := srv.signToken(t, map[string]any{
+		"preferred_username": "alice",
+		"email":              "alice@example.com",
+		"groups":             []string{"dev"},
+	})
+	srv.setTokenHandler(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, "refresh-user-token", r.PostForm.Get("refresh_token"))
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  renewedToken,
+			"token_type":    "Bearer",
+			"refresh_token": "new-refresh-token",
+			"expires_in":    3600,
+		}))
+	})
+
+	require.NoError(t, tokenCache.Set(context.Background(), "oidc-token-"+expiredToken, "refresh-user-token"))
+
+	return expiredToken, renewedToken
 }
 
 // TestOIDCCallback_CachesRefreshToken characterizes where the callback stores
