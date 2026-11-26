@@ -186,7 +186,10 @@ func TestAuthorizationPrefixPruningAndEviction(t *testing.T) {
 		ResetForTesting()
 		mu.Lock()
 		now := time.Now()
-		clientsetCache["active\x00tok"] = &CachedClientSet{clientset: &kubernetes.Clientset{}, lastUsed: now}
+		clientsetCache["active\x00tok"] = clientsetLRUList.PushFront(&lruEntry{
+			key: "active\x00tok",
+			cs:  &CachedClientSet{clientset: &kubernetes.Clientset{}, lastUsed: now},
+		})
 		inFlight["inflight\x00tok"] = &inFlightEntry{waitCh: make(chan struct{})}
 		blockedClientsetPrefixes["active"] = blockedPrefixEntry{blockedAt: now.Add(-2 * clientsetTTL)}
 		blockedClientsetPrefixes["inflight"] = blockedPrefixEntry{blockedAt: now.Add(-2 * clientsetTTL)}
@@ -262,7 +265,10 @@ func TestCreateAndCacheClientSetErrors(t *testing.T) {
 	hookMu.Lock()
 	clientsetCreator = func(*kubeconfig.Context, string) (*kubernetes.Clientset, error) {
 		mu.Lock()
-		clientsetCache["c\x00rev\x00tok"] = &CachedClientSet{clientset: existingCS, lastUsed: time.Now()}
+		clientsetCache["c\x00rev\x00tok"] = clientsetLRUList.PushFront(&lruEntry{
+			key: "c\x00rev\x00tok",
+			cs:  &CachedClientSet{clientset: existingCS, lastUsed: time.Now()},
+		})
 		mu.Unlock()
 
 		return &kubernetes.Clientset{}, nil
@@ -281,10 +287,13 @@ func TestGetCachedAndGetClientSetErrors(t *testing.T) {
 	})
 
 	mu.Lock()
-	clientsetCache["ctx\x00rev\x00tok"] = &CachedClientSet{
-		clientset: &kubernetes.Clientset{},
-		lastUsed:  time.Now().Add(-2 * clientsetTTL),
-	}
+	clientsetCache["ctx\x00rev\x00tok"] = clientsetLRUList.PushFront(&lruEntry{
+		key: "ctx\x00rev\x00tok",
+		cs: &CachedClientSet{
+			clientset: &kubernetes.Clientset{},
+			lastUsed:  time.Now().Add(-2 * clientsetTTL),
+		},
+	})
 	mu.Unlock()
 
 	cs, ok := getCachedClientSet("ctx\x00rev\x00tok")

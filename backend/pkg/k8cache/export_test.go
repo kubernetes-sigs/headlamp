@@ -17,6 +17,7 @@ limitations under the License.
 package k8cache
 
 import (
+	"container/list"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -30,7 +31,8 @@ func ResetClientsetCache() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	clientsetCache = make(map[string]*CachedClientSet)
+	clientsetCache = make(map[string]*list.Element)
+	clientsetLRUList = list.New()
 	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 }
 
@@ -39,10 +41,16 @@ func SeedClientsetCache(key string, lastUsed time.Time) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	clientsetCache[key] = &CachedClientSet{
+	cachedCS := &CachedClientSet{
 		clientset: &kubernetes.Clientset{},
 		lastUsed:  lastUsed,
 	}
+	entry := &lruEntry{
+		key: key,
+		cs:  cachedCS,
+	}
+	elem := clientsetLRUList.PushFront(entry)
+	clientsetCache[key] = elem
 }
 
 // ManualEvictExpiredClientsets triggers the eviction logic immediately for testing.
