@@ -1536,26 +1536,37 @@ async function downloadAndExtractSingleArchive(
   }
 }
 
+const DANGEROUS_ANNOTATION_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /**
  * Converts annotations input into a nested JavaScript object structure.
  * @param annotations - A record of annotations with path-style keys.
  * @returns A nested JavaScript object structure.
  */
 function convertAnnotations(annotations: Record<string, string>): Record<string, any> {
-  const result: Record<string, any> = {};
+  const result: Record<string, any> = Object.create(null);
 
-  for (const key in annotations) {
-    const value = annotations[key];
+  if (!annotations || typeof annotations !== 'object') {
+    return result;
+  }
+
+  for (const [key, value] of Object.entries(annotations)) {
     const parts = key.split('/');
-    let current = result;
+    if (parts.some(part => DANGEROUS_ANNOTATION_SEGMENTS.has(part))) {
+      continue;
+    }
 
+    let current = result;
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (i === parts.length - 1) {
         current[part] = value;
       } else {
-        if (!current[part]) {
-          current[part] = {};
+        const next = Object.prototype.hasOwnProperty.call(current, part)
+          ? current[part]
+          : undefined;
+        if (!next || typeof next !== 'object') {
+          current[part] = Object.create(null);
         }
         current = current[part];
       }

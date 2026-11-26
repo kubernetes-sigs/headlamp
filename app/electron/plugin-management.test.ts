@@ -1097,6 +1097,35 @@ describe('getExtraFiles', () => {
     };
     expect(getExtraFiles(annotations)).toBeUndefined();
   });
+
+  it('ignores prototype-pollution annotation keys without mutating Object.prototype', () => {
+    const annotations = JSON.parse(
+      JSON.stringify({
+        '__proto__/pollutedFromProto': 'yes',
+        'constructor/prototype/pollutedFromCtor': 'yes',
+        'headlamp/plugin/extra-files/__proto__/pollutedNested': 'yes',
+        'headlamp/plugin/extra-files/0/url':
+          'https://github.com/kubernetes/minikube/releases/download/v1.0.0/minikube-linux-amd64.tar.gz',
+        'headlamp/plugin/extra-files/0/checksum': 'sha256:abc123',
+        'headlamp/plugin/extra-files/0/arch': 'linux/x64',
+        'headlamp/plugin/extra-files/0/output/minikube/output': 'minikube',
+        'headlamp/plugin/extra-files/0/output/minikube/input': 'minikube-linux-amd64',
+      })
+    ) as Record<string, string>;
+
+    try {
+      const extraFiles = getExtraFiles(annotations);
+      expect(extraFiles).toBeDefined();
+      expect(Object.values(extraFiles!)).toHaveLength(1);
+      expect(({} as Record<string, unknown>).pollutedFromProto).toBeUndefined();
+      expect(({} as Record<string, unknown>).pollutedFromCtor).toBeUndefined();
+      expect(({} as Record<string, unknown>).pollutedNested).toBeUndefined();
+    } finally {
+      delete (Object.prototype as Record<string, unknown>).pollutedFromProto;
+      delete (Object.prototype as Record<string, unknown>).pollutedFromCtor;
+      delete (Object.prototype as Record<string, unknown>).pollutedNested;
+    }
+  });
 });
 
 describe('TLS error detection', () => {
