@@ -16,11 +16,12 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import HPA from '../../lib/k8s/hpa';
+import HPA, { HPAScalingPolicy, HPAScalingRules } from '../../lib/k8s/hpa';
 import { localeDate } from '../../lib/util';
 import Link from '../common/Link';
 import { ConditionsSection } from '../common/Resource';
 import { DetailsGrid } from '../common/Resource';
+import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 
 export default function HpaDetails(props: { name?: string; namespace?: string; cluster?: string }) {
@@ -83,6 +84,14 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
       }
       extraSections={item =>
         item && [
+          ...(item.spec?.behavior?.scaleUp || item.spec?.behavior?.scaleDown
+            ? [
+                {
+                  id: 'headlamp.hpa-scaling-behavior',
+                  section: <ScalingBehavior hpa={item} />,
+                },
+              ]
+            : []),
           {
             id: 'headlamp.hpa-conditions',
             section: <ConditionsSection resource={item?.jsonData} />,
@@ -90,5 +99,62 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
         ]
       }
     />
+  );
+}
+
+/** Text for one scaling policy, e.g. "4 pods per 60s" or "100% per 15s". */
+export function scalingPolicyText(
+  policy: HPAScalingPolicy,
+  t: (key: string, opts?: any) => string
+) {
+  return policy.type === 'Percent'
+    ? t('translation|{{ value }}% per {{ seconds }}s', {
+        value: policy.value,
+        seconds: policy.periodSeconds,
+      })
+    : t('translation|{{ value }} pods per {{ seconds }}s', {
+        value: policy.value,
+        seconds: policy.periodSeconds,
+      });
+}
+
+/**
+ * The scale up and scale down rules of `spec.behavior`, which limit how fast the
+ * HPA changes the number of replicas.
+ */
+function ScalingBehavior({ hpa }: { hpa: HPA }) {
+  const { t } = useTranslation();
+  const behavior = hpa.spec?.behavior;
+  const rows = [
+    { direction: t('translation|Scale Up'), rules: behavior?.scaleUp },
+    { direction: t('translation|Scale Down'), rules: behavior?.scaleDown },
+  ].filter((row): row is { direction: string; rules: HPAScalingRules } => !!row.rules);
+
+  return (
+    <SectionBox title={t('translation|Scaling Behavior')}>
+      <SimpleTable
+        data={rows}
+        columns={[
+          { label: t('translation|Direction'), getter: row => row.direction },
+          {
+            label: t('translation|Stabilization Window'),
+            getter: row =>
+              row.rules.stabilizationWindowSeconds !== undefined
+                ? `${row.rules.stabilizationWindowSeconds}s`
+                : '-',
+          },
+          { label: t('translation|Select Policy'), getter: row => row.rules.selectPolicy ?? '-' },
+          {
+            label: t('translation|Policies'),
+            getter: row =>
+              row.rules.policies?.length
+                ? row.rules.policies.map((policy: HPAScalingPolicy, i: number) => (
+                    <div key={i}>{scalingPolicyText(policy, t)}</div>
+                  ))
+                : '-',
+          },
+        ]}
+      />
+    </SectionBox>
   );
 }

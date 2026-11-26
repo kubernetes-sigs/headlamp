@@ -96,6 +96,25 @@ type MetricType = 'Utilization' | 'Value' | 'AverageValue';
 
 type MetricSourceType = 'Resource' | 'Pods' | 'Object' | 'External' | 'ContainerResource';
 
+/** One limit on how fast an HPA may scale, e.g. at most 4 pods every 60 seconds. */
+export interface HPAScalingPolicy {
+  type: 'Pods' | 'Percent' | string;
+  value: number;
+  periodSeconds: number;
+}
+
+/** How an HPA scales in one direction (`spec.behavior.scaleUp` or `scaleDown`). */
+export interface HPAScalingRules {
+  stabilizationWindowSeconds?: number;
+  selectPolicy?: 'Max' | 'Min' | 'Disabled' | string;
+  policies?: HPAScalingPolicy[];
+}
+
+export interface HPABehavior {
+  scaleUp?: HPAScalingRules;
+  scaleDown?: HPAScalingRules;
+}
+
 interface HpaSpec {
   maxReplicas: number;
   minReplicas: number;
@@ -126,6 +145,7 @@ interface HpaSpec {
     };
     type: MetricSourceType;
   }[];
+  behavior?: HPABehavior;
 }
 
 interface HpaStatus {
