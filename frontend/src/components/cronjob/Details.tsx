@@ -146,6 +146,14 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
           onChange={e => {
             setJobName(e.target.value);
           }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (isValidJobName) {
+                handleSpawn();
+              }
+            }
+          }}
         />
         {showJobNameError && (
           <FormHelperText id="name-helper-text" error>
