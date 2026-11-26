@@ -24,7 +24,7 @@ import { EmptyStateActions } from './EmptyStateActions';
 import ResourceTable, { ResourceTableProps } from './ResourceTable';
 
 export interface ResourceListViewProps<Item extends KubeObject>
-  extends PropsWithChildren<Omit<ResourceTableProps<Item>, 'data'>> {
+  extends PropsWithChildren<Omit<ResourceTableProps<Item>, 'data' | 'noNamespaceFilter'>> {
   title: ReactNode;
   //** The location to go back to. If provided as an empty string, the browser's history will be used. If not provided (default)), then no back button is used. */
   backLink?: BackLinkProps['to'] | boolean;
@@ -33,7 +33,9 @@ export interface ResourceListViewProps<Item extends KubeObject>
 }
 
 export interface ResourceListViewWithResourceClassProps<ItemClass extends KubeObjectClass>
-  extends PropsWithChildren<Omit<ResourceTableProps<InstanceType<ItemClass>>, 'data'>> {
+  extends PropsWithChildren<
+    Omit<ResourceTableProps<InstanceType<ItemClass>>, 'data' | 'noNamespaceFilter'>
+  > {
   title: ReactNode;
   //** The location to go back to. If provided as an empty string, the browser's history will be used. If not provided (default)), then no back button is used. */
   backLink?: BackLinkProps['to'] | boolean;
@@ -66,6 +68,18 @@ export default function ResourceListView(
     resourceClass && clusters?.length !== 0
       ? [<CreateResourceButton resourceClass={resourceClass} cluster={clusters?.[0]} />]
       : undefined;
+
+  // A headerProps object with the noNamespaceFilter key present (even set to undefined,
+  // as several renderers like Pod/Job do via `{ noNamespaceFilter, ...}` with an
+  // undefined local variable) is an explicit override, matching how {...headerProps}
+  // used to win over the derived header prop. Otherwise fall back to the resourceClass
+  // signal, matching the header's previous default.
+  const hasNoNamespaceFilterOverride =
+    headerProps !== undefined &&
+    Object.prototype.hasOwnProperty.call(headerProps, 'noNamespaceFilter');
+  const noNamespaceFilter = hasNoNamespaceFilterOverride
+    ? headerProps?.noNamespaceFilter === true
+    : !withNamespaceFilter;
 
   // Default the empty-state actions to a Create + Refresh row on top-level
   // resource list views (identified by a `resourceClass` prop). Nested
@@ -111,9 +125,9 @@ export default function ResourceListView(
         typeof title === 'string' ? (
           <SectionFilterHeader
             title={title}
-            noNamespaceFilter={!withNamespaceFilter}
             titleSideActions={headerProps?.titleSideActions || createActions}
             {...headerProps}
+            noNamespaceFilter={noNamespaceFilter}
           />
         ) : (
           title
@@ -123,6 +137,7 @@ export default function ResourceListView(
       <ResourceTable
         {...tableProps}
         emptyActions={emptyActions}
+        noNamespaceFilter={noNamespaceFilter}
         enableRowActions={tableProps.enableRowActions ?? true}
         enableRowSelection={tableProps.enableRowSelection ?? true}
       />

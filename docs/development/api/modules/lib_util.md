@@ -99,7 +99,7 @@ ___
 
 ### filterResource
 
-▸ **filterResource**(`item`, `filter`, `search?`, `matchCriteria?`): `boolean`
+▸ **filterResource**(`item`, `filter`, `search?`, `matchCriteria?`, `ignoreNamespaceFilter?`): `boolean`
 
 Filters a resource based on the filter state.
 
@@ -111,6 +111,7 @@ Filters a resource based on the filter state.
 | `filter` | `FilterState` | The filter state. |
 | `search?` | `string` | - |
 | `matchCriteria?` | `string`[] | The JSONPath criteria to match. |
+| `ignoreNamespaceFilter?` | `boolean` | When true, skips matching the item's namespace against the global namespace filter. |
 
 #### Returns
 
@@ -381,7 +382,7 @@ ___
 
 ### useFilterFunc
 
-▸ **useFilterFunc**<`T`\>(`matchCriteria?`): (`item`: `T`, `search?`: `string`) => `boolean`
+▸ **useFilterFunc**<`T`\>(`matchCriteria?`, `ignoreNamespaceFilter?`): (`item`: `T`, `search?`: `string`) => `boolean`
 
 Get a function to filter kube resources based on the current global filter state.
 
@@ -396,6 +397,7 @@ Get a function to filter kube resources based on the current global filter state
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `matchCriteria?` | `string`[] | The JSONPath criteria to match. |
+| `ignoreNamespaceFilter?` | `boolean` | When true, the returned function ignores the global namespace filter; textual/search filtering still applies. |
 
 #### Returns
 
