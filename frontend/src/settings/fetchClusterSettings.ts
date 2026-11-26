@@ -92,7 +92,22 @@ export async function fetchSource(
       return null;
     }
 
-    return JSON.parse(raw);
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        console.warn(
+          `Ignoring ${resourceType}/${source.name} (${SETTINGS_DATA_KEY}) in cluster "${clusterName}": expected a JSON object.`
+        );
+        return null;
+      }
+      return parsed;
+    } catch (err) {
+      console.warn(
+        `Failed to parse ${SETTINGS_DATA_KEY} from ${resourceType}/${source.name} in cluster "${clusterName}":`,
+        err
+      );
+      return null;
+    }
   } catch {
     return null;
   }

@@ -1,0 +1,6 @@
+config:
+  settings: |
+    clusters:
+      "*":
+        nodeShellTerminal:
+          isEnabled: false

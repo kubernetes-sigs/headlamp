@@ -1,0 +1,4 @@
+config:
+  settings:
+    existingConfigMap: cm-a
+    existingSecret: sec-b

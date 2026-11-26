@@ -52,6 +52,325 @@
         "failureThreshold": { "type": "integer", "minimum": 1 },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 1 }
       }
+    },
+    "adminSettingsDisplayMode": {
+      "type": "string",
+      "enum": ["normal", "disabled", "hidden"]
+    },
+    "adminSettingsClusterList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "adminSettingsClusterSource": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": ["configmap", "ConfigMap", "secret", "Secret"]
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "adminSettingsWrappedString": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "type": "string", "minLength": 1 },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsWrappedAllowEmptyString": {
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "type": "string" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsWrappedBoolean": {
+      "oneOf": [
+        { "type": "boolean" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "type": "boolean" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsPositiveIntArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "integer", "minimum": 1 }
+    },
+    "adminSettingsWrappedPositiveIntArray": {
+      "oneOf": [
+        { "$ref": "#/definitions/adminSettingsPositiveIntArray" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "$ref": "#/definitions/adminSettingsPositiveIntArray" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsStringArray": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "adminSettingsWrappedStringArray": {
+      "oneOf": [
+        { "$ref": "#/definitions/adminSettingsStringArray" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "$ref": "#/definitions/adminSettingsStringArray" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsThemeObject": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "light": { "type": "string", "minLength": 1 },
+        "dark": { "type": "string", "minLength": 1 }
+      }
+    },
+    "adminSettingsThemeValue": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "$ref": "#/definitions/adminSettingsThemeObject" }
+      ]
+    },
+    "adminSettingsWrappedTheme": {
+      "oneOf": [
+        { "$ref": "#/definitions/adminSettingsThemeValue" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "$ref": "#/definitions/adminSettingsThemeValue" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsNodeShellTerminalValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "linuxImage": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" },
+        "namespace": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" },
+        "isEnabled": { "$ref": "#/definitions/adminSettingsWrappedBoolean" }
+      }
+    },
+    "adminSettingsWrappedNodeShellTerminal": {
+      "oneOf": [
+        { "$ref": "#/definitions/adminSettingsNodeShellTerminalValue" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "$ref": "#/definitions/adminSettingsNodeShellTerminalValue" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsPodDebugTerminalValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "debugImage": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" },
+        "isEnabled": { "$ref": "#/definitions/adminSettingsWrappedBoolean" }
+      }
+    },
+    "adminSettingsWrappedPodDebugTerminal": {
+      "oneOf": [
+        { "$ref": "#/definitions/adminSettingsPodDebugTerminalValue" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "$ref": "#/definitions/adminSettingsPodDebugTerminalValue" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsAppearanceValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accentColor": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" },
+        "icon": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" }
+      }
+    },
+    "adminSettingsWrappedAppearance": {
+      "oneOf": [
+        { "$ref": "#/definitions/adminSettingsAppearanceValue" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "$ref": "#/definitions/adminSettingsAppearanceValue" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsClusterConfigValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultNamespace": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" },
+        "allowedNamespaces": { "$ref": "#/definitions/adminSettingsWrappedStringArray" },
+        "allowedNamespacesSelector": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" },
+        "currentName": { "$ref": "#/definitions/adminSettingsWrappedAllowEmptyString" },
+        "nodeShellTerminal": { "$ref": "#/definitions/adminSettingsWrappedNodeShellTerminal" },
+        "podDebugTerminal": { "$ref": "#/definitions/adminSettingsWrappedPodDebugTerminal" },
+        "appearance": { "$ref": "#/definitions/adminSettingsWrappedAppearance" }
+      }
+    },
+    "adminSettingsWrappedClusterConfig": {
+      "oneOf": [
+        { "$ref": "#/definitions/adminSettingsClusterConfigValue" },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": { "$ref": "#/definitions/adminSettingsClusterConfigValue" },
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        }
+      ]
+    },
+    "adminSettingsPluginValue": {
+      "oneOf": [
+        { "type": ["string", "number", "boolean", "array", "null"] },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {},
+            "$display": { "$ref": "#/definitions/adminSettingsDisplayMode" },
+            "$clusterDefined": { "$ref": "#/definitions/adminSettingsClusterList" }
+          }
+        },
+        {
+          "type": "object",
+          "not": {
+            "anyOf": [
+              { "required": ["$value"] },
+              { "required": ["$display"] },
+              { "required": ["$clusterDefined"] }
+            ]
+          },
+          "additionalProperties": { "$ref": "#/definitions/adminSettingsPluginValue" }
+        }
+      ]
+    },
+    "adminSettingsDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tableRowsPerPageOptions": { "$ref": "#/definitions/adminSettingsWrappedPositiveIntArray" },
+        "timezone": { "$ref": "#/definitions/adminSettingsWrappedString" },
+        "sidebarSortAlphabetically": { "$ref": "#/definitions/adminSettingsWrappedBoolean" },
+        "expandLargeGraph": { "$ref": "#/definitions/adminSettingsWrappedBoolean" },
+        "useEvict": { "$ref": "#/definitions/adminSettingsWrappedBoolean" },
+        "tutorialTooltips": { "$ref": "#/definitions/adminSettingsWrappedBoolean" },
+        "theme": { "$ref": "#/definitions/adminSettingsWrappedTheme" },
+        "clusters": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": { "$ref": "#/definitions/adminSettingsWrappedClusterConfig" }
+          },
+          "additionalProperties": false
+        },
+        "plugins": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "object",
+              "patternProperties": {
+                "^.+$": { "$ref": "#/definitions/adminSettingsPluginValue" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "adminSettingsClusterDefinedSettings": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/adminSettingsClusterSource" }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   },
   "properties": {
@@ -394,6 +713,59 @@
               "default": ""
             }
           }
+        },
+        "settings": {
+          "description": "Distributed admin settings (inline YAML/JSON string, structured settings object, or existingConfigMap/existingSecret reference)",
+          "anyOf": [
+            { "type": "null" },
+            { "type": "string" },
+            {
+              "type": "object",
+              "oneOf": [
+                { "maxProperties": 0 },
+                {
+                  "required": ["existingConfigMap"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "existingConfigMap": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Name of an existing ConfigMap containing settings JSON"
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Key inside the ConfigMap (defaults to settings.json)"
+                    }
+                  }
+                },
+                {
+                  "required": ["existingSecret"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "existingSecret": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Name of an existing Secret containing settings JSON"
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Key inside the Secret (defaults to settings.json)"
+                    }
+                  }
+                },
+                {
+                  "minProperties": 1,
+                  "additionalProperties": false,
+                  "properties": {
+                    "defaults": { "$ref": "#/definitions/adminSettingsDefaults" },
+                    "clusterDefinedSettings": { "$ref": "#/definitions/adminSettingsClusterDefinedSettings" }
+                  }
+                }
+              ]
+            }
+          ]
         },
         "extraArgs": {
           "type": "array",

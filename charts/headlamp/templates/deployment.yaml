@@ -43,6 +43,8 @@
 {{- $readOnlyRootFsPlugins := and .Values.pluginsManager.enabled (eq (include "headlamp.readOnlyRootFilesystem" (dict "securityContext" $pluginManagerSecurityContext)) "true") }}
 {{- $tmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFs "mountName" "headlamp-tmp") | fromYaml }}
 {{- $pluginsTmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.pluginsManager.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFsPlugins "mountName" "headlamp-plugins-tmp") | fromYaml }}
+{{- $settingsCtx := include "headlamp.settingsContext" . | fromJson }}
+{{- $hasSettingsArg := false }}
 {{- $oidcAutoLogin := "" }}
 
 # This block of code is used to extract the values from the env.
@@ -144,6 +146,9 @@
       {{- $parseArgs = false }}
     {{- else }}
       {{- $flagName := first (splitList "=" (trimPrefix "-" (trimPrefix "-" $arg))) }}
+      {{- if eq $flagName "settings" }}
+        {{- $hasSettingsArg = true }}
+      {{- end }}
       {{- if regexMatch "^--?oidc-(client-(id|secret)(-file)?|idp-issuer-url)(=|$)" $arg }}
         {{- $flag := regexFind "^--?oidc-(client-(id|secret)(-file)?|idp-issuer-url)" $arg }}
         {{- $value := "" }}
@@ -247,9 +252,14 @@ spec:
       {{- include "headlamp.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- if or .Values.podAnnotations $settingsCtx.inline }}
       annotations:
+        {{- if $settingsCtx.inline }}
+        checksum/settings: {{ $settingsCtx.json | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       labels:
         {{- include "headlamp.selectorLabels" . | nindent 8 }}
@@ -582,6 +592,9 @@ spec:
             {{- with .Values.config.tlsKeyPath }}
             - "-tls-key-path={{ . }}"
             {{- end }}
+            {{- if and $settingsCtx.enabled (not $hasSettingsArg) }}
+            - "-settings=/etc/headlamp/settings.json"
+            {{- end }}
             {{- with .Values.config.extraArgs }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -619,11 +632,17 @@ spec:
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts $tmpCtx.addMount }}
+          {{- if or .Values.pluginsManager.enabled $settingsCtx.enabled .Values.volumeMounts $tmpCtx.addMount }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
               mountPath: {{ .Values.config.pluginsDir }}
+            {{- end }}
+            {{- if $settingsCtx.enabled }}
+            - name: headlamp-settings
+              mountPath: /etc/headlamp/settings.json
+              subPath: {{ $settingsCtx.key | quote }}
+              readOnly: true
             {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -710,7 +729,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
+      {{- if or .Values.pluginsManager.enabled $settingsCtx.enabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -722,6 +741,19 @@ spec:
         - name: headlamp-plugins-tmp
           emptyDir: {}
         {{- end }}
+        {{- end }}
+        {{- if $settingsCtx.enabled }}
+        - name: headlamp-settings
+          {{- if $settingsCtx.existingConfigMap }}
+          configMap:
+            name: {{ $settingsCtx.existingConfigMap | quote }}
+          {{- else if $settingsCtx.existingSecret }}
+          secret:
+            secretName: {{ $settingsCtx.existingSecret | quote }}
+          {{- else }}
+          configMap:
+            name: {{ include "headlamp.fullname" . }}-settings
+          {{- end }}
         {{- end }}
         {{- if $tmpCtx.addVolume }}
         - name: headlamp-tmp

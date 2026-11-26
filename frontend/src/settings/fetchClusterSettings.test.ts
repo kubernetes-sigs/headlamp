@@ -127,6 +127,29 @@ describe('fetchSource', () => {
 
     expect(result).toBeNull();
   });
+
+  it('warns and returns null when settings.json is malformed JSON', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(clusterFetch).mockResolvedValueOnce({
+      json: async () => ({
+        data: {
+          'settings.json': '{not valid json',
+        },
+      }),
+    } as any);
+
+    const result = await fetchSource(clusterName, {
+      name: 'broken-config',
+      type: 'ConfigMap',
+    });
+
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to parse settings.json from configmaps/broken-config'),
+      expect.any(Error)
+    );
+    warnSpy.mockRestore();
+  });
 });
 
 describe('fetchAllClusterSettings', () => {

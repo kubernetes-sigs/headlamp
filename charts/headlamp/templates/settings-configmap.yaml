@@ -1,0 +1,13 @@
+{{- $settingsCtx := include "headlamp.settingsContext" . | fromJson -}}
+{{- if and $settingsCtx.enabled $settingsCtx.inline -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "headlamp.fullname" . }}-settings
+  namespace: {{ include "headlamp.namespace" . }}
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+data:
+  settings.json: |
+{{- $settingsCtx.json | nindent 4 }}
+{{- end }}

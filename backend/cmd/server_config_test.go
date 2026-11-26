@@ -109,7 +109,7 @@ func TestLoadAdminSettings(t *testing.T) {
 	})
 
 	t.Run("valid json is passed through verbatim", func(t *testing.T) {
-		contents := `{"settings":{"tableRowsPerPageOptions":{"$value":[10,20]}}}`
+		contents := `{"defaults":{"tableRowsPerPageOptions":{"$value":[10,20]}}}`
 		settings, err := loadAdminSettings(writeSettings(t, contents))
 
 		require.NoError(t, err)
@@ -126,6 +126,18 @@ func TestLoadAdminSettings(t *testing.T) {
 		_, err := loadAdminSettings(writeSettings(t, "{not json"))
 
 		require.ErrorContains(t, err, "not valid JSON")
+	})
+
+	t.Run("structurally invalid settings are rejected", func(t *testing.T) {
+		_, err := loadAdminSettings(writeSettings(t, `{"settings":{"tableRowsPerPageOptions":[10,20]}}`))
+
+		require.ErrorContains(t, err, "failed schema validation")
+	})
+
+	t.Run("unknown nested settings keys are rejected", func(t *testing.T) {
+		_, err := loadAdminSettings(writeSettings(t, `{"defaults":{"unknownKey":true}}`))
+
+		require.ErrorContains(t, err, "failed schema validation")
 	})
 }
 

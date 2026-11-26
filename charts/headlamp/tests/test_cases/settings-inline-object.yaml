@@ -1,0 +1,14 @@
+config:
+  settings:
+    defaults:
+      tableRowsPerPageOptions: [10, 20, 50]
+      useEvict:
+        $display: disabled
+        $value: true
+      clusters:
+        "*":
+          podDebugTerminal:
+            debugImage: busybox:1.36
+            isEnabled: false
+    clusterDefinedSettings:
+      - "*"

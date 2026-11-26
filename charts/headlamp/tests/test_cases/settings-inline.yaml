@@ -1,0 +1,22 @@
+config:
+  settings: |
+    defaults:
+      tableRowsPerPageOptions: [10, 20, 50]
+      timezone:
+        $display: disabled
+        $value: UTC
+      clusters:
+        "*":
+          nodeShellTerminal:
+            linuxImage: busybox:1.36
+            isEnabled: false
+      plugins:
+        headlamp-prometheus:
+          address:
+            $clusterDefined: ["*"]
+            $value: http://localhost:9090
+    clusterDefinedSettings:
+      "*":
+        - name: headlamp-settings
+          type: configmap
+          namespace: headlamp-tools
