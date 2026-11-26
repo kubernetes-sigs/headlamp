@@ -505,6 +505,11 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 		return nil, fmt.Errorf("empty headlamp context key in GetClientSet")
 	}
 
+	contextKey := strings.SplitN(k.ClusterID, "+", 2)
+	if len(contextKey) < 2 {
+		return nil, fmt.Errorf("unexpected ClusterID format in GetClientSet: %q", k.ClusterID)
+	}
+
 	startJanitor()
 
 	contextCacheKey, err := ContextCacheKey(headlampContextKey, k)

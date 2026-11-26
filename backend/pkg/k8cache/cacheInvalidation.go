@@ -45,6 +45,12 @@ import (
 
 const responseTTL = 10 * time.Minute
 
+
+	keyPart := strings.SplitN(key, "+", 4)
+	if len(keyPart) < 4 {
+		return // malformed key; nothing to namespace-strip
+	}
+
 // resourceScope identifies the objects that one shared watch covers: a resource within a
 // connection, narrowed by namespace and selectors.
 type resourceScope struct {
@@ -52,6 +58,7 @@ type resourceScope struct {
 	Resource                  schema.GroupVersionResource
 	Namespace, Labels, Fields string
 }
+
 
 // resourceWatcher is the shared watch of one scope. It invalidates the cached responses
 // of the scope when an object changes or the watch is interrupted.

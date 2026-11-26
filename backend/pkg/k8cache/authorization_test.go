@@ -307,3 +307,75 @@ func TestIsAllowed(t *testing.T) {
 		})
 	}
 }
+
+
+// ServeFromCacheOrForwardToK8s test whether it is returning from the cache if availables or
+// storing the in cache when getting error while authorizing user.
+func TestServeFromCacheOrForwardToK8s(t *testing.T) {
+	t.Run("stores on miss and serves on hit", func(t *testing.T) {
+		urlObj := url.URL{Path: "/clusters/kind-headlamp-admin/api/v1/pods"}
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, urlObj.Path, nil)
+		cache := NewMockCache()
+
+		// First call should MISS the cache and invoke next.
+		w1 := httptest.NewRecorder()
+		rcw1 := k8cache.NewResponseCapture(w1)
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusTeapot) // example response
+			_, err := w.Write([]byte("next handler called"))
+			assert.NoError(t, err)
+		})
+
+		k8cache.ServeFromCacheOrForwardToK8s(cache, true, next, "key", w1, r, rcw1)
+
+		// Assert first call went through next handler
+		assert.Equal(t, http.StatusTeapot, w1.Code)
+		assert.Contains(t, w1.Body.String(), "next handler called")
+		// Assert response was stored in cache
+		val, err := cache.Get(context.Background(), "key")
+		assert.NoError(t, err, "expected key to be stored in cache")
+		assert.NotEmpty(t, val)
+
+		// Second call should HIT the cache and skip next
+		called := false
+		nextNoCall := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+
+			w.WriteHeader(http.StatusInternalServerError)
+		})
+
+		w2 := httptest.NewRecorder()
+		rcw2 := k8cache.NewResponseCapture(w2)
+		k8cache.ServeFromCacheOrForwardToK8s(cache, true, nextNoCall, "key", w2, r, rcw2)
+
+		// Assert second call did not invoke next
+		assert.False(t, called, "expected cache hit to skip next handler")
+
+		// Assert second call's output matches what was cached
+		assert.Equal(t, http.StatusTeapot, w2.Code)
+		assert.Contains(t, w2.Body.String(), "next handler called")
+	})
+}
+
+func TestGetClientSet_ClusterIDWithPlusErrorFormatting(t *testing.T) {
+	// Set a custom clientset creator that always returns an error
+	restore := k8cache.SetClientsetCreator(func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+		return nil, fmt.Errorf("simulated connection failure")
+	})
+	defer restore()
+
+	ctx := &kubeconfig.Context{
+		ClusterID:   "/home/user/.kubeconfig+prod+cluster+name",
+		Cluster:     &api.Cluster{Server: "https://example.com"},
+		AuthInfo:    &api.AuthInfo{Token: "abcdef"},
+		KubeContext: &api.Context{Cluster: "kind-headlamp-admin"},
+	}
+
+	_, err := k8cache.GetClientSet("prod+cluster+name", ctx, "some-token")
+	assert.Error(t, err)
+
+	if err != nil {
+		assert.Contains(t, err.Error(), "error while creating clientset for cluster prod+cluster+name")
+	}
+}
+
