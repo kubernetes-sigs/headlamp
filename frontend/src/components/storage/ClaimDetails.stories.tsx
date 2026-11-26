@@ -39,6 +39,34 @@ const Template: StoryFn = () => {
   return <Details />;
 };
 
+const PVC_CHANGING_VOLUME_ATTRIBUTES_CLASS = {
+  ...BASE_PVC,
+  spec: { ...BASE_PVC.spec, volumeAttributesClassName: 'gold' },
+  status: {
+    ...BASE_PVC.status,
+    currentVolumeAttributesClassName: 'silver',
+    modifyVolumeStatus: { targetVolumeAttributesClassName: 'gold', status: 'InProgress' },
+  },
+};
+
+/** The claim asks for a new VolumeAttributesClass that the volume is still switching to. */
+export const WithVolumeAttributesClassChange = Template.bind({});
+WithVolumeAttributesClassChange.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/persistentvolumeclaims/my-pvc`, () =>
+          HttpResponse.json(PVC_CHANGING_VOLUME_ATTRIBUTES_CLASS)
+        ),
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
+          HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+        ),
+        http.get(`${API_BASE}/api/v1/persistentvolumeclaims`, () => HttpResponse.error()),
+      ],
+    },
+  },
+};
+
 export const Base = Template.bind({});
 Base.args = {
   json: BASE_PVC,

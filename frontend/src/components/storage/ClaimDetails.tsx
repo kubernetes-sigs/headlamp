@@ -100,6 +100,39 @@ export default function VolumeClaimDetails(props: {
             ),
             hide: !item.spec?.storageClassName,
           },
+          {
+            name: t('translation|Volume Attributes Class'),
+            value: item.spec?.volumeAttributesClassName ? (
+              <Link
+                routeName="volumeAttributesClass"
+                params={{ name: item.spec.volumeAttributesClassName }}
+                activeCluster={item.cluster}
+                tooltip
+              >
+                {item.spec.volumeAttributesClassName}
+              </Link>
+            ) : (
+              ''
+            ),
+            hide: !item.spec?.volumeAttributesClassName,
+          },
+          {
+            // Only while the volume has not switched to the requested class yet.
+            name: t('translation|Current Volume Attributes Class'),
+            value: item.status?.currentVolumeAttributesClassName,
+            hide:
+              !item.status?.currentVolumeAttributesClassName ||
+              item.status.currentVolumeAttributesClassName === item.spec?.volumeAttributesClassName,
+          },
+          {
+            name: t('translation|Volume Attributes Class Change'),
+            value: item.status?.modifyVolumeStatus
+              ? `${item.status.modifyVolumeStatus.targetVolumeAttributesClassName ?? '-'} (${
+                  item.status.modifyVolumeStatus.status
+                })`
+              : '',
+            hide: !item.status?.modifyVolumeStatus,
+          },
         ]
       }
     />

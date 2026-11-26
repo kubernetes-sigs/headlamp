@@ -30,6 +30,8 @@ export interface KubePersistentVolumeClaim extends KubeObjectInterface {
     storageClassName?: string;
     volumeMode?: string;
     volumeName?: string;
+    /** Name of the VolumeAttributesClass the claim asks for. */
+    volumeAttributesClassName?: string;
     [other: string]: any;
   };
   status?: {
@@ -38,6 +40,13 @@ export interface KubePersistentVolumeClaim extends KubeObjectInterface {
     };
     phase?: string;
     accessModes?: string[];
+    /** VolumeAttributesClass the volume currently uses. */
+    currentVolumeAttributesClassName?: string;
+    /** A change of VolumeAttributesClass that has not finished yet. */
+    modifyVolumeStatus?: {
+      targetVolumeAttributesClassName?: string;
+      status: 'Pending' | 'InProgress' | 'Infeasible' | string;
+    };
     [other: string]: any;
   };
 }
