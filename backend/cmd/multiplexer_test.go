@@ -2331,6 +2331,51 @@ func TestClientWriteFailureKeepsReplacementConnection(t *testing.T) {
 	assert.True(t, oldConn.IsClosed())
 }
 
+func TestHeartbeatReconnectForwardsMessages(t *testing.T) {
+	clusterServer := createMockKubeAPIServer()
+	defer clusterServer.Close()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: clusterServer.URL, InsecureSkipTLSVerify: true},
+	}))
+
+	client, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+	defer func() { _ = client.Close() }()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=true", client, nil)
+	conn.Status.State = StateError
+	key := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	m.connections[key] = conn
+
+	failures := 0
+
+	ticker := time.NewTicker(m.heartbeatInterval)
+	defer ticker.Stop()
+
+	replacement, stop := m.handleHeartbeatTick(conn, &failures, ticker)
+	require.NotNil(t, replacement)
+
+	defer m.removeConnection(replacement)
+
+	require.False(t, stop)
+
+	// The mock cluster echoes this frame back on the replacement socket.
+	event := `{"type":"ADDED","object":{"metadata":{"resourceVersion":"250"}}}`
+	require.NoError(t, m.writeMessageToCluster(replacement, []byte(event)))
+	message := readClientDataMessage(t, client)
+	assert.Equal(t, conn.Query, message.Query)
+	assert.JSONEq(t, event, message.Data)
+
+	m.mutex.RLock()
+	current := m.connections[key]
+	m.mutex.RUnlock()
+	assert.Same(t, replacement, current)
+}
+
 func TestReconnectResumesFromLatestResourceVersion(t *testing.T) {
 	queries := make(chan string, 2)
 
@@ -2391,9 +2436,9 @@ func TestReconnectResumesFromLatestResourceVersion(t *testing.T) {
 	assert.Equal(t, query, resumed.Query, "messages must keep routing to the subscribed query")
 }
 
-// readClientMessageOfType returns the next message of type msgType the multiplexer wrote to
+// readClientDataMessage returns the next DATA message the multiplexer wrote to
 // client, which the test server echoes back.
-func readClientMessageOfType(t *testing.T, client *WSConnLock, msgType string) Message {
+func readClientDataMessage(t *testing.T, client *WSConnLock) Message {
 	t.Helper()
 
 	require.NoError(t, client.conn.SetReadDeadline(time.Now().Add(5*time.Second)))
@@ -2403,7 +2448,7 @@ func readClientMessageOfType(t *testing.T, client *WSConnLock, msgType string) M
 
 		require.NoError(t, client.ReadJSON(&msg))
 
-		if msg.Type == msgType {
+		if msg.Type == "DATA" {
 			return msg
 		}
 	}
@@ -2533,7 +2578,7 @@ func TestExpiredWatchEventEndsConnection(t *testing.T) {
 		t.Fatal("the cluster pump kept reading after the watch expired")
 	}
 
-	assert.Equal(t, expired, readClientMessageOfType(t, clientConn, "DATA").Data,
+	assert.Equal(t, expired, readClientDataMessage(t, clientConn).Data,
 		"the client needs the expiry to list again")
 	assert.True(t, conn.IsClosed(), "an expired watch must not be resumed")
 
@@ -2585,7 +2630,7 @@ func TestReconnectHandshakeExpiryEndsWatch(t *testing.T) {
 	assert.Equal(t, int32(1), dials.Load())
 	assert.Equal(t, 0, failures)
 
-	assert.JSONEq(t, watchExpiredEvent, readClientMessageOfType(t, clientConn, "DATA").Data)
+	assert.JSONEq(t, watchExpiredEvent, readClientDataMessage(t, clientConn).Data)
 	assert.True(t, conn.IsClosed())
 
 	m.mutex.RLock()
@@ -2636,7 +2681,7 @@ func TestFirstDialExpiryAsksClientToRelist(t *testing.T) {
 
 	m.handleConnectionError(clientConn, msg, err)
 
-	data := readClientMessageOfType(t, clientConn, "DATA")
+	data := readClientDataMessage(t, clientConn)
 	assert.Equal(t, msg.Query, data.Query)
 	assert.JSONEq(t, watchExpiredEvent, data.Data)
 }
