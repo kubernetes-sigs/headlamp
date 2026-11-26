@@ -24,7 +24,12 @@ import {
   MockInstance,
   vi,
 } from 'vitest';
-import { apiDiscovery, MAX_SUMMARY_KEYS, type PayloadSummary } from './apiDiscovery';
+import {
+  apiDiscovery,
+  discoverClusterApiResources,
+  MAX_SUMMARY_KEYS,
+  type PayloadSummary,
+} from './apiDiscovery';
 import { clusterFetch } from './fetch';
 
 // Reused across tests that need a Response whose body fails to parse as JSON.
@@ -991,6 +996,176 @@ describe('apiDiscovery', () => {
         );
       expect(booleanSummaries.length).toBeGreaterThan(0);
       expect(booleanSummaries[0].value).toBe(false);
+    });
+  });
+
+  describe('discoverClusterApiResources', () => {
+    it('enumerates resources from every served version in aggregated discovery', async () => {
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse({ items: [] })) // /api aggregated
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            items: [
+              {
+                metadata: { name: 'example.com' },
+                versions: [
+                  {
+                    version: 'v1',
+                    resources: [
+                      {
+                        resource: 'widgets',
+                        verbs: ['list', 'get'],
+                        responseKind: { kind: 'Widget' },
+                        singularResource: 'widget',
+                        scope: 'Namespaced',
+                      },
+                    ],
+                  },
+                  {
+                    version: 'v1alpha1',
+                    resources: [
+                      {
+                        resource: 'legacywidgets',
+                        verbs: ['list', 'get'],
+                        responseKind: { kind: 'LegacyWidget' },
+                        singularResource: 'legacywidget',
+                        scope: 'Namespaced',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          })
+        );
+
+      const resources = await discoverClusterApiResources('cluster1');
+
+      expect(resources.map(r => `${r.apiVersion}/${r.pluralName}`)).toEqual([
+        'example.com/v1/widgets',
+        'example.com/v1alpha1/legacywidgets',
+      ]);
+    });
+
+    it('enumerates resources from every served version in legacy discovery', async () => {
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api unavailable'))
+        .mockRejectedValueOnce(new Error('agg /apis unavailable'))
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            groups: [
+              {
+                name: 'example.com',
+                preferredVersion: { version: 'v1' },
+                versions: [{ version: 'v1' }, { version: 'v1alpha1' }],
+              },
+            ],
+          })
+        ) // legacy /apis
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            resources: [{ name: 'widgets', verbs: ['list'], kind: 'Widget', namespaced: true }],
+          })
+        ) // /apis/example.com/v1
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            resources: [
+              { name: 'legacywidgets', verbs: ['list'], kind: 'LegacyWidget', namespaced: true },
+            ],
+          })
+        ); // /apis/example.com/v1alpha1
+
+      const resources = await discoverClusterApiResources('cluster1');
+
+      expect(resources.map(r => `${r.apiVersion}/${r.pluralName}`)).toEqual([
+        'example.com/v1/widgets',
+        'example.com/v1alpha1/legacywidgets',
+      ]);
+    });
+
+    it('propagates terminal discovery failure when legacy /apis fails', async () => {
+      const apisError = new Error('Discovery /apis failed with 500');
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api failed'))
+        .mockRejectedValueOnce(new Error('agg /apis failed'))
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] }))
+        .mockRejectedValueOnce(apisError);
+
+      await expect(discoverClusterApiResources('cluster1')).rejects.toThrow(
+        'Discovery /apis failed with 500'
+      );
+    });
+
+    it('propagates error when all legacy group version fetches fail', async () => {
+      const groupError = new Error('All group fetches failed');
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api failed'))
+        .mockRejectedValueOnce(new Error('agg /apis failed'))
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] }))
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            groups: [{ name: 'example.com', versions: [{ version: 'v1' }] }],
+          })
+        )
+        .mockRejectedValueOnce(groupError);
+
+      await expect(discoverClusterApiResources('cluster1')).rejects.toThrow(
+        'All group fetches failed'
+      );
+    });
+
+    it('keeps preferredVersion first in legacy discovery even when non-preferred version responds faster', async () => {
+      let resolvePreferred!: (value: Response) => void;
+      const preferredPromise = new Promise<Response>(resolve => {
+        resolvePreferred = resolve;
+      });
+
+      mockClusterFetch.mockImplementation(url => {
+        const urlStr = String(url);
+        if (urlStr === '/apis/example.com/v1') {
+          return preferredPromise;
+        }
+        if (urlStr === '/apis/example.com/v1alpha1') {
+          return Promise.resolve(
+            mockJsonResponse({
+              resources: [{ name: 'widgets', verbs: ['list'], kind: 'Widget', namespaced: true }],
+            })
+          );
+        }
+        if (urlStr === '/api') {
+          return Promise.resolve(mockJsonResponse({ versions: [] }));
+        }
+        if (urlStr === '/apis') {
+          return Promise.resolve(
+            mockJsonResponse({
+              groups: [
+                {
+                  name: 'example.com',
+                  preferredVersion: { version: 'v1' },
+                  versions: [{ version: 'v1alpha1' }, { version: 'v1' }],
+                },
+              ],
+            })
+          );
+        }
+        return Promise.reject(new Error(`aggregated unavailable for ${urlStr}`));
+      });
+
+      const discoveryPromise = discoverClusterApiResources('cluster1');
+      // Let v1alpha1 resolve first while v1 is still pending, then resolve v1.
+      await new Promise(resolve => setTimeout(resolve, 10));
+      resolvePreferred(
+        mockJsonResponse({
+          resources: [{ name: 'widgets', verbs: ['list'], kind: 'Widget', namespaced: true }],
+        })
+      );
+
+      const resources = await discoveryPromise;
+      expect(resources.map(r => `${r.apiVersion}/${r.pluralName}`)).toEqual([
+        'example.com/v1/widgets',
+        'example.com/v1alpha1/widgets',
+      ]);
     });
   });
 });

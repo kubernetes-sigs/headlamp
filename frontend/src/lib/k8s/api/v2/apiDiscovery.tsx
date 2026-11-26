@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { ApiError } from './ApiError';
 import type { ApiResource } from './ApiResource';
 import { clusterFetch } from './fetch';
 
@@ -114,6 +115,38 @@ function logAggregatedUnusable(
   );
 }
 
+function toClusterError(err: unknown, cluster: string): Error {
+  if (err instanceof ApiError) {
+    err.cluster ??= cluster;
+    return err;
+  }
+  if (err instanceof Error) {
+    return new ApiError(err.message, { cluster });
+  }
+  return new ApiError(
+    typeof err === 'string' ? err : `API discovery failed for cluster ${cluster}`,
+    { cluster }
+  );
+}
+
+/**
+ * Fetches one side of legacy discovery and validates that the parsed JSON is an object.
+ */
+async function fetchLegacyJsonOrThrow(
+  path: '/api' | '/apis',
+  cluster: string
+): Promise<Record<string, unknown>> {
+  const res = await clusterFetch(path, { cluster });
+  const parsed = await res.json();
+  // `res.json()` can return any JSON value (object, array, string,
+  // number, boolean, null). Legacy discovery callers only care about
+  // the `versions`/`groups` properties on an object body.
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Invalid legacy ${path} discovery payload for cluster ${cluster}`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
 /**
  * Fetches one side of legacy discovery and logs/swallows any failure.
  * `clusterFetch` is not bare `fetch`: it already throws an `ApiError` on any
@@ -126,34 +159,23 @@ function fetchLegacyOrLogFailure(
   path: '/api' | '/apis',
   cluster: string
 ): Promise<Record<string, unknown> | null> {
-  return clusterFetch(path, { cluster })
-    .then(res => res.json())
-    .then(parsed => {
-      // `res.json()` can return any JSON value (object, array, string,
-      // number, boolean, null). Legacy discovery callers only care about
-      // the `versions`/`groups` properties on an object body, so coerce
-      // non-object bodies to null up front. We return a plain
-      // `Record<string, unknown>` rather than typing `versions`/`groups` as
-      // `unknown[]` so the type doesn't over-promise arrayness for fields
-      // the helper itself never validates; callers `Array.isArray` to
-      // narrow.
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return null;
-      }
-      return parsed as Record<string, unknown>;
-    })
-    .catch(err => {
-      console.debug(`Legacy ${path} discovery fetch or parse failed for cluster ${cluster}:`, err);
-      return null;
-    });
+  return fetchLegacyJsonOrThrow(path, cluster).catch(err => {
+    console.debug(`Legacy ${path} discovery fetch or parse failed for cluster ${cluster}:`, err);
+    return null;
+  });
 }
 
 /**
  * Processes the items from an aggregated API discovery response.
  * @param items - The array of discovery items from the Kubernetes API discovery endpoint
  * @param resultMap - Map to store the processed ApiResource objects
+ * @param includeAllVersions - When true, processes every served version instead of only the first
  */
-function processAggregatedDiscoveryItems(items: any[], resultMap: Map<string, ApiResource>): void {
+function processAggregatedDiscoveryItems(
+  items: any[],
+  resultMap: Map<string, ApiResource>,
+  includeAllVersions = false
+): void {
   items.forEach(
     (item: {
       metadata?: { name?: string };
@@ -161,48 +183,83 @@ function processAggregatedDiscoveryItems(items: any[], resultMap: Map<string, Ap
     }) => {
       const groupName = item.metadata?.name;
       if (item.versions && item.versions.length > 0) {
-        const versionEntry = item.versions[0];
-        if (versionEntry && typeof versionEntry.version === 'string') {
-          const version = versionEntry.version;
-          (versionEntry.resources || []).forEach(
-            (resource: {
-              verbs?: string[];
-              resource?: string;
-              singularResource?: string;
-              responseKind?: { kind?: string };
-              scope?: string;
-            }) => {
-              if (
-                !resource.verbs ||
-                !resource.verbs.includes('list') ||
-                !resource.resource ||
-                !resource.responseKind?.kind
-              ) {
-                return;
+        const versionsToProcess = includeAllVersions ? item.versions : [item.versions[0]];
+        for (const versionEntry of versionsToProcess) {
+          if (versionEntry && typeof versionEntry.version === 'string') {
+            const version = versionEntry.version;
+            (versionEntry.resources || []).forEach(
+              (resource: {
+                verbs?: string[];
+                resource?: string;
+                singularResource?: string;
+                responseKind?: { kind?: string };
+                scope?: string;
+              }) => {
+                if (
+                  !resource.verbs ||
+                  !resource.verbs.includes('list') ||
+                  !resource.resource ||
+                  !resource.responseKind?.kind
+                ) {
+                  return;
+                }
+
+                const pluralName = resource.resource;
+                const singularName = resource.singularResource || '';
+                const kind = resource.responseKind.kind;
+                const isNamespaced = resource.scope === 'Namespaced';
+                const apiVersion = groupName ? `${groupName}/${version}` : version;
+
+                const resourceObj: ApiResource = {
+                  apiVersion,
+                  version,
+                  groupName,
+                  pluralName,
+                  singularName,
+                  kind,
+                  isNamespaced,
+                };
+                resultMap.set(resourceObj.apiVersion + resourceObj.pluralName, resourceObj);
               }
-
-              const pluralName = resource.resource;
-              const singularName = resource.singularResource || '';
-              const kind = resource.responseKind.kind;
-              const isNamespaced = resource.scope === 'Namespaced';
-              const apiVersion = groupName ? `${groupName}/${version}` : version;
-
-              const resourceObj: ApiResource = {
-                apiVersion,
-                version,
-                groupName,
-                pluralName,
-                singularName,
-                kind,
-                isNamespaced,
-              };
-              resultMap.set(resourceObj.apiVersion + resourceObj.pluralName, resourceObj);
-            }
-          );
+            );
+          }
         }
       }
     }
   );
+}
+
+/**
+ * Extracts legacy group versions to query: preferredVersion first, optionally
+ * followed by every other served version in `group.versions`.
+ */
+function getLegacyGroupVersions(group: any, includeAllVersions: boolean): string[] {
+  const preferred =
+    typeof group?.preferredVersion?.version === 'string' &&
+    group.preferredVersion.version.length > 0
+      ? group.preferredVersion.version
+      : undefined;
+
+  if (!includeAllVersions) {
+    if (preferred) {
+      return [preferred];
+    }
+    const fallback = group?.versions?.[0]?.version;
+    return typeof fallback === 'string' && fallback.length > 0 ? [fallback] : [];
+  }
+
+  const versions = new Set<string>();
+  if (preferred) {
+    versions.add(preferred);
+  }
+  if (Array.isArray(group?.versions)) {
+    for (const v of group.versions) {
+      if (typeof v?.version === 'string' && v.version.length > 0) {
+        versions.add(v.version);
+      }
+    }
+  }
+  return Array.from(versions);
 }
 
 /**
@@ -246,6 +303,270 @@ function processLegacyApiResourceList(
   );
 }
 
+async function discoverSingleCluster(
+  cluster: string,
+  resultMap: Map<string, ApiResource>,
+  options: { includeAllVersions: boolean; throwOnError: boolean }
+): Promise<void> {
+  const { includeAllVersions, throwOnError } = options;
+  let useFallback = false;
+
+  try {
+    const apiAggregatedPromise = clusterFetch('/api', {
+      cluster,
+      headers: { Accept: 'application/json;v=v2;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList' },
+    }).then(res => res.json());
+
+    const apisAggregatedPromise = clusterFetch('/apis', {
+      cluster,
+      headers: { Accept: 'application/json;v=v2;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList' },
+    }).then(res => res.json());
+
+    const [apiAggregatedResult, apisAggregatedResult] = await Promise.allSettled([
+      apiAggregatedPromise,
+      apisAggregatedPromise,
+    ]);
+
+    let apiAggregatedOk = false;
+    if (
+      apiAggregatedResult.status === 'fulfilled' &&
+      apiAggregatedResult.value &&
+      Array.isArray(apiAggregatedResult.value.items)
+    ) {
+      processAggregatedDiscoveryItems(
+        apiAggregatedResult.value.items,
+        resultMap,
+        includeAllVersions
+      );
+      apiAggregatedOk = true;
+    }
+
+    let apisAggregatedOk = false;
+    if (
+      apisAggregatedResult.status === 'fulfilled' &&
+      apisAggregatedResult.value &&
+      Array.isArray(apisAggregatedResult.value.items)
+    ) {
+      processAggregatedDiscoveryItems(
+        apisAggregatedResult.value.items,
+        resultMap,
+        includeAllVersions
+      );
+      apisAggregatedOk = true;
+    }
+
+    if (!apiAggregatedOk) {
+      logAggregatedUnusable('/api', cluster, apiAggregatedResult);
+    }
+    if (!apisAggregatedOk) {
+      logAggregatedUnusable('/apis', cluster, apisAggregatedResult);
+    }
+    if (!apiAggregatedOk || !apisAggregatedOk) {
+      useFallback = true;
+    }
+  } catch (error) {
+    console.debug(
+      `Aggregated API discovery threw for cluster ${cluster}; falling back to legacy:`,
+      error
+    );
+    useFallback = true;
+  }
+
+  if (!useFallback) {
+    return;
+  }
+
+  /**
+   * Fetches core legacy `/api/<version>` resource lists in parallel and merges them
+   * into `resultMap` in the input version order.
+   */
+  async function fetchLegacyCoreResources(
+    versions: unknown[],
+    cluster: string,
+    resultMap: Map<string, ApiResource>
+  ): Promise<void> {
+    const validVersions = versions.filter(
+      (v): v is string => typeof v === 'string' && v.length > 0
+    );
+    if (validVersions.length === 0) {
+      return;
+    }
+
+    const results = await Promise.all(
+      validVersions.map(async v => {
+        try {
+          const coreResourcesResponse = await clusterFetch(`/api/${v}`, { cluster });
+          const coreResources = await coreResourcesResponse.json();
+          return Array.isArray(coreResources?.resources) ? coreResources.resources : null;
+        } catch (e) {
+          console.debug(
+            `Failed to fetch core API resources for cluster ${cluster}:`,
+            { version: v },
+            e
+          );
+          return null;
+        }
+      })
+    );
+
+    validVersions.forEach((version, index) => {
+      const resources = results[index];
+      if (resources) {
+        processLegacyApiResourceList(resources, undefined, version, resultMap);
+      }
+    });
+  }
+
+  /**
+   * Fetches legacy `/apis/<group>/<version>` resource lists in parallel and merges
+   * them into `resultMap` in `groupVersionPairs` order so preferred versions are
+   * never overtaken by faster responses from non-preferred versions.
+   */
+  async function fetchLegacyGroupResources(
+    groupVersionPairs: { groupName: string; version: string }[],
+    cluster: string,
+    resultMap: Map<string, ApiResource>,
+    throwIfAllFail: boolean
+  ): Promise<void> {
+    if (groupVersionPairs.length === 0) {
+      return;
+    }
+
+    let firstGroupError: unknown = null;
+    const results = await Promise.all(
+      groupVersionPairs.map(async ({ groupName, version }) => {
+        try {
+          const groupResourcesResponse = await clusterFetch(`/apis/${groupName}/${version}`, {
+            cluster,
+          });
+          const groupResources = await groupResourcesResponse.json();
+          if (!groupResources || !Array.isArray(groupResources.resources)) {
+            if (throwIfAllFail) {
+              throw new Error(
+                `Invalid legacy /apis/${groupName}/${version} payload for cluster ${cluster}`
+              );
+            }
+            return null;
+          }
+          return groupResources.resources;
+        } catch (e) {
+          firstGroupError ??= e;
+          console.debug(
+            `Failed to fetch group API resources for cluster ${cluster}:`,
+            { group: groupName, version },
+            e
+          );
+          return null;
+        }
+      })
+    );
+
+    let succeededGroupFetches = 0;
+    groupVersionPairs.forEach(({ groupName, version }, index) => {
+      const resources = results[index];
+      if (resources) {
+        processLegacyApiResourceList(resources, groupName, version, resultMap);
+        succeededGroupFetches++;
+      }
+    });
+
+    if (throwIfAllFail && succeededGroupFetches === 0 && firstGroupError) {
+      throw toClusterError(firstGroupError, cluster);
+    }
+  }
+
+  function collectLegacyGroupVersionPairs(
+    groups: unknown[],
+    includeAllVersions: boolean
+  ): { groupName: string; version: string }[] {
+    const pairs: { groupName: string; version: string }[] = [];
+    for (const group of groups as any[]) {
+      const groupName = group?.name;
+      if (typeof groupName !== 'string' || groupName.length === 0) {
+        continue;
+      }
+      for (const version of getLegacyGroupVersions(group, includeAllVersions)) {
+        pairs.push({ groupName, version });
+      }
+    }
+    return pairs;
+  }
+
+  if (!throwOnError) {
+    try {
+      const [coreApiVersionsData, apiGroupsData] = await Promise.all([
+        fetchLegacyOrLogFailure('/api', cluster),
+        fetchLegacyOrLogFailure('/apis', cluster),
+      ]);
+
+      if (coreApiVersionsData && Array.isArray(coreApiVersionsData.versions)) {
+        await fetchLegacyCoreResources(coreApiVersionsData.versions, cluster, resultMap);
+      }
+
+      if (apiGroupsData && Array.isArray(apiGroupsData.groups)) {
+        const pairs = collectLegacyGroupVersionPairs(apiGroupsData.groups, includeAllVersions);
+        await fetchLegacyGroupResources(pairs, cluster, resultMap, false);
+      }
+    } catch (legacyError) {
+      console.debug(`Failed to fetch legacy API resources for cluster ${cluster}:`, legacyError);
+    }
+    return;
+  }
+
+  const [coreLegacyResult, apisLegacyResult] = await Promise.allSettled([
+    fetchLegacyJsonOrThrow('/api', cluster),
+    fetchLegacyJsonOrThrow('/apis', cluster),
+  ]);
+
+  if (apisLegacyResult.status === 'rejected') {
+    throw toClusterError(apisLegacyResult.reason, cluster);
+  }
+
+  const coreApiVersionsData =
+    coreLegacyResult.status === 'fulfilled' ? coreLegacyResult.value : null;
+  if (coreLegacyResult.status === 'rejected') {
+    console.debug(
+      `Legacy /api discovery fetch or parse failed for cluster ${cluster}:`,
+      coreLegacyResult.reason
+    );
+  }
+
+  if (coreApiVersionsData && Array.isArray(coreApiVersionsData.versions)) {
+    await fetchLegacyCoreResources(coreApiVersionsData.versions, cluster, resultMap);
+  }
+
+  const apiGroupsData = apisLegacyResult.value;
+  if (!Array.isArray(apiGroupsData.groups)) {
+    throw new Error(`Invalid legacy /apis discovery groups for cluster ${cluster}`);
+  }
+
+  const groupVersionPairs = collectLegacyGroupVersionPairs(
+    apiGroupsData.groups,
+    includeAllVersions
+  );
+  await fetchLegacyGroupResources(groupVersionPairs, cluster, resultMap, true);
+}
+
+/**
+ * Discovers all served API resources for a single cluster, enumerating every
+ * served group version and propagating terminal discovery failures.
+ *
+ * @param cluster - Cluster name to discover API resources from
+ * @returns list of API resources served by the cluster
+ */
+export async function discoverClusterApiResources(cluster: string): Promise<ApiResource[]> {
+  if (!cluster) {
+    return [];
+  }
+
+  const resultMap = new Map<string, ApiResource>();
+  await discoverSingleCluster(cluster, resultMap, {
+    includeAllVersions: true,
+    throwOnError: true,
+  });
+  return Array.from(resultMap.values());
+}
+
 /**
  * Discovers available API resources from Kubernetes clusters.
  * - Only resources that support the 'list' verb are included in the results
@@ -258,137 +579,10 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
   const resultMap = new Map<string, ApiResource>();
 
   for (const cluster of clusters) {
-    let useFallback = false;
-
-    try {
-      const apiAggregatedPromise = clusterFetch('/api', {
-        cluster,
-        headers: { Accept: 'application/json;v=v2;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList' },
-      }).then(res => res.json());
-
-      const apisAggregatedPromise = clusterFetch('/apis', {
-        cluster,
-        headers: { Accept: 'application/json;v=v2;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList' },
-      }).then(res => res.json());
-
-      const [apiAggregatedResult, apisAggregatedResult] = await Promise.allSettled([
-        apiAggregatedPromise,
-        apisAggregatedPromise,
-      ]);
-
-      let apiAggregatedOk = false;
-      if (
-        apiAggregatedResult.status === 'fulfilled' &&
-        apiAggregatedResult.value &&
-        Array.isArray(apiAggregatedResult.value.items)
-      ) {
-        processAggregatedDiscoveryItems(apiAggregatedResult.value.items, resultMap);
-        apiAggregatedOk = true;
-      }
-
-      let apisAggregatedOk = false;
-      if (
-        apisAggregatedResult.status === 'fulfilled' &&
-        apisAggregatedResult.value &&
-        Array.isArray(apisAggregatedResult.value.items)
-      ) {
-        processAggregatedDiscoveryItems(apisAggregatedResult.value.items, resultMap);
-        apisAggregatedOk = true;
-      }
-
-      if (!apiAggregatedOk) {
-        logAggregatedUnusable('/api', cluster, apiAggregatedResult);
-      }
-      if (!apisAggregatedOk) {
-        logAggregatedUnusable('/apis', cluster, apisAggregatedResult);
-      }
-      if (!apiAggregatedOk || !apisAggregatedOk) {
-        useFallback = true;
-      }
-    } catch (error) {
-      console.debug(
-        `Aggregated API discovery threw for cluster ${cluster}; falling back to legacy:`,
-        error
-      );
-      useFallback = true;
-    }
-
-    if (useFallback) {
-      try {
-        const [coreApiVersionsData, apiGroupsData] = await Promise.all([
-          fetchLegacyOrLogFailure('/api', cluster),
-          fetchLegacyOrLogFailure('/apis', cluster),
-        ]);
-
-        if (coreApiVersionsData && Array.isArray(coreApiVersionsData.versions)) {
-          const coreResourceFetchPromises = coreApiVersionsData.versions.map(async (v: any) => {
-            try {
-              if (typeof v === 'string' && v.length > 0) {
-                const coreResourcesResponse = await clusterFetch(`/api/${v}`, { cluster });
-                const coreResources = await coreResourcesResponse.json();
-                if (coreResources && Array.isArray(coreResources.resources)) {
-                  processLegacyApiResourceList(coreResources.resources, undefined, v, resultMap);
-                }
-              }
-            } catch (e) {
-              // Log failure to fetch core API resources for better observability.
-              console.debug(
-                `Failed to fetch core API resources for cluster ${cluster}:`,
-                { version: v },
-                e
-              );
-            }
-          });
-          await Promise.allSettled(coreResourceFetchPromises);
-        }
-
-        if (apiGroupsData && Array.isArray(apiGroupsData.groups)) {
-          const groupResourceFetchPromises = apiGroupsData.groups.map(async (group: any) => {
-            try {
-              const groupName = group?.name;
-              let version = group?.preferredVersion?.version;
-              if (
-                !version &&
-                group?.versions &&
-                group.versions.length > 0 &&
-                group.versions[0]?.version
-              ) {
-                version = group.versions[0].version;
-              }
-
-              if (
-                typeof groupName === 'string' &&
-                groupName.length > 0 &&
-                typeof version === 'string' &&
-                version.length > 0
-              ) {
-                const groupResourcesResponse = await clusterFetch(`/apis/${groupName}/${version}`, {
-                  cluster,
-                });
-                const groupResources = await groupResourcesResponse.json();
-                if (groupResources && Array.isArray(groupResources.resources)) {
-                  processLegacyApiResourceList(
-                    groupResources.resources,
-                    groupName,
-                    version,
-                    resultMap
-                  );
-                }
-              }
-            } catch (e) {
-              console.debug(
-                `Failed to fetch group API resources for cluster ${cluster}:`,
-                { group: group?.name, version: group?.preferredVersion?.version },
-                e
-              );
-            }
-          });
-          await Promise.allSettled(groupResourceFetchPromises);
-        }
-      } catch (legacyError) {
-        console.debug(`Failed to fetch legacy API resources for cluster ${cluster}:`, legacyError);
-      }
-    }
+    await discoverSingleCluster(cluster, resultMap, {
+      includeAllVersions: false,
+      throwOnError: false,
+    });
   }
 
   return Array.from(resultMap.values());

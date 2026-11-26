@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import CRD from '../../lib/k8s/crd';
+import { isDiscoveryBackedCRD } from '../../lib/k8s/crdDiscovery';
 import Link from '../common/Link';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
@@ -126,7 +127,8 @@ export default function CustomResourceDefinitionDetails(props: {
                     },
                     {
                       label: t('Storage'),
-                      getter: version => version.storage.toString(),
+                      getter: version =>
+                        isDiscoveryBackedCRD(item?.jsonData) ? '-' : version.storage.toString(),
                     },
                   ]}
                   reflectInURL="versions"
