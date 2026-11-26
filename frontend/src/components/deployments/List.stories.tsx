@@ -88,6 +88,7 @@ const items: KubeDeployment[] = [
     },
     status: {
       replicas: 2,
+      readyReplicas: 2,
       availableReplicas: 2,
       conditions: [
         {
