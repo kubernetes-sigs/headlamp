@@ -42,6 +42,10 @@ vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
 }));
 
+vi.mock('@iconify/react', () => ({
+  Icon: (props: any) => <span data-icon={props.icon} style={props.style} />,
+}));
+
 vi.mock('../../lib/k8s/pod', () => ({
   default: class Pod {},
 }));
@@ -558,5 +562,52 @@ describe('PodListRenderer status column', () => {
     const status = listViewProps.current.columns.find((column: any) => column.id === 'status');
 
     expect(status.getValue(pod)).toContain('OOMKilled');
+  });
+});
+
+describe('makePodStatusLabel container indicators', () => {
+  function podWithTerminatedContainer(terminated: { exitCode: number; reason?: string }) {
+    return {
+      status: {
+        phase: 'Running',
+        conditions: [],
+        containerStatuses: [{ name: 'app', restartCount: 0, state: { terminated } }],
+      },
+      getDetailedStatus: () => ({ reason: 'Terminated', message: '' }),
+    } as unknown as Pod;
+  }
+
+  function renderIndicatorColor(pod: Pod) {
+    const { container } = render(<>{makePodStatusLabel(pod, true, mockTranslation as any)}</>);
+    const indicators = Array.from(
+      container.querySelectorAll('[data-icon="mdi:circle"]')
+    ) as HTMLElement[];
+    return indicators.map(el => el.style.color);
+  }
+
+  it.each([
+    ['OOMKilled', 137],
+    ['Error', 1],
+    ['ContainerCannotRun', 128],
+    [undefined, 2],
+  ])(
+    'shows a red indicator for a container terminated with reason %s, exit code %i',
+    (reason, exitCode) => {
+      expect(renderIndicatorColor(podWithTerminatedContainer({ reason, exitCode }))).toEqual([
+        'red',
+      ]);
+    }
+  );
+
+  it('keeps a red indicator for reason Error even with exit code 0', () => {
+    expect(
+      renderIndicatorColor(podWithTerminatedContainer({ reason: 'Error', exitCode: 0 }))
+    ).toEqual(['red']);
+  });
+
+  it('shows a green indicator for a container that completed with exit code 0', () => {
+    expect(
+      renderIndicatorColor(podWithTerminatedContainer({ reason: 'Completed', exitCode: 0 }))
+    ).toEqual(['green']);
   });
 });
