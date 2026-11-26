@@ -151,6 +151,10 @@ function CustomResourceTableInner(
       if (colSpec.jsonPath === '.metadata.creationTimestamp') {
         continue;
       }
+      // Hide additional printer columns with priority > 0 (matching kubectl get without -o wide).
+      if ((colSpec.priority ?? 0) > 0) {
+        continue;
+      }
       cols.push({
         label: colSpec.name,
         getValue: resource => getPrinterColumnValue(resource, colSpec),
