@@ -691,7 +691,12 @@ export function ConditionsTable(props: ConditionsTableProps) {
       },
       {
         label: t('Last Transition'),
-        getter: condition => <DateLabel date={condition.lastTransitionTime as string} />,
+        getter: condition =>
+          condition.lastTransitionTime ? (
+            <DateLabel date={condition.lastTransitionTime as string} />
+          ) : (
+            '-'
+          ),
       },
       {
         label: t('Last Update'),

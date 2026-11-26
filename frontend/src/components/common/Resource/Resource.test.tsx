@@ -22,7 +22,7 @@ import { PropsWithChildren } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { QueryResponse } from '../../../lib/k8s/api/v2/hooks';
-import { KubeContainer } from '../../../lib/k8s/cluster';
+import { KubeCondition, KubeContainer } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
 import Event from '../../../lib/k8s/event';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -696,6 +696,37 @@ describe('SecretField', () => {
       expect(log).toHaveBeenCalledWith('Error copying secret to clipboard: Error: clipboard denied')
     );
     expect(screen.queryByDisplayValue('private')).not.toBeInTheDocument();
+  });
+});
+
+describe('ConditionsTable', () => {
+  const gate: KubeCondition = {
+    type: 'www.example.com/gate-1',
+    status: 'True',
+    reason: 'GateOpen',
+    lastProbeTime: null,
+  };
+
+  it.each([
+    ['null', { ...gate, lastTransitionTime: null }],
+    ['missing', gate],
+  ])('shows a dash, not a date, when lastTransitionTime is %s', (_, condition) => {
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ConditionsTable
+            resource={{ ...pod, status: { ...pod.status, conditions: [condition] } }}
+            showLastUpdate={false}
+          />
+        </ThemedContext>
+      </TestContext>
+    );
+    expect(screen.getAllByRole('cell').map(cell => cell.textContent)).toEqual([
+      'www.example.com/gate-1',
+      'True',
+      '-',
+      'GateOpen',
+    ]);
   });
 });
 
