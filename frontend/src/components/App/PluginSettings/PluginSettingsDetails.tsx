@@ -104,8 +104,14 @@ export default function PluginSettingsDetails() {
   const { name, type } = useParams<{ name: string; type?: string }>();
 
   const plugin = useMemo(() => {
-    const decodedName = decodeURIComponent(name);
-    const decodedType = type ? decodeURIComponent(type) : undefined;
+    let decodedName: string;
+    let decodedType: string | undefined;
+    try {
+      decodedName = decodeURIComponent(name);
+      decodedType = type ? decodeURIComponent(type) : undefined;
+    } catch {
+      return undefined;
+    }
 
     // If type is specified, find exact match by name and type
     if (decodedType) {
