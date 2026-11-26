@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { useId } from '../../../../lib/util';
 import {
   buildLabelRows,
+  duplicateLabelKeys,
   FieldLabel,
   FormTextField,
   labelMapsEqual,
@@ -393,20 +394,25 @@ export interface PodLabelsEditorProps {
   lockedLabels: Record<string, string>;
   /** Called with the updated full pod template labels map. */
   onChange: (labels: Record<string, string>) => void;
+  /** Called when the editor's validity changes. When it is set, an editable row
+   *  whose key matches another editable row or a locked key is marked with an
+   *  error and the editor is invalid while any exist, since that row's value
+   *  would be dropped. */
+  onValidityChange?: (valid: boolean) => void;
 }
 
 /** Pod template labels editor. Rows whose key is in `lockedLabels` (mirrored
  *  from the selector) render disabled with no delete. Other rows are fully
  *  editable; both end up in `spec.template.metadata.labels`. */
 export function PodLabelsEditor(props: PodLabelsEditorProps) {
-  const { value, lockedLabels, onChange } = props;
+  const { value, lockedLabels, onChange, onValidityChange } = props;
   const { t } = useTranslation(['translation']);
 
   /** Editable rows = full value minus locked keys. */
   function extrasFromValue(full: Record<string, string>): Record<string, string> {
     const extras: Record<string, string> = {};
     for (const [k, v] of Object.entries(full ?? {})) {
-      if (!(k in lockedLabels)) extras[k] = v;
+      if (!Object.prototype.hasOwnProperty.call(lockedLabels, k)) extras[k] = v;
     }
     return extras;
   }
@@ -421,15 +427,68 @@ export function PodLabelsEditor(props: PodLabelsEditorProps) {
     ...labelRowsToMap(extraRows),
   });
 
+  /** The locked labels the rows were last synced with, to tell a selector edit apart. */
+  const previousLockedRef = React.useRef(lockedLabels);
+
   React.useEffect(() => {
+    const previousLocked = previousLockedRef.current;
+    previousLockedRef.current = lockedLabels;
     const merged = { ...lockedLabels, ...value };
-    if (!labelMapsEqual(merged, lastEmittedRef.current)) {
-      setExtraRows(buildLabelRows(extrasFromValue(value ?? {})));
-      lastEmittedRef.current = merged;
+    if (labelMapsEqual(merged, lastEmittedRef.current)) {
+      return;
     }
-    // extrasFromValue closes over lockedLabels; both are in deps.
+    lastEmittedRef.current = merged;
+    const incoming = extrasFromValue(value ?? {});
+    const rows = labelRowsToMap(extraRows);
+    // Keys the selector no longer has. A selector edit in the form leaves them out of
+    // the pod labels, while a row may still hold one that it was locked over.
+    const freed = Object.keys(previousLocked).filter(
+      key => !Object.prototype.hasOwnProperty.call(lockedLabels, key)
+    );
+    const expected = Object.fromEntries(
+      Object.entries(extrasFromValue(rows)).filter(([key]) => !freed.includes(key))
+    );
+    // A selector edit leaves the other labels as they were. Keep the rows then, so a
+    // repeated key the user hasn't fixed yet isn't lost by rebuilding them from the map,
+    // which keeps only the first row of each key, and give a row whose key the selector
+    // freed its value back.
+    if (labelMapsEqual(incoming, expected)) {
+      if (freed.some(key => Object.prototype.hasOwnProperty.call(rows, key))) {
+        commit(extraRows);
+      }
+      return;
+    }
+    setExtraRows(buildLabelRows(incoming));
+    // extrasFromValue and commit close over lockedLabels; both are in deps. extraRows
+    // is left out on purpose: running on our own row edits would compare them against
+    // a value that hasn't caught up yet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, lockedLabels]);
+
+  // Editable keys that collide with another editable row or a locked key. A
+  // commit merges extras under lockedLabels, so either kind drops the row's
+  // value without the user noticing; flag them instead.
+  const duplicateKeys = React.useMemo(() => {
+    const keys = extraRows.map(r => r.key);
+    const dupes = duplicateLabelKeys(keys);
+    for (const key of keys) {
+      if (key && Object.prototype.hasOwnProperty.call(lockedLabels, key)) {
+        dupes.add(key);
+      }
+    }
+    return dupes;
+  }, [extraRows, lockedLabels]);
+  const isMarkedDuplicate = (key: string) => !!onValidityChange && duplicateKeys.has(key);
+  // Report only when validity flips. The callback is read from a ref, so a new
+  // function on every render doesn't re-run the report.
+  const isValid = duplicateKeys.size === 0;
+  const onValidityChangeRef = React.useRef(onValidityChange);
+  React.useEffect(() => {
+    onValidityChangeRef.current = onValidityChange;
+  });
+  React.useEffect(() => {
+    onValidityChangeRef.current?.(isValid);
+  }, [isValid]);
 
   function commit(nextExtras: LabelRow[]) {
     setExtraRows(nextExtras);
@@ -494,6 +553,12 @@ export function PodLabelsEditor(props: PodLabelsEditorProps) {
             value={r.key}
             onChange={e => handleKeyEdit(r.id, e.target.value)}
             inputProps={{ 'aria-label': t('translation|Label key') }}
+            error={isMarkedDuplicate(r.key)}
+            helperText={
+              isMarkedDuplicate(r.key)
+                ? t('translation|This key is used by another row; only the first value is kept.')
+                : undefined
+            }
           />
           <FormTextField
             label={t('translation|Value')}

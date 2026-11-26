@@ -421,6 +421,7 @@
   "Key": "Anahtar",
   "Tag key": "",
   "Label key": "Etiket anahtarı",
+  "This key is used by another row; only the first value is kept.": "",
   "Value": "Değer",
   "Tag value": "",
   "Label value": "Etiket değeri",

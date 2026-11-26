@@ -15,7 +15,8 @@
  */
 
 import '../../../../i18n/config';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { type ComponentType, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { FormSection } from './CreateResourceForm';
 
@@ -26,11 +27,16 @@ vi.mock('../../../../lib/k8s/namespace', () => ({
   default: { useList: () => [[], null] },
 }));
 
-const { ContainerTextField } = await import('./workloadFields');
-const { ServicePortsTextField } = await import('./CreateResourceForm');
+const { ContainerTextField, PodLabelsEditor } = await import('./workloadFields');
+const { LabelTextField, ServicePortsTextField } = await import('./CreateResourceForm');
 const { default: CreateResourceForm } = await import('./index');
 const { default: CreatePodForm } = await import('../../../pod/CreatePodForm');
 const { default: CreateDeploymentForm } = await import('../../../deployments/CreateDeploymentForm');
+const { default: CreateReplicaSetForm } = await import('../../../replicaset/CreateReplicaSetForm');
+const { default: CreateDaemonSetForm } = await import('../../../daemonset/CreateDaemonSetForm');
+const { default: CreateStatefulSetForm } = await import(
+  '../../../statefulset/CreateStatefulSetForm'
+);
 
 describe('Container port validation feedback', () => {
   it.each([
@@ -971,5 +977,314 @@ describe('CreateResourceForm – validity', () => {
       />
     );
     expect(onValidChange).toHaveBeenLastCalledWith(expected);
+  });
+});
+
+describe('CreateResourceForm – duplicate label keys', () => {
+  const duplicateMessage = 'This key is used by another row; only the first value is kept.';
+  const labelSections: FormSection[] = [
+    {
+      title: 'Metadata',
+      fields: [{ key: 'labels', path: 'metadata.labels', label: 'Labels', type: 'labels' }],
+    },
+  ];
+
+  it('flags the duplicate key, marks the form invalid, and recovers on rename', () => {
+    let currentResource: any = { metadata: { labels: { app: 'one' } } };
+    const onChange = vi.fn((next: any) => {
+      currentResource = next;
+    });
+    const onValidChange = vi.fn();
+
+    const { rerender } = render(
+      <CreateResourceForm
+        sections={labelSections}
+        resource={currentResource}
+        onChange={onChange}
+        onValidChange={onValidChange}
+      />
+    );
+    // A single label is valid and shows no error.
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByText(duplicateMessage)).toBeNull();
+
+    // Add a second row and give it the same key as the first.
+    fireEvent.click(screen.getByRole('button', { name: 'Add label' }));
+    const keyInputs = screen.getAllByLabelText('Label key');
+    fireEvent.change(keyInputs[keyInputs.length - 1], { target: { value: 'app' } });
+
+    // The form is now invalid and the duplicate key is flagged, even though the
+    // serialized resource still looks valid (the second value is dropped).
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+    expect(screen.getAllByText(duplicateMessage)).toHaveLength(2);
+
+    // Renaming the second key resolves the conflict.
+    fireEvent.change(keyInputs[keyInputs.length - 1], { target: { value: 'tier' } });
+    rerender(
+      <CreateResourceForm
+        sections={labelSections}
+        resource={currentResource}
+        onChange={onChange}
+        onValidChange={onValidChange}
+      />
+    );
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByText(duplicateMessage)).toBeNull();
+  });
+
+  it('PodLabelsEditor is invalid when an editable key matches a locked selector key', () => {
+    const onValidityChange = vi.fn();
+    render(
+      <PodLabelsEditor
+        value={{ app: 'web' }}
+        lockedLabels={{ app: 'web' }}
+        onChange={() => {}}
+        onValidityChange={onValidityChange}
+      />
+    );
+    // Only the locked selector label so far: valid.
+    expect(onValidityChange).toHaveBeenLastCalledWith(true);
+
+    // Add an editable row and set its key to the locked key; its value would be
+    // dropped on apply, so the editor must report invalid.
+    fireEvent.click(screen.getByRole('button', { name: 'Add label' }));
+    const keyInputs = screen.getAllByLabelText('Label key');
+    fireEvent.change(keyInputs[keyInputs.length - 1], { target: { value: 'app' } });
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+    // Only the editable row is marked; the locked selector row keeps its value.
+    expect(screen.getAllByText(duplicateMessage)).toHaveLength(1);
+  });
+
+  it('does not treat a pod label named like an Object method as a selector key', () => {
+    const onValidityChange = vi.fn();
+    render(
+      <PodLabelsEditor
+        value={{ app: 'web' }}
+        lockedLabels={{ app: 'web' }}
+        onChange={() => {}}
+        onValidityChange={onValidityChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add label' }));
+    const keyInputs = screen.getAllByLabelText('Label key');
+    fireEvent.change(keyInputs[keyInputs.length - 1], { target: { value: 'constructor' } });
+
+    expect(onValidityChange).toHaveBeenLastCalledWith(true);
+    expect(screen.queryByText(duplicateMessage)).toBeNull();
+  });
+
+  it('reports validity only when it changes', () => {
+    const onValidityChange = vi.fn();
+    render(
+      <LabelTextField
+        value={{ app: 'one' }}
+        onChange={() => {}}
+        onValidityChange={onValidityChange}
+      />
+    );
+    expect(onValidityChange.mock.calls).toEqual([[true]]);
+
+    fireEvent.change(screen.getByLabelText('Label value'), { target: { value: 'two' } });
+    expect(onValidityChange.mock.calls).toEqual([[true]]);
+  });
+
+  it('stops counting a labels field once it is removed from the form', () => {
+    const onValidChange = vi.fn();
+    const resource = { metadata: { labels: { app: 'one' } } };
+    const { rerender } = render(
+      <CreateResourceForm
+        sections={labelSections}
+        resource={resource}
+        onChange={() => {}}
+        onValidChange={onValidChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add label' }));
+    const keyInputs = screen.getAllByLabelText('Label key');
+    fireEvent.change(keyInputs[keyInputs.length - 1], { target: { value: 'app' } });
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+
+    rerender(
+      <CreateResourceForm
+        sections={[]}
+        resource={resource}
+        onChange={() => {}}
+        onValidChange={onValidChange}
+      />
+    );
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+  });
+
+  const workloadResource = {
+    metadata: { name: 'demo', namespace: 'default' },
+    spec: {
+      serviceName: 'demo',
+      replicas: 1,
+      selector: { matchLabels: { app: 'demo' } },
+      template: {
+        metadata: { labels: { app: 'demo', team: 'payments' } },
+        spec: { containers: [{ name: 'web', image: 'nginx' }] },
+      },
+    },
+  };
+
+  function renderWorkloadForm(Form: ComponentType<any>, onResource?: (resource: any) => void) {
+    const onValidChange = vi.fn();
+    function Harness() {
+      const [resource, setResource] = useState<any>(workloadResource);
+      const handleChange = (next: any) => {
+        onResource?.(next);
+        setResource(next);
+      };
+      return <Form resource={resource} onChange={handleChange} onValidChange={onValidChange} />;
+    }
+    render(<Harness />);
+    return onValidChange;
+  }
+
+  /** Adds a row to the n-th label editor (0 labels, 1 selector, 2 pod labels)
+   *  and returns its key input. */
+  function addLabelRow(editorIndex: number) {
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add label' })[editorIndex]);
+    const newKeys = screen
+      .getAllByDisplayValue(/^new-label/)
+      .filter(input => !(input as HTMLInputElement).disabled);
+    return newKeys[newKeys.length - 1];
+  }
+
+  it.each([
+    ['Deployment', CreateDeploymentForm],
+    ['ReplicaSet', CreateReplicaSetForm],
+    ['DaemonSet', CreateDaemonSetForm],
+    ['StatefulSet', CreateStatefulSetForm],
+  ])('blocks the %s form while its selector or pod labels repeat a key', (_kind, Form) => {
+    const onValidChange = renderWorkloadForm(Form);
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+
+    const selectorKey = addLabelRow(1);
+    fireEvent.change(selectorKey, { target: { value: 'app' } });
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+    fireEvent.change(selectorKey, { target: { value: 'tier' } });
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+
+    // A pod label that reuses a selector key.
+    const podKey = addLabelRow(2);
+    fireEvent.change(podKey, { target: { value: 'app' } });
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+    fireEvent.change(podKey, { target: { value: 'cost' } });
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('keeps an unresolved pod label row when the selector changes', () => {
+    const onValidChange = renderWorkloadForm(CreateDeploymentForm);
+    const podKey = addLabelRow(2);
+    const podRow = within(podKey.closest('.MuiTextField-root')!.parentElement!);
+    fireEvent.change(podRow.getByLabelText('Label value'), { target: { value: 'platform' } });
+    fireEvent.change(podKey, { target: { value: 'team' } });
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+
+    // Editing the selector's value must not drop the row the user still has to fix.
+    const selectorValue = screen
+      .getAllByLabelText('Label value')
+      .find(
+        input =>
+          (input as HTMLInputElement).value === 'demo' && !(input as HTMLInputElement).disabled
+      )!;
+    fireEvent.change(selectorValue, { target: { value: 'other' } });
+
+    expect(screen.getByDisplayValue('platform')).toBeInTheDocument();
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it.each(['renamed', 'removed'])(
+    'gives a pod label its value back when the selector key it repeated is %s',
+    change => {
+      let latest: any = workloadResource;
+      const onValidChange = renderWorkloadForm(CreateDeploymentForm, next => (latest = next));
+      // A pod label that repeats the selector's app key is marked and its value isn't saved.
+      const podKey = addLabelRow(2);
+      const podRow = within(podKey.closest('.MuiTextField-root')!.parentElement!);
+      fireEvent.change(podRow.getByLabelText('Label value'), { target: { value: 'platform' } });
+      fireEvent.change(podKey, { target: { value: 'app' } });
+      expect(onValidChange).toHaveBeenLastCalledWith(false);
+      expect(latest.spec.template.metadata.labels.app).toBe('demo');
+
+      if (change === 'renamed') {
+        const selectorKey = screen
+          .getAllByLabelText('Label key')
+          .find(
+            input =>
+              input !== podKey &&
+              (input as HTMLInputElement).value === 'app' &&
+              !(input as HTMLInputElement).disabled
+          )!;
+        fireEvent.change(selectorKey, { target: { value: 'tier' } });
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Remove label app=demo' }));
+      }
+
+      expect(screen.getByDisplayValue('platform')).toBeInTheDocument();
+      expect(screen.queryByText(duplicateMessage)).toBeNull();
+      expect(onValidChange).toHaveBeenLastCalledWith(true);
+      expect(latest.spec.template.metadata.labels.app).toBe('platform');
+    }
+  );
+
+  it('gives a pod label its value back when a selector key added over it is removed', () => {
+    let latest: any = workloadResource;
+    const onValidChange = renderWorkloadForm(CreateDeploymentForm, next => (latest = next));
+    // The selector takes the pod label's team key, so its own value is marked as lost.
+    fireEvent.change(addLabelRow(1), { target: { value: 'team' } });
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+    expect(latest.spec.template.metadata.labels.team).toBe('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove label team=' }));
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+    expect(latest.spec.template.metadata.labels.team).toBe('payments');
+  });
+
+  it('shows a label the selector stops locking when only the selector changed elsewhere', () => {
+    // Like an edit of the selector alone in the YAML: the pod labels still have app.
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <PodLabelsEditor
+        value={{ app: 'demo', team: 'x' }}
+        lockedLabels={{ app: 'demo' }}
+        onChange={onChange}
+      />
+    );
+    rerender(
+      <PodLabelsEditor
+        value={{ app: 'demo', team: 'x' }}
+        lockedLabels={{ tier: 'demo' }}
+        onChange={onChange}
+      />
+    );
+    const editableKeys = screen
+      .getAllByLabelText('Label key')
+      .filter(input => !(input as HTMLInputElement).disabled)
+      .map(input => (input as HTMLInputElement).value);
+    expect(editableKeys).toEqual(['app', 'team']);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('does not mark duplicate keys when the caller checks the rows itself', () => {
+    // The cluster tags editor reads the rows through onRowsChange and shows its own
+    // error, so without onValidityChange the rows must not get a second message.
+    const onRowsChange = vi.fn();
+    render(
+      <LabelTextField value={{ app: 'one' }} onChange={() => {}} onRowsChange={onRowsChange} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add label' }));
+    const keyInputs = screen.getAllByLabelText('Label key');
+    fireEvent.change(keyInputs[keyInputs.length - 1], { target: { value: 'app' } });
+
+    expect(onRowsChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ key: 'app', value: 'one' }),
+      expect.objectContaining({ key: 'app', value: '' }),
+    ]);
+    expect(screen.queryByText(duplicateMessage)).toBeNull();
   });
 });

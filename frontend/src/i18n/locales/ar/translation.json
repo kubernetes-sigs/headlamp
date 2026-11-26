@@ -433,6 +433,7 @@
   "Key": "المفتاح",
   "Tag key": "",
   "Label key": "مفتاح التسمية",
+  "This key is used by another row; only the first value is kept.": "",
   "Value": "القيمة",
   "Tag value": "",
   "Label value": "قيمة التسمية",

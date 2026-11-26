@@ -100,8 +100,12 @@ export default function CreateDaemonSetForm(props: CreateDaemonSetFormProps) {
           helperText: t(
             'translation|Selects which pods belong to this DaemonSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.'
           ),
-          render: ({ value }) => (
-            <LabelTextField value={value ?? {}} onChange={handleMatchLabelsChange} />
+          render: ({ value, reportValidity }) => (
+            <LabelTextField
+              value={value ?? {}}
+              onChange={handleMatchLabelsChange}
+              onValidityChange={reportValidity}
+            />
           ),
         },
       ],
@@ -117,11 +121,12 @@ export default function CreateDaemonSetForm(props: CreateDaemonSetFormProps) {
           helperText: t(
             'translation|Selector entries appear here read-only. Use New Label to add extra pod-template-only labels.'
           ),
-          render: ({ value, onChange: onPodLabelsChange }) => (
+          render: ({ value, onChange: onPodLabelsChange, reportValidity }) => (
             <PodLabelsEditor
               value={value ?? {}}
               lockedLabels={matchLabels}
               onChange={onPodLabelsChange}
+              onValidityChange={reportValidity}
             />
           ),
         },

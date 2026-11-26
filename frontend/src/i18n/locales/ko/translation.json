@@ -418,6 +418,7 @@
   "Key": "키",
   "Tag key": "",
   "Label key": "",
+  "This key is used by another row; only the first value is kept.": "",
   "Value": "값",
   "Tag value": "",
   "Label value": "",

@@ -421,6 +421,7 @@
   "Key": "Key",
   "Tag key": "Tag key",
   "Label key": "Label key",
+  "This key is used by another row; only the first value is kept.": "This key is used by another row; only the first value is kept.",
   "Value": "Value",
   "Tag value": "Tag value",
   "Label value": "Label value",
