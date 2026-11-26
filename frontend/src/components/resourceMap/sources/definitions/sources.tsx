@@ -22,6 +22,7 @@ import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
 import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
+import CertificateSigningRequest from '../../../../lib/k8s/certificateSigningRequest';
 import ClusterRole from '../../../../lib/k8s/clusterRole';
 import ClusterRoleBinding from '../../../../lib/k8s/clusterRoleBinding';
 import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
@@ -330,6 +331,7 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(RoleBinding),
           makeKubeSource(ClusterRole),
           makeKubeSource(ClusterRoleBinding),
+          makeKubeSource(CertificateSigningRequest),
         ],
       },
       {

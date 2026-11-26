@@ -15,6 +15,7 @@
  */
 
 import App from '../../../App';
+import CertificateSigningRequest from '../../../lib/k8s/certificateSigningRequest';
 import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
 import Pod from '../../../lib/k8s/pod';
 import { filterGraph, filterGraphIncremental, GraphFilter } from './graphFiltering';
@@ -185,6 +186,34 @@ describe('filterGraph', () => {
     const { nodes: filteredNodes } = filterGraph(customNodes, [], [{ type: 'hasErrors' }]);
 
     expect(filteredNodes.map(it => it.id)).toEqual(['warning-node', 'error-node']);
+  });
+
+  it('keeps pending, denied, and failed certificate requests in the problems filter', () => {
+    const csrNode = (
+      id: string,
+      conditions: Array<{ type: string; status: string }>
+    ): GraphNode => ({
+      id,
+      kubeObject: new CertificateSigningRequest({
+        apiVersion: 'certificates.k8s.io/v1',
+        kind: 'CertificateSigningRequest',
+        metadata: { uid: id, name: id },
+        spec: { request: '', signerName: 'example.com/signer' },
+        status: { conditions },
+      } as any),
+    });
+    const csrs = [
+      csrNode('pending', []),
+      csrNode('denied', [{ type: 'Denied', status: 'True' }]),
+      csrNode('failed', [{ type: 'Failed', status: 'True' }]),
+      csrNode('approved', [{ type: 'Approved', status: 'True' }]),
+    ];
+
+    expect(filterGraph(csrs, [], [{ type: 'hasErrors' }]).nodes.map(node => node.id)).toEqual([
+      'pending',
+      'denied',
+      'failed',
+    ]);
   });
 
   it('includes nodes related to explicit status matches', () => {

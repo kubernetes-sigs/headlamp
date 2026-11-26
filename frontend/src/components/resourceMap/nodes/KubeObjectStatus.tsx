@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import CertificateSigningRequest from '../../../lib/k8s/certificateSigningRequest';
 import { KubeObject, Workload } from '../../../lib/k8s/cluster';
 import type CompositePodGroup from '../../../lib/k8s/compositePodGroup';
 import Pod from '../../../lib/k8s/pod';
@@ -83,6 +84,20 @@ function getCompositePodGroupStatus(group: CompositePodGroup): KubeObjectStatus 
   return condition?.status === 'False' || condition?.reason === 'Invalid' ? 'warning' : 'success';
 }
 
+function getCertificateSigningRequestStatus(request: CertificateSigningRequest): KubeObjectStatus {
+  if (request.state === 'Pending') {
+    return 'warning';
+  }
+  if (request.state === 'Denied' || request.state === 'Failed') {
+    return 'error';
+  }
+  return 'success';
+}
+
+function isCertificateSigningRequest(w: KubeObject): w is CertificateSigningRequest {
+  return w.kind === CertificateSigningRequest.kind;
+}
+
 /**
  * Returns status for a given Kube resource
  * Not all kinds of resources have a status and/or supported
@@ -93,6 +108,8 @@ export function getStatus(w: KubeObject): KubeObjectStatus {
   if (isPodGroup(w)) return getPodGroupStatus(w);
 
   if (isCompositePodGroup(w)) return getCompositePodGroupStatus(w);
+
+  if (isCertificateSigningRequest(w)) return getCertificateSigningRequestStatus(w);
 
   if (['DaemonSet', 'ReplicaSet', 'StatefulSet', 'Deployment'].includes(w.kind)) {
     const workload = w as Workload;

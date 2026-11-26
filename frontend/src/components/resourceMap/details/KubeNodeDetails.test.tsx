@@ -28,6 +28,9 @@ vi.mock('../../../lib/k8s/deployment', () => ({ default: class Deployment {} }))
 vi.mock('../../../lib/k8s/jobSet', () => ({ default: class JobSet {} }));
 vi.mock('../../../lib/k8s/leaderWorkerSet', () => ({ default: class LeaderWorkerSet {} }));
 vi.mock('../../../lib/k8s/replicaSet', () => ({ default: class ReplicaSet {} }));
+vi.mock('../../certificatesigningrequest/Details', () => ({
+  default: makeDetails('CertificateSigningRequest'),
+}));
 vi.mock('../../compositePodGroup/Details', () => ({
   default: makeDetails('CompositePodGroup'),
 }));
@@ -160,6 +163,7 @@ const dispatchCases = [
   ['MutatingAdmissionPolicyBinding', 'MutatingAdmissionPolicyBinding'],
   ['MutatingWebhookConfiguration', 'MutatingWebhookConfiguration'],
   ['ValidatingWebhookConfiguration', 'ValidatingWebhookConfiguration'],
+  ['CertificateSigningRequest', 'CertificateSigningRequest'],
   ['IngressClass', 'IngressClass'],
   ['CustomResourceDefinition', 'CustomResourceDefinition'],
   ['crd', 'CustomResourceDefinition'],

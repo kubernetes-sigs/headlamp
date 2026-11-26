@@ -15,6 +15,7 @@
  */
 
 import App from '../../../App';
+import CertificateSigningRequest from '../../../lib/k8s/certificateSigningRequest';
 import CompositePodGroup, {
   COMPOSITE_POD_GROUP_INITIALLY_SCHEDULED_CONDITION,
 } from '../../../lib/k8s/compositePodGroup';
@@ -39,6 +40,30 @@ const podGroup = (conditions?: Record<string, any>[]) =>
     } as any,
     'cluster-a'
   );
+
+describe('getStatus for a CertificateSigningRequest', () => {
+  const request = (
+    conditions: Array<{ type: string; status: string }> = [],
+    certificate?: string
+  ) =>
+    new CertificateSigningRequest({
+      apiVersion: 'certificates.k8s.io/v1',
+      kind: 'CertificateSigningRequest',
+      metadata: { uid: 'csr', name: 'csr' },
+      spec: { request: '', signerName: 'example.com/signer' },
+      status: { conditions, certificate },
+    } as any);
+
+  it.each([
+    [[], undefined, 'warning'],
+    [[{ type: 'Approved', status: 'True' }], undefined, 'success'],
+    [[{ type: 'Denied', status: 'True' }], undefined, 'error'],
+    [[{ type: 'Failed', status: 'True' }], undefined, 'error'],
+    [[{ type: 'Approved', status: 'True' }], 'certificate', 'success'],
+  ])('maps conditions %j and certificate %j to %s', (conditions, certificate, status) => {
+    expect(getStatus(request(conditions, certificate))).toBe(status);
+  });
+});
 
 describe('getStatus for a PodGroup', () => {
   it.each([POD_GROUP_INITIALLY_SCHEDULED_CONDITION, POD_GROUP_SCHEDULED_CONDITION])(
