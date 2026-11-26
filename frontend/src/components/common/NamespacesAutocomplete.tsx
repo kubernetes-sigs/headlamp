@@ -27,7 +27,11 @@ import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
+import {
+  getCombinedAllowedNamespaces,
+  getDiscoveredNamespacesVersion,
+  subscribeDiscoveredNamespaces,
+} from '../../helpers/clusterSettings';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -203,9 +207,16 @@ export function NamespacesAutocomplete() {
   const clusters = useSelectedClusters();
   // The allowed namespaces of every selected cluster, so none of them is left out when
   // more than one cluster is selected.
+  // Discovered namespaces change in the background (refreshes, identity resets), so
+  // follow the discovery store too.
+  const discoveryVersion = React.useSyncExternalStore(
+    subscribeDiscoveredNamespaces,
+    getDiscoveredNamespacesVersion
+  );
   const allowedPerCluster = useMemo(
     () => clusters.map(cluster => getCombinedAllowedNamespaces(cluster)),
-    [clusters]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clusters, discoveryVersion]
   );
   const allowedNames = useMemo(
     () => uniq(allowedPerCluster.flat()).sort((a, b) => a.localeCompare(b)),

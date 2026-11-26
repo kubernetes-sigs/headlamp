@@ -256,7 +256,8 @@ export function useKubeObject<K extends KubeObject>({
  *
  * @param endpoints - List of possible endpoints
  * @param cluster - Target cluster name
- * @param namespace - Optional namespace scope
+ * @param namespace - Optional namespace scope. When several are given, the next one is
+ * tried if probing fails (e.g. forbidden in one namespace but allowed in another).
  * @param name - Resource name. When provided, uses GET-by-name probing
  * @returns The first endpoint that responds with an OK status
  *
@@ -264,6 +265,32 @@ export function useKubeObject<K extends KubeObject>({
  * When no endpoints are working
  */
 const getWorkingEndpoint = async (
+  endpoints: KubeObjectEndpoint[],
+  cluster: string,
+  namespace?: string | string[],
+  name?: string
+) => {
+  // No candidates (an unfiltered list) means the cluster-wide endpoint.
+  const namespaces: Array<string | undefined> = Array.isArray(namespace)
+    ? namespace.length > 0
+      ? namespace
+      : [undefined]
+    : [namespace];
+  let firstError: unknown;
+  for (const ns of namespaces) {
+    try {
+      return await probeEndpoints(endpoints, cluster, ns, name);
+    } catch (e) {
+      if ((e as ApiError)?.status === 401) {
+        throw e;
+      }
+      firstError ??= e;
+    }
+  }
+  throw firstError;
+};
+
+const probeEndpoints = (
   endpoints: KubeObjectEndpoint[],
   cluster: string,
   namespace?: string,
@@ -282,8 +309,12 @@ const getWorkingEndpoint = async (
   });
 
   return Promise.any(promises).catch((aggregateError: AggregateError) => {
-    // when no endpoint is available, throw an error
-    throw aggregateError.errors[0];
+    // An unauthorized result is not endpoint-version-specific. Prefer it over
+    // a version-not-found error so namespace fallback stops immediately.
+    throw (
+      aggregateError.errors.find(error => (error as ApiError)?.status === 401) ??
+      aggregateError.errors[0]
+    );
   });
 };
 
@@ -294,13 +325,13 @@ const getWorkingEndpoint = async (
  *
  * @param endpoints - List of possible endpoints
  * @param cluster - Cluster name
- * @param namespace - Optional namespace scope
+ * @param namespace - Optional namespace scope, or candidates tried in order
  * @param name - Resource name. When provided, uses GET-by-name probing
  */
 export const useEndpoints = (
   endpoints: KubeObjectEndpoint[],
   cluster: string,
-  namespace?: string,
+  namespace?: string | string[],
   name?: string
 ) => {
   const endpointsKey = useMemo(

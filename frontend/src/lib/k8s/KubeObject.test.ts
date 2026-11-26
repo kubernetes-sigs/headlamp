@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { act, render, renderHook, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import {
   createElement,
   type ReactNode,
@@ -31,10 +32,28 @@ vi.mock('../cluster', () => ({
   getCluster: vi.fn(),
   getSelectedClusters: vi.fn(),
 }));
+const discoveryStore = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  return {
+    version: 0,
+    listeners,
+    bump() {
+      this.version++;
+      listeners.forEach(listener => listener());
+    },
+  };
+});
 vi.mock('../../helpers/clusterSettings', () => ({
   loadClusterSettings: vi.fn(),
   getCombinedAllowedNamespaces: vi.fn(() => []),
   hasAllowedNamespacesRestriction: vi.fn(() => false),
+  isRestrictedOnlyByDiscovery: vi.fn(() => false),
+  subscribeDiscoveredNamespaces: (listener: () => void) => {
+    discoveryStore.listeners.add(listener);
+    return () => discoveryStore.listeners.delete(listener);
+  },
+  getDiscoveredNamespacesVersion: () => discoveryStore.version,
+  getDiscoveryGeneration: () => 0,
 }));
 vi.mock('../router/createRouteURL', () => ({ createRouteURL: vi.fn() }));
 vi.mock('../util', () => ({ timeAgo: vi.fn() }));
@@ -50,7 +69,7 @@ const { actualUseConnectApi } = vi.hoisted(() => ({
 }));
 
 vi.mock('./api/v1/hooks', async importOriginal => {
-  const actual = await importOriginal<typeof import('./api/v1/hooks')>();
+  const actual: typeof import('./api/v1/hooks') = await importOriginal();
   // Keep the real hook reachable through a plain reference: mock implementations
   // are wiped by vi.resetAllMocks(), which other suites in this file call.
   actualUseConnectApi.current = actual.useConnectApi;
@@ -73,6 +92,7 @@ vi.mock('./patchUtils', () => ({
 import {
   getCombinedAllowedNamespaces,
   hasAllowedNamespacesRestriction,
+  isRestrictedOnlyByDiscovery,
 } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
 import { AllowedNamespacesResolutionContext } from './allowedNamespacesContext';
@@ -84,6 +104,12 @@ import { ApiError } from './api/v2/ApiError';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
+
+function queryWrapper() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client }, children);
+}
 
 describe('KubeObject', () => {
   beforeEach(() => {
@@ -440,18 +466,116 @@ describe('KubeObject', () => {
       { cluster: 'cluster-b', namespaces: ['bar'] },
     ];
 
-    renderHook(() =>
-      MyNamespacedResource.useList({
-        clusters: ['cluster-a', 'cluster-b'],
-        namespace: ['foo', 'bar'],
-        requests,
-      })
+    renderHook(
+      () =>
+        MyNamespacedResource.useList({
+          clusters: ['cluster-a', 'cluster-b'],
+          namespace: ['foo', 'bar'],
+          requests,
+        }),
+      { wrapper: queryWrapper() }
     );
 
     expect(makeListRequests).not.toHaveBeenCalled();
     expect(useKubeObjectList).toHaveBeenCalledWith(
       expect.objectContaining({ kubeObjectClass: MyNamespacedResource, requests })
     );
+  });
+
+  it('recomputes list requests when discovered namespaces change, also outside the gate', () => {
+    class MyNamespacedResource extends KubeObject {
+      static apiVersion = 'example.headlamp.dev/v1';
+      static kind = 'MyNamespacedResource';
+      static apiName = 'mynamespacedresources';
+      static isNamespaced = true;
+    }
+    vi.mocked(makeListRequests).mockReturnValue([]);
+
+    renderHook(() => MyNamespacedResource.useList({ clusters: ['cluster-a'] }), {
+      wrapper: queryWrapper(),
+    });
+    const callsBefore = vi.mocked(makeListRequests).mock.calls.length;
+
+    act(() => discoveryStore.bump());
+
+    expect(vi.mocked(makeListRequests).mock.calls.length).toBe(callsBefore + 1);
+  });
+
+  describe('with a restriction that only comes from namespace discovery', () => {
+    class MyJob extends KubeObject {
+      static apiVersion = 'batch/v1';
+      static kind = 'Job';
+      static apiName = 'jobs';
+      static isNamespaced = true;
+    }
+
+    beforeEach(() => {
+      vi.mocked(isRestrictedOnlyByDiscovery).mockReturnValue(true);
+      vi.mocked(hasAllowedNamespacesRestriction).mockReturnValue(true);
+      // Discovery found no namespace: none of its probes is allowed anywhere.
+      vi.mocked(getCombinedAllowedNamespaces).mockReturnValue([]);
+      vi.mocked(makeListRequests).mockReturnValue([]);
+    });
+
+    afterEach(() => {
+      vi.mocked(isRestrictedOnlyByDiscovery).mockReturnValue(false);
+      vi.mocked(hasAllowedNamespacesRestriction).mockReturnValue(false);
+    });
+
+    function lastRouting() {
+      const call = vi.mocked(makeListRequests).mock.calls.at(-1)!;
+      const [, allowedNamespacesFor, , , isRestricted] = call;
+      return { allowed: allowedNamespacesFor('cluster-a'), restricted: isRestricted!('cluster-a') };
+    }
+
+    it('keeps the cluster-wide request for kinds the user may list cluster-wide', async () => {
+      vi.mocked(post).mockResolvedValue({ status: { allowed: true } });
+
+      renderHook(() => MyJob.useList({ clusters: ['cluster-a'] }), { wrapper: queryWrapper() });
+
+      await waitFor(() => expect(lastRouting()).toEqual({ allowed: [], restricted: false }));
+      expect(post).toHaveBeenCalledWith(
+        '/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
+        expect.objectContaining({
+          spec: { resourceAttributes: { verb: 'list', group: 'batch', resource: 'jobs' } },
+        }),
+        false,
+        { cluster: 'cluster-a' }
+      );
+    });
+
+    it('keeps explicitly requested namespaces that discovery did not find', async () => {
+      vi.mocked(post).mockResolvedValue({ status: { allowed: false } });
+
+      renderHook(() => MyJob.useList({ clusters: ['cluster-a'], namespace: 'team-jobs' }), {
+        wrapper: queryWrapper(),
+      });
+
+      await waitFor(() => expect(post).toHaveBeenCalled());
+      expect(lastRouting()).toEqual({ allowed: [], restricted: false });
+    });
+
+    it('treats an empty namespace as all namespaces, not as an explicit request', async () => {
+      vi.mocked(post).mockResolvedValue({ status: { allowed: false } });
+      vi.mocked(getCombinedAllowedNamespaces).mockReturnValue(['team-a']);
+
+      renderHook(() => MyJob.useList({ clusters: ['cluster-a'], namespace: '' }), {
+        wrapper: queryWrapper(),
+      });
+
+      await waitFor(() => expect(post).toHaveBeenCalled());
+      expect(lastRouting()).toEqual({ allowed: ['team-a'], restricted: true });
+      expect(vi.mocked(makeListRequests).mock.calls.at(-1)![3]).toBeUndefined();
+    });
+
+    it('applies the discovered namespaces when the kind cannot be listed cluster-wide', async () => {
+      vi.mocked(post).mockResolvedValue({ status: { allowed: false } });
+
+      renderHook(() => MyJob.useList({ clusters: ['cluster-a'] }), { wrapper: queryWrapper() });
+
+      await waitFor(() => expect(post).toHaveBeenCalled());
+      expect(lastRouting()).toEqual({ allowed: [], restricted: true });
+    });
   });
 
   it('removes namespaces from exact requests for cluster-scoped resources', () => {
@@ -462,10 +586,12 @@ describe('KubeObject', () => {
       static isNamespaced = false;
     }
 
-    renderHook(() =>
-      MyClusterResource.useList({
-        requests: [{ cluster: 'cluster-a', namespaces: ['foo'] }],
-      })
+    renderHook(
+      () =>
+        MyClusterResource.useList({
+          requests: [{ cluster: 'cluster-a', namespaces: ['foo'] }],
+        }),
+      { wrapper: queryWrapper() }
     );
 
     expect(useKubeObjectList).toHaveBeenCalledWith(
@@ -540,6 +666,7 @@ describe('KubeObject.useApiList namespace restriction', () => {
     vi.mocked(getCluster).mockReturnValue('my-cluster');
     vi.mocked(getCombinedAllowedNamespaces).mockReturnValue([]);
     vi.mocked(hasAllowedNamespacesRestriction).mockReturnValue(false);
+    vi.mocked(isRestrictedOnlyByDiscovery).mockReturnValue(false);
     apiListSpy = vi
       .spyOn(KubeObject, 'apiList')
       .mockImplementation(() => () => Promise.resolve(() => {}));
@@ -572,6 +699,68 @@ describe('KubeObject.useApiList namespace restriction', () => {
     expect(apiListSpy).toHaveBeenCalledTimes(1);
     expect(requestedNamespaces()).toEqual([undefined]);
     expect(connectedCallCount()).toBe(1);
+  });
+
+  it('preserves cluster-wide listing for a kind allowed outside the discovery probes', async () => {
+    vi.mocked(isRestrictedOnlyByDiscovery).mockReturnValue(true);
+    vi.mocked(hasAllowedNamespacesRestriction).mockReturnValue(true);
+    vi.mocked(post).mockResolvedValue({ status: { allowed: true } });
+
+    renderHook(() => NamespacedResource.useApiList(() => {}));
+
+    expect(apiListSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiListSpy).toHaveBeenCalledTimes(1));
+    expect(requestedNamespaces()).toEqual([undefined]);
+  });
+
+  it('rejects an old discovery-wide stream after settings switch to a manual restriction', async () => {
+    vi.mocked(isRestrictedOnlyByDiscovery).mockReturnValue(true);
+    vi.mocked(hasAllowedNamespacesRestriction).mockReturnValue(true);
+    vi.mocked(getCombinedAllowedNamespaces).mockReturnValue([]);
+    vi.mocked(post).mockResolvedValue({ status: { allowed: true } });
+
+    let deliver: ((items: KubeObject[]) => void) | undefined;
+    apiListSpy.mockImplementation((callback: (items: KubeObject[]) => void) => () => {
+      deliver = callback;
+      return Promise.resolve(() => {});
+    });
+    vi.mocked(useConnectApi).mockImplementation((calls, deps) =>
+      actualUseConnectApi.current(calls, deps)
+    );
+    const pending = deferred<void>();
+    let suspended = false;
+    const onList = vi.fn();
+    function Consumer() {
+      NamespacedResource.useApiList(onList);
+      if (suspended) {
+        throw pending.promise;
+      }
+      return null;
+    }
+    const tree = () =>
+      createElement(
+        MemoryRouter,
+        null,
+        createElement(Suspense, { fallback: 'loading' }, createElement(Consumer))
+      );
+    const view = render(tree());
+    await waitFor(() => expect(deliver).toBeDefined());
+
+    vi.mocked(isRestrictedOnlyByDiscovery).mockReturnValue(false);
+    vi.mocked(getCombinedAllowedNamespaces).mockReturnValue(['manual']);
+    suspended = true;
+    view.rerender(tree());
+    const calls = onList.mock.calls.length;
+
+    act(() =>
+      deliver!([
+        new NamespacedResource({
+          metadata: { name: 'outside', namespace: 'outside' },
+        } as KubeObjectInterface),
+      ])
+    );
+    expect(onList).toHaveBeenCalledTimes(calls);
   });
 
   it('lists each explicitly requested namespace', () => {

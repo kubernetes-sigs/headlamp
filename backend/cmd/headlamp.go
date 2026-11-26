@@ -210,6 +210,7 @@ type clientConfig struct {
 	ClusterSources            []clusterdiscovery.SourceView `json:"clusterSources"`
 	Clusters                  []Cluster                     `json:"clusters"`
 	IsDynamicClusterEnabled   bool                          `json:"isDynamicClusterEnabled"`
+	NamespaceDiscoveryEnabled bool                          `json:"namespaceDiscoveryEnabled"`
 	AllowKubeconfigChanges    bool                          `json:"allowKubeconfigChanges"`
 	DefaultPodDebugImage      string                        `json:"defaultPodDebugImage"`
 	DefaultNodeShellImage     string                        `json:"defaultNodeShellImage"`
@@ -2587,6 +2588,8 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 		c.authenticatedHandler(http.HandlerFunc(c.handleClearToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/set-token",
 		c.authenticatedHandler(http.HandlerFunc(c.handleSetToken))).Methods("POST")
+	router.Handle("/clusters/{clusterName}/accessible-namespaces",
+		c.authenticatedHandler(http.HandlerFunc(c.handleAccessibleNamespaces))).Methods("GET")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {
@@ -2843,6 +2846,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		ClusterSources:            clusterdiscovery.ClientSourceViews(clusterdiscovery.BuiltinSources(), c.DiscoverySources),
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
+		NamespaceDiscoveryEnabled: c.EnableNamespaceDiscovery,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
 		DefaultPodDebugImage:      c.PodDebugImage,
 		DefaultNodeShellImage:     c.NodeShellImage,

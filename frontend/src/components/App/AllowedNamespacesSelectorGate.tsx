@@ -25,15 +25,22 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  getDiscoveryGeneration,
   loadClusterSettings,
   loadResolvedAllowedNamespaces,
+  subscribeDiscoveredNamespaces,
   subscribeToClusterSettings,
 } from '../../helpers/clusterSettings';
+import {
+  shouldDiscoverNamespaces,
+  useAccessibleNamespaces,
+} from '../../lib/k8s/accessibleNamespaces';
 import { useAllowedNamespacesFromSelector } from '../../lib/k8s/allowedNamespaces';
 import {
   AllowedNamespacesResolutionContext,
   AllowedNamespacesSelectorContext,
 } from '../../lib/k8s/allowedNamespacesContext';
+import { useTypedSelector } from '../../redux/hooks';
 import { Loader } from '../common';
 
 /** Result state for a single allowed namespace selector. */
@@ -44,6 +51,11 @@ interface SelectorResolution {
   resultKey: string;
   /** Whether selector resolution failed. */
   isError: boolean;
+}
+
+interface DiscoveryResolution {
+  generation: number;
+  resultKey: string | null;
 }
 
 /**
@@ -77,6 +89,35 @@ function AllowedNamespacesSelectorResolver({
 }
 
 /**
+ * Discovers one cluster's accessible namespaces and reports stable result changes.
+ * The hook updates the discovered-namespaces store before this component's
+ * effect reports the result, so children never render with a stale store.
+ *
+ * @param props - Cluster and result callback.
+ * @returns No rendered content.
+ */
+function AccessibleNamespacesResolver({
+  cluster,
+  generation,
+  onDiscovered,
+}: {
+  cluster: string;
+  generation: number;
+  onDiscovered: (cluster: string, generation: number, resultKey: string | null) => void;
+}) {
+  const { isPending, namespaces } = useAccessibleNamespaces(cluster);
+  const resultKey = isPending ? null : JSON.stringify(namespaces ?? null);
+
+  // Report pending (null) too: after a login or token change discovery starts
+  // over, and dependent routes must wait for the new identity's result.
+  useEffect(() => {
+    onDiscovered(cluster, generation, resultKey);
+  }, [cluster, generation, resultKey, onDiscovered]);
+
+  return null;
+}
+
+/**
  * Shares selector resolution with routes, panels and drawers. List consumers can
  * also register request clusters that are not part of the current selection.
  *
@@ -90,7 +131,14 @@ export function AllowedNamespacesSelectorProvider({
   clusters: string[];
   children: ReactNode;
 }) {
+  const discoveryEnabled = useTypedSelector(state => state.config.namespaceDiscoveryEnabled);
+  const discoveryGeneration = useSyncExternalStore(
+    subscribeDiscoveredNamespaces,
+    getDiscoveryGeneration,
+    getDiscoveryGeneration
+  );
   const [resolutions, setResolutions] = useState<Record<string, SelectorResolution>>({});
+  const [discovered, setDiscovered] = useState<Record<string, DiscoveryResolution>>({});
   const [requestedClusters, setRequestedClusters] = useState<Record<string, number>>({});
   const registerCluster = useCallback((cluster: string) => {
     setRequestedClusters(current => {
@@ -109,6 +157,16 @@ export function AllowedNamespacesSelectorProvider({
       });
     };
   }, []);
+  const onDiscovered = useCallback(
+    (cluster: string, generation: number, resultKey: string | null) => {
+      setDiscovered(current =>
+        current[cluster]?.generation === generation && current[cluster]?.resultKey === resultKey
+          ? current
+          : { ...current, [cluster]: { generation, resultKey } }
+      );
+    },
+    []
+  );
   const onResolved = useCallback((cluster: string, resolution: SelectorResolution) => {
     setResolutions(current =>
       current[cluster]?.resultKey === resolution.resultKey
@@ -155,10 +213,26 @@ export function AllowedNamespacesSelectorProvider({
       ];
     })
   );
+  const discoveryKeys = Object.fromEntries(
+    allClusters.map((cluster): [string, string | null] => [
+      cluster,
+      shouldDiscoverNamespaces(cluster, discoveryEnabled)
+        ? discovered[cluster]?.generation === discoveryGeneration
+          ? discovered[cluster].resultKey
+          : null
+        : '',
+    ])
+  );
   // On-demand clusters must not unmount the route that registered them.
-  const waiting = clusters.some(cluster => resolutionKeys[cluster] === null);
-  const resolutionKey = JSON.stringify([settingsKey, resolutionKeys]);
-  const selectorContext = useMemo(() => ({ registerCluster, waiting }), [registerCluster, waiting]);
+  const selectorWaiting = clusters.some(cluster => resolutionKeys[cluster] === null);
+  // Unlike selector refreshes, a new identity must never see content built for the previous one.
+  const discoveryWaiting = clusters.some(cluster => discoveryKeys[cluster] === null);
+  const waiting = selectorWaiting || discoveryWaiting;
+  const resolutionKey = JSON.stringify([settingsKey, resolutionKeys, discoveryKeys]);
+  const selectorContext = useMemo(
+    () => ({ registerCluster, waiting, discoveryWaiting }),
+    [registerCluster, waiting, discoveryWaiting]
+  );
 
   return (
     <AllowedNamespacesSelectorContext.Provider value={selectorContext}>
@@ -169,6 +243,14 @@ export function AllowedNamespacesSelectorProvider({
           onResolved={onResolved}
         />
       ))}
+      {allClusters.map(cluster => (
+        <AccessibleNamespacesResolver
+          key={cluster}
+          cluster={cluster}
+          generation={discoveryGeneration}
+          onDiscovered={onDiscovered}
+        />
+      ))}
       <AllowedNamespacesResolutionContext.Provider value={resolutionKey}>
         {children}
       </AllowedNamespacesResolutionContext.Provider>
@@ -176,13 +258,22 @@ export function AllowedNamespacesSelectorProvider({
   );
 }
 
-/** Gates the initial route render, then preserves mounted content during selector refresh. */
+/**
+ * Gates the initial route render, then preserves mounted content during selector refresh.
+ * Namespace discovery for a new identity always holds content back.
+ */
 export default function AllowedNamespacesSelectorGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
-  const waiting = useContext(AllowedNamespacesSelectorContext)?.waiting ?? false;
+  const selectorContext = useContext(AllowedNamespacesSelectorContext);
+  const waiting = selectorContext?.waiting ?? false;
+  const discoveryWaiting = selectorContext?.discoveryWaiting ?? false;
   const [hasRenderedContent, setHasRenderedContent] = useState(!waiting);
   if (!waiting && !hasRenderedContent) {
     setHasRenderedContent(true);
   }
-  return waiting && !hasRenderedContent ? <Loader title={t('Loading')} /> : <>{children}</>;
+  return (waiting && !hasRenderedContent) || discoveryWaiting ? (
+    <Loader title={t('Loading')} />
+  ) : (
+    <>{children}</>
+  );
 }

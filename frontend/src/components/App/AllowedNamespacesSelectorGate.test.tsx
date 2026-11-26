@@ -34,6 +34,13 @@ const { namespaceLists } = vi.hoisted(() => ({ namespaceLists: vi.fn() }));
 vi.mock('../../lib/k8s/namespace', () => ({
   default: { useList: namespaceLists },
 }));
+vi.mock('../../lib/k8s/accessibleNamespaces', () => ({
+  shouldDiscoverNamespaces: vi.fn(() => false),
+  useAccessibleNamespaces: vi.fn(() => ({ isPending: false, namespaces: undefined })),
+}));
+vi.mock('../../redux/hooks', () => ({
+  useTypedSelector: vi.fn(() => false),
+}));
 
 class PanelResource extends KubeObject {
   static apiVersion = 'v1';

@@ -266,6 +266,100 @@ describe('useEndpoints', () => {
     expect(result.current.endpoint).toBeUndefined();
   });
 
+  it('tries the next candidate namespace when probing is forbidden in the first', async () => {
+    const endpoints: KubeObjectEndpoint[] = [
+      { group: 'gateway.networking.k8s.io', version: 'v1', resource: 'httproutes' },
+      { group: 'gateway.networking.k8s.io', version: 'v1beta1', resource: 'httproutes' },
+    ];
+
+    mockClusterFetch.mockImplementation(url => {
+      if (String(url).includes('/namespaces/a/')) {
+        return Promise.reject(new ApiError('Forbidden', { status: 403 }));
+      }
+      if (url === 'apis/gateway.networking.k8s.io/v1/namespaces/b/httproutes') {
+        return Promise.resolve(mockJsonResponse({}));
+      }
+
+      return Promise.reject(new ApiError('Not Found', { status: 404 }));
+    });
+
+    const { result } = renderHook(() => useEndpoints(endpoints, 'cluster-a', ['a', 'b']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.endpoint).toEqual(endpoints[0]);
+    });
+  });
+
+  it('stops candidate namespace fallback when probing is unauthorized', async () => {
+    const endpoints: KubeObjectEndpoint[] = [
+      { group: 'gateway.networking.k8s.io', version: 'v1', resource: 'httproutes' },
+      { group: 'gateway.networking.k8s.io', version: 'v1beta1', resource: 'httproutes' },
+    ];
+    mockClusterFetch.mockImplementation((url, options) => {
+      const endpoint = endpoints.find(
+        candidate =>
+          String(url) === `apis/${candidate.group}/${candidate.version}/namespaces/a/httproutes`
+      );
+      if (endpoint) {
+        return Promise.reject(new ApiError('Unauthorized', { status: 401 }));
+      }
+      return Promise.reject(new ApiError(`Unexpected ${options?.method}`, { status: 404 }));
+    });
+
+    const { result } = renderHook(() => useEndpoints(endpoints, 'cluster-a', ['a', 'b']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.error).toMatchObject({ status: 401 }));
+    expect(mockClusterFetch).toHaveBeenCalledTimes(endpoints.length);
+    expect(
+      mockClusterFetch.mock.calls.every(([url]) => String(url).includes('/namespaces/a/'))
+    ).toBe(true);
+  });
+
+  it.each([
+    {
+      kind: 'namespaced',
+      endpoints: [
+        { group: 'gateway.networking.k8s.io', version: 'v1', resource: 'httproutes' },
+        { group: 'gateway.networking.k8s.io', version: 'v1beta1', resource: 'httproutes' },
+      ],
+      url: 'apis/gateway.networking.k8s.io/v1/httproutes',
+    },
+    {
+      kind: 'cluster-scoped',
+      endpoints: [
+        { group: 'gateway.networking.k8s.io', version: 'v1', resource: 'gatewayclasses' },
+        { group: 'gateway.networking.k8s.io', version: 'v1beta1', resource: 'gatewayclasses' },
+      ],
+      url: 'apis/gateway.networking.k8s.io/v1/gatewayclasses',
+    },
+  ])(
+    'probes the cluster-wide URL for an unfiltered $kind list',
+    async ({ endpoints, url: expectedUrl }) => {
+      mockClusterFetch.mockImplementation(url =>
+        url === expectedUrl
+          ? Promise.resolve(mockJsonResponse({}))
+          : Promise.reject(new ApiError('Not Found', { status: 404 }))
+      );
+
+      const { result } = renderHook(() => useEndpoints(endpoints, 'cluster-a', []), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => {
+        expect(result.current.endpoint).toEqual(endpoints[0]);
+      });
+      expect(mockClusterFetch).toHaveBeenCalledWith(expectedUrl, expect.anything());
+      expect(mockClusterFetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/namespaces/'),
+        expect.anything()
+      );
+    }
+  );
+
   it('handles non-ok response in list probing', async () => {
     const endpoints: KubeObjectEndpoint[] = [
       { group: 'batch', version: 'v1', resource: 'jobs' },

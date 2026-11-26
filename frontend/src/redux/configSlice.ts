@@ -54,6 +54,11 @@ export interface ConfigState {
    */
   isDynamicClusterEnabled: boolean;
   /**
+   * Whether the backend can discover the namespaces a user may access when the
+   * user is not allowed to list namespaces.
+   */
+  namespaceDiscoveryEnabled: boolean;
+  /**
    * Whether users are allowed to remove clusters from their kubeconfig.
    * When true, the UI will show options to delete kubeconfig-sourced clusters.
    * Defaults to false to prevent accidental removal in company-deployed environments.
@@ -220,6 +225,7 @@ export const initialState: ConfigState = {
   statelessClusters: null,
   allClusters: null,
   isDynamicClusterEnabled: false,
+  namespaceDiscoveryEnabled: false,
   allowKubeconfigChanges: false,
   defaultPodDebugImage: '',
   defaultNodeShellImage: '',
@@ -253,6 +259,7 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         clusterSources?: ClusterSourceView[];
         isDynamicClusterEnabled?: boolean;
+        namespaceDiscoveryEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
         defaultPodDebugImage?: string;
         defaultNodeShellImage?: string;
@@ -277,6 +284,9 @@ const configSlice = createSlice({
       }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
+      }
+      if (action.payload.namespaceDiscoveryEnabled !== undefined) {
+        state.namespaceDiscoveryEnabled = action.payload.namespaceDiscoveryEnabled;
       }
       if (action.payload.allowKubeconfigChanges !== undefined) {
         state.allowKubeconfigChanges = action.payload.allowKubeconfigChanges;

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { storeClusterSettings } from '../../helpers/clusterSettings';
+import { setDiscoveredNamespaces, storeClusterSettings } from '../../helpers/clusterSettings';
 import Namespace from '../../lib/k8s/namespace';
 import { setConfig } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -111,5 +111,33 @@ describe('NamespacesAutocomplete', () => {
     expect(offeredNamespaces('cluster-a+cluster-b')).toEqual(['team-a']);
     // Picking default would hide everything, since cluster-a only allows team-a.
     expect([...store.getState().filter.namespaces]).toEqual([]);
+  });
+
+  it('offers discovered namespaces and follows later changes of the discovery', () => {
+    listNamespaces(['from-cluster-api']);
+    setDiscoveredNamespaces('cluster-d', ['team-a']);
+    try {
+      window.history.pushState({}, '', '/c/cluster-d/pods');
+      render(
+        <TestContext routerMap={{ cluster: 'cluster-d' }} urlPrefix="/c">
+          <NamespacesAutocomplete />
+        </TestContext>
+      );
+      const options = () => {
+        fireEvent.focus(screen.getByRole('combobox'));
+        return screen.queryAllByRole('option').map(option => option.textContent);
+      };
+      expect(options()).toEqual(['team-a']);
+
+      // A background refresh finds a new namespace.
+      act(() => setDiscoveredNamespaces('cluster-d', ['team-a', 'team-b']));
+      expect(options()).toEqual(['team-a', 'team-b']);
+
+      // The restriction is dropped: back to the cluster's own list.
+      act(() => setDiscoveredNamespaces('cluster-d', null));
+      expect(options()).toEqual(['from-cluster-api']);
+    } finally {
+      setDiscoveredNamespaces('cluster-d', null);
+    }
   });
 });

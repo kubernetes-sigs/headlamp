@@ -15,6 +15,7 @@
  */
 
 import { QueryClient } from '@tanstack/react-query';
+import { resetDiscoveredNamespaces } from '../helpers/clusterSettings';
 
 /**
  * Determines whether React Query should retry a failed query.
@@ -67,4 +68,45 @@ export const queryClient = new QueryClient({
  */
 export function invalidateClusterUserInfo() {
   return queryClient.invalidateQueries({ queryKey: ['clusterMe'] });
+}
+
+/** Name of the channel that tells other tabs the identity may have changed. */
+export const IDENTITY_RESET_CHANNEL = 'headlamp-identity-reset';
+
+function resetAccessibleNamespacesLocally(cluster?: string) {
+  resetDiscoveredNamespaces(cluster);
+  return queryClient.removeQueries({
+    queryKey: cluster ? ['accessibleNamespaces', cluster] : ['accessibleNamespaces'],
+  });
+}
+
+// The authentication cookie is shared by all tabs, so an identity change in one
+// tab also changes the identity of the others. The message only names the
+// cluster, never a credential. Receivers reset locally without re-broadcasting.
+const identityResetChannel =
+  typeof BroadcastChannel === 'undefined'
+    ? undefined
+    : new BroadcastChannel(IDENTITY_RESET_CHANNEL);
+if (identityResetChannel) {
+  identityResetChannel.onmessage = (event: MessageEvent) => {
+    const cluster = event.data?.cluster;
+    resetAccessibleNamespacesLocally(typeof cluster === 'string' && cluster ? cluster : undefined);
+  };
+}
+
+/**
+ * Forgets the namespaces discovered for the previous identity (see
+ * lib/k8s/accessibleNamespaces.ts) and makes discovery run again, in this tab
+ * and in every other open tab (the authentication cookie is shared).
+ *
+ * Call it whenever the identity may change: token set or cleared, logout, and
+ * OIDC login. Without a cluster it resets every cluster, because the backend
+ * may broadcast an OIDC token to sibling clusters.
+ *
+ * @param cluster - The cluster whose identity changed, or undefined for all.
+ */
+export function resetAccessibleNamespaces(cluster?: string) {
+  const result = resetAccessibleNamespacesLocally(cluster);
+  identityResetChannel?.postMessage({ cluster });
+  return result;
 }
