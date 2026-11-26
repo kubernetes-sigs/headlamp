@@ -17,6 +17,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setDiscoveredNamespaces, storeClusterSettings } from '../../helpers/clusterSettings';
+import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
 import Namespace from '../../lib/k8s/namespace';
 import { setConfig } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -139,5 +140,89 @@ describe('NamespacesAutocomplete', () => {
     } finally {
       setDiscoveredNamespaces('cluster-d', null);
     }
+  });
+
+  it('offers newly allowed namespaces when the allowed namespaces are resolved again', () => {
+    storeClusterSettings('cluster-a', { allowedNamespaces: ['team-a'] });
+    storeClusterSettings('cluster-b', { allowedNamespaces: ['team-b'] });
+    listNamespaces([]);
+    window.history.pushState({}, '', '/c/cluster-a+cluster-b/pods');
+    const tree = (key: string) => (
+      <AllowedNamespacesResolutionContext.Provider value={key}>
+        <TestContext routerMap={{ cluster: 'cluster-a+cluster-b' }} urlPrefix="/c">
+          <NamespacesAutocomplete />
+        </TestContext>
+      </AllowedNamespacesResolutionContext.Provider>
+    );
+    const view = render(tree('v1'));
+    fireEvent.focus(screen.getByRole('combobox'));
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['team-a', 'team-b']);
+
+    storeClusterSettings('cluster-b', { allowedNamespaces: ['team-b', 'newly-allowed'] });
+    view.rerender(tree('v2'));
+
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual([
+      'newly-allowed',
+      'team-a',
+      'team-b',
+    ]);
+  });
+
+  describe('when the namespace list of a cluster fails', () => {
+    const kubeconfigNamespaces = () =>
+      store.dispatch(
+        setConfig({
+          clusters: {
+            'cluster-a': { name: 'cluster-a', meta_data: { namespace: 'a-default' } },
+            'cluster-b': { name: 'cluster-b', meta_data: { namespace: 'b-default' } },
+          } as any,
+        })
+      );
+
+    /** Makes the namespace list return these names together with a failure of some clusters. */
+    function listWithFailures(names: string[], failedClusters: string[]) {
+      vi.spyOn(Namespace, 'useList').mockReturnValue(
+        Object.assign(
+          [names.map(name => ({ metadata: { name } })), { status: 403, message: 'forbidden' }],
+          { errors: failedClusters.map(cluster => ({ cluster })) }
+        ) as unknown as ReturnType<typeof Namespace.useList>
+      );
+    }
+
+    it.each(['cluster-a+cluster-b', 'cluster-b+cluster-a'])(
+      "offers the kubeconfig namespace of an unrestricted cluster that can't list (%s)",
+      clusters => {
+        kubeconfigNamespaces();
+        storeClusterSettings('cluster-a', { allowedNamespaces: ['team-a'] });
+        listWithFailures([], ['cluster-b']);
+
+        expect(offeredNamespaces(clusters)).toEqual(['b-default', 'team-a']);
+        expect([...store.getState().filter.namespaces]).toEqual([]);
+      }
+    );
+
+    it.each(['cluster-b+cluster-c', 'cluster-c+cluster-b'])(
+      'offers it next to the namespaces another cluster listed (%s)',
+      clusters => {
+        kubeconfigNamespaces();
+        listWithFailures(['c-api'], ['cluster-b']);
+
+        expect(offeredNamespaces(clusters)).toEqual(['b-default', 'c-api']);
+      }
+    );
+
+    it.each(['cluster-a+cluster-b', 'cluster-b+cluster-a'])(
+      'does not offer the kubeconfig namespace of a cluster whose selector resolves empty (%s)',
+      clusters => {
+        kubeconfigNamespaces();
+        // The selector matches no namespace, which is still a restriction.
+        storeClusterSettings('cluster-a', { allowedNamespacesSelector: 'team=none' });
+        listWithFailures([], ['cluster-b']);
+
+        expect(offeredNamespaces(clusters)).toEqual(['b-default']);
+        // Selecting a-default would not return anything from cluster-a.
+        expect([...store.getState().filter.namespaces]).toEqual([]);
+      }
+    );
   });
 });

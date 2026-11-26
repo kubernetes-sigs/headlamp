@@ -30,9 +30,11 @@ import { useHistory, useLocation } from 'react-router-dom';
 import {
   getCombinedAllowedNamespaces,
   getDiscoveredNamespacesVersion,
+  hasAllowedNamespacesRestriction,
   subscribeDiscoveredNamespaces,
 } from '../../helpers/clusterSettings';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
 import Namespace from '../../lib/k8s/namespace';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
@@ -208,15 +210,22 @@ export function NamespacesAutocomplete() {
   // The allowed namespaces of every selected cluster, so none of them is left out when
   // more than one cluster is selected.
   // Discovered namespaces change in the background (refreshes, identity resets), so
-  // follow the discovery store too.
+  // follow the discovery store too. Selector resolution is tracked separately.
   const discoveryVersion = React.useSyncExternalStore(
     subscribeDiscoveredNamespaces,
     getDiscoveredNamespacesVersion
   );
+  const resolutionKey = React.useContext(AllowedNamespacesResolutionContext);
   const allowedPerCluster = useMemo(
     () => clusters.map(cluster => getCombinedAllowedNamespaces(cluster)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clusters, discoveryVersion]
+    [clusters, discoveryVersion, resolutionKey]
+  );
+  // A selector that resolves to no namespaces is still a restriction.
+  const unrestrictedClusters = useMemo(
+    () => clusters.filter(c => !hasAllowedNamespacesRestriction(c)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clusters, discoveryVersion, resolutionKey]
   );
   const allowedNames = useMemo(
     () => uniq(allowedPerCluster.flat()).sort((a, b) => a.localeCompare(b)),
@@ -246,6 +255,8 @@ export function NamespacesAutocomplete() {
       onChange={onChange}
       filter={filter}
       extraNamespaceNames={allowedNames}
+      unrestrictedClusters={unrestrictedClusters}
+      hasRestrictedCluster={unrestrictedClusters.length < clusters.length}
     />
   );
 }
@@ -292,24 +303,54 @@ function NamespacesFromClusterAutocomplete(
   props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'> & {
     /** Namespaces to offer even if the list doesn't have them. */
     extraNamespaceNames?: string[];
+    /** Selected clusters without any allowed namespaces. */
+    unrestrictedClusters?: string[];
+    /** Whether some selected cluster has an allowed-namespaces restriction. */
+    hasRestrictedCluster?: boolean;
   }
 ) {
-  const { extraNamespaceNames = [], ...autocompleteProps } = props;
-  const [namespacesList, error] = Namespace.useList();
-  const namespaceNames = useMemo(
+  const {
+    extraNamespaceNames = [],
+    unrestrictedClusters = [],
+    hasRestrictedCluster = false,
+    ...autocompleteProps
+  } = props;
+  const listResult = Namespace.useList();
+  const [namespacesList, error] = listResult;
+  const allClustersConfigs = useClustersConf();
+  const listFailed = Boolean(error) && !namespacesList?.length;
+  // Clusters whose request failed, even when other clusters returned namespaces.
+  const failedClusters = useMemo(
+    () => new Set((listResult.errors ?? []).map(e => e.cluster).filter(Boolean)),
+    [listResult.errors]
+  );
+  const offeredNames = useMemo(
     () =>
       uniq([
         ...(namespacesList?.map(namespace => namespace.metadata.name) ?? []),
         ...extraNamespaceNames,
-      ])
-        .slice()
-        .sort((a, b) => a.localeCompare(b)),
+      ]),
     [namespacesList, extraNamespaceNames]
   );
+  const namespaceNames = useMemo(() => {
+    // When the namespace list of an unrestricted cluster is forbidden, that cluster would
+    // otherwise offer nothing, so keep its kubeconfig namespace selectable.
+    const kubeconfigNamespaces = unrestrictedClusters
+      .filter(c => listFailed || failedClusters.has(c))
+      .map(c => allClustersConfigs?.[c]?.meta_data?.namespace ?? '')
+      .filter(Boolean);
+    return uniq([...offeredNames, ...kubeconfigNamespaces])
+      .slice()
+      .sort((a, b) => a.localeCompare(b));
+  }, [offeredNames, unrestrictedClusters, listFailed, failedClusters, allClustersConfigs]);
 
   // Only guess the kubeconfig namespace when there is nothing to offer: it may not be one of
   // the allowed namespaces, and picking it would hide the resources of those.
-  useDefaultNamespaceFallback(namespacesList, Boolean(error) && namespaceNames.length === 0);
+  // Nor when a selected cluster is restricted, even if its selector resolved to nothing.
+  useDefaultNamespaceFallback(
+    namespacesList,
+    Boolean(error) && offeredNames.length === 0 && !hasRestrictedCluster
+  );
 
   return <PureNamespacesAutocomplete namespaceNames={namespaceNames} {...autocompleteProps} />;
 }
