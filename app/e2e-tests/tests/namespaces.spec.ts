@@ -22,6 +22,7 @@ import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
 import { NamespacesPage } from './namespacesPage';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 import { dismissWelcome } from './welcome';
 
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
@@ -38,6 +39,7 @@ const electron = _electron;
 const appPath = path.resolve(__dirname, '../../');
 let electronApp;
 let electronPage: Page;
+let profileDir: string;
 
 test.beforeAll(async () => {
   fs.writeFileSync(
@@ -47,11 +49,12 @@ test.beforeAll(async () => {
     }),
     { mode: 0o600 }
   );
+  profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-namespaces-profile-'));
 
   electronApp = await electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${profileDir}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -60,7 +63,7 @@ test.beforeAll(async () => {
     },
   });
 
-  electronPage = await electronApp.firstWindow();
+  electronPage = await dismissReleaseNotes(electronApp);
   await dismissWelcome(electronPage);
 });
 
@@ -69,6 +72,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
+  if (profileDir) {
+    fs.rmSync(profileDir, { recursive: true, force: true });
+  }
 });
 
 // note: this test is for local app development testing and requires a

@@ -21,12 +21,14 @@ import os from 'os';
 import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 import { dismissWelcome } from './welcome';
 
 // Electron setup
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
 const appPath = path.resolve(__dirname, '../../');
+let profileDir: string;
 
 // Renaming a cluster persists a headlamp_info customName extension into the
 // kubeconfig. Run against a throwaway copy so the developer's real kubeconfig
@@ -84,11 +86,12 @@ async function renameCluster(
 // Setup
 test.beforeAll(async () => {
   writeIsolatedKubeconfig(TEST_CONFIG.originalName, ISOLATED_KUBECONFIG);
+  profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-rename-profile-'));
 
   electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${profileDir}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -97,7 +100,7 @@ test.beforeAll(async () => {
     },
   });
 
-  electronPage = await electronApp.firstWindow();
+  electronPage = await dismissReleaseNotes(electronApp);
   await dismissWelcome(electronPage);
 });
 
@@ -106,6 +109,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
+  if (profileDir) {
+    fs.rmSync(profileDir, { recursive: true, force: true });
+  }
 });
 
 // Tests

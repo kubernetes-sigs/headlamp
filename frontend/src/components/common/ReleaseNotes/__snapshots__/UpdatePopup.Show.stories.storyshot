@@ -5,10 +5,9 @@
       role="presentation"
     >
       <div
-        aria-describedby="updatePopup"
         class="MuiPaper-root MuiPaper-outlined MuiSnackbarContent-root css-1cboije-MuiPaper-root-MuiSnackbarContent-root"
         direction="up"
-        role="alert"
+        role="status"
         style="opacity: 1; transform: none; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms,transform 150ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       >
         <div
@@ -26,6 +25,7 @@
               class="MuiBox-root css-1aisqbv"
             >
               <button
+                aria-describedby="update-popup-opens-new-tab"
                 class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
                 style="color: inherit; text-transform: none;"
                 tabindex="0"
@@ -36,6 +36,12 @@
                   class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </button>
+              <div
+                class="MuiBox-root css-f6f9bh"
+                id="update-popup-opens-new-tab"
+              >
+                Opens in a new tab
+              </div>
             </div>
             <div
               class="MuiBox-root css-1itv5e3"

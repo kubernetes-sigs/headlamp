@@ -28,7 +28,7 @@
     "DropZoneBox/Upload Files": ["aria-allowed-role"],
     "common/Loader/With Empty Title": ["aria-progressbar-name"],
     "common/ReleaseNotes/ReleaseNotes/Default": ["heading-order"],
-    "common/ReleaseNotes/ReleaseNotesModal/Show": ["heading-order", "scrollable-region-focusable"],
+    "common/ReleaseNotes/ReleaseNotesModal/Show": ["heading-order"],
     "GlobalSearch/Basic Example": ["color-contrast"],
     "project/NewProjectPopup/Default": ["heading-order"],
     "project/NewProjectPopup/With Existing Projects (for duplicate name testing)": [
