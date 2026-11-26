@@ -156,12 +156,13 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       return null;
     }
 
+    // The API omits status counts that are 0, so read a missing count as 0.
     let values: { [key: string]: string } = {
       [t('translation|Desired', { context: 'replicas' })]: item.spec.replicas,
-      [t('translation|Ready', { context: 'replicas' })]: item.status.readyReplicas,
-      [t('translation|Up to date', { context: 'replicas' })]: item.status.updatedReplicas,
-      [t('translation|Available', { context: 'replicas' })]: item.status.availableReplicas,
-      [t('translation|Total')]: item.status.replicas,
+      [t('translation|Ready', { context: 'replicas' })]: item.status.readyReplicas ?? 0,
+      [t('translation|Up to date', { context: 'replicas' })]: item.status.updatedReplicas ?? 0,
+      [t('translation|Available', { context: 'replicas' })]: item.status.availableReplicas ?? 0,
+      [t('translation|Total')]: item.status.replicas ?? 0,
     };
 
     const validEntries = Object.entries(values).filter(

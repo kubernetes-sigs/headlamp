@@ -221,3 +221,42 @@ describe('WorkloadDetails owned-pods diagnostics wiring', () => {
     expect(lastDiagnosticsProps().pods).toBe(podsAfterFirst);
   });
 });
+
+describe('WorkloadDetails Deployment replicas', () => {
+  beforeEach(() => {
+    mockDetailsGrid.mockReset();
+  });
+
+  // The API omits replica counts that are 0, so they must be shown as 0, not dropped.
+  function replicasDict(spec: any, status: any) {
+    render(
+      <TestContext>
+        <WorkloadDetails workloadKind={fakeWorkloadKind} name="web" namespace="default" />
+      </TestContext>
+    );
+
+    const rows = mockDetailsGrid.mock.calls[0][0].extraInfo({
+      kind: 'Deployment',
+      metadata: { name: 'web', namespace: 'default' },
+      spec,
+      status,
+    });
+    return rows.find((row: any) => row?.name === 'Replicas').value.props.dict;
+  }
+
+  it('shows 0 ready and available replicas when no pod is available', () => {
+    expect(
+      replicasDict({ replicas: 3 }, { replicas: 3, updatedReplicas: 3, unavailableReplicas: 3 })
+    ).toEqual({ Desired: 3, Ready: 0, 'Up to date': 3, Available: 0, Total: 3 });
+  });
+
+  it('shows every count as 0 when the Deployment is scaled to 0', () => {
+    expect(replicasDict({ replicas: 0 }, { observedGeneration: 2 })).toEqual({
+      Desired: 0,
+      Ready: 0,
+      'Up to date': 0,
+      Available: 0,
+      Total: 0,
+    });
+  });
+});
