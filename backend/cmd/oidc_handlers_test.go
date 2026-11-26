@@ -475,7 +475,7 @@ func TestOIDCStart_RedirectsToIdP(t *testing.T) {
 	q := loc.Query()
 	assert.Equal(t, "test-client-id", q.Get("client_id"))
 	assert.Equal(t, "code", q.Get("response_type"))
-	assert.Contains(t, q.Get("scope"), "openid")
+	assert.Equal(t, "openid profile email", q.Get("scope"))
 	assert.NotEmpty(t, q.Get("redirect_uri"), "redirect_uri must be set")
 }
 
@@ -1389,4 +1389,29 @@ func TestOIDCCallback_VerifiesAccessTokenWithValidatorOverrides(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
 		"the validated access token should remain the cluster credential")
+}
+
+// TestOIDCLoginScopes checks that the scopes sent to the IdP are trimmed,
+// free of empty and duplicate entries, and start with a single "openid".
+func TestOIDCLoginScopes(t *testing.T) {
+	tests := []struct {
+		configured string
+		want       []string
+	}{
+		{configured: "openid", want: []string{"openid"}},
+		{configured: "openid,email", want: []string{"openid", "email"}},
+		{configured: "profile, email", want: []string{"openid", "profile", "email"}},
+		{configured: "profile,email,", want: []string{"openid", "profile", "email"}},
+		{configured: "", want: []string{"openid"}},
+		{configured: "email,email", want: []string{"openid", "email"}},
+		{configured: " openid , profile ", want: []string{"openid", "profile"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%q", tt.configured), func(t *testing.T) {
+			// strings.Split keeps empty and untrimmed entries, as the
+			// kubeconfig auth-provider "scope" field does.
+			assert.Equal(t, tt.want, oidcLoginScopes(strings.Split(tt.configured, ",")))
+		})
+	}
 }
