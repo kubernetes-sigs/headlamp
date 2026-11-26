@@ -120,6 +120,38 @@ describe('useEndpoints', () => {
     expect(calledUrls).not.toContain('apis/extensions/v1beta1/namespaces/default/ingresses');
   });
 
+  it('does not let a faster fallback endpoint outrank the first working endpoint', async () => {
+    const endpoints: KubeObjectEndpoint[] = [
+      { group: 'example.com', version: 'v1', resource: 'widgets' },
+      { group: 'example.com', version: 'v1beta1', resource: 'widgets' },
+    ];
+
+    mockClusterFetch.mockImplementation(url => {
+      if (url === 'apis/example.com/v1/widgets') {
+        return new Promise(resolve => {
+          setTimeout(() => resolve(mockJsonResponse({})), 20);
+        });
+      }
+      if (url === 'apis/example.com/v1beta1/widgets') {
+        return Promise.resolve(mockJsonResponse({}));
+      }
+
+      return Promise.reject(new Error(`Unexpected URL: ${String(url)}`));
+    });
+
+    const { result } = renderHook(() => useEndpoints(endpoints, 'cluster-a'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.endpoint).toEqual(endpoints[0]);
+    });
+
+    expect(mockClusterFetch.mock.calls.map(([url]) => String(url))).toEqual([
+      'apis/example.com/v1/widgets',
+    ]);
+  });
+
   it('handles cluster-scoped GET-by-name probing without namespace', async () => {
     const endpoints: KubeObjectEndpoint[] = [
       {
