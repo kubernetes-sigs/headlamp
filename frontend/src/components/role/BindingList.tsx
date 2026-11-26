@@ -25,6 +25,27 @@ import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { LightTooltip } from '../common/Tooltip';
 
+/** Compares two bindings by the names of their subjects of the given kind (e.g. 'User', 'Group', 'ServiceAccount'). */
+export function sortBindingsByKind(kind: string) {
+  return function (r1: RoleBinding, r2: RoleBinding) {
+    const groups1 = r1?.subjects
+      ?.filter(subject => subject.kind === kind)
+      .map(subject => subject.name);
+    const groups2 = r2?.subjects
+      ?.filter(subject => subject.kind === kind)
+      .map(subject => subject.name);
+    if (groups1 && groups2) {
+      return groups1.join('').localeCompare(groups2.join(''));
+    } else if (groups1) {
+      return 1;
+    } else if (groups2) {
+      return -1;
+    } else {
+      return 0;
+    }
+  };
+}
+
 function RoleLink(props: { role: string; namespace?: string; cluster: string }) {
   const { role, namespace, cluster } = props;
 
@@ -102,26 +123,6 @@ export default function RoleBindingList() {
     return [...(roleErrors ?? []), ...(clusterRoleErrors ?? [])];
   }, [roleErrors, clusterRoleErrors]);
 
-  function sortBindings(kind: string) {
-    return function (r1: RoleBinding, r2: RoleBinding) {
-      const groups1 = r1?.subjects
-        ?.filter(subject => subject.kind === kind)
-        .map(subject => subject.name);
-      const groups2 = r2?.subjects
-        ?.filter(subject => subject.kind === kind)
-        .map(subject => subject.name);
-      if (groups1 && groups2) {
-        return groups1.join('').localeCompare(groups2.join(''));
-      } else if (groups1) {
-        return 1;
-      } else if (groups2) {
-        return -1;
-      } else {
-        return 0;
-      }
-    };
-  }
-
   return (
     <ResourceListView
       title={t('glossary|Role Bindings')}
@@ -178,7 +179,7 @@ export default function RoleBindingList() {
               }
             />
           ),
-          sort: sortBindings('User'),
+          sort: sortBindingsByKind('User'),
         },
         {
           id: 'groups',
@@ -197,7 +198,7 @@ export default function RoleBindingList() {
               }
             />
           ),
-          sort: sortBindings('Group'),
+          sort: sortBindingsByKind('Group'),
         },
         {
           id: 'serviceaccounts',
@@ -208,7 +209,7 @@ export default function RoleBindingList() {
               ?.map(subject => subject.name)
               ?.join(' '),
           render: item => <ServiceAccountList binding={item} />,
-          sort: sortBindings('ServiceAccount'),
+          sort: sortBindingsByKind('ServiceAccount'),
         },
         'labels',
         'age',
