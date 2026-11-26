@@ -482,6 +482,7 @@ describe('useClustersVersion', () => {
 const notNamespacedClasses = [
   'CertificateSigningRequest',
   'ClusterRole',
+  'ClusterTrustBundle',
   'ClusterRoleBinding',
   'CustomResourceDefinition',
   'DeviceClass',

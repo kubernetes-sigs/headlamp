@@ -5,6 +5,7 @@
   "Namespace": "Namespace",
   "Git Commit": "Git Commit",
   "Certificate Signing Requests": "Certificate Signing Requests",
+  "Cluster Trust Bundles": "Cluster Trust Bundles",
   "Memory": "Memory",
   "CPU": "CPU",
   "Pods": "Pods",

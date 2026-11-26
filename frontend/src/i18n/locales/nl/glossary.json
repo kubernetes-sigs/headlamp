@@ -5,6 +5,7 @@
   "Namespace": "Naamruimte",
   "Git Commit": "Git-doorvoer",
   "Certificate Signing Requests": "",
+  "Cluster Trust Bundles": "",
   "Memory": "Geheugen",
   "CPU": "CPU",
   "Pods": "Pods",

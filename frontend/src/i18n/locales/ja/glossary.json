@@ -5,6 +5,7 @@
   "Namespace": "ネームスペース",
   "Git Commit": "Git コミット",
   "Certificate Signing Requests": "",
+  "Cluster Trust Bundles": "",
   "Memory": "メモリ",
   "CPU": "CPU",
   "Pods": "ポッド",

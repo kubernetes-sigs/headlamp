@@ -25,6 +25,7 @@ import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import CertificateSigningRequest from '../../../../lib/k8s/certificateSigningRequest';
 import ClusterRole from '../../../../lib/k8s/clusterRole';
 import ClusterRoleBinding from '../../../../lib/k8s/clusterRoleBinding';
+import ClusterTrustBundle from '../../../../lib/k8s/clusterTrustBundle';
 import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
@@ -215,6 +216,7 @@ export function useGetAllSources(): GraphSource[] {
   const tcpRouteEnabled = gatewayKinds.has('TCPRoute');
   const udpRouteEnabled = gatewayKinds.has('UDPRoute');
   const devicesClusters = useClustersServing(DeviceClass);
+  const trustBundleClusters = useClustersServing(ClusterTrustBundle);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -332,6 +334,9 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(ClusterRole),
           makeKubeSource(ClusterRoleBinding),
           makeKubeSource(CertificateSigningRequest),
+          ...(trustBundleClusters?.length
+            ? [makeKubeSource(ClusterTrustBundle, trustBundleClusters)]
+            : []),
         ],
       },
       {
@@ -461,6 +466,7 @@ export function useGetAllSources(): GraphSource[] {
     compositePodGroupsEnabled,
     compositePodGroupClusters,
     devicesClusters,
+    trustBundleClusters,
     t,
   ]);
 }

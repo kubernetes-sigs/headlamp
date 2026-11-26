@@ -34,6 +34,9 @@ vi.mock('../../certificatesigningrequest/Details', () => ({
 vi.mock('../../compositePodGroup/Details', () => ({
   default: makeDetails('CompositePodGroup'),
 }));
+vi.mock('../../clustertrustbundle/Details', () => ({
+  default: makeDetails('ClusterTrustBundle'),
+}));
 vi.mock('../../configmap/Details', () => ({ default: makeDetails('ConfigMap') }));
 vi.mock('../../crd/CustomResourceDetails', () => ({
   CustomResourceDetails: ({ crName, crd, namespace, cluster }: any) =>
@@ -148,6 +151,7 @@ const dispatchCases = [
   ['ResourceQuota', 'ResourceQuota'],
   ['ClusterRole', 'Role'],
   ['ClusterRoleBinding', 'RoleBinding'],
+  ['ClusterTrustBundle', 'ClusterTrustBundle'],
   ['Role', 'Role'],
   ['RoleBinding', 'RoleBinding'],
   ['RuntimeClass', 'RuntimeClass'],

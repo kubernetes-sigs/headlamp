@@ -142,6 +142,7 @@ const kindGroups = {
     'ClusterRole',
     'ClusterRoleBinding',
     'CertificateSigningRequest',
+    'ClusterTrustBundle',
   ]),
   configuration: new Set([
     'ConfigMap',

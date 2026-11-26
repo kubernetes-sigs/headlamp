@@ -154,6 +154,7 @@ export function useClustersVersion(clusters: Cluster[]) {
 // Other exports that can be used by plugins:
 export * as cluster from './cluster';
 export * as certificateSigningRequest from './certificateSigningRequest';
+export * as clusterTrustBundle from './clusterTrustBundle';
 export * as clusterRole from './clusterRole';
 export * as clusterRoleBinding from './clusterRoleBinding';
 export * as configMap from './configMap';
