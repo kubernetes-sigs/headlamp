@@ -60,6 +60,17 @@ dependents are attempted in both sequential and parallel mode. A failed or skipp
 prerequisite causes its dependents to be skipped; independent plugins can continue.
 Parallel mode runs up to `maxConcurrent` dependency-ready plugins per batch.
 
+Bulk installations use the Artifact Hub package name as the installation directory,
+not the configuration `name` alias. Different repositories may publish the same
+package name, so every configured source must resolve to a distinct directory.
+Collisions (including case-only differences for Windows compatibility) are rejected
+before downloads, installation, or cleanup. URL-encoded package names are decoded
+for this comparison, and fetched metadata must match the source package name.
+
+If any installation fails or is skipped, bulk reconciliation leaves existing
+unconfigured plugin directories in place rather than pruning them after a rejected
+installation. Successful batches continue to reconcile the configured directories.
+
 ## Available Classes
 
 The package exports the following classes for programmatic use:

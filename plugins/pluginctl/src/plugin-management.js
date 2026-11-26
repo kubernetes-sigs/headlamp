@@ -532,6 +532,23 @@ async function downloadExtractPlugin(
   return [pluginName, tempFolder];
 }
 
+/** Resolves the package directory from an Artifact Hub source, independently of metadata. */
+function getPluginDestinationName(source) {
+  const url = new URL(source);
+  const parts = url.pathname.split('/').filter(Boolean);
+  if (
+    url.origin !== 'https://artifacthub.io' || url.username || url.password ||
+    parts[0] !== 'packages' || parts[1] !== 'headlamp' || !parts[2] || !parts[3]
+  ) {
+    throw new Error('Invalid URL. Please provide a valid URL from ArtifactHub.');
+  }
+  const name = decodeURIComponent(parts[3]);
+  if (!name || name !== name.trim() || name.endsWith('.') || !validatePluginName(name)) {
+    throw new Error('Invalid ArtifactHub plugin destination name');
+  }
+  return name;
+}
+
 /**
  * Fetches plugin metadata from the specified URL.
  * @param {string} URL - The URL to fetch plugin metadata from.
@@ -575,6 +592,10 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       pluginInfo = await response.json();
+    }
+    const expectedName = getPluginDestinationName(URL);
+    if (pluginInfo.name !== expectedName) {
+      throw new Error(`Plugin name "${pluginInfo.name}" does not match source package "${expectedName}"`);
     }
     return pluginInfo;
   } catch (e) {
@@ -627,4 +648,10 @@ function defaultPluginsDir() {
   return path.join(configDir, 'user-plugins');
 }
 
-module.exports = { PluginManager, validateArchiveURL, normalizeChecksum, fetchWithRetry };
+module.exports = {
+  PluginManager,
+  validateArchiveURL,
+  normalizeChecksum,
+  fetchWithRetry,
+  getPluginDestinationName,
+};
