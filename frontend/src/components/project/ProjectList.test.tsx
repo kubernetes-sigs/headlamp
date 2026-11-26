@@ -220,6 +220,20 @@ describe('useProject', () => {
       project: { id: 'missing-project', clusters: [], namespaces: [] },
     });
   });
+
+  it('marks a project incomplete when namespace discovery fails', () => {
+    vi.spyOn(Namespace, 'useList').mockReturnValue({
+      items: [ns('app-prod', { project: 'app' })],
+      isLoading: false,
+      isError: true,
+    } as any);
+
+    const { result } = renderHook(() => useProject('app'), {
+      wrapper: ({ children }) => <TestContext>{children}</TestContext>,
+    });
+
+    expect(result.current.project?.namespaceDiscoveryComplete).toBe(false);
+  });
 });
 
 describe('ProjectList events', () => {
