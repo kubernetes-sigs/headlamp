@@ -53,6 +53,18 @@ export interface ConditionListProps {
 }
 
 /**
+ * Standard Kubernetes conditions with negative/inverted polarity, where 'True'
+ * indicates a problem ('error') and 'False' indicates a healthy state ('success').
+ */
+const NEGATIVE_CONDITIONS = new Set([
+  'replicafailure',
+  'memorypressure',
+  'diskpressure',
+  'pidpressure',
+  'networkunavailable',
+]);
+
+/**
  * ConditionList renders a Kubernetes conditions array as a consistent table.
  *
  * The component is intended to replace several existing condition renderers across the UI,
@@ -62,7 +74,8 @@ export interface ConditionListProps {
  *
  * - status === 'True'  -> 'success'
  * - status === 'False' -> 'error'
- * - for negative conditions (e.g. ReplicaFailure): 'False' -> 'success', 'True' -> 'error'
+ * - for negative conditions (e.g. ReplicaFailure, MemoryPressure, DiskPressure, PIDPressure,
+ *   NetworkUnavailable): 'False' -> 'success', 'True' -> 'error'
  * - anything else      -> '' (neutral chip)
  *
  * @example
@@ -85,15 +98,15 @@ export function ConditionList({
   }
 
   function statusFromCondition(condition: KubeCondition): StatusLabelProps['status'] {
-    const type = condition.type?.toLowerCase();
-    // ReplicaFailure is True when the controller cannot create pods.
-    if (type === 'replicafailure') {
-      return condition.status === 'False' ? 'success' : condition.status === 'True' ? 'error' : '';
-    }
+    const type = condition.type?.toLowerCase() ?? '';
+    const isNegative = NEGATIVE_CONDITIONS.has(type);
 
-    if (condition.status === 'True')
-      return errorConditionTypes?.includes(condition.type) ? 'error' : 'success';
-    if (condition.status === 'False') return 'error';
+    if (condition.status === 'True') {
+      return isNegative || errorConditionTypes?.includes(condition.type) ? 'error' : 'success';
+    }
+    if (condition.status === 'False') {
+      return isNegative ? 'success' : 'error';
+    }
     return '';
   }
 

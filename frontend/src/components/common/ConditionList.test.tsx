@@ -244,37 +244,87 @@ describe('ConditionList', () => {
       });
     });
 
-    it('colors negative ReplicaFailure condition with status="True" as error and "False" as success', () => {
+    it.each([
+      ['ReplicaFailure', 'replicafailure'],
+      ['MemoryPressure', 'memorypressure'],
+      ['DiskPressure', 'diskpressure'],
+      ['PIDPressure', 'pidpressure'],
+      ['NetworkUnavailable', 'networkunavailable'],
+    ])(
+      'colors negative %s condition with status="True" as error, "False" as success, and "Unknown" as neutral',
+      (conditionType, lowercaseType) => {
+        const conditions: KubeCondition[] = [
+          createMockCondition({
+            type: conditionType,
+            status: 'True',
+          }),
+          createMockCondition({
+            type: lowercaseType,
+            status: 'False',
+          }),
+          createMockCondition({
+            type: conditionType.toUpperCase(),
+            status: 'Unknown',
+          }),
+        ];
+
+        renderConditionList(conditions);
+
+        const labels = screen.getAllByText(new RegExp(`^${conditionType}$`, 'i'));
+        expect(labels).toHaveLength(3);
+
+        const errorBg = (theme.palette.error as any)[800] ?? theme.palette.error.main;
+        const successBg = (theme.palette.success as any)[800] ?? theme.palette.success.main;
+
+        // status="True" is an error for negative conditions
+        expect(labels[0]).toHaveStyle({
+          backgroundColor: errorBg,
+        });
+
+        // status="False" (case-insensitive) is success for negative conditions
+        expect(labels[1]).toHaveStyle({
+          backgroundColor: successBg,
+        });
+
+        // status="Unknown" (case-insensitive) stays neutral
+        expect(labels[2]).toHaveStyle({
+          backgroundColor: theme.palette.background.muted,
+          color: theme.palette.text.primary,
+        });
+      }
+    );
+
+    it('renders healthy node conditions with Ready=True and negative conditions=False all as success', () => {
       const conditions: KubeCondition[] = [
-        createMockCondition({
-          type: 'ReplicaFailure',
-          status: 'True',
-          reason: 'QuotaExceeded',
-        }),
-        createMockCondition({
-          type: 'replicafailure',
-          status: 'False',
-          reason: 'PodsCreated',
-        }),
+        createMockCondition({ type: 'MemoryPressure', status: 'False' }),
+        createMockCondition({ type: 'DiskPressure', status: 'False' }),
+        createMockCondition({ type: 'PIDPressure', status: 'False' }),
+        createMockCondition({ type: 'NetworkUnavailable', status: 'False' }),
+        createMockCondition({ type: 'Ready', status: 'True' }),
       ];
 
       renderConditionList(conditions);
 
-      const replicaFailureLabels = screen.getAllByText(/ReplicaFailure/i);
-      expect(replicaFailureLabels).toHaveLength(2);
-
-      const errorBg = (theme.palette.error as any)[800] ?? theme.palette.error.main;
       const successBg = (theme.palette.success as any)[800] ?? theme.palette.success.main;
+      for (const condition of conditions) {
+        expect(screen.getByText(condition.type)).toHaveStyle({
+          backgroundColor: successBg,
+        });
+      }
+    });
 
-      // ReplicaFailure=True is an error
-      expect(replicaFailureLabels[0]).toHaveStyle({
-        backgroundColor: errorBg,
-      });
+    it('handles undefined condition type without throwing', () => {
+      const conditions: KubeCondition[] = [
+        createMockCondition({ type: undefined as unknown as string, status: 'True' }),
+        createMockCondition({ type: undefined as unknown as string, status: 'False' }),
+      ];
 
-      // replicafailure=False (case-insensitive) is success
-      expect(replicaFailureLabels[1]).toHaveStyle({
-        backgroundColor: successBg,
-      });
+      renderConditionList(conditions);
+
+      const rows = screen.getAllByRole('row');
+      expect(rows).toHaveLength(3);
+      expect(screen.getByText('True')).toBeInTheDocument();
+      expect(screen.getByText('False')).toBeInTheDocument();
     });
   });
 
