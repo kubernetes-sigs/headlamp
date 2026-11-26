@@ -195,7 +195,14 @@ export type GraphSource = {
 
 export interface Relation {
   id: string;
+  /**
+   * ID of the source whose nodes the edges start from. Built-in kinds use
+   * `<group>/<kind>` (e.g. `apps/Deployment`), but custom resources listed in the
+   * Custom Resources group use a `crd-` prefix (e.g. `crd-example.io/Widget`).
+   * A relation whose source ID matches no source is silently ignored.
+   */
   fromSource: string;
+  /** ID of the source the edges end at, in the same format as `fromSource`. */
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
   /**

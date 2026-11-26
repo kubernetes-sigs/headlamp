@@ -407,6 +407,12 @@ registerResourceRelationProvider({
 });
 ```
 
+Custom resources from CRDs are listed in the map's Custom Resources group, and
+their source IDs start with `crd-`, as in `crd-example.io/Widget`. A relation
+with `fromSource: 'example.io/Widget'` does not match them. Kinds that Headlamp
+already lists as built-ins, such as Gateway, are not in that group and keep the
+plain `<group>/<kind>` ID.
+
 See the
 [customizing-map example](https://github.com/kubernetes-sigs/headlamp/blob/main/plugins/examples/customizing-map/src/index.tsx)
 for a complete relation provider registration.
