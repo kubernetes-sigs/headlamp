@@ -43,9 +43,11 @@ import RecentClusters from './RecentClusters';
 
 export default function Home() {
   const history = useHistory();
-  const location = useLocation();
+  const location = useLocation<{ fromAuthChooser?: boolean }>();
   const clusters = useClustersConf();
   const sources = useTypedSelector(state => state.config.clusterSources);
+  // Keep users on the chooser when they leave a cluster's auth screen.
+  const fromAuthChooser = location.state?.fromAuthChooser;
 
   if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
     const cluster = Object.keys(clusters)[0];
@@ -53,7 +55,7 @@ export default function Home() {
     if (isLogout) {
       history.push(createRouteURL('login', { cluster }) + '?logout=true');
       return null;
-    } else if (!hasConfiguredClusterSources(sources)) {
+    } else if (!fromAuthChooser && !hasConfiguredClusterSources(sources)) {
       history.push(createRouteURL('cluster', { cluster }));
       return null;
     }
