@@ -466,6 +466,74 @@ describe('PluginSettingsPure', () => {
     expect(screen.getByText('MalformedBothVendor')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'MalformedBothVendor' })).not.toBeInTheDocument();
   });
+
+  it('normalizes git+https and git+http repository URLs and rejects unsafe git schemes', () => {
+    const base = createPlugins(1)[0];
+    renderPluginSettings({
+      plugins: [
+        {
+          ...base,
+          name: 'git-https-repo',
+          origin: 'NpmInitVendor',
+          homepage: '',
+          repository: { url: 'git+https://github.com/example/plugin.git' },
+        },
+        {
+          ...base,
+          name: 'git-http-repo-query',
+          origin: 'HttpGitVendor',
+          homepage: '',
+          repository: { url: 'git+http://example.com/example/plugin.git?ref=main' },
+        },
+        {
+          ...base,
+          name: 'https-dot-git-repo',
+          origin: 'HttpsGitVendor',
+          homepage: '',
+          repository: { url: 'https://github.com/example/plugin.git' },
+        },
+        {
+          ...base,
+          name: 'git-ssh-repo',
+          origin: 'GitSshVendor',
+          homepage: '',
+          repository: { url: 'git+ssh://git@github.com/example/plugin.git' },
+        },
+        {
+          ...base,
+          name: 'git-protocol-repo',
+          origin: 'GitProtocolVendor',
+          homepage: '',
+          repository: { url: 'git://github.com/example/plugin.git' },
+        },
+        {
+          ...base,
+          name: 'git-plus-js-repo',
+          origin: 'GitJsVendor',
+          homepage: '',
+          repository: { url: 'git+javascript:alert(1)' },
+        },
+      ],
+    });
+
+    expect(screen.getByRole('link', { name: 'NpmInitVendor' })).toHaveAttribute(
+      'href',
+      'https://github.com/example/plugin'
+    );
+    expect(screen.getByRole('link', { name: 'HttpGitVendor' })).toHaveAttribute(
+      'href',
+      'http://example.com/example/plugin?ref=main'
+    );
+    expect(screen.getByRole('link', { name: 'HttpsGitVendor' })).toHaveAttribute(
+      'href',
+      'https://github.com/example/plugin'
+    );
+
+    for (const rejectedOrigin of ['GitSshVendor', 'GitProtocolVendor', 'GitJsVendor']) {
+      expect(screen.getByText(rejectedOrigin)).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: rejectedOrigin })).not.toBeInTheDocument();
+    }
+  });
 });
 
 describe('PluginSettings events', () => {
