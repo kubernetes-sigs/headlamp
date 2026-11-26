@@ -144,6 +144,7 @@ const kindComponentMap: Record<
   ResourceSlice: ResourceSliceDetails,
   ResourceQuota: ResourceQuotaDetails,
   ClusterRole: RoleDetails,
+  ClusterRoleBinding: RoleBindingDetails,
   Role: RoleDetails,
   RoleBinding: RoleBindingDetails,
   RuntimeClass: RuntimeClassDetails,

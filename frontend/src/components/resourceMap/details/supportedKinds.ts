@@ -42,6 +42,7 @@ export const supportedKinds = [
   'ResourceSlice',
   'ResourceQuota',
   'ClusterRole',
+  'ClusterRoleBinding',
   'Role',
   'RoleBinding',
   'RuntimeClass',
