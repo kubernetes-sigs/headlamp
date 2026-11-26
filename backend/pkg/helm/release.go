@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -163,7 +164,7 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 	}
 
 	namespace := ""
-	if req.Namespace != nil && *req.Namespace != "" {
+	if (req.AllNamespaces == nil || !*req.AllNamespaces) && req.Namespace != nil && *req.Namespace != "" {
 		namespace = *req.Namespace
 	}
 
@@ -671,6 +672,44 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	h.returnResponse(w, req.Name, http.StatusAccepted, "install request accepted")
 }
 
+// updateChartDependencies downloads missing chart dependencies and reloads the chart.
+func (h *Handler) updateChartDependencies(
+	actionName string,
+	reqChart string,
+	reqName string,
+	chartPath string,
+	loadedChart *chart.Chart,
+	chartPathOptions action.ChartPathOptions,
+	settings *cli.EnvSettings,
+) (*chart.Chart, error) {
+	if err := action.CheckDependencies(loadedChart, loadedChart.Metadata.Dependencies); err == nil {
+		return loadedChart, nil
+	}
+
+	manager := &downloader.Manager{
+		Out:              io.Discard,
+		ChartPath:        chartPath,
+		Keyring:          chartPathOptions.Keyring,
+		SkipUpdate:       false,
+		Getters:          getter.All(settings),
+		RepositoryConfig: settings.RepositoryConfig,
+		RepositoryCache:  settings.RepositoryCache,
+	}
+
+	if err := manager.Update(); err != nil {
+		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "updating dependencies")
+		return nil, err
+	}
+
+	reloadedChart, err := loader.Load(chartPath)
+	if err != nil {
+		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "reloading chart")
+		return nil, err
+	}
+
+	return reloadedChart, nil
+}
+
 // Returns the chart, and err, and if dependencyUpdate is true then we also update the chart dependencies.
 func (h *Handler) getChart(
 	actionName string,
@@ -688,42 +727,27 @@ func (h *Handler) getChart(
 	}
 
 	// load chart
-	chart, err := loader.Load(chartPath)
+	loadedChart, err := loader.Load(chartPath)
 	if err != nil {
 		h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "loading chart")
 		return nil, err
 	}
 
 	// chart is installable only if it is of type application or empty
-	if chart.Metadata.Type != "" && chart.Metadata.Type != "application" {
-		typeErr := fmt.Errorf("chart type %q is not installable", chart.Metadata.Type)
+	if loadedChart.Metadata.Type != "" && loadedChart.Metadata.Type != "application" {
+		typeErr := fmt.Errorf("chart type %q is not installable", loadedChart.Metadata.Type)
 		h.logActionState(zlog.Error(), typeErr, actionName, reqChart, reqName, failed, "chart is not installable")
 
 		return nil, typeErr
 	}
 
 	// Update chart dependencies
-	if chart.Metadata.Dependencies != nil && dependencyUpdate {
-		err = action.CheckDependencies(chart, chart.Metadata.Dependencies)
-		if err != nil {
-			manager := &downloader.Manager{
-				ChartPath:        chartPath,
-				Keyring:          chartPathOptions.Keyring,
-				SkipUpdate:       false,
-				Getters:          getter.All(settings),
-				RepositoryConfig: settings.RepositoryConfig,
-				RepositoryCache:  settings.RepositoryCache,
-			}
-
-			err = manager.Update()
-			if err != nil {
-				h.logActionState(zlog.Error(), err, actionName, reqChart, reqName, failed, "updating dependencies")
-				return nil, err
-			}
-		}
+	if loadedChart.Metadata.Dependencies != nil && dependencyUpdate {
+		return h.updateChartDependencies(actionName, reqChart, reqName, chartPath,
+			loadedChart, chartPathOptions, settings)
 	}
 
-	return chart, nil
+	return loadedChart, nil
 }
 
 // verifyUserTimeout bounds the whoami request, so an unreachable API server
