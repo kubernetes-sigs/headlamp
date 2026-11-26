@@ -235,6 +235,30 @@ func TestRestConfigGetterToDiscoveryClientBadConfig(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestRestConfigGetterToDiscoveryClientInvalidCAData(t *testing.T) {
+	cfg := clientcmdapi.NewConfig()
+	cfg.Clusters["test"] = &clientcmdapi.Cluster{
+		Server:                   "https://127.0.0.1:6443",
+		CertificateAuthorityData: []byte("not a certificate"),
+	}
+	cfg.AuthInfos["test"] = &clientcmdapi.AuthInfo{}
+	cfg.Contexts["test"] = &clientcmdapi.Context{Cluster: "test", AuthInfo: "test"}
+	cfg.CurrentContext = "test"
+
+	g := &restConfigGetter{
+		clientConfig: clientcmd.NewDefaultClientConfig(*cfg, &clientcmd.ConfigOverrides{}),
+		namespace:    "default",
+	}
+
+	// The REST config is valid, but the HTTP client cannot load the CA data.
+	_, err := g.ToRESTConfig()
+	require.NoError(t, err)
+
+	dc, err := g.ToDiscoveryClient()
+	require.Error(t, err)
+	assert.Nil(t, dc)
+}
+
 func TestRestConfigGetterToRESTMapperBadConfig(t *testing.T) {
 	g := &restConfigGetter{
 		clientConfig: clientcmd.NewDefaultClientConfig(clientcmdapi.Config{}, &clientcmd.ConfigOverrides{}),
