@@ -384,6 +384,7 @@ func (c *Connection) writeStatusLocked() error {
 	statusMsg := Message{
 		ClusterID: c.ClusterID,
 		Path:      c.Path,
+		Query:     c.Query,
 		Data:      string(jsonData),
 		Type:      "STATUS",
 	}
@@ -491,7 +492,7 @@ func (m *Multiplexer) establishClusterConnection(
 	}
 
 	m.mutex.Lock()
-	connKey := m.createConnectionKey(clusterID, path, userID)
+	connKey := m.createConnectionKey(clusterID, path, userID, query)
 	m.connections[connKey] = connection
 	m.mutex.Unlock()
 
@@ -601,34 +602,45 @@ func (m *Multiplexer) dialWebSocket(
 		wsURL,
 		headers,
 	)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
-		// We only attempt to close the response body if there was an error and resp is not nil.
-		// In the successful case (when err is nil), the resp will actually be nil for WebSocket connections,
-		// so we don't need to close anything.
-		if resp != nil {
-			// Log only serializable fields from the response to avoid JSON marshaling errors
-			logger.Log(
-				logger.LevelError,
-				map[string]string{
-					"status":     resp.Status,
-					"statusCode": fmt.Sprintf("%d", resp.StatusCode),
-				},
-				nil,
-				"WebSocket response",
-			)
-
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode == http.StatusGone {
-				return nil, fmt.Errorf("dialing WebSocket: %w: %w", errWatchExpired, err)
-			}
-		}
-
-		return nil, fmt.Errorf("dialing WebSocket: %w", err)
+	if err == nil {
+		return conn, nil
 	}
 
-	return conn, nil
+	logger.Log(logger.LevelError, nil, err, "dialing WebSocket")
+
+	return nil, webSocketDialError(resp, err)
+}
+
+func webSocketDialError(resp *http.Response, dialErr error) error {
+	if resp == nil {
+		return fmt.Errorf("dialing WebSocket: %w", dialErr)
+	}
+
+	logger.Log(
+		logger.LevelError,
+		map[string]string{
+			"status":     resp.Status,
+			"statusCode": fmt.Sprintf("%d", resp.StatusCode),
+		},
+		nil,
+		"WebSocket response",
+	)
+
+	_ = resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusGone:
+		return fmt.Errorf("dialing WebSocket: %w: %w", errWatchExpired, dialErr)
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return fmt.Errorf(
+			"dialing WebSocket: HTTP %d %s: %w",
+			resp.StatusCode,
+			http.StatusText(resp.StatusCode),
+			dialErr,
+		)
+	default:
+		return fmt.Errorf("dialing WebSocket: %w", dialErr)
+	}
 }
 
 // calculateBackoffInterval returns the delay before the next reconnect attempt: the base
@@ -813,13 +825,27 @@ func (m *Multiplexer) replaceRegistered(conn, newConn *Connection) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	if m.connections[connKey] != conn || conn.IsClosed() {
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
+	registeredKey := connKey
+
+	if m.connections[registeredKey] != conn {
+		legacyKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+
+		if m.connections[legacyKey] == conn {
+			registeredKey = legacyKey
+		}
+	}
+
+	if m.connections[registeredKey] != conn || conn.IsClosed() {
 		return false
 	}
 
 	if newConn != nil {
-		m.connections[connKey] = newConn
+		if registeredKey != connKey {
+			m.connections[registeredKey] = newConn
+		} else {
+			m.connections[connKey] = newConn
+		}
 	}
 
 	return true
@@ -878,7 +904,17 @@ func (m *Multiplexer) processClientMessage(
 ) {
 	// Check if it's a close message
 	if msg.Type == "CLOSE" {
-		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)
+		if !m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID, msg.Query) {
+			statusData := []byte(`{"state":"closed","error":""}`)
+			_ = lockClientConn.WriteJSON(Message{
+				ClusterID: msg.ClusterID,
+				Path:      msg.Path,
+				Query:     msg.Query,
+				UserID:    msg.UserID,
+				Data:      string(statusData),
+				Type:      "STATUS",
+			})
+		}
 
 		return
 	}
@@ -987,10 +1023,16 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 		}
 	}
 
-	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
 
 	m.mutex.RLock()
+
 	conn, exists := m.connections[connKey]
+
+	if !exists {
+		conn, exists = m.connections[m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)]
+	}
+
 	m.mutex.RUnlock()
 
 	if !exists {
@@ -1418,9 +1460,14 @@ func (m *Multiplexer) sendDataMessage(
 func (m *Multiplexer) removeConnection(conn *Connection) {
 	m.mutex.Lock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
 	if m.connections[connKey] == conn {
 		delete(m.connections, connKey)
+	} else {
+		legacyKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+		if m.connections[legacyKey] == conn {
+			delete(m.connections, legacyKey)
+		}
 	}
 	m.mutex.Unlock()
 
@@ -1469,29 +1516,46 @@ func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, 
 }
 
 // CloseConnection closes a specific connection based on its identifier.
-func (m *Multiplexer) CloseConnection(clusterID, path, userID string) {
-	connKey := m.createConnectionKey(clusterID, path, userID)
+func (m *Multiplexer) CloseConnection(clusterID, path, userID string, queries ...string) bool {
+	connKey := m.createConnectionKey(clusterID, path, userID, queries...)
 
 	m.mutex.Lock()
 
 	conn, exists := m.connections[connKey]
 	if !exists {
 		m.mutex.Unlock()
-		return
+		return false
 	}
 
 	delete(m.connections, connKey)
 	m.mutex.Unlock()
 
+	conn.forwardMu.Lock()
+	conn.superseded = true
+	conn.forwardMu.Unlock()
+
 	conn.updateStatus(StateClosed, nil)
 	conn.safeClose()
+
+	return true
 }
 
 // createConnectionKey creates a unique key for a connection based on cluster ID, path, and user ID.
 // Uses string concatenation instead of fmt.Sprintf to avoid allocation overhead
 // on this hot path (called on every WebSocket message routing).
-func (m *Multiplexer) createConnectionKey(clusterID, path, userID string) string {
-	return clusterID + ":" + path + ":" + userID
+func (m *Multiplexer) createConnectionKey(clusterID, path, userID string, queries ...string) string {
+	query := ""
+
+	if len(queries) > 0 {
+		values, err := url.ParseQuery(queries[0])
+		if err == nil {
+			query = values.Encode()
+		} else {
+			query = queries[0]
+		}
+	}
+
+	return clusterID + ":" + path + ":" + userID + ":" + query
 }
 
 // createWebSocketURL creates a WebSocket URL from the given parameters.
