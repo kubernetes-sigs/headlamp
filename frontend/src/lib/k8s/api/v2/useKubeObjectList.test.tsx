@@ -389,7 +389,9 @@ describe('useWatchKubeObjectLists', () => {
 
     expect(spy.mock.calls[0][0].enabled).toBe(true);
     expect(spy.mock.calls[0][0].connections[0].cluster).toBe('default');
-    expect(spy.mock.calls[0][0].connections[0].url).toBe('api/v1/pods?watch=1&resourceVersion=1');
+    expect(spy.mock.calls[0][0].connections[0].url).toBe(
+      'api/v1/pods?watch=1&allowWatchBookmarks=true&resourceVersion=1'
+    );
   });
 
   it('should call useWebSockets when endpoint and 2 lists are provided', () => {
@@ -416,12 +418,12 @@ describe('useWatchKubeObjectLists', () => {
     expect(spy.mock.calls[0][0].enabled).toBe(true);
     expect(spy.mock.calls[0][0].connections[0].cluster).toBe('default');
     expect(spy.mock.calls[0][0].connections[0].url).toBe(
-      'api/v1/namespaces/a/pods?watch=1&resourceVersion=1'
+      'api/v1/namespaces/a/pods?watch=1&allowWatchBookmarks=true&resourceVersion=1'
     );
 
     expect(spy.mock.calls[0][0].connections[1].cluster).toBe('default');
     expect(spy.mock.calls[0][0].connections[1].url).toBe(
-      'api/v1/namespaces/b/pods?watch=1&resourceVersion=1'
+      'api/v1/namespaces/b/pods?watch=1&allowWatchBookmarks=true&resourceVersion=1'
     );
   });
 
@@ -1081,6 +1083,49 @@ describe('useWatchKubeObjectLists', () => {
 
     // onReconnect must be called with empty resourceVersion to relist
     expect(onReconnect).toHaveBeenCalledWith('default', 'default', '');
+  });
+
+  it('limits direct watch handshake recovery across changing LIST versions', () => {
+    vi.useFakeTimers();
+    try {
+      const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+      const onReconnect = vi.fn();
+      const queryClient = new QueryClient();
+      const endpoint = { version: 'v1', resource: 'pods' };
+      const { rerender } = renderHook(
+        ({ resourceVersion }) =>
+          useWatchKubeObjectLists({
+            kubeObjectClass: mockClass,
+            endpoint,
+            lists: [{ cluster: 'default', namespace: 'default', resourceVersion }],
+            onReconnect,
+          }),
+        { initialProps: { resourceVersion: '100' }, wrapper: queryClientWrapper(queryClient) }
+      );
+
+      const handshakeFailure = new CloseEvent('close', {
+        code: 1002,
+        reason: 'Handshake failed repeatedly',
+      });
+      for (const [index, delay] of [0, 1000, 2000, 4000, 8000].entries()) {
+        const connection = useWebSocketSpy.mock.lastCall![0].connections[0];
+        act(() => {
+          connection.onClose?.(handshakeFailure);
+          vi.advanceTimersByTime(delay);
+        });
+        expect(onReconnect).toHaveBeenCalledTimes(index + 1);
+        rerender({ resourceVersion: String(101 + index) });
+      }
+
+      const latestConnection = useWebSocketSpy.mock.lastCall![0].connections[0];
+      act(() => {
+        latestConnection.onClose?.(handshakeFailure);
+        vi.advanceTimersByTime(60000);
+      });
+      expect(onReconnect).toHaveBeenCalledTimes(5);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('backs off repeated protocol closes without watch traffic', () => {
@@ -2253,7 +2298,9 @@ describe('useKubeObjectList', () => {
     await waitFor(() =>
       expect(
         mockUseWebSockets.mock.calls.some(
-          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=2'
+          ([call]) =>
+            call.connections[0]?.url ===
+            'api/v1/pods?watch=1&allowWatchBookmarks=true&resourceVersion=2'
         )
       ).toBe(true)
     );
@@ -2287,7 +2334,9 @@ describe('useKubeObjectList', () => {
     await waitFor(() =>
       expect(
         mockUseWebSockets.mock.calls.some(
-          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=1'
+          ([call]) =>
+            call.connections[0]?.url ===
+            'api/v1/pods?watch=1&allowWatchBookmarks=true&resourceVersion=1'
         )
       ).toBe(true)
     );
@@ -2297,7 +2346,9 @@ describe('useKubeObjectList', () => {
     await waitFor(() =>
       expect(
         mockUseWebSockets.mock.calls.some(
-          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=2'
+          ([call]) =>
+            call.connections[0]?.url ===
+            'api/v1/pods?watch=1&allowWatchBookmarks=true&resourceVersion=2'
         )
       ).toBe(true)
     );
@@ -2970,62 +3021,75 @@ describe('useKubeObjectList', () => {
     expect(remountConnection?.url).toContain('resourceVersion=105');
   });
 
-  it('reconnects using the latest resourceVersion when an active WebSocket disconnects', async () => {
-    const spy = vi.spyOn(websocket, 'useWebSockets');
-    const queryClient = new QueryClient();
+  it.each([
+    {
+      description: 'watch update',
+      update: { type: 'MODIFIED', object: makePod('pod-1', '105') },
+      itemVersion: '105',
+      cursor: '105',
+    },
+    {
+      description: 'bookmark',
+      update: { type: 'BOOKMARK', object: { metadata: { resourceVersion: 'bookmark-rv' } } },
+      itemVersion: '100',
+      cursor: 'bookmark-rv',
+    },
+  ] as const)(
+    'reconnects from the resourceVersion in a $description',
+    async ({ update, itemVersion, cursor }) => {
+      const spy = vi.spyOn(websocket, 'useWebSockets');
+      const queryClient = new QueryClient();
 
-    mockClusterFetch.mockResolvedValueOnce({
-      json: () =>
-        Promise.resolve(
-          makeListResponse({
-            items: [makePod('pod-1', '100')],
-            resourceVersion: '100',
-          })
-        ),
-    } as Response);
+      mockClusterFetch.mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-1', '100')],
+              resourceVersion: '100',
+            })
+          ),
+      } as Response);
 
-    const result = renderHook(
-      () =>
-        useKubeObjectList({
-          kubeObjectClass: mockClass,
-          requests: [{ cluster: 'default', namespaces: ['default'] }],
-        }),
-      {
-        wrapper: queryClientWrapper(queryClient),
-      }
-    );
+      const result = renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: mockClass,
+            requests: [{ cluster: 'default', namespaces: ['default'] }],
+          }),
+        {
+          wrapper: queryClientWrapper(queryClient),
+        }
+      );
 
-    await waitFor(() => {
-      const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
-      expect(activeCalls.length).toBeGreaterThan(0);
-    });
-
-    const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
-    expect(initialConnection?.url).toContain('resourceVersion=100');
-
-    // Deliver incoming watch event that updates resourceVersion to 105
-    act(() => {
-      initialConnection?.onMessage({
-        type: 'MODIFIED',
-        object: makePod('pod-1', '105'),
+      await waitFor(() => {
+        const activeCalls = spy.mock.calls.filter(call => call[0].connections.length > 0);
+        expect(activeCalls.length).toBeGreaterThan(0);
       });
-    });
 
-    await waitFor(() => {
-      expect(result.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe('105');
-    });
+      const initialConnection = spy.mock.calls.at(-1)?.[0].connections[0];
+      expect(initialConnection?.url).toContain('resourceVersion=100');
 
-    // Simulate unexpected WebSocket disconnect via onClose callback
-    act(() => {
-      initialConnection?.onClose?.();
-    });
+      act(() => {
+        initialConnection?.onMessage(update);
+      });
 
-    // Reconnection MUST use the updated resourceVersion 105 from the cache
-    await waitFor(() => {
-      const latestCall = spy.mock.calls.at(-1)?.[0];
-      expect(latestCall?.connections[0]?.url).toContain('resourceVersion=105');
-    });
-  });
+      await waitFor(() => {
+        expect(result.result.current.items?.[0]?.jsonData?.metadata?.resourceVersion).toBe(
+          itemVersion
+        );
+      });
+
+      // Simulate unexpected WebSocket disconnect via onClose callback
+      act(() => {
+        initialConnection?.onClose?.();
+      });
+
+      await waitFor(() => {
+        const latestCall = spy.mock.calls.at(-1)?.[0];
+        expect(latestCall?.connections[0]?.url).toContain(`resourceVersion=${cursor}`);
+      });
+    }
+  );
 
   it('reconnects when an idle watch disconnects even if resourceVersion is unchanged', async () => {
     const spy = vi.spyOn(websocket, 'useWebSockets');
@@ -4555,11 +4619,36 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     expect(mockSubscribe).toHaveBeenCalledWith(
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
-      'watch=1&resourceVersion=1',
+      'watch=1&allowWatchBookmarks=true&resourceVersion=1',
       expect.any(Function),
       expect.any(Function),
       expect.any(Function)
     );
+  });
+
+  it('limits retries after a multiplexed watch fails to subscribe', async () => {
+    vi.useFakeTimers();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockSubscribe.mockRejectedValue(new Error('offline'));
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }];
+
+    try {
+      renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, endpoint, lists }), {
+        wrapper: queryClientWrapper(new QueryClient()),
+      });
+
+      for (const [attempt, delay] of [1000, 2000, 4000, 8000, 16000].entries()) {
+        await act(() => vi.advanceTimersByTimeAsync(delay));
+        expect(mockSubscribe).toHaveBeenCalledTimes(attempt + 2);
+      }
+      await act(() => vi.advanceTimersByTimeAsync(60000));
+      expect(mockSubscribe).toHaveBeenCalledTimes(6);
+    } finally {
+      mockSubscribe.mockImplementation(() => Promise.resolve(mockSubscribeCleanup));
+      consoleError.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it('should subscribe to multiple clusters', () => {
@@ -4587,7 +4676,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       1,
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
-      'watch=1&resourceVersion=1',
+      'watch=1&allowWatchBookmarks=true&resourceVersion=1',
       expect.any(Function),
       expect.any(Function),
       expect.any(Function)
@@ -4596,7 +4685,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       2,
       'cluster-b',
       expect.stringContaining('/api/v1/namespaces/namespace-b/pods'),
-      'watch=1&resourceVersion=2',
+      'watch=1&allowWatchBookmarks=true&resourceVersion=2',
       expect.any(Function),
       expect.any(Function),
       expect.any(Function)
@@ -4623,7 +4712,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     expect(mockSubscribe).toHaveBeenCalledWith(
       'cluster-a',
       expect.stringContaining('/api/v1/pods'),
-      'watch=1&resourceVersion=1',
+      'watch=1&allowWatchBookmarks=true&resourceVersion=1',
       expect.any(Function),
       expect.any(Function),
       expect.any(Function)
@@ -4727,7 +4816,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
           ([cluster, pathname, query]) =>
             cluster === 'default' &&
             pathname === '/api/v1/pods' &&
-            query === 'watch=1&resourceVersion=2'
+            query === 'watch=1&allowWatchBookmarks=true&resourceVersion=2'
         )
       ).toBe(true)
     );
@@ -4761,7 +4850,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect(mockSubscribe).toHaveBeenCalledWith(
         'cluster-a',
         expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
-        'watch=1&resourceVersion=100',
+        'watch=1&allowWatchBookmarks=true&resourceVersion=100',
         expect.any(Function),
         expect.any(Function),
         expect.any(Function)
@@ -5504,7 +5593,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect(mockSubscribe).toHaveBeenCalledWith(
         'cluster-a',
         expect.stringContaining('/api/v1/namespaces/default/pods'),
-        'watch=1&resourceVersion=100',
+        'watch=1&allowWatchBookmarks=true&resourceVersion=100',
         expect.any(Function),
         expect.any(Function),
         expect.any(Function)

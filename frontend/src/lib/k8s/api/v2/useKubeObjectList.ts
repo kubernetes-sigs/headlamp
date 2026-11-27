@@ -29,11 +29,15 @@ import { clusterFetch } from './fetch';
 import type { QueryListResponse } from './hooks';
 import { useEndpoints } from './hooks';
 import type { KubeListUpdateEvent } from './KubeList';
-import { KubeList } from './KubeList';
+import { isResourceVersionOlder, KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
-import { kubeRequestRetry } from './retry';
+import {
+  kubeRequestRetry,
+  MAX_WATCH_HANDSHAKE_RETRIES,
+  WATCH_HANDSHAKE_FAILURE_REASON,
+} from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
 /**
@@ -111,17 +115,7 @@ export function isForbiddenError(errorOrUpdate: any): boolean {
   return false;
 }
 
-/**
- * Compares two resourceVersion strings numerically if possible.
- * Returns true if a is older than b.
- */
-export function isResourceVersionOlder(a?: string, b?: string): boolean {
-  if (!a || !b) return false;
-  if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
-    return BigInt(a) < BigInt(b);
-  }
-  return false;
-}
+export { isResourceVersionOlder } from './KubeList';
 
 const watchRecoverySnapshots = new WeakSet<object>();
 
@@ -636,6 +630,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
   const latestResourceVersions = useRef<Record<string, string>>({});
   const prevListsResourceVersions = useRef<Record<string, string>>({});
   const retryCountsRef = useRef<Record<string, number>>({});
+  const handshakeRetryCountsRef = useRef<Record<string, number>>({});
   const retryTimersRef = useRef<Record<string, NodeJS.Timeout | number>>({});
   const receivedTrafficRef = useRef<Record<string, boolean>>({});
   const [subscriptionGeneration, setSubscriptionGeneration] = useState(0);
@@ -691,6 +686,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           url: makeUrl([KubeObjectEndpoint.toUrl(endpoint, list.namespace)], {
             ...stableWatchQueryParams,
             watch: 1,
+            allowWatchBookmarks: true,
             resourceVersion: latestResourceVersions.current[key] || list.resourceVersion || '',
           }),
           cluster: list.cluster,
@@ -1029,14 +1025,22 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           if (disposed) {
             cleanup();
           } else {
+            delete handshakeRetryCountsRef.current[key];
             cleanups.push(cleanup);
           }
         },
         error => {
+          if (disposed) {
+            return;
+          }
           console.error('WebSocket subscription failed:', error);
-          if (!isForbiddenError(error) && !retryTimersRef.current[key]) {
-            const retryCount = retryCountsRef.current[key] || 0;
-            retryCountsRef.current[key] = retryCount + 1;
+          const retryCount = handshakeRetryCountsRef.current[key] ?? 0;
+          if (
+            !isForbiddenError(error) &&
+            !retryTimersRef.current[key] &&
+            retryCount < MAX_WATCH_HANDSHAKE_RETRIES
+          ) {
+            handshakeRetryCountsRef.current[key] = retryCount + 1;
             retryTimersRef.current[key] = setTimeout(() => {
               delete retryTimersRef.current[key];
               setSubscriptionGeneration(current => current + 1);
@@ -1115,6 +1119,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   const latestResourceVersions = useRef<Record<string, string>>({});
   const prevListsResourceVersions = useRef<Record<string, string>>({});
   const retryCountsRef = useRef<Record<string, number>>({});
+  const handshakeRetryCountsRef = useRef<Record<string, number>>({});
   const retryTimersRef = useRef<Record<string, NodeJS.Timeout | number>>({});
   const receivedTrafficRef = useRef<Record<string, boolean>>({});
   const [subscriptionGeneration, setSubscriptionGeneration] = useState(0);
@@ -1171,6 +1176,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
           ...stableWatchQueryParams,
           watch: 1,
+          allowWatchBookmarks: true,
           resourceVersion: onReconnect
             ? resourceVersion || latestResourceVersions.current[watchKey] || ''
             : latestResourceVersions.current[watchKey] || resourceVersion || '',
@@ -1187,6 +1193,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
               return;
             }
 
+            delete handshakeRetryCountsRef.current[watchKey];
             if (isForbiddenError(update)) {
               isForbidden = true;
               delete latestResourceVersions.current[watchKey];
@@ -1301,6 +1308,16 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
               const cached = client.getQueryData<ListResponse<any>>(key);
               const cachedRV = cached?.list?.metadata?.resourceVersion;
               const eventRV = latestResourceVersions.current[watchKey];
+              if (event?.code === 1002 && event.reason === WATCH_HANDSHAKE_FAILURE_REASON) {
+                const retryCount = handshakeRetryCountsRef.current[watchKey] ?? 0;
+                if (retryCount >= MAX_WATCH_HANDSHAKE_RETRIES) {
+                  return;
+                }
+                handshakeRetryCountsRef.current[watchKey] = retryCount + 1;
+              } else {
+                delete handshakeRetryCountsRef.current[watchKey];
+              }
+
               const isAbnormalClose = Boolean(
                 event && (event.code === 1002 || event.code === 1008 || event.code === 4404)
               );

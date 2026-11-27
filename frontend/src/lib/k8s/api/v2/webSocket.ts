@@ -21,6 +21,7 @@ import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfi
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import { makeUrl } from './makeUrl';
+import { WATCH_HANDSHAKE_FAILURE_REASON } from './retry';
 
 /**
  * Get the WebSocket base URL dynamically to support runtime port configuration
@@ -293,7 +294,7 @@ export function useWebSockets<T>({
             callbacks.forEach(callback => {
               try {
                 callback(
-                  new CloseEvent('close', { code: 1002, reason: 'Handshake failed repeatedly' })
+                  new CloseEvent('close', { code: 1002, reason: WATCH_HANDSHAKE_FAILURE_REASON })
                 );
               } catch (err) {
                 console.error('WebSocket close listener error:', err);

@@ -18,6 +18,9 @@ import { ApiError } from './ApiError';
 
 const MAX_RETRIES = 3;
 
+export const MAX_WATCH_HANDSHAKE_RETRIES = 5;
+export const WATCH_HANDSHAKE_FAILURE_REASON = 'Handshake failed repeatedly';
+
 export function shouldRetryKubeRequest(failureCount: number, error: unknown) {
   if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
     return false;
