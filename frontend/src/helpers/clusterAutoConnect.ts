@@ -14,70 +14,144 @@
  * limitations under the License.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { request } from '../lib/k8s/api/v1/clusterRequests';
 import { getRecentClusters, setRecentCluster } from './recentClusters';
 
+export type AutoConnectPolicy = 'none' | 'recent' | 'all';
+
+const settingsStorageKey = 'settings';
+
 /**
- * Returns the subset of the given cluster names that may be auto-connected to.
- *
- * Default policy: recently-used clusters only. This is the single place the
- * policy is decided, so a future All/None/Only-these setting can hook in here.
+ * Reads the configured cluster auto-connect policy from stored settings.
+ * Defaults to 'none' so Headlamp only connects to clusters the user opens.
  */
-export function getAutoConnectClusterNames(clusterNames: string[]): string[] {
+export function getAutoConnectPolicy(): AutoConnectPolicy {
+  try {
+    const raw = localStorage.getItem(settingsStorageKey);
+    if (!raw) {
+      return 'none';
+    }
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (
+      parsed?.autoConnectPolicy === 'none' ||
+      parsed?.autoConnectPolicy === 'recent' ||
+      parsed?.autoConnectPolicy === 'all'
+    ) {
+      return parsed.autoConnectPolicy;
+    }
+  } catch {
+    // Ignore invalid JSON in localStorage.
+  }
+  return 'none';
+}
+
+/**
+ * Persists the cluster auto-connect policy to stored settings.
+ */
+export function setAutoConnectPolicy(policy: AutoConnectPolicy) {
+  try {
+    const raw = localStorage.getItem(settingsStorageKey);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    const next =
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? { ...parsed, autoConnectPolicy: policy }
+        : { autoConnectPolicy: policy };
+    localStorage.setItem(settingsStorageKey, JSON.stringify(next));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+/**
+ * Returns the subset of the given cluster names that may be auto-connected to
+ * according to the active policy ('none', 'recent', or 'all').
+ */
+export function getAutoConnectClusterNames(
+  clusterNames: string[],
+  policy: AutoConnectPolicy = getAutoConnectPolicy()
+): string[] {
+  if (policy === 'none') {
+    return [];
+  }
+  if (policy === 'all') {
+    return [...clusterNames];
+  }
   const recentClusters = new Set(getRecentClusters());
   return clusterNames.filter(name => recentClusters.has(name));
 }
 
 const sessionConnectedStorageKey = 'session_connected_clusters';
+const sessionDisconnectedStorageKey = 'session_disconnected_clusters';
 
-/**
- * The clusters connected on demand during this browser-tab session. Kept in
- * sessionStorage (uncapped) so they survive a remount of the Home view — e.g.
- * navigating away and back, or the cluster list changing — unlike the capped
- * recent_clusters list.
- */
-function getSessionConnectedClusters(): string[] {
+function readSessionList(key: string): string[] {
   try {
-    const stored = JSON.parse(sessionStorage.getItem(sessionConnectedStorageKey) || '[]');
+    const stored = JSON.parse(sessionStorage.getItem(key) || '[]');
     return Array.isArray(stored) ? stored : [];
   } catch {
     return [];
   }
 }
 
-function addSessionConnectedCluster(clusterName: string) {
+function writeSessionSet(key: string, items: Set<string>) {
   try {
-    const connected = new Set(getSessionConnectedClusters());
-    connected.add(clusterName);
-    sessionStorage.setItem(sessionConnectedStorageKey, JSON.stringify([...connected]));
+    sessionStorage.setItem(key, JSON.stringify([...items]));
   } catch {
     // sessionStorage unavailable (e.g. private browsing with strict settings).
-    // The cluster is still added to React state; it just won't survive a remount.
   }
 }
 
+function getSessionConnectedClusters(): string[] {
+  return readSessionList(sessionConnectedStorageKey);
+}
+
+function getSessionDisconnectedClusters(): Set<string> {
+  return new Set(readSessionList(sessionDisconnectedStorageKey));
+}
+
+function addSessionConnectedCluster(clusterName: string) {
+  const connected = new Set(getSessionConnectedClusters());
+  connected.add(clusterName);
+  writeSessionSet(sessionConnectedStorageKey, connected);
+
+  const disconnected = getSessionDisconnectedClusters();
+  if (disconnected.delete(clusterName)) {
+    writeSessionSet(sessionDisconnectedStorageKey, disconnected);
+  }
+}
+
+function removeSessionConnectedCluster(clusterName: string) {
+  const connected = new Set(getSessionConnectedClusters());
+  if (connected.delete(clusterName)) {
+    writeSessionSet(sessionConnectedStorageKey, connected);
+  }
+
+  const disconnected = getSessionDisconnectedClusters();
+  disconnected.add(clusterName);
+  writeSessionSet(sessionDisconnectedStorageKey, disconnected);
+}
+
 /**
- * Hook that tracks which clusters to auto-connect to during this session.
+ * Hook that tracks which clusters to connect to during this session.
  *
- * The connected set combines the policy (recently-used by default) with the
- * clusters connected on demand this session. It only grows via connect(), and
- * the session connects are persisted in sessionStorage so the set survives a
- * remount of the Home view rather than resetting to the recent-clusters seed.
- * This means the key-based remount in Home (triggered by cluster-list changes)
- * is safe: on-demand connects are never dropped.
- *
- * @param availableClusterNames - Names of all clusters used to seed the initial
- *   connected set. Changes to this array after mount are ignored; callers that
- *   need to re-seed on list changes should remount the hook (e.g. via a React key).
+ * The connected set combines the configured policy ('none' by default) with
+ * clusters connected on demand this session, minus any clusters explicitly
+ * disconnected via disconnect().
  */
 export function useAutoConnectClusters(availableClusterNames: string[]) {
-  const [connectedClusters, setConnectedClusters] = useState<Set<string>>(
-    () =>
-      new Set([
-        ...getAutoConnectClusterNames(availableClusterNames),
-        ...getSessionConnectedClusters(),
-      ])
-  );
+  const [connectedClusters, setConnectedClusters] = useState<Set<string>>(() => {
+    const disconnected = getSessionDisconnectedClusters();
+    const initial = new Set([
+      ...getAutoConnectClusterNames(availableClusterNames),
+      ...getSessionConnectedClusters(),
+    ]);
+    disconnected.forEach(name => initial.delete(name));
+    return initial;
+  });
+
+  useEffect(() => {
+    window.desktopApi?.send('connected-clusters-changed', [...connectedClusters]);
+  }, [connectedClusters]);
 
   const connect = useCallback((clusterName: string) => {
     setRecentCluster(clusterName);
@@ -87,5 +161,25 @@ export function useAutoConnectClusters(availableClusterNames: string[]) {
     );
   }, []);
 
-  return { connect, connectedClusters };
+  const disconnect = useCallback((clusterName: string) => {
+    removeSessionConnectedCluster(clusterName);
+    setConnectedClusters(current => {
+      if (!current.has(clusterName)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(clusterName);
+      return next;
+    });
+    request(
+      `/clusters/${encodeURIComponent(clusterName)}/connection`,
+      { method: 'DELETE' },
+      false,
+      false
+    ).catch(() => {
+      // Best-effort backend proxy/connection teardown.
+    });
+  }, []);
+
+  return { connect, disconnect, connectedClusters };
 }

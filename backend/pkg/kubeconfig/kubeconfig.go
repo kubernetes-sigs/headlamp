@@ -72,6 +72,13 @@ func (rt *userAgentRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	return rt.base.RoundTrip(newReq)
 }
 
+// CloseIdleConnections forwards idle connection cleanup to the wrapped transport.
+func (rt *userAgentRoundTripper) CloseIdleConnections() {
+	if ci, ok := rt.base.(interface{ CloseIdleConnections() }); ok {
+		ci.CloseIdleConnections()
+	}
+}
+
 // execCredentialRetryRoundTripper retries safe requests once after client-go
 // refreshes an exec credential in response to a 401. client-go refreshes the
 // credential before returning the 401, but only uses it on the next request.
@@ -984,6 +991,13 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 	return nil
 }
 
+// CloseIdleConnections forwards idle connection cleanup to the wrapped transport.
+func (rt *execCredentialRetryRoundTripper) CloseIdleConnections() {
+	if ci, ok := rt.base.(interface{ CloseIdleConnections() }); ok {
+		ci.CloseIdleConnections()
+	}
+}
+
 // SetupProxy sets up a reverse proxy for the context.
 //
 // When the context has an API proxy configured, the reverse proxy targets the
@@ -1000,6 +1014,26 @@ func (c *Context) SetupProxy() error {
 	c.proxy = proxy
 
 	return err
+}
+
+// ResetProxy closes idle HTTP connections on the context's cached reverse
+// proxy and clears it so subsequent requests rebuild the transport and
+// credentials cleanly.
+func (c *Context) ResetProxy() {
+	if c == nil {
+		return
+	}
+
+	proxyMu.Lock()
+	proxy := c.proxy
+	c.proxy = nil
+	proxyMu.Unlock()
+
+	if proxy != nil && proxy.Transport != nil {
+		if ci, ok := proxy.Transport.(interface{ CloseIdleConnections() }); ok {
+			ci.CloseIdleConnections()
+		}
+	}
 }
 
 // buildProxy builds the reverse proxy without storing it, so it can run without holding proxyMu.

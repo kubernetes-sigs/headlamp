@@ -24,6 +24,7 @@ import {
   getClusterStatuses,
   isTrayIconEnabled,
   resolveTrayIconPath,
+  setTrayConnectedClusters,
   setTrayIconEnabled,
 } from './tray';
 
@@ -316,5 +317,41 @@ describe('tray cluster status requests', () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(statuses).toEqual([{ name: 'test-cluster', status: 'unknown' }]);
+  });
+
+  it('only health-checks clusters in the connected set when configured', async () => {
+    setTrayConnectedClusters(['connected-c1']);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ clusters: [{ name: 'connected-c1' }, { name: 'idle-c2' }] }),
+      })
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const statuses = await getClusterStatuses({
+      backendToken: 'desktop-token',
+      createWindow: vi.fn(),
+      getBackendPort: () => 4466,
+      getMainWindow: () => null,
+      isBackendAvailable: () => true,
+      isDev: true,
+      quit: vi.fn(),
+    });
+
+    setTrayConnectedClusters(null);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:4466/clusters/connected-c1/healthz',
+      { headers: { 'X-HEADLAMP_BACKEND-TOKEN': 'desktop-token' } }
+    );
+    expect(statuses).toEqual([
+      { name: 'connected-c1', status: 'ok' },
+      { name: 'idle-c2', status: 'unknown' },
+    ]);
   });
 });

@@ -148,8 +148,11 @@ function HomeComponent(props: HomeComponentProps) {
     () => Object.values(customNameClusters).map(c => c.name),
     [customNameClusters]
   );
-  const { connect: handleConnectCluster, connectedClusters } =
-    useAutoConnectClusters(allClusterNames);
+  const {
+    connect: handleConnectCluster,
+    disconnect: handleDisconnectCluster,
+    connectedClusters,
+  } = useAutoConnectClusters(allClusterNames);
 
   const autoConnectClusters = React.useMemo(
     () => Object.values(clusters || {}).filter(c => connectedClusters.has(c.name)),
@@ -205,6 +208,7 @@ function HomeComponent(props: HomeComponentProps) {
               clusters={clusters}
               connectedClusterNames={connectedClusters}
               onConnectCluster={handleConnectCluster}
+              onDisconnectCluster={handleDisconnectCluster}
             />
           )}
         </ClusterSourceTabs>
@@ -217,6 +221,7 @@ function HomeComponent(props: HomeComponentProps) {
       versions,
       warningLabels,
       clusters,
+      handleDisconnectCluster,
       connectedClusters,
       handleConnectCluster,
     ]

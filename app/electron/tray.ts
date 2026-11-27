@@ -44,6 +44,15 @@ interface HeadlampTrayOptions {
 let tray: Tray | null = null;
 let trayUpdateInterval: NodeJS.Timeout | null = null;
 let trayUpdateTimeout: NodeJS.Timeout | null = null;
+let connectedClusterNames: Set<string> | null = null;
+
+/**
+ * Updates the set of clusters the tray is allowed to health-check.
+ * When set, clusters outside this set are not contacted during tray polling.
+ */
+export function setTrayConnectedClusters(clusterNames: string[] | null): void {
+  connectedClusterNames = clusterNames === null ? null : new Set(clusterNames);
+}
 
 export function shouldRunTray(): boolean {
   return ['darwin', 'linux', 'win32'].includes(process.platform);
@@ -191,6 +200,10 @@ export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
   tray.setToolTip(app.name);
   tray.setContextMenu(buildTrayMenu(options, [{ label: 'Loading...', enabled: false }]));
 
+  if (connectedClusterNames === null) {
+    connectedClusterNames = new Set();
+  }
+
   trayUpdateTimeout = setTimeout(() => {
     updateTrayMenu(options);
     trayUpdateInterval = setInterval(() => updateTrayMenu(options), 30000);
@@ -226,6 +239,10 @@ export async function getClusterStatuses(options: HeadlampTrayOptions): Promise<
     const healthChecks = config.clusters.map(async (cluster: { name: string; error?: string }) => {
       if (cluster.error) {
         return { name: cluster.name, status: 'error' as const, error: cluster.error };
+      }
+
+      if (connectedClusterNames !== null && !connectedClusterNames.has(cluster.name)) {
+        return { name: cluster.name, status: 'unknown' as const };
       }
 
       try {
