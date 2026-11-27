@@ -427,6 +427,10 @@ func TestEncodeResponse(t *testing.T) {
 	}{
 		{name: "ok resource", status: http.StatusOK, body: podList, stored: true},
 		{
+			name: "resource containing failure text in data", status: http.StatusOK, stored: true,
+			body: `{"kind":"ConfigMap","apiVersion":"v1","metadata":{"name":"my-config"},"data":{"result":"Failure Reason"}}`,
+		},
+		{
 			name: "object with status block", status: http.StatusOK, stored: true,
 			body: `{"kind":"Pod","status":{"phase":"Running"}}`,
 		},
