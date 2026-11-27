@@ -30,7 +30,12 @@ import * as Notification from './lib/notification';
 import * as Router from './lib/router';
 import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
-import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
+import {
+  getPluginTranslation,
+  getSupportedLocales,
+  isLocaleSupported,
+  useTranslation,
+} from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
 import type {
   AppThemeRegistrationOptions,
@@ -146,6 +151,7 @@ export {
   registerAppTheme,
   registerKubeObjectGlance,
   useTranslation,
+  getPluginTranslation,
   isLocaleSupported,
   getSupportedLocales,
   registerCustomCreateProject,

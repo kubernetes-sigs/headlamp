@@ -871,6 +871,7 @@
   "clusterAction": [Function],
   "default": [Function],
   "getHeadlampAPIHeaders": [Function],
+  "getPluginTranslation": [Function],
   "registerAddClusterProvider": [Function],
   "registerAppBarAction": [Function],
   "registerAppLogo": [Function],
