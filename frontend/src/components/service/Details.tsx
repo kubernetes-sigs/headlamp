@@ -67,7 +67,7 @@ export default function ServiceDetails(props: {
       cluster={cluster}
       withEvents
       extraInfo={item =>
-        item && [
+        (item?.spec && [
           {
             name: t('translation|Type'),
             value: item.spec.type,
@@ -149,10 +149,11 @@ export default function ServiceDetails(props: {
             name: t('Selector'),
             value: <MetadataDictGrid dict={item.spec.selector} />,
           },
-        ]
+        ]) ||
+        null
       }
       extraSections={item => {
-        if (!item) {
+        if (!item?.spec) {
           return [];
         }
 
