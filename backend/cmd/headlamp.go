@@ -84,34 +84,1001 @@ import (
 const (
 	httpScheme  = "http"
 	httpsScheme = "https"
+
+	maxProxyURLHostAlternatives = 256
 )
 
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
 	statelessCacheMu  sync.Mutex
-	compiledProxyURLs []glob.Glob
+	compiledProxyURLs []proxyURLMatcher
 	oidcStateReader   io.Reader
 	// activeDrains holds the cache keys of the drains that are running, so that a node is drained
 	// by one goroutine at a time.
 	activeDrains sync.Map
 }
 
-func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
-	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
+// proxyURLMatcher matches a request URL against a single proxyURLs allowlist
+// entry. The host is matched on its own so a wildcard in the host part of a
+// pattern cannot reach into the path, query or fragment of a different host --
+// that would be an SSRF allowlist bypass (e.g. "https://*.example.com" must not
+// match "https://evil.com/a.example.com"). The path keeps normal glob matching
+// so an entry like "https://host/*" still covers nested paths.
+type proxyURLMatcher struct {
+	scheme      glob.Glob
+	userinfo    glob.Glob
+	host        glob.Glob
+	path        glob.Glob
+	query       glob.Glob
+	hasUserinfo bool
+	ipv6Address glob.Glob
+	ipv6Zone    glob.Glob
+	ipv6Port    glob.Glob
+	ipv6ZoneAny bool
+}
+
+func compileProxyURLPatterns(patterns []string) ([]proxyURLMatcher, error) {
+	matchers := make([]proxyURLMatcher, 0, len(patterns))
 
 	for _, pattern := range patterns {
-		g, err := glob.Compile(pattern)
+		expandedPatterns, err := expandProxyURLCrossComponentAlternatives(pattern)
 		if err != nil {
 			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
 		}
 
-		compiledProxyURLs = append(compiledProxyURLs, g)
+		for _, expandedPattern := range expandedPatterns {
+			compiled, compileErr := compileProxyURLPattern(expandedPattern)
+			if compileErr != nil {
+				return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, compileErr)
+			}
+
+			matchers = append(matchers, compiled...)
+		}
 	}
 
-	return compiledProxyURLs, nil
+	return matchers, nil
 }
 
+func expandProxyURLCrossComponentAlternatives(pattern string) ([]string, error) {
+	authorityStart := 0
+	if schemeEnd := strings.Index(pattern, "://"); schemeEnd >= 0 {
+		authorityStart = schemeEnd + len("://")
+	} else if strings.HasPrefix(pattern, "//") {
+		authorityStart = len("//")
+	}
+
+	authorityEnd := proxyURLPatternAuthorityEnd(pattern[authorityStart:])
+	if authorityEnd == -1 {
+		authorityEnd = len(pattern) - authorityStart
+	}
+
+	if strings.Contains(pattern[authorityStart:authorityStart+authorityEnd], "{") {
+		return expandProxyURLHostAlternatives(pattern)
+	}
+
+	braceDepth := 0
+	inClass := false
+	escaped := false
+
+	for index := 0; index < len(pattern); index++ {
+		character := pattern[index]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		switch character {
+		case '\\':
+			if braceDepth > 0 && !inClass && index+1 < len(pattern) &&
+				pattern[index+1] == '?' {
+				return expandProxyURLHostAlternatives(pattern)
+			}
+
+			escaped = true
+		case '[':
+			if braceDepth > 0 && !inClass && strings.HasPrefix(pattern[index:], "[?]") {
+				return expandProxyURLHostAlternatives(pattern)
+			}
+
+			inClass = true
+		case ']':
+			inClass = false
+		case '{':
+			if !inClass {
+				braceDepth++
+			}
+		case '}':
+			if !inClass {
+				braceDepth--
+			}
+		default:
+			if braceDepth > 0 && !inClass && strings.ContainsRune("/?#@", rune(character)) {
+				return expandProxyURLHostAlternatives(pattern)
+			}
+		}
+	}
+
+	return []string{pattern}, nil
+}
+
+//nolint:funlen // Preserve each valid path/query interpretation of ambiguous glob tokens.
+func compileProxyURLPattern(pattern string) ([]proxyURLMatcher, error) {
+	matchers, err := compileProxyURLPatternSplit(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	_, authority, rawPath, rawQuery, hasQuery, err := splitProxyURLPattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := map[string]bool{
+		authority + "\x00" + rawPath + "\x00" + rawQuery + "\x00" + strconv.FormatBool(hasQuery): true,
+	}
+
+	baseMatchers := append([]proxyURLMatcher(nil), matchers...)
+
+	for _, boundary := range proxyURLPathQueryBoundaryPositions(pattern) {
+		alternatives, altPath, altQuery, compileErr := compileProxyURLBoundaryMatchers(
+			pattern, boundary, 1, baseMatchers,
+		)
+		if compileErr != nil {
+			continue
+		}
+
+		key := altPath + "\x00" + altQuery
+		if seen[key] {
+			continue
+		}
+
+		seen[key] = true
+
+		matchers = append(matchers, alternatives...)
+	}
+
+	for _, boundary := range proxyURLLiteralQueryBoundaryPositions(pattern) {
+		delimiterLength := proxyURLLiteralDelimiterLength(pattern[boundary:])
+
+		alternatives, altPath, altQuery, compileErr := compileProxyURLBoundaryMatchers(
+			pattern, boundary, delimiterLength, baseMatchers,
+		)
+		if compileErr != nil {
+			continue
+		}
+
+		key := altPath + "\x00" + altQuery
+		if seen[key] {
+			continue
+		}
+
+		seen[key] = true
+
+		matchers = append(matchers, alternatives...)
+	}
+
+	for _, boundary := range proxyURLEscapedQueryBoundaryPositions(pattern) {
+		alternatives, altPath, altQuery, compileErr := compileProxyURLBoundaryMatchers(
+			pattern, boundary, 2, baseMatchers,
+		)
+		if compileErr != nil {
+			continue
+		}
+
+		key := altPath + "\x00" + altQuery
+		if seen[key] {
+			continue
+		}
+
+		seen[key] = true
+
+		matchers = append(matchers, alternatives...)
+	}
+
+	if suffix, ok := proxyURLPathSuffix(pattern); ok && strings.Contains(suffix, "?") {
+		if fragmentStart := proxyURLPatternFragmentStart(suffix); fragmentStart != -1 {
+			suffix = suffix[:fragmentStart]
+		}
+
+		pathOnly, pathErr := glob.Compile(suffix)
+		if pathErr == nil {
+			pathOnlyMatchers := make([]proxyURLMatcher, 0, len(matchers))
+			for _, matcher := range matchers {
+				matcher.path = pathOnly
+				matcher.query = nil
+				pathOnlyMatchers = append(pathOnlyMatchers, matcher)
+			}
+
+			matchers = append(matchers, pathOnlyMatchers...)
+		}
+	}
+
+	return matchers, nil
+}
+
+func compileProxyURLBoundaryMatchers(
+	pattern string,
+	boundary, delimiterLength int,
+	bases []proxyURLMatcher,
+) ([]proxyURLMatcher, string, string, error) {
+	authorityStart := 0
+	if schemeEnd := strings.Index(pattern, "://"); schemeEnd >= 0 {
+		authorityStart = schemeEnd + len("://")
+	} else if strings.HasPrefix(pattern, "//") {
+		authorityStart = len("//")
+	}
+
+	authorityEnd := proxyURLPatternAuthorityEnd(pattern[authorityStart:])
+	if authorityEnd < 0 {
+		return nil, "", "", fmt.Errorf("pattern has no path")
+	}
+
+	authorityEnd += authorityStart
+	if authorityEnd >= boundary || pattern[authorityEnd] != '/' {
+		return nil, "", "", fmt.Errorf("boundary is outside the path")
+	}
+
+	rawPath := pattern[authorityEnd:boundary]
+
+	rawQuery := pattern[boundary+delimiterLength:]
+	if fragmentStart := proxyURLPatternFragmentStart(rawQuery); fragmentStart != -1 {
+		rawQuery = rawQuery[:fragmentStart]
+	}
+
+	pathGlob, err := glob.Compile(rawPath)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	queryGlob, err := glob.Compile(rawQuery)
+	if err != nil {
+		return nil, "", "", err
+	}
+
+	matchers := make([]proxyURLMatcher, 0, len(bases))
+	for _, matcher := range bases {
+		matcher.path = pathGlob
+		matcher.query = queryGlob
+		matchers = append(matchers, matcher)
+	}
+
+	return matchers, rawPath, rawQuery, nil
+}
+
+func proxyURLLiteralDelimiterLength(pattern string) int {
+	if strings.HasPrefix(pattern, `\?`) {
+		return 2
+	}
+
+	classEnd := strings.IndexByte(pattern, ']')
+	if classEnd >= 0 {
+		return classEnd + 1
+	}
+
+	return 1
+}
+
+func proxyURLPathSuffix(pattern string) (string, bool) {
+	authorityStart := 0
+	if schemeEnd := strings.Index(pattern, "://"); schemeEnd >= 0 {
+		authorityStart = schemeEnd + len("://")
+	} else if strings.HasPrefix(pattern, "//") {
+		authorityStart = len("//")
+	}
+
+	authorityEnd := proxyURLPatternAuthorityEnd(pattern[authorityStart:])
+	if authorityEnd == -1 {
+		authorityEnd = len(pattern) - authorityStart
+	}
+
+	authorityEnd += authorityStart
+	if authorityEnd >= len(pattern) || pattern[authorityEnd] != '/' {
+		return "", false
+	}
+
+	return pattern[authorityEnd:], true
+}
+
+func proxyURLPathQueryBoundaryPositions(pattern string) []int {
+	authorityStart := 0
+	if schemeEnd := strings.Index(pattern, "://"); schemeEnd >= 0 {
+		authorityStart = schemeEnd + len("://")
+	} else if strings.HasPrefix(pattern, "//") {
+		authorityStart = len("//")
+	}
+
+	authorityEnd := proxyURLPatternAuthorityEnd(pattern[authorityStart:])
+	if authorityEnd == -1 {
+		authorityEnd = len(pattern) - authorityStart
+	}
+
+	authorityEnd += authorityStart
+	if authorityEnd >= len(pattern) || pattern[authorityEnd] != '/' {
+		return nil
+	}
+
+	positions := []int{}
+	inClass := false
+	escaped := false
+	braceDepth := 0
+
+	for index := authorityEnd; index < len(pattern); index++ {
+		character := pattern[index]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		switch character {
+		case '\\':
+			escaped = true
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		case '{':
+			if !inClass {
+				braceDepth++
+			}
+		case '}':
+			if !inClass {
+				braceDepth--
+			}
+		case '?':
+			if !inClass && braceDepth == 0 {
+				if index+1 < len(pattern) && pattern[index+1] == '/' {
+					continue
+				}
+
+				positions = append(positions, index)
+			}
+		}
+	}
+
+	return positions
+}
+
+func proxyURLLiteralQueryBoundaryPositions(pattern string) []int {
+	authorityStart := 0
+	if schemeEnd := strings.Index(pattern, "://"); schemeEnd >= 0 {
+		authorityStart = schemeEnd + len("://")
+	} else if strings.HasPrefix(pattern, "//") {
+		authorityStart = len("//")
+	}
+
+	authorityEnd := proxyURLPatternAuthorityEnd(pattern[authorityStart:])
+	if authorityEnd == -1 {
+		return nil
+	}
+
+	authorityEnd += authorityStart
+	if authorityEnd >= len(pattern) || pattern[authorityEnd] != '/' {
+		return nil
+	}
+
+	positions := []int{}
+
+	for index := authorityEnd; index+3 <= len(pattern); index++ {
+		classEnd := strings.IndexByte(pattern[index:], ']')
+		if classEnd >= 2 && strings.HasPrefix(pattern[index:], "[") &&
+			proxyURLPatternClassMatchesQuestion(pattern[index:index+classEnd+1]) {
+			positions = append(positions, index)
+			index += classEnd
+		}
+	}
+
+	return positions
+}
+
+func proxyURLEscapedQueryBoundaryPositions(pattern string) []int {
+	authorityStart := 0
+	if schemeEnd := strings.Index(pattern, "://"); schemeEnd >= 0 {
+		authorityStart = schemeEnd + len("://")
+	} else if strings.HasPrefix(pattern, "//") {
+		authorityStart = len("//")
+	}
+
+	authorityEnd := proxyURLPatternAuthorityEnd(pattern[authorityStart:])
+	if authorityEnd == -1 {
+		return nil
+	}
+
+	authorityEnd += authorityStart
+	positions := []int{}
+	inClass := false
+	braceDepth := 0
+	escaped := false
+
+	for index := authorityEnd; index+1 < len(pattern); index++ {
+		character := pattern[index]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		switch character {
+		case '\\':
+			if !inClass && braceDepth == 0 && pattern[index+1] == '?' {
+				positions = append(positions, index)
+				escaped = true
+
+				continue
+			}
+
+			escaped = true
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		case '{':
+			if !inClass {
+				braceDepth++
+			}
+		case '}':
+			if !inClass {
+				braceDepth--
+			}
+		}
+	}
+
+	return positions
+}
+
+func proxyURLPatternClassMatchesQuestion(pattern string) bool {
+	compiled, err := glob.Compile(pattern)
+	return err == nil && compiled.Match("?")
+}
+
+//nolint:funlen // Compile one expanded URL rule into all URL component globs.
+func compileProxyURLPatternSplit(pattern string) ([]proxyURLMatcher, error) {
+	scheme, authority, rawPath, rawQuery, hasQuery, err := splitProxyURLPattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	schemeGlob, err := glob.Compile(scheme)
+	if err != nil {
+		return nil, err
+	}
+
+	pathPattern := rawPath
+	if pathPattern == "" && !hasQuery {
+		pathPattern = "*"
+	}
+
+	pathGlob, err := glob.Compile(pathPattern)
+	if err != nil {
+		return nil, err
+	}
+
+	var queryGlob glob.Glob
+	if hasQuery {
+		queryGlob, err = glob.Compile(rawQuery)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	matchers := make([]proxyURLMatcher, 0, 1)
+
+	userinfoPattern, hostPattern, hasUserinfo := splitProxyURLAuthority(authority)
+
+	if hostPattern == "" {
+		return nil, fmt.Errorf("pattern has no host")
+	}
+
+	var userinfoGlob glob.Glob
+	if hasUserinfo {
+		userinfoGlob, err = glob.Compile(userinfoPattern)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	hostGlob, err := glob.Compile(hostPattern)
+	if err != nil {
+		return nil, err
+	}
+
+	ipv6Address, ipv6Zone, ipv6Port, err := compileProxyURLBracketedHost(hostPattern)
+	if err != nil {
+		return nil, err
+	}
+
+	matcher := proxyURLMatcher{
+		scheme: schemeGlob, userinfo: userinfoGlob, host: hostGlob,
+		path: pathGlob, query: queryGlob, hasUserinfo: hasUserinfo,
+		ipv6Address: ipv6Address, ipv6Zone: ipv6Zone, ipv6Port: ipv6Port,
+		ipv6ZoneAny: ipv6Address != nil && !strings.HasPrefix(hostPattern, `\[`),
+	}
+	matchers = append(matchers, matcher)
+
+	// A trailing ?* can mean a path glob or an unrestricted explicit query.
+	// Keep both forms, with a separate path match for the query form.
+	if prefix, ok := strings.CutSuffix(rawPath, "?*"); !hasQuery && ok {
+		if prefixGlob, err := glob.Compile(prefix); err == nil {
+			matcher.path = prefixGlob
+			matcher.query = glob.MustCompile("*")
+			matchers = append(matchers, matcher)
+		}
+	}
+
+	return matchers, nil
+}
+
+func splitProxyURLPattern(pattern string) ( //nolint:funlen,gocognit // Keep component-boundary parsing together.
+	scheme, authority, rawPath, rawQuery string,
+	hasQuery bool,
+	err error,
+) {
+	authorityStart := 0
+
+	if schemeEnd := strings.Index(pattern, "://"); schemeEnd >= 0 {
+		scheme = pattern[:schemeEnd]
+		authorityStart = schemeEnd + len("://")
+	} else if strings.HasPrefix(pattern, "//") {
+		authorityStart = len("//")
+	} else {
+		return "", "", "", "", false, fmt.Errorf("pattern has no host")
+	}
+
+	authorityAndSuffix := pattern[authorityStart:]
+
+	authorityEnd := proxyURLPatternAuthorityEnd(authorityAndSuffix)
+	if authorityEnd == -1 {
+		authorityEnd = len(authorityAndSuffix)
+	}
+
+	authority = authorityAndSuffix[:authorityEnd]
+	if authority == "" {
+		return "", "", "", "", false, fmt.Errorf("pattern has no host")
+	}
+
+	suffix := authorityAndSuffix[authorityEnd:]
+
+	literalDelimiter := strings.HasPrefix(suffix, "[?]") || strings.HasPrefix(suffix, `\?`)
+	if strings.HasPrefix(suffix, "[?]") {
+		suffix = "?" + suffix[3:]
+	} else if strings.HasPrefix(suffix, `\?`) {
+		suffix = "?" + suffix[2:]
+	}
+
+	if strings.HasPrefix(suffix, "?") {
+		hostAdjacentQuery := strings.TrimPrefix(suffix, "?")
+		if fragmentStart := proxyURLPatternFragmentStart(hostAdjacentQuery); fragmentStart != -1 {
+			hostAdjacentQuery = hostAdjacentQuery[:fragmentStart]
+		}
+
+		queryKey, _, hasEquals := strings.Cut(hostAdjacentQuery, "=")
+		if beforeEquals := strings.IndexAny(hostAdjacentQuery, "=&"); beforeEquals != -1 {
+			queryKey = hostAdjacentQuery[:beforeEquals]
+		}
+
+		if !literalDelimiter && ((strings.HasPrefix(hostAdjacentQuery, "*") && !hasEquals &&
+			hostAdjacentQuery != "*") ||
+			strings.ContainsAny(queryKey, ":/@") || strings.Contains(queryKey, ".")) {
+			return "", "", "", "", false,
+				fmt.Errorf("ambiguous '?' after proxy URL host: add a path before the query")
+		}
+
+		rawQuery := strings.TrimPrefix(suffix, "?")
+		if fragmentStart := proxyURLPatternFragmentStart(rawQuery); fragmentStart != -1 {
+			rawQuery = rawQuery[:fragmentStart]
+		}
+
+		return scheme, authority, "", rawQuery, true, nil
+	}
+
+	//nolint:nestif // URL path/query globs require stateful delimiter normalization.
+	if strings.HasPrefix(suffix, "/") {
+		queryStart := proxyURLPatternQueryStart(suffix)
+		if queryStart == -1 {
+			fragmentStart := proxyURLPatternFragmentStart(suffix)
+			if fragmentStart != -1 {
+				suffix = suffix[:fragmentStart]
+			}
+
+			return scheme, authority, suffix, "", false, nil
+		}
+
+		rawPath = suffix[:queryStart]
+
+		suffix = suffix[queryStart:]
+		if strings.HasPrefix(suffix, `\?`) {
+			suffix = "?" + suffix[2:]
+		}
+
+		if strings.HasPrefix(suffix, "[?]") {
+			suffix = "?" + suffix[3:]
+		}
+	}
+
+	if strings.HasPrefix(suffix, "?") {
+		hasQuery = true
+
+		queryEnd := proxyURLPatternFragmentStart(suffix)
+		if queryEnd == -1 {
+			rawQuery = suffix[1:]
+		} else {
+			rawQuery = suffix[1:queryEnd]
+		}
+	}
+
+	return scheme, authority, rawPath, rawQuery, hasQuery, nil
+}
+
+func splitProxyURLAuthority(authority string) (userinfo, host string, hasUserinfo bool) {
+	userinfoEnd := proxyURLPatternLastIndexOutsideClass(authority, '@')
+	if userinfoEnd == -1 {
+		return "", authority, false
+	}
+
+	return authority[:userinfoEnd], authority[userinfoEnd+1:], true
+}
+
+func proxyURLPatternAuthorityEnd(authorityAndSuffix string) int {
+	inClass := false
+	escaped := false
+	ipv6Brackets := 0
+
+	for index := 0; index < len(authorityAndSuffix); index++ {
+		if !inClass && strings.HasPrefix(authorityAndSuffix[index:], "[?]") {
+			return index
+		}
+
+		if authorityAndSuffix[index] == '\\' &&
+			index+1 < len(authorityAndSuffix) && authorityAndSuffix[index+1] == '?' && !inClass {
+			return index
+		}
+
+		switch authorityAndSuffix[index] {
+		case '\\':
+			if strings.HasPrefix(authorityAndSuffix[index:], `\[`) {
+				ipv6Brackets = 1
+				index++
+			}
+
+			escaped = !escaped
+
+			continue
+		case '[':
+			if !escaped {
+				inClass = true
+			}
+		case ']':
+			if escaped {
+				ipv6Brackets = 0
+			}
+
+			if !escaped {
+				inClass = false
+			}
+		default:
+		}
+
+		escaped = false
+
+		if !inClass && ipv6Brackets == 0 &&
+			strings.ContainsRune("/?#", rune(authorityAndSuffix[index])) {
+			return index
+		}
+	}
+
+	return -1
+}
+
+func proxyURLPatternLastIndexOutsideClass(pattern string, target byte) int {
+	inClass := false
+	escaped := false
+	found := -1
+
+	for index := 0; index < len(pattern); index++ {
+		switch pattern[index] {
+		case '\\':
+			escaped = !escaped
+			continue
+		case '[':
+			if !escaped {
+				inClass = true
+			}
+		case ']':
+			if !escaped {
+				inClass = false
+			}
+		default:
+		}
+
+		escaped = false
+
+		if !inClass && pattern[index] == target {
+			found = index
+		}
+	}
+
+	return found
+}
+
+func compileProxyURLBracketedHost(hostPattern string) (
+	address, zone, port glob.Glob,
+	err error,
+) {
+	closingBracket := strings.Index(hostPattern, `\]`)
+	if !strings.HasPrefix(hostPattern, `\[`) || closingBracket == -1 {
+		return compileProxyURLWildcardIPHost(hostPattern)
+	}
+
+	addressAndZone := hostPattern[2:closingBracket]
+	zoneStart := proxyURLPatternLiteralZoneStart(addressAndZone)
+	addressPattern := addressAndZone
+	zonePattern := ""
+
+	if zoneStart != -1 {
+		addressPattern = addressAndZone[:zoneStart]
+		zonePattern = addressAndZone[zoneStart+3:]
+	}
+
+	portPattern := strings.TrimPrefix(hostPattern[closingBracket+2:], ":")
+
+	address, err = glob.Compile(addressPattern)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if zoneStart != -1 {
+		zone, err = glob.Compile(zonePattern)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	port, err = glob.Compile(portPattern)
+
+	return address, zone, port, err
+}
+
+func compileProxyURLWildcardIPHost(hostPattern string) (glob.Glob, glob.Glob, glob.Glob, error) {
+	hostPart, portPattern, found := strings.Cut(hostPattern, ":")
+	if !found {
+		portPattern = "*"
+		hostPart = strings.TrimSpace(hostPattern)
+	}
+
+	if hostPart == "" || strings.Trim(hostPart, "*") != "" {
+		return nil, nil, nil, nil
+	}
+
+	address, err := glob.Compile(hostPart)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	port, err := glob.Compile(portPattern)
+
+	zone := glob.Glob(nil)
+	if err == nil {
+		zone, err = glob.Compile("*")
+	}
+
+	return address, zone, port, err
+}
+
+func proxyURLPatternLiteralZoneStart(pattern string) int {
+	inClass := false
+	escaped := false
+
+	for index := 0; index+2 < len(pattern); index++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		switch pattern[index] {
+		case '\\':
+			escaped = true
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		}
+
+		if !inClass && strings.HasPrefix(pattern[index:], "%25") {
+			return index
+		}
+	}
+
+	return -1
+}
+
+func expandProxyURLHostAlternatives(hostPattern string) ([]string, error) {
+	expanded, err := expandProxyURLHostAlternativesLimited(hostPattern, maxProxyURLHostAlternatives)
+	if err != nil {
+		return nil, err
+	}
+
+	return expanded, nil
+}
+
+func expandProxyURLHostAlternativesLimited(hostPattern string, limit int) ([]string, error) {
+	if limit < 1 {
+		return nil, fmt.Errorf("host expands beyond %d alternatives", maxProxyURLHostAlternatives)
+	}
+
+	prefix, suffix, alternatives, ok := splitProxyURLHostAlternatives(hostPattern)
+	if !ok {
+		return []string{hostPattern}, nil
+	}
+
+	expanded := make([]string, 0, len(alternatives))
+
+	for _, alternative := range alternatives {
+		nested, err := expandProxyURLHostAlternativesLimited(
+			prefix+alternative+suffix,
+			limit-len(expanded),
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		expanded = append(expanded, nested...)
+	}
+
+	return expanded, nil
+}
+
+func splitProxyURLHostAlternatives(hostPattern string) (
+	prefix, suffix string,
+	alternatives []string,
+	found bool,
+) {
+	openingBrace := -1
+	optionStart := -1
+	depth := 0
+	escaped := false
+	inClass := false
+
+	for index := 0; index < len(hostPattern); index++ {
+		character := hostPattern[index]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		switch character {
+		case '\\':
+			escaped = true
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		}
+
+		if inClass {
+			continue
+		}
+
+		switch character {
+		case '{':
+			if openingBrace == -1 {
+				openingBrace = index
+				optionStart = index + 1
+			}
+
+			depth++
+		case '}':
+			depth--
+			if openingBrace != -1 && depth == 0 {
+				alternatives = append(alternatives, hostPattern[optionStart:index])
+
+				return hostPattern[:openingBrace], hostPattern[index+1:], alternatives, true
+			}
+		case ',':
+			if openingBrace != -1 && depth == 1 {
+				alternatives = append(alternatives, hostPattern[optionStart:index])
+				optionStart = index + 1
+			}
+		}
+	}
+
+	return "", "", nil, false
+}
+
+func proxyURLPatternQueryStart(pathAndQuery string) int {
+	inClass := false
+	escaped := false
+	braceDepth := 0
+
+	scanEnd := proxyURLPatternFragmentStart(pathAndQuery)
+	if scanEnd == -1 {
+		scanEnd = len(pathAndQuery)
+	}
+
+	for questionMark := 0; questionMark < scanEnd; questionMark++ {
+		character := pathAndQuery[questionMark]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if !inClass && braceDepth == 0 && character == '\\' &&
+			questionMark+1 < len(pathAndQuery) &&
+			pathAndQuery[questionMark+1] == '?' {
+			return questionMark
+		}
+
+		switch character {
+		case '\\':
+			escaped = true
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		case '{':
+			if !inClass {
+				braceDepth++
+			}
+		case '}':
+			if !inClass {
+				braceDepth--
+			}
+		}
+
+		if character != '?' || inClass || braceDepth != 0 {
+			continue
+		}
+
+		if strings.HasPrefix(pathAndQuery[questionMark+1:], "/") {
+			continue
+		}
+
+		return questionMark
+	}
+
+	return -1
+}
+
+func proxyURLPatternFragmentStart(pattern string) int {
+	inClass := false
+	escaped := false
+	braceDepth := 0
+
+	for index, character := range pattern {
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		switch character {
+		case '\\':
+			escaped = true
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		case '{':
+			if !inClass {
+				braceDepth++
+			}
+		case '}':
+			if !inClass {
+				braceDepth--
+			}
+		case '#':
+			if !inClass && braceDepth == 0 {
+				return index
+			}
+		}
+	}
+
+	return -1
+}
+
+//nolint:funlen,gocognit,gocyclo // Keep URL component checks in one matching pass.
 func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
 	c.proxyURLMu.Lock()
 
@@ -129,13 +1096,108 @@ func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
 	compiledProxyURLs := c.compiledProxyURLs
 	c.proxyURLMu.Unlock()
 
-	for _, g := range compiledProxyURLs {
-		if g.Match(proxyURL) {
+	parsed, err := url.Parse(proxyURL)
+	if err != nil || parsed.Host == "" {
+		return false, nil
+	}
+
+	requestPath := parsed.EscapedPath()
+	hasQuery := parsed.RawQuery != "" || parsed.ForceQuery
+	requestHostIsBracketed := strings.HasPrefix(parsed.Host, "[")
+
+	requestHost := strings.TrimPrefix((&url.URL{Host: parsed.Host}).String(), "//")
+	if !requestHostIsBracketed && strings.Count(parsed.Host, ":") > 1 {
+		return false, nil
+	}
+
+	for _, m := range compiledProxyURLs {
+		hostMatches := m.host.Match(requestHost)
+
+		if requestHostIsBracketed {
+			requestAddress, requestZone, requestPort, splitOK := splitProxyURLBracketedHost(parsed.Host)
+			requestZone = escapeProxyURLZone(requestZone)
+
+			hostMatches = hostMatches && splitOK && m.ipv6Address != nil &&
+				m.ipv6Address.Match(requestAddress) && m.ipv6Port.Match(requestPort) &&
+				((requestZone == "" && (m.ipv6Zone == nil || m.ipv6ZoneAny)) ||
+					(requestZone != "" && m.ipv6Zone != nil && m.ipv6Zone.Match(requestZone)))
+		}
+
+		if !m.scheme.Match(parsed.Scheme) || !hostMatches {
+			continue
+		}
+
+		requestHasUserinfo := parsed.User != nil
+		if m.hasUserinfo != requestHasUserinfo ||
+			(m.hasUserinfo && !m.userinfo.Match(parsed.User.String())) {
+			continue
+		}
+
+		if !m.path.Match(requestPath) {
+			continue
+		}
+
+		if m.query != nil {
+			if hasQuery && m.query.Match(parsed.RawQuery) {
+				return true, nil
+			}
+
+			continue
+		}
+
+		// Keep the existing suffix check for rules without an explicit query.
+		// It can only narrow a match after the path itself has been accepted.
+		if !hasQuery || m.path.Match(requestPath+"?"+parsed.RawQuery) {
 			return true, nil
 		}
 	}
 
 	return false, nil
+}
+
+func escapeProxyURLZone(zone string) string {
+	if zone == "" {
+		return ""
+	}
+
+	serialized := (&url.URL{Host: "[::1%" + zone + "]"}).String()
+
+	return strings.TrimSuffix(strings.TrimPrefix(serialized, "//[::1%25"), "]")
+}
+
+func splitProxyURLBracketedHost(host string) (address, zone, port string, ok bool) {
+	if !strings.HasPrefix(host, "[") {
+		return "", "", "", false
+	}
+
+	closingBracket := strings.IndexByte(host, ']')
+	if closingBracket == -1 {
+		return "", "", "", false
+	}
+
+	addressAndZone := host[1:closingBracket]
+
+	remaining := host[closingBracket+1:]
+	if remaining == "" {
+		zoneStart := strings.IndexByte(addressAndZone, '%')
+		if zoneStart == -1 {
+			return addressAndZone, "", "", true
+		}
+
+		return addressAndZone[:zoneStart], addressAndZone[zoneStart+1:], "", true
+	}
+
+	addressAndZone, port, err := net.SplitHostPort(host)
+	if err != nil {
+		return "", "", "", false
+	}
+
+	zoneStart := strings.IndexByte(addressAndZone, '%')
+	if zoneStart == -1 {
+		return addressAndZone, "", port, true
+	}
+
+	return addressAndZone[:zoneStart], addressAndZone[zoneStart+1:], port, true
 }
 
 const DrainNodeCacheTTL = 20 // seconds
