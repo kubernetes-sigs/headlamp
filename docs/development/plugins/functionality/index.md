@@ -161,7 +161,13 @@ Pass their IDs to the Kubernetes resource hooks, such as
 `K8s.ResourceClasses.Pod.useList({ clusters })`, to read from those clusters.
 The list updates as clusters are added or removed.
 
-- API reference: [useRegisteredClusters](../../api/lib/clusterRegistration/functions/useRegisteredClusters.md)
+To also get the ClusterProfile or Cluster of each cluster, read with the user's
+credentials, use
+[ClusterProfile.useRegisteredClusters](../../api/lib/k8s/clusterProfile/classes/ClusterProfile.md#property-useregisteredclusters)
+or
+[ClusterAPICluster.useRegisteredClusters](../../api/lib/k8s/clusterApiCluster/classes/ClusterAPICluster.md#property-useregisteredclusters).
+
+- API reference: [useRegisteredClusters](../../api/lib/clusterRegistration/functions/useRegisteredClusters.md), [ClusterProfile](../../api/lib/k8s/clusterProfile/classes/ClusterProfile.md), [ClusterAPICluster](../../api/lib/k8s/clusterApiCluster/classes/ClusterAPICluster.md)
 
 ### Dynamic Clusters
 

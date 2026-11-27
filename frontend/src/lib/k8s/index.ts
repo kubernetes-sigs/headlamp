@@ -24,6 +24,10 @@ import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 export { ResourceClasses } from './resourceClasses';
+// Resources Headlamp discovers connections from. They have no views, so they are not
+// registered in ResourceClasses, which links kinds to their views.
+export { ClusterAPICluster } from './clusterApiCluster';
+export { ClusterProfile } from './clusterProfile';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from './labelSelector';
 
 // Defined in a leaf module so resource classes can use them without importing
