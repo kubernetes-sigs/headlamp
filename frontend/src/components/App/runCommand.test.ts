@@ -124,4 +124,26 @@ describe('runCommand', () => {
       expect(remove).not.toHaveBeenCalled();
     }
   });
+
+  it('forwards a null exit code when a command is terminated by a signal', () => {
+    const listeners = new Map<string, (id: string, data: string | number | null) => void>();
+    const send = vi.fn();
+    const receive = vi.fn(
+      (channel: string, listener: (id: string, data: string | number | null) => void) => {
+        listeners.set(channel, listener);
+      }
+    );
+    const command = runCommand('gh', ['auth', 'status'], {}, {}, send, receive);
+    const commandId = send.mock.calls[0][1].id;
+    const exit = vi.fn();
+
+    command.on('exit', exit);
+
+    // Electron forwards the first `close` argument, so a command terminated by a
+    // signal arrives as null.
+    listeners.get('command-exit')?.(commandId, null);
+
+    expect(exit).toHaveBeenCalledOnce();
+    expect(exit).toHaveBeenCalledWith(null);
+  });
 });
