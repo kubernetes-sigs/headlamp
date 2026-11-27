@@ -47,6 +47,9 @@ type OIDCTokenRefreshConfig struct {
 	SessionTTL                   int
 	UseInCluster                 bool
 	UnsafeUseServiceAccountToken bool
+	// OidcUseTokenBroadcast enables reading the shared (broadcast) token and the
+	// hand-off that strips its cookies; off, the middleware behaves as it always did.
+	OidcUseTokenBroadcast bool
 }
 
 // oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
@@ -62,13 +65,79 @@ func SetTokenFromCookie(r *http.Request, clusterName string) {
 	}
 }
 
+// sharedTokenResolver returns the resolver for the request's cluster, backed by
+// its lazily loaded context, or nil without token broadcast: then there is no
+// shared token to read.
+func (c *OIDCTokenRefreshConfig) sharedTokenResolver(load func() *kubeconfig.Context) SharedTokenKeyResolver {
+	if !c.OidcUseTokenBroadcast {
+		return nil
+	}
+
+	return func(name string) (string, string, bool) {
+		kContext := load()
+		if kContext == nil || kContext.Name != name {
+			return "", "", false
+		}
+
+		issuer, clientID, ok := SharedTokenIdentity(kContext)
+		if !ok {
+			return "", "", false
+		}
+
+		return SharedTokenKey(issuer, clientID), LogoutMarkerName(LogoutMarkerID(kContext)), true
+	}
+}
+
+// webSocketBearerProtocolPrefix marks the WebSocket subprotocol that carries a bearer token.
+const webSocketBearerProtocolPrefix = "base64url.bearer.authorization.k8s.io." // #nosec G101
+
+// suppliesCredential reports whether the request names its own credential: an
+// Authorization header, or a bearer token in the subprotocol of a WebSocket
+// request. Such a request is passed on with the credential it chose.
+func suppliesCredential(r *http.Request) bool {
+	if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
+		return true
+	}
+
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+
+	// All header lines: the backend token middleware joins them further on.
+	for _, protocol := range strings.Split(strings.Join(r.Header.Values("Sec-WebSocket-Protocol"), ","), ",") {
+		token, ok := strings.CutPrefix(strings.TrimSpace(protocol), webSocketBearerProtocolPrefix)
+		if ok && token != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// handOff returns the handler requests are passed on to. With token broadcast,
+// it first puts the resolved token in the Authorization header when the request
+// supplies no credential of its own; then it strips the shared token cookies,
+// with the flag on or off.
+func (c *OIDCTokenRefreshConfig) handOff(inner http.Handler, token *string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if c.OidcUseTokenBroadcast && *token != "" && !suppliesCredential(r) {
+			r.Header.Set("Authorization", "Bearer "+*token)
+		}
+
+		StripSharedTokenCookies(r)
+		inner.ServeHTTP(w, r)
+	})
+}
+
 // NewOIDCTokenRefreshMiddleware creates an HTTP middleware that checks whether
 // the incoming request carries an OIDC token that is about to expire and, if
-// so, refreshes it transparently using the configured OIDC provider.
+// so, refreshes it transparently using the configured OIDC provider. It is the
+// common entry point of every <baseURL>/clusters/{cluster}/ route, so it also
+// owns the hand-off that strips shared token cookies (handOff).
 //
 //nolint:funlen // Middleware handles token inspection, refresh lifecycle, cookie mutation, and telemetry
 func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
+	return func(inner http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			start := time.Now()
@@ -76,6 +145,35 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 			// branch sets it before calling next.ServeHTTP. The happy path leaves it as
 			// "success".
 			status := "success"
+
+			cluster := clusterFromPath(r.URL.Path, config.BaseURL)
+
+			// The token is resolved once (below) and handed to the next handler; a
+			// refresh updates the Authorization header itself. sharedKey records
+			// that it came from the shared cookie, which the refresh then renews.
+			var token, sharedKey string
+
+			// The context is loaded at most once per request, and only once a token
+			// or a shared cookie makes it necessary: the resolver loads it lazily.
+			var (
+				kContext  *kubeconfig.Context
+				ctxErr    error
+				ctxLoaded bool
+			)
+
+			loadContext := func() {
+				if !ctxLoaded {
+					kContext, ctxErr = config.KubeConfigStore.GetContext(cluster)
+					ctxLoaded = true
+				}
+			}
+
+			resolve := config.sharedTokenResolver(func() *kubeconfig.Context {
+				loadContext()
+
+				return kContext
+			})
+			next := config.handOff(inner, &token)
 
 			var span trace.Span
 			if config.Telemetry != nil {
@@ -106,13 +204,14 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			cluster, token := ParseClusterAndTokenWithBaseURL(r, config.BaseURL)
+			token, sharedKey = requestToken(r, cluster, resolve)
 			if config.shouldBypassOIDCRefresh(cluster, token, w, r, span, &status, next) {
 				return
 			}
 
-			kContext, err := config.KubeConfigStore.GetContext(cluster)
-			if config.handleGetContextError(err, cluster, w, r, span, ctx, &status, next) {
+			loadContext()
+
+			if config.handleGetContextError(ctxErr, cluster, w, r, span, ctx, &status, next) {
 				return
 			}
 
@@ -156,6 +255,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
+				SharedTokenKey:            sharedKey,
 			})
 
 			next.ServeHTTP(w, r)
