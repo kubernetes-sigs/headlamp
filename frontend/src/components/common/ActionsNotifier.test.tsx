@@ -339,6 +339,51 @@ describe('ActionsNotifier', () => {
       expect(mockCloseSnackbar).toHaveBeenCalledWith(keyA);
       expect(mockCloseSnackbar).toHaveBeenCalledWith(keyB);
     });
+
+    it.each([
+      {
+        name: 'a snackbar with warnings',
+        action: {
+          id: 'apply',
+          message: 'Applied priv.\n• would violate PodSecurity',
+          snackbarProps: { variant: 'warning' },
+          dismissible: true,
+        } as ClusterAction,
+      },
+      {
+        name: 'an error snackbar with warnings',
+        action: {
+          id: 'apply',
+          message: 'Failed to apply priv,bad.\nWarnings:\n• would violate PodSecurity',
+          state: 'error',
+          snackbarProps: { variant: 'error' },
+          dismissible: true,
+        } as ClusterAction,
+      },
+    ])('lets $name be dismissed', ({ action }) => {
+      renderPure({ [action.id]: action });
+
+      const options = mockEnqueueSnackbar.mock.calls[0][1];
+      render(options.action(options.key));
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+      expect(mockCloseSnackbar).toHaveBeenCalledWith(options.key);
+    });
+
+    it('does not add a close button to other snackbars', () => {
+      renderPure({
+        apply: {
+          id: 'apply',
+          message: 'Applied priv.',
+          snackbarProps: { variant: 'success' },
+        },
+      });
+
+      const options = mockEnqueueSnackbar.mock.calls[0][1];
+      render(options.action(options.key));
+
+      expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    });
   });
 
   describe('ActionsNotifier connected component', () => {

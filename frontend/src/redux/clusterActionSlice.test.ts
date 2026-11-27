@@ -151,6 +151,7 @@ describe('clusterActionSlice', () => {
               'Applied pod.\n• would violate PodSecurity "restricted:latest"\n• unknown field "bogus"',
             state: 'complete',
             snackbarProps: { variant: 'warning' },
+            dismissible: true,
           }),
         })
       );
@@ -180,6 +181,7 @@ describe('clusterActionSlice', () => {
             message: 'Applied pod.',
             state: 'complete',
             snackbarProps: { variant: 'success' },
+            dismissible: false,
           }),
         })
       );
@@ -220,6 +222,7 @@ describe('clusterActionSlice', () => {
             state: 'error',
             snackbarProps: { variant: 'error' },
             autoHideDuration: 15000,
+            dismissible: true,
           }),
         })
       );
@@ -286,6 +289,7 @@ describe('clusterActionSlice', () => {
             state: 'error',
             snackbarProps: { variant: 'error' },
             autoHideDuration: undefined,
+            dismissible: false,
           }),
         })
       );
