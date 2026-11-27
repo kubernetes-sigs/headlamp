@@ -15,9 +15,10 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Pod from '../../lib/k8s/pod';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Terminal from './Terminal';
 
 const encoder = new TextEncoder();
@@ -163,6 +164,15 @@ export default {
   ],
   parameters: {
     layout: 'fullscreen',
+    msw: {
+      handlers: [
+        // Allow pods/exec so the file transfer buttons are shown.
+        http.post(
+          `${API_BASE}/clusters/default/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
+          () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+        ),
+      ],
+    },
   },
 } as Meta<typeof Terminal>;
 

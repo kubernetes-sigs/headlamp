@@ -2746,6 +2746,18 @@ func TestRestrictedEndpointsRequireToken(t *testing.T) {
 			body:   nil,
 		},
 		{
+			name:   "GET /clusters/{name}/namespace/{namespace}/pod/{pod}/container/{container}/copy",
+			method: http.MethodGet,
+			path:   "/clusters/" + minikubeName + "/namespace/default/pod/test/container/test/copy",
+			body:   nil,
+		},
+		{
+			name:   "POST /clusters/{name}/namespace/{namespace}/pod/{pod}/container/{container}/copy",
+			method: http.MethodPost,
+			path:   "/clusters/" + minikubeName + "/namespace/default/pod/test/container/test/copy",
+			body:   nil,
+		},
+		{
 			name:   "GET /clusters/{name}/me",
 			method: http.MethodGet,
 			path:   "/clusters/" + minikubeName + "/me",

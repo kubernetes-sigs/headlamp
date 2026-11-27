@@ -14,11 +14,21 @@
  * limitations under the License.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import React from 'react';
 import { TestContext } from '../../test';
 import Terminal from './Terminal';
+
+/** Terminal checks pods/exec permission for its file transfer buttons with react-query. */
+function TerminalTestContext({ children }: React.PropsWithChildren<{}>) {
+  return (
+    <QueryClientProvider client={new QueryClient()}>
+      <TestContext>{children}</TestContext>
+    </QueryClientProvider>
+  );
+}
 
 const encoder = new TextEncoder();
 
@@ -68,9 +78,9 @@ describe('Terminal', () => {
     });
 
     const { unmount } = render(
-      <TestContext>
+      <TerminalTestContext>
         <Terminal item={pod as any} open onClose={() => {}} />
-      </TestContext>
+      </TerminalTestContext>
     );
 
     await act(async () => {
@@ -104,9 +114,9 @@ describe('Terminal', () => {
       };
 
       render(
-        <TestContext>
+        <TerminalTestContext>
           <Terminal item={pod as any} open onClose={() => {}} initialContainer="sidecar" />
-        </TestContext>
+        </TerminalTestContext>
       );
 
       await act(async () => {
@@ -125,9 +135,9 @@ describe('Terminal', () => {
       });
 
       render(
-        <TestContext>
+        <TerminalTestContext>
           <Terminal item={pod as any} open onClose={() => {}} initialContainer="nonexistent" />
-        </TestContext>
+        </TerminalTestContext>
       );
 
       await act(async () => {
@@ -146,9 +156,9 @@ describe('Terminal', () => {
       });
 
       render(
-        <TestContext>
+        <TerminalTestContext>
           <Terminal item={pod as any} open onClose={() => {}} />
-        </TestContext>
+        </TerminalTestContext>
       );
 
       await act(async () => {
@@ -169,9 +179,9 @@ describe('Terminal', () => {
       const pod = createMockPod(async () => streamReturn);
 
       render(
-        <TestContext>
+        <TerminalTestContext>
           <Terminal item={pod as any} open onClose={() => {}} />
-        </TestContext>
+        </TerminalTestContext>
       );
 
       await act(async () => {
