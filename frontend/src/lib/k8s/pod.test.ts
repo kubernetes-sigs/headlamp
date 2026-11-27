@@ -387,6 +387,16 @@ describe('Pod class', () => {
       expect(output).toContain('test1');
       expect(output).toContain('test2');
     });
+
+    it('preserves escaped backslashes in JSON log values when formatting', () => {
+      const logStream = startLogStream({ prettifyLogs: true, formatJsonValues: true });
+      logStream.send('{"path":"C:\\\\new_folder","tab":"a\\\\tb","msg":"line1\\nline2"}\n');
+
+      const output = logStream.last().join('');
+      expect(output).toContain('"C:\\new_folder"');
+      expect(output).toContain('"a\\tb"');
+      expect(output).toContain('"line1\nline2"');
+    });
   });
 });
 

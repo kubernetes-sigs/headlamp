@@ -290,14 +290,19 @@ class Pod extends KubeObject<KubePod> {
       url += `&sinceSeconds=${sinceSeconds}`;
     }
 
+    const unescapeMap: Record<string, string> = {
+      '\\r\\n': '\r\n',
+      '\\n': '\n',
+      '\\t': '\t',
+      '\\"': '"',
+      "\\'": "'",
+      '\\\\': '\\',
+    };
+
     function unescapeStringLiterals(str: string): string {
-      return str
-        .replace(/\\r\\n/g, '\r\n') // Carriage return + newline
-        .replace(/\\n/g, '\n') // Newline
-        .replace(/\\t/g, '\t') // Tab
-        .replace(/\\"/g, '"') // Double quote
-        .replace(/\\'/g, "'") // Single quote
-        .replace(/\\\\/g, '\\'); // Backslash
+      // Single-pass replacement so an escaped backslash followed by n/t/etc. (e.g. \\n)
+      // is unescaped to \n rather than \<newline>.
+      return str.replace(/\\(?:r\\n|n|t|"|'|\\)/g, match => unescapeMap[match] ?? match);
     }
 
     function prettifyLogLine(logLine: string): string {
@@ -308,12 +313,7 @@ class Pod extends KubeObject<KubePod> {
         const jsonStr = jsonMatch[1];
         const jsonObj = JSON.parse(jsonStr);
 
-        const valueReplacer = formatJsonValues
-          ? (key: string, value: any) =>
-              typeof value === 'string' ? unescapeStringLiterals(value) : value
-          : undefined;
-
-        const prettyJson = JSON.stringify(jsonObj, valueReplacer, 2);
+        const prettyJson = JSON.stringify(jsonObj, null, 2);
         const terminalReadyJson = formatJsonValues
           ? unescapeStringLiterals(prettyJson)
           : prettyJson;
