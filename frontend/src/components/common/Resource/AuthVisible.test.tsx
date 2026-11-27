@@ -184,6 +184,56 @@ describe('AuthVisible', () => {
     expect(clusterBItem.getAuthorization).toHaveBeenCalledTimes(1);
   });
 
+  it('isolates authorization results by the item namespace', async () => {
+    const createMockItem = (namespace: string, allowed: boolean) => ({
+      _class: () => ({
+        apiName: 'configmaps',
+        apiVersion: 'v1',
+      }),
+      cluster: 'cluster-a',
+      getName: () => 'kube-root-ca.crt',
+      getNamespace: () => namespace,
+      getAuthorization: vi.fn().mockResolvedValue({
+        status: {
+          allowed,
+        },
+      }),
+    });
+
+    const teamAItem = createMockItem('team-a', true);
+    const teamBItem = createMockItem('team-b', false);
+
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={teamAItem as any} authVerb="update">
+          <div>Edit</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Edit')).toBeInTheDocument();
+    });
+
+    // Same kind and name in another namespace must not reuse team-a's result
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={teamBItem as any} authVerb="update">
+          <div>Edit</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(teamBItem.getAuthorization).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('Edit')).toBeNull();
+    });
+
+    expect(teamAItem.getAuthorization).toHaveBeenCalledTimes(1);
+  });
+
   it('checks the given cluster instead of the item one', async () => {
     const mockItem = {
       _class: () => ({ apiName: 'deviceclasses', apiVersion: 'resource.k8s.io/v1' }),
