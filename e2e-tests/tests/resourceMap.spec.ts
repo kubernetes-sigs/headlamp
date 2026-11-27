@@ -97,6 +97,52 @@ function list(kind: string, items: unknown[]) {
  */
 async function mockResourceMapCollections(page: Page, cluster: string, podItems: unknown[] = pods) {
   const mockedResources = new Set<string>();
+
+  await page.routeWebSocket('**/wsMultiplexer', socket => {
+    socket.onMessage(raw => {
+      if (typeof raw !== 'string') {
+        return;
+      }
+      try {
+        const msg = JSON.parse(raw) as {
+          clusterId?: string;
+          path?: string;
+          query?: string;
+          userId?: string;
+          type?: string;
+        };
+        if (msg.clusterId !== cluster) {
+          return;
+        }
+        if (msg.type === 'REQUEST' || msg.type === 'CLOSE') {
+          socket.send(
+            JSON.stringify({
+              clusterId: msg.clusterId,
+              path: msg.path,
+              query: msg.query,
+              userId: msg.userId ?? '',
+              type: 'STATUS',
+              data: JSON.stringify({
+                state: msg.type === 'REQUEST' ? 'connected' : 'closed',
+                error: '',
+              }),
+            })
+          );
+        }
+      } catch {
+        // Ignore non-JSON messages in the mock multiplexer.
+      }
+    });
+  });
+
+  await page.routeWebSocket(
+    url =>
+      url.pathname.startsWith(`/clusters/${cluster}/api`) && url.searchParams.get('watch') === '1',
+    () => {
+      // Keep mocked legacy watch open without forwarding resourceVersion=1 to the live cluster.
+    }
+  );
+
   await page.route(new RegExp(`/clusters/${cluster}/apis?/`), async route => {
     const request = route.request();
     const url = new URL(request.url());
