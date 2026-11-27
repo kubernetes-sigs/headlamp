@@ -307,6 +307,13 @@
               "type": "boolean",
               "description": "After a login, also set the auth cookie for other kubeconfig contexts with the same issuer URL and client ID"
             },
+            "authorizationParams": {
+              "type": "object",
+              "description": "Additional authorization request parameters passed to the OIDC provider",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
             "externalSecret": {
               "type": "object",
               "description": "External secret to use for OIDC configuration",
