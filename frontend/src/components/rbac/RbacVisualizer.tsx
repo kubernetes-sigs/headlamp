@@ -299,6 +299,12 @@ export function RbacVisualizer() {
               </Box>
             )}
           </Box>
+        ) : nodes.length <= 1 && errors.length > 0 ? (
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%" p={4}>
+            <Typography variant="body2" color="text.secondary">
+              {t('Failed to load resources')}
+            </Typography>
+          </Box>
         ) : nodes.length <= 1 ? (
           <Box
             display="flex"
@@ -326,7 +332,7 @@ export function RbacVisualizer() {
             </Typography>
           </Box>
         ) : (
-          <ReactFlowProvider>
+          <ReactFlowProvider key={JSON.stringify([selectedSubject, selectedNamespace])}>
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -334,6 +340,8 @@ export function RbacVisualizer() {
               fitView
               minZoom={0.2}
               maxZoom={2.5}
+              nodesDraggable={false}
+              nodesConnectable={false}
               style={{ width: '100%', height: '100%' }}
             >
               <Background
@@ -342,7 +350,7 @@ export function RbacVisualizer() {
                 size={1}
                 color={theme.palette.mode === 'dark' ? '#333' : '#ccc'}
               />
-              <Controls />
+              <Controls showInteractive={false} />
             </ReactFlow>
           </ReactFlowProvider>
         )}

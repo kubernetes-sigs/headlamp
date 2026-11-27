@@ -22,9 +22,8 @@ import Typography from '@mui/material/Typography';
 import { Handle, Position } from '@xyflow/react';
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { generatePath } from 'react-router';
-import { Link as RouterLink } from 'react-router-dom';
-import { getCluster, getClusterPrefixedPath } from '../../../lib/cluster';
+import { getCluster } from '../../../lib/cluster';
+import Link from '../../common/Link';
 import { RoleNodeData } from '../types';
 
 export const RoleNode = memo(({ data }: { data: RoleNodeData }) => {
@@ -32,20 +31,7 @@ export const RoleNode = memo(({ data }: { data: RoleNodeData }) => {
   const { t } = useTranslation('glossary');
 
   const currentCluster = getCluster();
-  const cluster = (nodeCluster as string | undefined) || currentCluster;
-  let routeURL = '';
-  try {
-    const rawPath = isClusterRole ? '/clusterroles/:name' : '/roles/:namespace/:name';
-    routeURL = cluster
-      ? generatePath(getClusterPrefixedPath(rawPath), {
-          cluster,
-          namespace: namespace || '',
-          name,
-        })
-      : generatePath(rawPath, { namespace: namespace || '', name });
-  } catch {
-    routeURL = '';
-  }
+  const cluster = (nodeCluster as string | undefined) || currentCluster || undefined;
 
   return (
     <Paper
@@ -88,28 +74,34 @@ export const RoleNode = memo(({ data }: { data: RoleNodeData }) => {
             fontWeight={700}
             noWrap
             title={name}
-            component={routeURL ? RouterLink : 'span'}
-            to={routeURL || undefined}
-            sx={{
-              display: 'block',
-              textDecoration: 'none',
-              color: 'inherit',
-              ...(routeURL ? { '&:hover': { textDecoration: 'underline' } } : {}),
-            }}
+            sx={{ color: 'inherit' }}
           >
-            {name}
+            <Link
+              routeName={isClusterRole ? 'clusterrole' : 'role'}
+              params={isClusterRole ? { name } : { namespace: namespace || '', name }}
+              activeCluster={cluster}
+              sx={{
+                color: 'inherit',
+                textDecoration: 'none',
+                '&:hover': { textDecoration: 'underline' },
+              }}
+            >
+              {name}
+            </Link>
           </Typography>
         </Box>
       </Box>
 
       <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
-        <Chip
-          label={isClusterRole ? t('Cluster-wide') : `ns: ${namespace}`}
-          size="small"
-          color={isClusterRole ? 'warning' : 'default'}
-          variant="outlined"
-          sx={{ fontSize: '0.72rem', height: 20 }}
-        />
+        {!isClusterRole && namespace && (
+          <Chip
+            label={`ns: ${namespace}`}
+            size="small"
+            color="default"
+            variant="outlined"
+            sx={{ fontSize: '0.72rem', height: 20 }}
+          />
+        )}
         <Chip
           label={t('{{count}} rules', { count: rulesCount, defaultValue: `${rulesCount} rules` })}
           size="small"

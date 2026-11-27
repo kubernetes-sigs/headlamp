@@ -31,38 +31,59 @@ import {
   SubjectNodeData,
 } from './types';
 
+export function normalizeRbacSubject(target: RbacSubject): RbacSubject {
+  if (target.kind === 'User' && target.name.startsWith('system:serviceaccount:')) {
+    const rest = target.name.slice('system:serviceaccount:'.length);
+    const separatorIndex = rest.indexOf(':');
+    if (separatorIndex > 0 && separatorIndex < rest.length - 1) {
+      return {
+        kind: 'ServiceAccount',
+        namespace: rest.slice(0, separatorIndex),
+        name: rest.slice(separatorIndex + 1),
+      };
+    }
+  }
+  return target;
+}
+
 export function isSubjectMatch(
   s: { kind: string; name: string; namespace?: string },
   target: RbacSubject,
   bindingNamespace?: string
 ): boolean {
-  if (target.kind === 'User' && s.kind === 'Group') {
+  const normalizedTarget = normalizeRbacSubject(target);
+
+  if (normalizedTarget.kind === 'User' && s.kind === 'Group') {
     const authenticationGroup =
-      target.name === 'system:anonymous' ? 'system:unauthenticated' : 'system:authenticated';
+      normalizedTarget.name === 'system:anonymous'
+        ? 'system:unauthenticated'
+        : 'system:authenticated';
     return s.name === authenticationGroup;
   }
 
-  if (target.kind === 'ServiceAccount' && target.namespace) {
+  if (normalizedTarget.kind === 'ServiceAccount' && normalizedTarget.namespace) {
     if (s.kind === 'Group') {
       return [
         'system:authenticated',
         'system:serviceaccounts',
-        `system:serviceaccounts:${target.namespace}`,
+        `system:serviceaccounts:${normalizedTarget.namespace}`,
       ].includes(s.name);
     }
     if (s.kind === 'User') {
-      return s.name === `system:serviceaccount:${target.namespace}:${target.name}`;
+      return (
+        s.name === `system:serviceaccount:${normalizedTarget.namespace}:${normalizedTarget.name}`
+      );
     }
   }
 
-  if (s.kind !== target.kind || s.name !== target.name) {
+  if (s.kind !== normalizedTarget.kind || s.name !== normalizedTarget.name) {
     return false;
   }
 
-  if (target.kind === 'ServiceAccount') {
+  if (normalizedTarget.kind === 'ServiceAccount') {
     const effectiveNamespace = s.namespace || bindingNamespace;
-    if (target.namespace || effectiveNamespace) {
-      return effectiveNamespace === target.namespace;
+    if (normalizedTarget.namespace || effectiveNamespace) {
+      return effectiveNamespace === normalizedTarget.namespace;
     }
   }
 
@@ -226,7 +247,16 @@ export function buildRbacGraph(
     const roleNodeId = `role:${rInfo.isClusterRole ? 'ClusterRole' : 'Role'}:${
       rInfo.namespace || '_'
     }:${rInfo.roleName}`;
-    const rules = rInfo.roleObj?.rules || [];
+    const hasClusterBinding = allMatchingBindings.some(
+      ({ binding, isCluster }) =>
+        isCluster &&
+        rInfo.isClusterRole &&
+        binding.roleRef.kind === 'ClusterRole' &&
+        binding.roleRef.name === rInfo.roleName
+    );
+    const rules = (rInfo.roleObj?.rules || []).filter(
+      rule => !rule.nonResourceURLs?.length || hasClusterBinding
+    );
     totalRulesCount += rules.length;
 
     const rulesCount = rules.length;
@@ -326,22 +356,41 @@ export function buildRbacGraph(
   };
 }
 
+function isListLoading(listResult: {
+  items: unknown[] | null;
+  isLoading?: boolean;
+  clusterResults?: Record<string, { isLoading?: boolean; status?: string }>;
+}): boolean {
+  if (listResult.items === null || Boolean(listResult.isLoading)) {
+    return true;
+  }
+  return Object.values(listResult.clusterResults ?? {}).some(
+    res => Boolean(res?.isLoading) || res?.status === 'pending'
+  );
+}
+
 export function useRbacGraphData(selectedSubject: RbacSubject | null, selectedNamespace?: string) {
   const cluster = useCluster();
   const listOptions = useMemo(() => (cluster ? { clusters: [cluster] } : undefined), [cluster]);
 
-  const { items: serviceAccounts, errors: saErrors } = ServiceAccount.useList(listOptions);
-  const { items: roleBindings, errors: rbErrors } = RoleBinding.useList(listOptions);
-  const { items: clusterRoleBindings, errors: crbErrors } = ClusterRoleBinding.useList(listOptions);
-  const { items: roles, errors: roleErrors } = Role.useList(listOptions);
-  const { items: clusterRoles, errors: crErrors } = ClusterRole.useList(listOptions);
+  const serviceAccountsResult = ServiceAccount.useList(listOptions);
+  const roleBindingsResult = RoleBinding.useList(listOptions);
+  const clusterRoleBindingsResult = ClusterRoleBinding.useList(listOptions);
+  const rolesResult = Role.useList(listOptions);
+  const clusterRolesResult = ClusterRole.useList(listOptions);
+
+  const { items: serviceAccounts, errors: saErrors } = serviceAccountsResult;
+  const { items: roleBindings, errors: rbErrors } = roleBindingsResult;
+  const { items: clusterRoleBindings, errors: crbErrors } = clusterRoleBindingsResult;
+  const { items: roles, errors: roleErrors } = rolesResult;
+  const { items: clusterRoles, errors: crErrors } = clusterRolesResult;
 
   const isLoading =
-    serviceAccounts === null ||
-    roleBindings === null ||
-    clusterRoleBindings === null ||
-    roles === null ||
-    clusterRoles === null;
+    isListLoading(serviceAccountsResult) ||
+    isListLoading(roleBindingsResult) ||
+    isListLoading(clusterRoleBindingsResult) ||
+    isListLoading(rolesResult) ||
+    isListLoading(clusterRolesResult);
 
   const errors = useMemo(() => {
     return [

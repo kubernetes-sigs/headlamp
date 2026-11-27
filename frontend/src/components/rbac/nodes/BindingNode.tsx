@@ -22,9 +22,8 @@ import Typography from '@mui/material/Typography';
 import { Handle, Position } from '@xyflow/react';
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { generatePath } from 'react-router';
-import { Link as RouterLink } from 'react-router-dom';
-import { getCluster, getClusterPrefixedPath } from '../../../lib/cluster';
+import { getCluster } from '../../../lib/cluster';
+import Link from '../../common/Link';
 import { BindingNodeData } from '../types';
 
 export const BindingNode = memo(({ data }: { data: BindingNodeData }) => {
@@ -39,22 +38,7 @@ export const BindingNode = memo(({ data }: { data: BindingNodeData }) => {
   const { t } = useTranslation('glossary');
 
   const currentCluster = getCluster();
-  const cluster = (nodeCluster as string | undefined) || currentCluster;
-  let routeURL = '';
-  try {
-    const rawPath = isClusterRoleBinding
-      ? '/clusterrolebinding/:name'
-      : '/rolebinding/:namespace/:name';
-    routeURL = cluster
-      ? generatePath(getClusterPrefixedPath(rawPath), {
-          cluster,
-          namespace: namespace || '',
-          name,
-        })
-      : generatePath(rawPath, { namespace: namespace || '', name });
-  } catch {
-    routeURL = '';
-  }
+  const cluster = (nodeCluster as string | undefined) || currentCluster || undefined;
 
   return (
     <Paper
@@ -101,16 +85,20 @@ export const BindingNode = memo(({ data }: { data: BindingNodeData }) => {
             fontWeight={700}
             noWrap
             title={name}
-            component={routeURL ? RouterLink : 'span'}
-            to={routeURL || undefined}
-            sx={{
-              display: 'block',
-              textDecoration: 'none',
-              color: 'inherit',
-              ...(routeURL ? { '&:hover': { textDecoration: 'underline' } } : {}),
-            }}
+            sx={{ color: 'inherit' }}
           >
-            {name}
+            <Link
+              routeName={isClusterRoleBinding ? 'clusterRoleBinding' : 'roleBinding'}
+              params={isClusterRoleBinding ? { name } : { namespace: namespace || '', name }}
+              activeCluster={cluster}
+              sx={{
+                color: 'inherit',
+                textDecoration: 'none',
+                '&:hover': { textDecoration: 'underline' },
+              }}
+            >
+              {name}
+            </Link>
           </Typography>
         </Box>
       </Box>

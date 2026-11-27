@@ -16,9 +16,8 @@
 
 import '../../lib/router';
 import { ThemeProvider } from '@mui/material/styles';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
-import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import ClusterRole from '../../lib/k8s/clusterRole';
 import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
@@ -26,19 +25,27 @@ import Role from '../../lib/k8s/role';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import ServiceAccount from '../../lib/k8s/serviceAccount';
 import { createMuiTheme } from '../../lib/themes';
+import { TestContext } from '../../test';
 import BindingNode from './nodes/BindingNode';
 import RoleNode from './nodes/RoleNode';
 import RuleNode from './nodes/RuleNode';
 import RbacVisualizer from './RbacVisualizer';
 import { buildRbacGraph, isSubjectMatch } from './useRbacGraphData';
 
+let providerMountCount = 0;
+
 // Mock ReactFlow since it requires DOM measurement
 vi.mock('@xyflow/react', async () => {
   const actual = await vi.importActual('@xyflow/react');
+  const ReactModule = await import('react');
   return {
     ...actual,
-    ReactFlow: ({ nodes, edges }: any) => (
-      <div data-testid="mock-react-flow">
+    ReactFlow: ({ nodes, edges, nodesDraggable, nodesConnectable, children }: any) => (
+      <div
+        data-testid="mock-react-flow"
+        data-nodes-draggable={String(nodesDraggable)}
+        data-nodes-connectable={String(nodesConnectable)}
+      >
         <div data-testid="nodes-count">{nodes.length}</div>
         <div data-testid="edges-count">{edges.length}</div>
         {nodes.map((n: any) => (
@@ -46,11 +53,17 @@ vi.mock('@xyflow/react', async () => {
             {n.data?.name || n.data?.subject?.name || n.id}
           </div>
         ))}
+        {children}
       </div>
     ),
-    ReactFlowProvider: ({ children }: any) => <div>{children}</div>,
+    ReactFlowProvider: ({ children }: any) => {
+      const [mountId] = ReactModule.useState(() => ++providerMountCount);
+      return <div data-testid={`react-flow-provider-${mountId}`}>{children}</div>;
+    },
     Handle: () => <div data-testid="mock-handle" />,
-    Controls: () => <div data-testid="mock-controls" />,
+    Controls: ({ showInteractive }: any) => (
+      <div data-testid="mock-controls" data-show-interactive={String(showInteractive)} />
+    ),
     Background: () => <div data-testid="mock-background" />,
   };
 });
@@ -59,11 +72,11 @@ const theme = createMuiTheme({ name: 'light', base: 'light' });
 
 function renderComponent() {
   return render(
-    <ThemeProvider theme={theme}>
-      <MemoryRouter>
+    <TestContext>
+      <ThemeProvider theme={theme}>
         <RbacVisualizer />
-      </MemoryRouter>
-    </ThemeProvider>
+      </ThemeProvider>
+    </TestContext>
   );
 }
 
@@ -470,10 +483,152 @@ describe('RbacVisualizer logic', () => {
     expect(populatedRoleNode!.position.y).toBeGreaterThanOrEqual(emptyRoleBottom);
     expect(ruleNode.position.y).toBeGreaterThanOrEqual(emptyRoleBottom);
   });
+
+  it('normalizes canonical service-account User targets so both representations resolve identical grants', () => {
+    const rbDirect: any = {
+      metadata: { name: 'rb-direct', namespace: 'production' },
+      jsonData: {
+        metadata: { name: 'rb-direct', namespace: 'production' },
+        roleRef: { kind: 'Role', name: 'app-deployer', apiGroup: 'rbac.authorization.k8s.io' },
+        subjects: [{ kind: 'ServiceAccount', name: 'deployer', namespace: 'production' }],
+      },
+      subjects: [{ kind: 'ServiceAccount', name: 'deployer', namespace: 'production' }],
+    };
+
+    const crbGroup: any = {
+      metadata: { name: 'crb-sa-group' },
+      jsonData: {
+        metadata: { name: 'crb-sa-group' },
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'prod-reader',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+        subjects: [{ kind: 'Group', name: 'system:serviceaccounts:production' }],
+      },
+      subjects: [{ kind: 'Group', name: 'system:serviceaccounts:production' }],
+    };
+
+    const roleDeployer: any = {
+      metadata: { name: 'app-deployer', namespace: 'production' },
+      jsonData: {
+        metadata: { name: 'app-deployer', namespace: 'production' },
+        rules: [{ apiGroups: ['apps'], resources: ['deployments'], verbs: ['update'] }],
+      },
+    };
+
+    const crReader: any = {
+      metadata: { name: 'prod-reader' },
+      jsonData: {
+        metadata: { name: 'prod-reader' },
+        rules: [{ apiGroups: [''], resources: ['pods'], verbs: ['get'] }],
+      },
+    };
+
+    const canonicalUserTarget = {
+      kind: 'User' as const,
+      name: 'system:serviceaccount:production:deployer',
+    };
+    const saTarget = {
+      kind: 'ServiceAccount' as const,
+      name: 'deployer',
+      namespace: 'production',
+    };
+
+    expect(
+      isSubjectMatch(
+        { kind: 'ServiceAccount', name: 'deployer' },
+        canonicalUserTarget,
+        'production'
+      )
+    ).toBe(true);
+    expect(
+      isSubjectMatch(
+        { kind: 'Group', name: 'system:serviceaccounts:production' },
+        canonicalUserTarget
+      )
+    ).toBe(true);
+
+    const userGraph = buildRbacGraph(
+      canonicalUserTarget,
+      [rbDirect],
+      [crbGroup],
+      [roleDeployer],
+      [crReader]
+    );
+    const saGraph = buildRbacGraph(saTarget, [rbDirect], [crbGroup], [roleDeployer], [crReader]);
+
+    expect(userGraph.stats).toEqual({ bindingsCount: 2, rolesCount: 2, rulesCount: 2 });
+    expect(userGraph.stats).toEqual(saGraph.stats);
+  });
+
+  it('excludes nonResourceURLs rules for ClusterRoles bound only via namespaced RoleBindings', () => {
+    const rbToClusterAdmin: any = {
+      metadata: { name: 'ns-admin-binding', namespace: 'team-a' },
+      jsonData: {
+        metadata: { name: 'ns-admin-binding', namespace: 'team-a' },
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'cluster-admin',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+        subjects: [{ kind: 'User', name: 'alice' }],
+      },
+      subjects: [{ kind: 'User', name: 'alice' }],
+    };
+
+    const crClusterAdmin: any = {
+      metadata: { name: 'cluster-admin' },
+      jsonData: {
+        metadata: { name: 'cluster-admin' },
+        rules: [
+          { apiGroups: ['*'], resources: ['*'], verbs: ['*'] },
+          { nonResourceURLs: ['*'], verbs: ['*'] },
+        ],
+      },
+    };
+
+    const nsOnly = buildRbacGraph(
+      { kind: 'User', name: 'alice' },
+      [rbToClusterAdmin],
+      [],
+      [],
+      [crClusterAdmin]
+    );
+
+    expect(nsOnly.stats.rulesCount).toBe(1);
+    const nsRuleNodes = nsOnly.nodes.filter(n => n.type === 'ruleNode');
+    expect(nsRuleNodes).toHaveLength(1);
+    expect(nsRuleNodes[0].data.nonResourceURLs).toBeUndefined();
+
+    const crbGlobal: any = {
+      metadata: { name: 'global-admin-binding' },
+      jsonData: {
+        metadata: { name: 'global-admin-binding' },
+        roleRef: {
+          kind: 'ClusterRole',
+          name: 'cluster-admin',
+          apiGroup: 'rbac.authorization.k8s.io',
+        },
+        subjects: [{ kind: 'User', name: 'alice' }],
+      },
+      subjects: [{ kind: 'User', name: 'alice' }],
+    };
+
+    const withClusterBinding = buildRbacGraph(
+      { kind: 'User', name: 'alice' },
+      [rbToClusterAdmin],
+      [crbGlobal],
+      [],
+      [crClusterAdmin]
+    );
+
+    expect(withClusterBinding.stats.rulesCount).toBe(2);
+  });
 });
 
 describe('Custom Node Components', () => {
-  it('renders RuleNode with nowheel class on scrollable container', () => {
+  it('renders RuleNode with nowheel scrolling Paper outside target Handle and accessible group role', () => {
     const { container } = render(
       <RuleNode
         data={{
@@ -485,11 +640,20 @@ describe('Custom Node Components', () => {
         }}
       />
     );
-    expect(container.querySelector('.nowheel')).toBeTruthy();
+    const scrollContainer = container.querySelector('.nowheel');
+    expect(scrollContainer).toBeTruthy();
+    const handle = screen.getByTestId('mock-handle');
+    // Handle must be outside the scrolling Paper container
+    expect(scrollContainer).not.toContainElement(handle);
+    // Uses non-landmark group role with distinguishable label
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
+    const group = screen.getByRole('group', { name: /app-reader #1/i });
+    expect(group).toBeInTheDocument();
   });
-  it('BindingNode and RoleNode render safely with colons in name without throwing', () => {
+
+  it('BindingNode and RoleNode render shared Links safely with colons and omit Cluster-wide chip on ClusterRole', () => {
     const { container: bindingContainer } = render(
-      <MemoryRouter>
+      <TestContext>
         <BindingNode
           data={{
             binding: {} as any,
@@ -500,12 +664,17 @@ describe('Custom Node Components', () => {
             cluster: 'test-cluster',
           }}
         />
-      </MemoryRouter>
+      </TestContext>
     );
     expect(bindingContainer.textContent).toContain('system:discovery');
+    const bindingLink = screen.getByRole('link', { name: 'system:discovery' });
+    expect(bindingLink).toHaveAttribute(
+      'href',
+      '/c/test-cluster/clusterrolebinding/system:discovery'
+    );
 
     const { container: roleContainer } = render(
-      <MemoryRouter>
+      <TestContext>
         <RoleNode
           data={{
             isClusterRole: true,
@@ -514,9 +683,12 @@ describe('Custom Node Components', () => {
             cluster: 'test-cluster',
           }}
         />
-      </MemoryRouter>
+      </TestContext>
     );
     expect(roleContainer.textContent).toContain('system:discovery');
+    expect(within(roleContainer).queryByText('Cluster-wide')).not.toBeInTheDocument();
+    const roleLink = within(roleContainer).getByRole('link', { name: 'system:discovery' });
+    expect(roleLink).toHaveAttribute('href', '/c/test-cluster/clusterroles/system:discovery');
   });
 });
 
@@ -564,9 +736,68 @@ describe('RbacVisualizer component', () => {
     expect(screen.getByText('No RoleBindings Found')).toBeInTheDocument();
   });
 
-  it('renders graph with nodes when matching role bindings exist', () => {
-    const mockSA = {
-      metadata: { name: 'admin-sa', namespace: 'kube-system' },
+  it('shows failed-results state instead of No RoleBindings Found when binding lookup errors', () => {
+    vi.spyOn(ServiceAccount, 'useList').mockReturnValue({
+      items: [{ metadata: { name: 'isolated-sa', namespace: 'test-ns' } } as any],
+      errors: null,
+    } as any);
+    vi.spyOn(RoleBinding, 'useList').mockReturnValue({
+      items: [],
+      errors: [new Error('Forbidden')],
+    } as any);
+    vi.spyOn(ClusterRoleBinding, 'useList').mockReturnValue({ items: [], errors: null } as any);
+    vi.spyOn(Role, 'useList').mockReturnValue({ items: [], errors: null } as any);
+    vi.spyOn(ClusterRole, 'useList').mockReturnValue({ items: [], errors: null } as any);
+
+    renderComponent();
+
+    fireEvent.click(screen.getByText('isolated-sa (test-ns)'));
+
+    expect(screen.getByText('Failed to load resources')).toBeInTheDocument();
+    expect(screen.queryByText('No RoleBindings Found')).not.toBeInTheDocument();
+  });
+
+  it('waits for all per-cluster namespace requests before treating partial results as loaded', () => {
+    vi.spyOn(ServiceAccount, 'useList').mockReturnValue({
+      items: [{ metadata: { name: 'sa-a', namespace: 'ns-a' } } as any],
+      errors: null,
+      clusterResults: {
+        default: { isLoading: false, status: 'success' },
+      },
+    } as any);
+    vi.spyOn(RoleBinding, 'useList').mockReturnValue({
+      items: [],
+      errors: null,
+      isLoading: false,
+      clusterResults: {
+        default: { isLoading: true, status: 'pending' },
+      },
+    } as any);
+    vi.spyOn(ClusterRoleBinding, 'useList').mockReturnValue({ items: [], errors: null } as any);
+    vi.spyOn(Role, 'useList').mockReturnValue({ items: [], errors: null } as any);
+    vi.spyOn(ClusterRole, 'useList').mockReturnValue({ items: [], errors: null } as any);
+
+    renderComponent();
+
+    expect(
+      screen.getByRole('progressbar', { name: 'Loading RBAC resources...' })
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Select a Subject to Visualize Permissions')).not.toBeInTheDocument();
+  });
+
+  it('renders graph with read-only controls and remounts provider when subject or namespace changes', () => {
+    providerMountCount = 0;
+    const mockSA1 = { metadata: { name: 'admin-sa', namespace: 'kube-system' } } as any;
+    const mockSA2 = { metadata: { name: 'dev-sa', namespace: 'dev' } } as any;
+
+    const mockRB = {
+      metadata: { name: 'dev-binding', namespace: 'dev' },
+      jsonData: {
+        metadata: { name: 'dev-binding', namespace: 'dev' },
+        roleRef: { kind: 'Role', name: 'dev-role', apiGroup: 'rbac.authorization.k8s.io' },
+        subjects: [{ kind: 'ServiceAccount', name: 'dev-sa', namespace: 'dev' }],
+      },
+      subjects: [{ kind: 'ServiceAccount', name: 'dev-sa', namespace: 'dev' }],
     } as any;
 
     const mockCRB = {
@@ -597,8 +828,11 @@ describe('RbacVisualizer component', () => {
       },
     } as any;
 
-    vi.spyOn(ServiceAccount, 'useList').mockReturnValue({ items: [mockSA], errors: null } as any);
-    vi.spyOn(RoleBinding, 'useList').mockReturnValue({ items: [], errors: null } as any);
+    vi.spyOn(ServiceAccount, 'useList').mockReturnValue({
+      items: [mockSA1, mockSA2],
+      errors: null,
+    } as any);
+    vi.spyOn(RoleBinding, 'useList').mockReturnValue({ items: [mockRB], errors: null } as any);
     vi.spyOn(ClusterRoleBinding, 'useList').mockReturnValue({
       items: [mockCRB],
       errors: null,
@@ -610,9 +844,19 @@ describe('RbacVisualizer component', () => {
 
     fireEvent.click(screen.getByText('admin-sa (kube-system)'));
 
-    expect(screen.getByTestId('mock-react-flow')).toBeInTheDocument();
+    const flow = screen.getByTestId('mock-react-flow');
+    expect(flow).toBeInTheDocument();
+    expect(flow).toHaveAttribute('data-nodes-draggable', 'false');
+    expect(flow).toHaveAttribute('data-nodes-connectable', 'false');
+    expect(screen.getByTestId('mock-controls')).toHaveAttribute('data-show-interactive', 'false');
+    expect(screen.getByTestId('react-flow-provider-1')).toBeInTheDocument();
     expect(screen.getByText('1 Bindings')).toBeInTheDocument();
     expect(screen.getByText('1 Roles')).toBeInTheDocument();
     expect(screen.getByText('1 Rules')).toBeInTheDocument();
+
+    // Change namespace filter -> provider remounts so fitView refits viewport
+    fireEvent.mouseDown(screen.getByLabelText('Namespace Filter'));
+    fireEvent.click(screen.getByRole('option', { name: 'dev' }));
+    expect(screen.getByTestId('react-flow-provider-2')).toBeInTheDocument();
   });
 });

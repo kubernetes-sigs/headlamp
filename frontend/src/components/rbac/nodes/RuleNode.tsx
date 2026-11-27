@@ -45,7 +45,7 @@ function getVerbColor(verb: string): 'default' | 'primary' | 'warning' | 'error'
 }
 
 export const RuleNode = memo(({ data }: { data: RuleNodeData }) => {
-  const { apiGroups, resources, verbs, resourceNames, nonResourceURLs } = data;
+  const { apiGroups, resources, verbs, resourceNames, nonResourceURLs, roleName, ruleIndex } = data;
   const { t } = useTranslation();
 
   const renderedApiGroups =
@@ -54,24 +54,7 @@ export const RuleNode = memo(({ data }: { data: RuleNodeData }) => {
       : 'core';
 
   return (
-    <Paper
-      className="nowheel"
-      elevation={2}
-      tabIndex={0}
-      role="region"
-      aria-label={t('Rule details')}
-      sx={theme => ({
-        padding: '10px 14px',
-        minWidth: 260,
-        maxWidth: 320,
-        maxHeight: 150,
-        overflowY: 'auto',
-        borderRadius: '10px',
-        border: `1px solid ${theme.palette.divider}`,
-        backgroundColor: theme.palette.background.paper,
-        position: 'relative',
-      })}
-    >
+    <Box sx={{ position: 'relative' }}>
       <Handle
         type="target"
         position={Position.Left}
@@ -82,75 +65,92 @@ export const RuleNode = memo(({ data }: { data: RuleNodeData }) => {
           border: '2px solid #fff',
         }}
       />
-
-      <Box mb={0.75}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: 'block', fontWeight: 600, fontSize: '0.7rem' }}
-        >
-          {t('API Group')}: {renderedApiGroups}
-        </Typography>
-
-        {resources && resources.length > 0 ? (
-          <Box display="flex" flexWrap="wrap" gap={0.5} my={0.5}>
-            {resources.map((res, i) => (
-              <Chip
-                key={`${res}-${i}`}
-                label={res}
-                size="small"
-                variant="outlined"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: '0.75rem',
-                  height: 22,
-                  borderColor: 'primary.main',
-                }}
-              />
-            ))}
-          </Box>
-        ) : nonResourceURLs && nonResourceURLs.length > 0 ? (
-          <Box display="flex" flexWrap="wrap" gap={0.5} my={0.5}>
-            {nonResourceURLs.map((url, i) => (
-              <Chip
-                key={`${url}-${i}`}
-                label={url}
-                size="small"
-                variant="outlined"
-                sx={{ fontSize: '0.75rem', height: 22 }}
-              />
-            ))}
-          </Box>
-        ) : null}
-
-        {resourceNames && resourceNames.length > 0 && (
+      <Paper
+        className="nowheel"
+        elevation={2}
+        tabIndex={0}
+        role="group"
+        aria-label={`${t('Rule details')}: ${roleName} #${ruleIndex + 1}`}
+        sx={theme => ({
+          padding: '10px 14px',
+          minWidth: 260,
+          maxWidth: 320,
+          maxHeight: 150,
+          overflowY: 'auto',
+          borderRadius: '10px',
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
+        })}
+      >
+        <Box mb={0.75}>
           <Typography
             variant="caption"
             color="text.secondary"
-            sx={{ display: 'block', fontStyle: 'italic', fontSize: '0.7rem' }}
+            sx={{ display: 'block', fontWeight: 600, fontSize: '0.7rem' }}
           >
-            {t('Resource names')}: {resourceNames.join(', ')}
+            {t('API Group')}: {renderedApiGroups}
           </Typography>
-        )}
-      </Box>
 
-      <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
-        {verbs &&
-          verbs.map((v, i) => (
-            <Chip
-              key={`${v}-${i}`}
-              label={v}
-              size="small"
-              color={getVerbColor(v)}
-              sx={{
-                fontWeight: 700,
-                fontSize: '0.7rem',
-                height: 20,
-              }}
-            />
-          ))}
-      </Box>
-    </Paper>
+          {resources && resources.length > 0 ? (
+            <Box display="flex" flexWrap="wrap" gap={0.5} my={0.5}>
+              {resources.map((res, i) => (
+                <Chip
+                  key={`${res}-${i}`}
+                  label={res}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    height: 22,
+                    borderColor: 'primary.main',
+                  }}
+                />
+              ))}
+            </Box>
+          ) : nonResourceURLs && nonResourceURLs.length > 0 ? (
+            <Box display="flex" flexWrap="wrap" gap={0.5} my={0.5}>
+              {nonResourceURLs.map((url, i) => (
+                <Chip
+                  key={`${url}-${i}`}
+                  label={url}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: '0.75rem', height: 22 }}
+                />
+              ))}
+            </Box>
+          ) : null}
+
+          {resourceNames && resourceNames.length > 0 && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: 'block', fontStyle: 'italic', fontSize: '0.7rem' }}
+            >
+              {t('Resource names')}: {resourceNames.join(', ')}
+            </Typography>
+          )}
+        </Box>
+
+        <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
+          {verbs &&
+            verbs.map((v, i) => (
+              <Chip
+                key={`${v}-${i}`}
+                label={v}
+                size="small"
+                color={getVerbColor(v)}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.7rem',
+                  height: 20,
+                }}
+              />
+            ))}
+        </Box>
+      </Paper>
+    </Box>
   );
 });
 
