@@ -256,6 +256,11 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         label: t('glossary|Map'),
       },
       {
+        name: 'views',
+        icon: 'mdi:view-dashboard-outline',
+        label: t('translation|Views'),
+      },
+      {
         name: 'workloads',
         label: t('glossary|Workloads'),
         icon: 'mdi:circle-slice-2',

@@ -43,6 +43,7 @@ export type AppBarAction = {
 
 export enum DefaultHeaderAction {
   RESTART = 'RESTART',
+  ADD_TO_VIEW = 'ADD_TO_VIEW',
   DELETE = 'DELETE',
   EDIT = 'EDIT',
   VIEW = 'VIEW',

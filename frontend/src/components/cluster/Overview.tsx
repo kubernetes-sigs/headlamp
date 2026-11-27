@@ -37,6 +37,8 @@ import ResourceListView from '../common/Resource/ResourceListView';
 import { SectionBox } from '../common/SectionBox';
 import ShowHideLabel from '../common/ShowHideLabel';
 import { LightTooltip } from '../common/Tooltip';
+import { AddToViewButton } from '../customViews/AddToViewButton';
+import { BUILTIN_WIDGET_TYPES } from '../customViews/builtinWidgetMetadata';
 import {
   CpuCircularChart,
   MemoryCircularChart,
@@ -102,7 +104,24 @@ export default function Overview() {
 
   return (
     <PageGrid>
-      <SectionBox title={t('translation|Overview')} py={2} mt={[4, 0, 0]}>
+      <SectionBox
+        title={t('translation|Overview')}
+        py={2}
+        mt={[4, 0, 0]}
+        headerProps={{
+          actions: [
+            <AddToViewButton
+              key="add-overview-metrics-to-view"
+              preset={{
+                type: BUILTIN_WIDGET_TYPES.CLUSTER_METRICS,
+                title: t('translation|Cluster Metrics'),
+                colSpan: 6,
+                config: { metric: 'all' },
+              }}
+            />,
+          ],
+        }}
+      >
         {noPermissions ? (
           <ClusterGroupErrorMessage errors={[metricsError]} />
         ) : (
