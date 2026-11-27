@@ -27,6 +27,7 @@ allowed-tools:
   - Bash(npm run lint-fix)
   - Bash(npm run build)
   - Bash(npm run i18n)
+  - Bash(npm run i18n -- en)
   - Bash(npm run package)
   - Bash(curl -s http://localhost:9222/json)
   - Write(src/**)
@@ -120,7 +121,7 @@ Wire everything from a thin `src/index.tsx`. Update `PLAN.md`'s **Status** as ea
 ## Phase 3 — Live-test (non-skippable)
 
 Run **`run-and-verify`**: `npm start`, then via the chrome-devtools MCP confirm the plugin loads
-(no `Plugin execution error`), every contribution renders, **i18n resolves (keys present in the built locale bundle)** and
+(no `Plugin execution error`), every contribution renders, **i18n resolves (`headlamp.i18n` lists `en` and the built locale bundle has the keys)** and
 the **a11y tree** gives every control a name/role. Gate-green ≠ loads (see AGENTS.md). Fix and
 reload until clean.
 

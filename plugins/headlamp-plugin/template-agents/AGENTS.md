@@ -21,7 +21,7 @@ skill name in backticks (e.g. `define-resource`) refers to one of these skills.
 - `npm start` — watch + rebuild, copying the build into Headlamp's **plugins** dir; the desktop app hot-reloads. Primary dev loop.
 - `npm run tsc` — type-check (gate). `npm run lint` / `lint-fix` — eslint, the **a11y gate** (`jsx-a11y/recommended`).
 - `npm run build` — production build → `dist/main.js`. `npm run test` — vitest.
-- `npm run i18n` — extract `t(...)` keys into `locales/<lang>/translation.json`. `npm run package` — `.tar.gz` tarball.
+- `npm run i18n -- en` — first run: add `en` to `headlamp.i18n` in `package.json` (Headlamp only loads the catalogs listed there) and extract. After that `npm run i18n` re-extracts `t(...)` keys into `locales/<lang>/translation.json`. `npm run package` — `.tar.gz` tarball.
 
 Don't reference scripts that aren't in `package.json`; fall back to `npx @kinvolk/headlamp-plugin <cmd>`.
 
@@ -73,8 +73,8 @@ permission rules and forces needless approval prompts.
   status/empty/error messages, buttons, dialogs, settings) in `t(...)` — `const { t } =
   useTranslation();` from `@kinvolk/headlamp-plugin/lib`. Short column/field labels (`Name`, `Type`,
   `Age`) may stay plain English. `useTranslation` is a hook — labels passed at module scope
-  (sidebar/route names) stay plain English. Run `npm run i18n` and check `locales/en/translation.json`
-  has your keys (a missing or empty translation silently falls back to the key, so it never looks
+  (sidebar/route names) stay plain English. Run `npm run i18n` (`npm run i18n -- en` the first time)
+  and check that `headlamp.i18n` lists `en` and `locales/en/translation.json` has your keys (a missing or empty translation silently falls back to the key, so it never looks
   blank). For a11y: keep `npm run lint` clean, give icon-only controls an accessible name, never
   encode meaning in color/glyph alone.
 
@@ -93,7 +93,8 @@ A plugin is "working" only after, in order:
    - (a) `list_console_messages` shows **no `Plugin execution error in <name>`** and no plugin errors;
    - (b) `take_snapshot` confirms the plugin's actual contribution is in the DOM/a11y tree (sidebar
      entry / route renders / widget shows) — not just "the app loaded";
-   - (c) **i18n resolves** — the built bundle `dist/locales/en/translation.json` contains your keys (a
+   - (c) **i18n resolves** — `headlamp.i18n` in `package.json` lists `en` and the built bundle
+     `dist/locales/en/translation.json` contains your keys (a
      missing translation falls back to the English key, so the UI alone can't show a broken bundle);
    - (d) the a11y tree gives every interactive control a name/role.
 

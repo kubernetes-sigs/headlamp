@@ -61,9 +61,11 @@ Electron won't initialize from a headless background shell. Ask the user to star
      content / widget) — "the app rendered" ≠ "the plugin loaded".
    - **i18n resolves** — custom labels show real text. A missing translation is **not** blank: plugin
      i18n falls back to the key, and keys are the English text, so in English a broken bundle looks
-     fine. Check the bundle instead: after `npm run i18n` + `npm run build`,
-     `dist/locales/en/translation.json` exists and contains your keys with non-empty values. (`t` is
-     not a page global — don't try to call it via `evaluate_script`.)
+     fine. Check the bundle instead. On a fresh scaffold run `npm run i18n -- en` once: a bare
+     `npm run i18n` writes the catalog but leaves `headlamp.i18n` in `package.json` empty, and
+     Headlamp only loads catalogs listed there. Then check both: `headlamp.i18n` includes `en`, and
+     after `npm run build` `dist/locales/en/translation.json` contains your keys with non-empty
+     values. (`t` is not a page global — don't try to call it via `evaluate_script`.)
    - **a11y** — every interactive control in the snapshot has a name/role.
    - `take_screenshot` for visual confirmation; `evaluate_script` for specific state.
 
