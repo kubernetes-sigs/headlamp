@@ -21,16 +21,19 @@ import { LabelListItem } from '../common';
 import { StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 
-function renderEndpoints(endpointSlice: EndpointSlice) {
+export function renderEndpoints(endpointSlice: EndpointSlice) {
   const endpoints = endpointSlice.spec.endpoints;
   if (!endpoints) {
     return null;
   }
 
-  return endpoints.map((endpoint: any) => {
+  return endpoints.map((endpoint: any, index: number) => {
     const { addresses, conditions } = endpoint;
     return (
-      <Box display="inline-block">
+      <Box
+        display="inline-block"
+        key={`${endpoint.targetRef?.uid ?? addresses.join(',')}-${index}`}
+      >
         <StatusLabel status={conditions?.ready !== false ? 'success' : 'error'}>
           {addresses.join(',')}
         </StatusLabel>
