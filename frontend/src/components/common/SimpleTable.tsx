@@ -124,32 +124,28 @@ function ColumnSortButtons(props: ColumnSortButtonProps) {
   );
 }
 
-// Use a zero-indexed "useURLState" hook, so pages are shown in the URL as 1-indexed
-// but internally are 0-indexed.
+// Converts between the 1-indexed page stored in the URL and the 0-indexed page
+// index used by SimpleTable pagination.
 function usePageURLState(
   key: string,
   prefix: string,
   initialPage: number
-): ReturnType<typeof useURLState> {
-  const [page, setPage] = useURLState(key, { defaultValue: initialPage + 1, prefix });
-  const [zeroIndexPage, setZeroIndexPage] = React.useState(page - 1);
+): [number, React.Dispatch<React.SetStateAction<number>>] {
+  const [urlPage, setUrlPage] = useURLState(key, { defaultValue: initialPage + 1, prefix });
+  const tablePageIndex = Math.max(0, urlPage - 1);
 
-  React.useEffect(() => {
-    setZeroIndexPage((zeroIndexPage: number) => {
-      if (page - 1 !== zeroIndexPage) {
-        return page - 1;
-      }
+  const setTablePageIndex = React.useCallback<React.Dispatch<React.SetStateAction<number>>>(
+    action => {
+      setUrlPage(prevUrlPage => {
+        const prevPageIndex = Math.max(0, prevUrlPage - 1);
+        const nextPageIndex = typeof action === 'function' ? action(prevPageIndex) : action;
+        return Math.max(1, nextPageIndex + 1);
+      });
+    },
+    [setUrlPage]
+  );
 
-      return zeroIndexPage;
-    });
-  }, [page]);
-
-  React.useEffect(() => {
-    setPage(zeroIndexPage + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zeroIndexPage]);
-
-  return [zeroIndexPage, setZeroIndexPage];
+  return [tablePageIndex, setTablePageIndex];
 }
 
 export default function SimpleTable(props: SimpleTableProps) {
