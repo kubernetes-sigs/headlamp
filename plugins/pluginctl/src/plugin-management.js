@@ -31,6 +31,7 @@ const tar = require('tar');
 const path = require('path');
 const crypto = require('crypto');
 const stream = require('stream');
+const { pipeline } = require('stream/promises');
 const semver = require('semver');
 const envPaths = require('env-paths');
 
@@ -493,22 +494,16 @@ async function downloadExtractPlugin(
   const archStream = new stream.PassThrough();
   archStream.end(archBuffer);
 
-  const extractStream = archStream.pipe(zlib.createGunzip()).pipe(
-    tar.extract({
-      cwd: tempFolder,
-      strip: 1,
-      sync: true,
-    })
-  );
-
-  await new Promise((resolve, reject) => {
-    extractStream.on('finish', () => {
-      resolve();
-    });
-    extractStream.on('error', err => {
-      reject(err);
-    });
-  });
+  try {
+    await pipeline(
+      archStream,
+      zlib.createGunzip(),
+      tar.extract({ cwd: tempFolder, strip: 1, sync: true })
+    );
+  } catch (error) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    throw error;
+  }
 
   if (signal && signal.aborted) {
     throw new Error('Download cancelled');
