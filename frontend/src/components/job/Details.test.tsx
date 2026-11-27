@@ -234,4 +234,25 @@ describe('JobDetails', () => {
     expect(suspendAction.action.type).toBe(JobSuspendButton);
     expect(suspendAction.action.props.item).toBe(suspendedJob);
   });
+
+  it('shows Active Deadline when activeDeadlineSeconds is 0 and hides it when undefined', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
+        <JobDetails />
+      </TestContext>
+    );
+
+    const extraInfoZero = mockDetailsGrid.mock.calls[0][0].extraInfo({
+      ...fakeJob,
+      spec: { ...fakeJob.spec, activeDeadlineSeconds: 0 },
+    });
+    const activeDeadlineZero = extraInfoZero.find((f: any) => f.name === 'Active Deadline');
+    expect(activeDeadlineZero).toMatchObject({ value: '0s', hide: false });
+
+    const extraInfoUndefined = mockDetailsGrid.mock.calls[0][0].extraInfo(fakeJob);
+    const activeDeadlineUndefined = extraInfoUndefined.find(
+      (f: any) => f.name === 'Active Deadline'
+    );
+    expect(activeDeadlineUndefined.hide).toBe(true);
+  });
 });
