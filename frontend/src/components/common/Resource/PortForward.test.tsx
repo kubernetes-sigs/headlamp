@@ -77,9 +77,51 @@ function makePod(): KubePod {
       uid: 'pod-1',
       creationTimestamp: '2025-01-01T00:00:00Z',
     },
-    status: { phase: 'Running', conditions: [], containerStatuses: [], startTime: '' },
+    status: {
+      phase: 'Running',
+      conditions: [{ type: 'Ready', status: 'True', lastProbeTime: null }],
+      containerStatuses: [],
+      startTime: '',
+    },
     spec: { containers: [], nodeName: 'node-1' },
   };
+}
+
+function makeServicePod(
+  name: string,
+  { phase = 'Running', ready = true, deleting = false } = {}
+): KubePod {
+  const pod = makePod();
+  return {
+    ...pod,
+    cluster: 'project-cluster',
+    metadata: {
+      ...pod.metadata,
+      name,
+      uid: name,
+      ...(deleting ? { deletionTimestamp: '2026-01-01T00:00:00Z' } : {}),
+    },
+    status: {
+      ...pod.status,
+      phase,
+      conditions: [{ type: 'Ready', status: ready ? 'True' : 'False', lastProbeTime: null }],
+    },
+  };
+}
+
+function renderServicePortForward(selector?: Record<string, string>) {
+  const service = {
+    kind: 'Service',
+    cluster: 'project-cluster',
+    metadata: { name: 'my-service', namespace: 'default' },
+    jsonData: { spec: { selector } },
+  };
+
+  return render(
+    <TestContext>
+      <PortForward containerPort={80} resource={service as any} />
+    </TestContext>
+  );
 }
 
 function renderPortForward() {
@@ -561,5 +603,90 @@ describe('PortForward stop handler', () => {
     );
     expect(screen.queryByLabelText(/Start port forward/i)).not.toBeInTheDocument();
     expect(mockListPortForward).not.toHaveBeenCalled();
+  });
+
+  it('does not offer a port forward for a service without a selector', async () => {
+    mockListPortForward.mockResolvedValue([]);
+    // Without a selector the pod query isn't filtered, so it returns unrelated pods.
+    mockUsePodList.mockReturnValue([[makeServicePod('unrelated-pod')], null]);
+
+    renderServicePortForward();
+
+    await act(async () => {});
+    expect(screen.queryByLabelText(/Start port forward/i)).not.toBeInTheDocument();
+    expect(mockListPortForward).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      'none of its pods are ready',
+      [
+        makeServicePod('pending-pod', { phase: 'Pending', ready: false }),
+        makeServicePod('unready-pod', { ready: false }),
+      ],
+    ],
+    ['it has no pods', []],
+  ])('disables starting a service port forward when %s', async (_, pods) => {
+    mockListPortForward.mockResolvedValue([]);
+    mockUsePodList.mockReturnValue([pods, null]);
+
+    renderServicePortForward({ app: 'my-service' });
+
+    expect(await screen.findByLabelText(/Start port forward/i)).toBeDisabled();
+  });
+
+  it.each([
+    ['no pod is ready', [makeServicePod('new-pod', { ready: false })]],
+    ['the service has no pods yet', []],
+  ])('keeps a reconnecting service port forward stoppable while %s', async (_, pods) => {
+    mockListPortForward.mockResolvedValue([
+      {
+        ...runningPortForward,
+        pod: 'old-pod',
+        service: 'my-service',
+        serviceNamespace: 'default',
+        cluster: 'project-cluster',
+        status: 'Reconnecting',
+      },
+    ]);
+    mockUsePodList.mockReturnValue([pods, null]);
+
+    renderServicePortForward({ app: 'my-service' });
+
+    expect(await screen.findByLabelText(/Stop port forward/i)).toBeInTheDocument();
+  });
+
+  it('forwards a service to its first ready pod', async () => {
+    mockListPortForward.mockResolvedValue([]);
+    mockStartPortForward.mockResolvedValue({ ...runningPortForward, pod: 'ready-pod' });
+    mockUsePodList.mockReturnValue([
+      [
+        makeServicePod('pending-pod', { phase: 'Pending', ready: false }),
+        makeServicePod('terminating-pod', { deleting: true }),
+        makeServicePod('ready-pod'),
+      ],
+      null,
+    ]);
+
+    renderServicePortForward({ app: 'my-service' });
+
+    await act(async () => {
+      fireEvent.click(await screen.findByLabelText(/Start port forward/i));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+    });
+
+    expect(mockStartPortForward).toHaveBeenCalledWith(
+      'project-cluster',
+      'default',
+      'ready-pod',
+      80,
+      'my-service',
+      'default',
+      undefined,
+      'localhost',
+      undefined
+    );
   });
 });
