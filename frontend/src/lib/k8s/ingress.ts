@@ -132,6 +132,7 @@ class Ingress extends KubeObject<KubeIngress> {
 
   // Normalized, cached rules.
   private cachedRules: IngressRule[] = [];
+  private cachedResourceVersion?: string;
 
   get spec(): KubeIngress['spec'] {
     return this.jsonData.spec;
@@ -150,7 +151,11 @@ class Ingress extends KubeObject<KubeIngress> {
   }
 
   getRules(): IngressRule[] {
-    if (this.cachedRules.length > 0) {
+    const currentResourceVersion = this.jsonData.metadata?.resourceVersion;
+    if (
+      currentResourceVersion !== undefined &&
+      this.cachedResourceVersion === currentResourceVersion
+    ) {
       return this.cachedRules;
     }
 
@@ -200,6 +205,7 @@ class Ingress extends KubeObject<KubeIngress> {
     });
 
     this.cachedRules = rules;
+    this.cachedResourceVersion = currentResourceVersion;
     return rules;
   }
 }
