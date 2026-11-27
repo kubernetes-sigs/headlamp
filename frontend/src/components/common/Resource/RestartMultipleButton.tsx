@@ -18,7 +18,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { clusterAction } from '../../../redux/clusterActionSlice';
+import { clusterAction, waitForAll } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
   HeadlampEventType,
@@ -58,7 +58,7 @@ export default function RestartMultipleButton(props: RestartMultipleButtonProps)
   const dispatchRestartEvent = useEventCallback(HeadlampEventType.RESTART_RESOURCES);
 
   async function restartResources() {
-    return Promise.all(
+    return waitForAll(
       items.map(item => {
         const patchData = {
           spec: {

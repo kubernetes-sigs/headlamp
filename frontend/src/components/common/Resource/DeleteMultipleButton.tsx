@@ -26,7 +26,11 @@ import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Namespace from '../../../lib/k8s/namespace';
 import Pod from '../../../lib/k8s/pod';
-import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
+import {
+  CallbackActionOptions,
+  clusterAction,
+  waitForAll,
+} from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
   HeadlampEventType,
@@ -113,7 +117,7 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
       dispatch(
         clusterAction(
           async () => {
-            await Promise.all(
+            await waitForAll(
               items.map(item => {
                 if (settingsObj.useEvict && item.kind === 'Pod') {
                   const pod = item as Pod;
