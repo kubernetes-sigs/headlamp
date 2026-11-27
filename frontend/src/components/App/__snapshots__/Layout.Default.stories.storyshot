@@ -211,6 +211,7 @@
                         class="css-3knmzx"
                       >
                         <a
+                          aria-expanded="false"
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                           href="/settings/general"
                           role="button"

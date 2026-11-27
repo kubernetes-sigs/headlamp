@@ -33,6 +33,7 @@ import {
   useSchedulingApisEnabled,
 } from '../../lib/k8s/schedulingApis';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import { getRoute } from '../../lib/router/getRoute';
 import { useTypedSelector } from '../../redux/hooks';
 import { selectEffectiveSettings } from '../../settings/useAdminSettings';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
@@ -69,6 +70,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
+  const customRoutes = useTypedSelector(state => state.routes?.routes);
   const { getLabel, sources } = useClusterPresentation();
   const shouldShowHomeItem =
     isElectron() || Object.keys(clusters).length !== 1 || hasConfiguredClusterSources(sources);
@@ -237,6 +239,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:hexagon-multiple-outline',
         subList: [
           {
+            name: 'cluster',
+            label: t('translation|Overview'),
+          },
+          {
             name: 'namespaces',
             label: t('glossary|Namespaces'),
           },
@@ -260,6 +266,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         label: t('glossary|Workloads'),
         icon: 'mdi:circle-slice-2',
         subList: [
+          {
+            name: 'workloads',
+            label: t('translation|Overview'),
+          },
           {
             name: 'Pods',
             label: t('glossary|Pods'),
@@ -559,6 +569,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     if (crdsSidebarEntries.length !== 0) {
       const sublist: SidebarItemProps[] = [
         {
+          name: 'crds',
+          label: t('translation|Definitions'),
+        },
+        {
           name: 'crs',
           label: t('translation|Instances'),
           divider: true,
@@ -581,6 +595,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:puzzle',
         subList: [
           {
+            name: 'crds',
+            label: t('translation|Definitions'),
+          },
+          {
             name: 'crs',
             label: t('translation|Instances'),
           },
@@ -600,8 +618,13 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     // Lookup map of every sidebar entry
     const entryLookup = new Map<string, SidebarItemProps>();
 
-    // Put all the entries in the map
-    forEachEntry(sidebarsList, item => entryLookup.set(item.name, item));
+    // Put all the entries in the map, preserving outer built-in groups when a same-named destination child exists
+    forEachEntry(sidebarsList, item => {
+      const existing = entryLookup.get(item.name);
+      if (!existing?.subList || item.subList) {
+        entryLookup.set(item.name, item);
+      }
+    });
     forEachEntry(customEntries, item => entryLookup.set(item.name, item));
 
     // Place all custom entries in the tree
@@ -626,6 +649,53 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
         sidebarEntry.subList?.push(item);
       }
+    });
+
+    const hasNamedRouteDestination = (entry: SidebarItemProps) => {
+      if (entry.isCR && !entry.name.startsWith('group-')) {
+        return true;
+      }
+      if (getRoute(entry.name)) {
+        return true;
+      }
+      const normalizedName = entry.name.toLowerCase();
+      return Object.entries(customRoutes ?? {}).some(
+        ([path, route]) =>
+          route.name?.toLowerCase() === normalizedName || path.toLowerCase() === normalizedName
+      );
+    };
+
+    // Ensure URL- and route-backed parent groups retain navigation via an Overview destination child
+    sidebarsList.forEach(sidebarEntry => {
+      forEachEntry(sidebarEntry.subList ?? [], item => {
+        if (item.entryType === 'subheader' || !item.subList || item.subList.length === 0) {
+          return;
+        }
+
+        const hasOwnUrl = Boolean(item.url);
+        const hasDestination = hasOwnUrl || hasNamedRouteDestination(item);
+        if (!hasDestination) {
+          return;
+        }
+
+        const hasDestinationChild = item.subList.some(
+          child =>
+            child.name === item.name ||
+            (hasOwnUrl &&
+              child.url === item.url &&
+              Boolean(child.useClusterURL) === Boolean(item.useClusterURL))
+        );
+
+        if (!hasDestinationChild) {
+          item.subList.unshift({
+            name: item.name,
+            label: t('translation|Overview'),
+            ...(item.url !== undefined ? { url: item.url } : {}),
+            ...(item.useClusterURL !== undefined ? { useClusterURL: item.useClusterURL } : {}),
+            ...(item.isCR ? { isCR: item.isCR } : {}),
+          });
+        }
+      });
     });
 
     const sidebars = Object.fromEntries(sidebarsList.map(item => [item.name, item.subList]));
@@ -675,6 +745,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     shouldShowHomeItem,
     customSidebarFilters,
     customHomeSidebarFilters,
+    customRoutes,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     Object.keys(clusters).join(','),
     // eslint-disable-next-line react-hooks/exhaustive-deps

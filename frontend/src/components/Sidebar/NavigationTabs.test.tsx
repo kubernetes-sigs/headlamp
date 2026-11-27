@@ -97,4 +97,93 @@ describe('NavigationTabs', () => {
     expect(netPoliciesTab).toBeInTheDocument();
     expect(netPoliciesTab).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('does not duplicate level 1 tab when root item has a child with matching name', async () => {
+    const { getRoute } = await import('../../lib/router');
+    vi.mocked(getRoute).mockImplementation(name =>
+      name === 'workloads' ? ({} as any) : undefined
+    );
+
+    const mockItems = [
+      {
+        name: 'workloads',
+        label: 'Workloads',
+        subList: [
+          {
+            name: 'workloads',
+            label: 'Overview',
+            hide: false,
+          },
+          {
+            name: 'Pods',
+            label: 'Pods',
+            hide: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(useSidebarItems).mockReturnValue(mockItems);
+
+    const store = mockStore('workloads');
+
+    render(
+      <TestContext store={store}>
+        <NavigationTabs />
+      </TestContext>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(2);
+    expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Pods' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Workloads' })).not.toBeInTheDocument();
+  });
+
+  it('selects Overview without duplicating custom parent tab when parent reuses its name on generated Overview leaf', async () => {
+    const { getRoute } = await import('../../lib/router');
+    vi.mocked(getRoute).mockImplementation(name =>
+      name === 'feedback2' ? ({} as any) : undefined
+    );
+
+    const mockItems = [
+      {
+        name: 'feedback2',
+        label: 'Diff Feedback',
+        url: '/feedback2',
+        subList: [
+          {
+            name: 'feedback2',
+            label: 'Overview',
+            url: '/feedback2',
+            hide: false,
+          },
+          {
+            name: 'feedback3',
+            label: 'More Feedback',
+            url: '/feedback3',
+            hide: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(useSidebarItems).mockReturnValue(mockItems);
+
+    const store = mockStore('feedback2');
+
+    render(
+      <TestContext store={store}>
+        <NavigationTabs />
+      </TestContext>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(2);
+    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    expect(overviewTab).toBeInTheDocument();
+    expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'More Feedback' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Diff Feedback' })).not.toBeInTheDocument();
+  });
 });

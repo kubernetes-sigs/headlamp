@@ -312,15 +312,30 @@ describe('useSidebarItems', () => {
         "name": "custom1",
         "subList": [
           {
+            "label": "Overview",
+            "name": "custom1",
+            "url": "/custom1",
+          },
+          {
             "label": "Custom 2",
             "name": "custom2",
             "parent": "custom1",
             "subList": [
               {
+                "label": "Overview",
+                "name": "custom2",
+                "url": "/custom2",
+              },
+              {
                 "label": "Custom 3",
                 "name": "custom3",
                 "parent": "custom2",
                 "subList": [
+                  {
+                    "label": "Overview",
+                    "name": "custom3",
+                    "url": "/custom3",
+                  },
                   {
                     "label": "outoforder",
                     "name": "outoforder",
@@ -462,5 +477,335 @@ describe('useSidebarItems', () => {
 
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
+  });
+
+  it('exposes Overview child in Cluster and Workloads subList and Definitions child in Custom Resources subList', () => {
+    const store = mockStore({}, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const cluster = result.current.find(it => it.name === 'cluster');
+    expect(cluster).toBeDefined();
+    expect(cluster?.subList?.[0]).toMatchObject({
+      name: 'cluster',
+      label: 'Overview',
+    });
+
+    const workloads = result.current.find(it => it.name === 'workloads');
+    expect(workloads).toBeDefined();
+    expect(workloads?.subList?.[0]).toMatchObject({
+      name: 'workloads',
+      label: 'Overview',
+    });
+
+    const crds = result.current.find(it => it.name === 'crds');
+    expect(crds).toBeDefined();
+    expect(crds?.subList?.[0]).toMatchObject({
+      name: 'crds',
+      label: 'Definitions',
+    });
+    expect(crds?.subList?.[1]).toMatchObject({
+      name: 'crs',
+      label: 'Instances',
+    });
+  });
+
+  it('attaches plugin entries directly to parent groups rather than same-named destination children', () => {
+    const customEntries = {
+      workloadPlugin: {
+        name: 'workloadPlugin',
+        label: 'Workload Plugin',
+        url: '/workload-plugin',
+        parent: 'workloads',
+      },
+      clusterPlugin: {
+        name: 'clusterPlugin',
+        label: 'Cluster Plugin',
+        url: '/cluster-plugin',
+        parent: 'cluster',
+      },
+      crdPlugin: {
+        name: 'crdPlugin',
+        label: 'CRD Plugin',
+        url: '/crd-plugin',
+        parent: 'crds',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    // Workloads: plugin attaches to workloads group, not inside Overview child
+    const workloads = result.current.find(it => it.name === 'workloads');
+    expect(workloads?.subList?.some(it => it.name === 'workloadPlugin')).toBe(true);
+    const workloadsOverview = workloads?.subList?.find(it => it.name === 'workloads');
+    expect(workloadsOverview?.subList).toBeUndefined();
+
+    // Cluster: plugin attaches to cluster group, not inside Overview child
+    const cluster = result.current.find(it => it.name === 'cluster');
+    expect(cluster?.subList?.some(it => it.name === 'clusterPlugin')).toBe(true);
+    const clusterOverview = cluster?.subList?.find(it => it.name === 'cluster');
+    expect(clusterOverview?.subList).toBeUndefined();
+
+    // CRDs (without CRD list): plugin attaches to crds group, not inside Definitions child
+    const crds = result.current.find(it => it.name === 'crds');
+    expect(crds?.subList?.some(it => it.name === 'crdPlugin')).toBe(true);
+    const crdsDefinitions = crds?.subList?.find(it => it.name === 'crds');
+    expect(crdsDefinitions?.subList).toBeUndefined();
+  });
+
+  it('attaches plugin entries to Custom Resources parent group when CRDs are populated', () => {
+    const mockCRDs: [CRD[], null] = [
+      [
+        new CRD({
+          apiVersion: 'apiextensions.k8s.io/v1',
+          kind: 'CustomResourceDefinition',
+          metadata: {
+            name: 'mycrds.example.com',
+            uid: 'phony-crd',
+            creationTimestamp: new Date().toISOString(),
+          },
+          spec: {
+            group: 'example.com',
+            names: {
+              kind: 'MyCRD',
+              plural: 'mycrds',
+              singular: 'mycrd',
+              listKind: 'MyCRDList',
+            },
+            scope: 'Namespaced',
+            versions: [],
+            version: 'v1',
+          },
+        } as any),
+      ],
+      null,
+    ];
+    vi.spyOn(CRD, 'useList').mockReturnValue(
+      Object.assign(mockCRDs, {
+        data: null,
+        dataUpdatedAt: 0,
+        items: mockCRDs[0],
+        error: null,
+        errors: null,
+        isError: false,
+        isLoading: false,
+        isFetching: false,
+        isSuccess: true,
+        status: 'success' as const,
+      })
+    );
+
+    const customEntries = {
+      crdPlugin: {
+        name: 'crdPlugin',
+        label: 'CRD Plugin',
+        url: '/crd-plugin',
+        parent: 'crds',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const crds = result.current.find(it => it.name === 'crds');
+    expect(crds?.subList?.some(it => it.name === 'crdPlugin')).toBe(true);
+    const crdsDefinitions = crds?.subList?.find(it => it.name === 'crds');
+    expect(crdsDefinitions?.subList).toBeUndefined();
+  });
+
+  it('generates an Overview destination child for URL-bearing plugin parents without one', () => {
+    const customEntries = {
+      feedback2: {
+        name: 'feedback2',
+        label: 'Diff Feedback',
+        url: '/feedback2',
+        useClusterURL: true,
+      },
+      feedback3: {
+        name: 'feedback3',
+        label: 'More Feedback',
+        url: '/feedback3',
+        parent: 'feedback2',
+      },
+      feedback4: {
+        name: 'feedback4',
+        label: 'Other Feedback',
+        url: '/feedback4',
+        parent: 'feedback2',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const parent = result.current.find(it => it.name === 'feedback2');
+    expect(parent).toBeDefined();
+    expect(parent?.subList).toHaveLength(3);
+    expect(parent?.subList?.[0]).toEqual({
+      name: 'feedback2',
+      label: 'Overview',
+      url: '/feedback2',
+      useClusterURL: true,
+    });
+    expect(parent?.subList?.[1].name).toBe('feedback3');
+    expect(parent?.subList?.[2].name).toBe('feedback4');
+  });
+
+  it('does not generate duplicate Overview child if a child already matches the parent URL and cluster setting', () => {
+    const customEntries = {
+      customGroup: {
+        name: 'customGroup',
+        label: 'Custom Group',
+        url: '/custom-group',
+      },
+      customGroupChild: {
+        name: 'customGroupChild',
+        label: 'Custom Group Landing',
+        url: '/custom-group',
+        parent: 'customGroup',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const parent = result.current.find(it => it.name === 'customGroup');
+    expect(parent).toBeDefined();
+    expect(parent?.subList).toHaveLength(1);
+    expect(parent?.subList?.[0].name).toBe('customGroupChild');
+  });
+
+  it('generates an Overview destination child when child URL matches parent URL but differs in useClusterURL', () => {
+    const customEntries = {
+      tools: {
+        name: 'tools',
+        label: 'Tools',
+        url: '/tools',
+        useClusterURL: true,
+      },
+      toolsGlobal: {
+        name: 'toolsGlobal',
+        label: 'Global Tools',
+        url: '/tools',
+        useClusterURL: false,
+        parent: 'tools',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const tools = result.current.find(it => it.name === 'tools');
+    expect(tools?.subList).toHaveLength(2);
+    expect(tools?.subList?.[0]).toEqual({
+      name: 'tools',
+      label: 'Overview',
+      url: '/tools',
+      useClusterURL: true,
+    });
+    expect(tools?.subList?.[1].name).toBe('toolsGlobal');
+  });
+
+  it('generates an Overview destination child for named-route built-in parents like namespaces', () => {
+    const customEntries = {
+      nsChild: {
+        name: 'nsChild',
+        label: 'NS Extension',
+        url: '/ns-extension',
+        parent: 'namespaces',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const clusterGroup = result.current.find(it => it.name === 'cluster');
+    const namespacesItem = clusterGroup?.subList?.find(it => it.name === 'namespaces');
+    expect(namespacesItem?.subList).toHaveLength(2);
+    expect(namespacesItem?.subList?.[0]).toEqual({
+      name: 'namespaces',
+      label: 'Overview',
+    });
+    expect(namespacesItem?.subList?.[1].name).toBe('nsChild');
+  });
+
+  it('restores custom parent precedence over built-in groups when attaching custom children', () => {
+    const customEntries = {
+      settings: {
+        name: 'settings',
+        label: 'Settings',
+        url: '/settings/general',
+        sidebar: DefaultSidebars.HOME,
+      },
+      settingsGeneral: {
+        name: 'settingsGeneral',
+        label: 'General',
+        url: '/settings/general',
+        parent: 'settings',
+        sidebar: DefaultSidebars.HOME,
+      },
+      plugins: {
+        name: 'plugins',
+        label: 'Plugins',
+        url: '/settings/plugins',
+        parent: 'settings',
+        sidebar: DefaultSidebars.HOME,
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+      wrapper: wrapper(store),
+    });
+
+    const customSettings = result.current.findLast(it => it.name === 'settings');
+    expect(customSettings?.subList?.map(it => it.name)).toEqual(['settingsGeneral', 'plugins']);
+  });
+
+  it('preserves last-entry precedence for built-in home leaf entries when attaching plugin children', () => {
+    const customEntries = {
+      homePlugin: {
+        name: 'homePlugin',
+        label: 'Home Plugin',
+        url: '/home-plugin',
+        parent: 'home',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result: inClusterResult } = renderHook(
+      () => useSidebarItems(DefaultSidebars.IN_CLUSTER),
+      {
+        wrapper: wrapper(store),
+      }
+    );
+    const { result: homeResult } = renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+      wrapper: wrapper(store),
+    });
+
+    const inClusterHome = inClusterResult.current.find(it => it.name === 'home');
+    expect(inClusterHome?.subList?.some(it => it.name === 'homePlugin')).toBe(true);
+    expect(inClusterHome?.subList?.[0]).toEqual({
+      name: 'home',
+      label: 'Overview',
+      url: '/',
+    });
+
+    const homeSidebarHome = homeResult.current.find(it => it.name === 'home');
+    expect(homeSidebarHome?.subList).toBeUndefined();
   });
 });
