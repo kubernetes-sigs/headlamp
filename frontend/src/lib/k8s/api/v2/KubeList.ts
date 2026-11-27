@@ -31,8 +31,24 @@ export interface KubeList<T extends KubeObjectInterface> {
 }
 
 export interface KubeListUpdateEvent<T extends KubeObjectInterface> {
-  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
+  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'BOOKMARK' | 'ERROR';
   object: T;
+}
+
+function isStaleOrEqualResourceVersion(
+  currentResourceVersion: string | undefined,
+  updateResourceVersion: string | undefined
+): boolean {
+  if (!currentResourceVersion || !updateResourceVersion) {
+    return false;
+  }
+
+  const parsedCurrent = parseInt(currentResourceVersion, 10);
+  const parsedUpdate = parseInt(updateResourceVersion, 10);
+
+  return (
+    !Number.isNaN(parsedCurrent) && !Number.isNaN(parsedUpdate) && parsedUpdate <= parsedCurrent
+  );
 }
 
 export const KubeList = {
@@ -53,17 +69,34 @@ export const KubeList = {
     itemClass: ObjectClass,
     cluster: string
   ): KubeList<KubeObject<ObjectInterface>> {
+    const updateResourceVersion = update.object?.metadata?.resourceVersion;
+
     // Skip if the update's resource version is older than or equal to what we have
-    if (
-      list.metadata.resourceVersion &&
-      update.object.metadata.resourceVersion &&
-      parseInt(update.object.metadata.resourceVersion) <= parseInt(list.metadata.resourceVersion)
-    ) {
+    if (isStaleOrEqualResourceVersion(list.metadata.resourceVersion, updateResourceVersion)) {
       return list;
     }
 
+    if (update.type === 'ERROR') {
+      console.error('Error in update', update);
+      return list;
+    }
+
+    if (update.type === 'BOOKMARK') {
+      if (!updateResourceVersion) {
+        return list;
+      }
+
+      return {
+        ...list,
+        metadata: {
+          ...list.metadata,
+          resourceVersion: updateResourceVersion,
+        },
+      };
+    }
+
     const newItems = [...list.items];
-    const index = newItems.findIndex(item => item.metadata.uid === update.object.metadata.uid);
+    const index = newItems.findIndex(item => item.metadata?.uid === update.object?.metadata?.uid);
 
     switch (update.type) {
       case 'ADDED':
@@ -79,18 +112,16 @@ export const KubeList = {
           newItems.splice(index, 1);
         }
         break;
-      case 'ERROR':
-        console.error('Error in update', update);
-        break;
       default:
         console.error('Unknown update type', update);
+        return list;
     }
 
     return {
       ...list,
       metadata: {
         ...list.metadata,
-        resourceVersion: update.object.metadata.resourceVersion!,
+        resourceVersion: updateResourceVersion ?? list.metadata.resourceVersion,
       },
       items: newItems,
     };
