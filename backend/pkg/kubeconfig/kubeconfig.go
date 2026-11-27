@@ -903,6 +903,10 @@ func (c *Context) buildProxy() (*httputil.ReverseProxy, error) {
 
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
+	if c.AuthInfo != nil && c.AuthInfo.AuthProvider != nil {
+		proxy.ErrorHandler = c.authProviderErrorHandler
+	}
+
 	if err := c.setupProxyTransport(proxy); err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldContext: c.Name}, err, "Failed to set up proxy transport")
 
@@ -910,6 +914,22 @@ func (c *Context) buildProxy() (*httputil.ReverseProxy, error) {
 	}
 
 	return proxy, nil
+}
+
+// oidcNoSessionMessage is returned by client-go's oidc auth-provider when it has no usable token.
+const oidcNoSessionMessage = "No valid id-token, and cannot refresh without refresh-token"
+
+// authProviderErrorHandler answers 401 instead of 502 when the oidc auth-provider has no
+// session, so the frontend can start the OIDC login.
+func (c *Context) authProviderErrorHandler(w http.ResponseWriter, _ *http.Request, err error) {
+	if err.Error() == oidcNoSessionMessage {
+		http.Error(w, "no session for this cluster, sign in first", http.StatusUnauthorized)
+
+		return
+	}
+
+	logger.Log(logger.LevelError, map[string]string{"context": c.Name}, err, "proxy error")
+	w.WriteHeader(http.StatusBadGateway)
 }
 
 // AuthType returns the authentication type for the context.
