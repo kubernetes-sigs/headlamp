@@ -49,6 +49,7 @@ vi.mock('@xterm/addon-fit', () => ({
     return {
       fit: vi.fn(),
       activate: vi.fn(),
+      dispose: vi.fn(),
     };
   }),
 }));
