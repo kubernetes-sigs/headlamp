@@ -15,7 +15,15 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRouteURL } from './createRouteURL';
+import { createRouteURL, setStore } from './createRouteURL';
+
+const { mockGetClusterPathParam } = vi.hoisted(() => ({
+  mockGetClusterPathParam: vi.fn<() => string | undefined>(),
+}));
+
+vi.mock('../cluster', () => ({
+  getClusterPathParam: () => mockGetClusterPathParam(),
+}));
 
 vi.mock('./getRoute', () => ({
   getRoute: vi.fn((name?: string) => {
@@ -24,6 +32,12 @@ vi.mock('./getRoute', () => ({
     }
     if (name === 'pluginSimpleRoute') {
       return { path: '/plugin', useClusterURL: false };
+    }
+    if (name === 'clusterRoute') {
+      return { path: '/c/:cluster/pods', useClusterURL: true };
+    }
+    if (name === 'settingsCluster') {
+      return { path: '/c/:cluster/settings', useClusterURL: true };
     }
     return undefined;
   }),
@@ -40,6 +54,8 @@ vi.mock('./getRouteUseClusterURL', () => ({
 describe('createRouteURL', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    mockGetClusterPathParam.mockReset();
+    setStore(undefined as any);
   });
 
   it('returns an empty string when no route name is provided', () => {
@@ -70,5 +86,45 @@ describe('createRouteURL', () => {
     const message = warnSpy.mock.calls[0][0] as string;
     expect(message).toContain('pluginParameterizedRoute');
     expect(message).toContain('/plugin/:namespace/:name');
+  });
+
+  it('uses getClusterPathParam when cluster param is omitted and returns "/" if missing', () => {
+    mockGetClusterPathParam.mockReturnValue(undefined);
+    expect(createRouteURL('clusterRoute')).toBe('/');
+
+    mockGetClusterPathParam.mockReturnValue('minikube');
+    expect(createRouteURL('clusterRoute')).toBe('/c/minikube/pods');
+  });
+
+  it('handles settingsCluster special-case redirect URL', () => {
+    expect(createRouteURL('settingsCluster', { cluster: 'prod' })).toBe('/settings/cluster?c=prod');
+  });
+
+  it('resolves routes from the configured store by name and by key with deprecation warning', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fakeStore = {
+      getState: () => ({
+        routes: {
+          routes: {
+            '/custom-path': {
+              path: '/custom/:id',
+              name: 'CustomName',
+              useClusterURL: false,
+            },
+          },
+        },
+      }),
+    };
+    setStore(fakeStore as any);
+
+    // Match by route.name (case-insensitive) without warning
+    expect(createRouteURL('customname', { id: '42' })).toBe('/custom/42');
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    // Match by store key/path with deprecation warning
+    expect(createRouteURL('/CUSTOM-PATH', { id: '99' })).toBe('/custom/99');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('was found by path instead of name')
+    );
   });
 });

@@ -15,6 +15,7 @@
  */
 
 import { render } from '@testing-library/react';
+import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 
@@ -31,7 +32,14 @@ vi.mock('../k8s', async importOriginal => ({
   useCluster: () => mockUseCluster(),
 }));
 
-import { getDefaultRoutes } from './index';
+import { setDefaultRoutes } from './getDefaultRoutes';
+import {
+  getDefaultRoutes,
+  getRoute,
+  getRoutePath,
+  getRouteUseClusterURL,
+  NotFoundRoute,
+} from './index';
 
 describe('lib/router/index', () => {
   describe('the registered default routes', () => {
@@ -107,6 +115,95 @@ describe('lib/router/index', () => {
 
       expect(mockHistoryReplace).toHaveBeenCalledWith('/settings/cluster?c=');
       expect(mockHistoryReplace).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('router helper functions', () => {
+    it('getRoute returns undefined for empty or unknown names and resolves case-insensitively', () => {
+      expect(getRoute()).toBeUndefined();
+      expect(getRoute('')).toBeUndefined();
+      expect(getRoute('nonexistent-route-name')).toBeUndefined();
+
+      const podsRoute = getRoute('PODS');
+      expect(podsRoute).toBeDefined();
+      expect(podsRoute?.path).toBe('/pods');
+    });
+
+    it('getRouteUseClusterURL handles explicit values, defaults, and deprecated noCluster', () => {
+      expect(getRouteUseClusterURL({ path: '/a', name: 'a', sidebar: null } as any)).toBe(true);
+      expect(
+        getRouteUseClusterURL({
+          path: '/a',
+          name: 'a',
+          sidebar: null,
+          useClusterURL: false,
+        } as any)
+      ).toBe(false);
+      expect(
+        getRouteUseClusterURL({
+          path: '/a',
+          name: 'a',
+          sidebar: null,
+          useClusterURL: true,
+        } as any)
+      ).toBe(true);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(
+        getRouteUseClusterURL({ path: '/a', name: 'a', sidebar: null, noCluster: false } as any)
+      ).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Route.noCluster is deprecated')
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('getRoutePath handles NotFoundRoute, non-cluster routes, and cluster-prefixed routes', () => {
+      expect(getRoutePath(NotFoundRoute as any)).toBe('*');
+      expect(
+        getRoutePath({ path: '/settings', name: 's', sidebar: null, useClusterURL: false } as any)
+      ).toBe('/settings');
+      expect(getRoutePath({ path: '/pods', name: 'p', sidebar: null } as any)).toBe(
+        '/c/:cluster/pods'
+      );
+    });
+
+    it('NotFoundRoute.component returns a valid React element', () => {
+      const element = NotFoundRoute.component();
+      expect(React.isValidElement(element)).toBe(true);
+    });
+
+    it('setDefaultRoutes clears previous keys and installs new routes', () => {
+      const originalRoutes = { ...getDefaultRoutes() };
+      try {
+        setDefaultRoutes({
+          customOnly: {
+            path: '/custom-only',
+            name: 'Custom Only',
+            sidebar: null,
+            component: () => <div />,
+          },
+        });
+        expect(Object.keys(getDefaultRoutes())).toEqual(['customOnly']);
+        expect(getRoute('pods')).toBeUndefined();
+        expect(getRoute('customOnly')?.path).toBe('/custom-only');
+      } finally {
+        setDefaultRoutes(originalRoutes);
+      }
+      expect(getRoute('pods')).toBeDefined();
+    });
+
+    it('default route component factories return valid React elements', () => {
+      const routes = getDefaultRoutes();
+      for (const [, route] of Object.entries(routes)) {
+        if (
+          typeof route.component === 'function' &&
+          route.component.name !== 'SettingsClusterRedirect'
+        ) {
+          const element = (route.component as () => React.ReactElement)();
+          expect(React.isValidElement(element)).toBe(true);
+        }
+      }
     });
   });
 });
