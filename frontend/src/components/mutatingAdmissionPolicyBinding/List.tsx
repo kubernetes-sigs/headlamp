@@ -30,13 +30,13 @@ export default function MutatingAdmissionPolicyBindingList() {
         {
           id: 'policyName',
           label: t('translation|Policy Name'),
-          getValue: item => item.spec.policyName,
+          getValue: item => item.spec?.policyName,
         },
         {
           id: 'paramRef',
           label: t('translation|Param Ref'),
           getValue: item => {
-            const { paramRef } = item.spec;
+            const paramRef = item.spec?.paramRef;
 
             if (!paramRef?.name) {
               return t('translation|N/A');
