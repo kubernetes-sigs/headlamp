@@ -159,7 +159,7 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
           {
             name: t('translation|Active Deadline'),
             value: `${item.spec.activeDeadlineSeconds}s`,
-            hide: !item.spec?.activeDeadlineSeconds,
+            hide: item.spec?.activeDeadlineSeconds === undefined,
           },
           {
             name: t('translation|TTL After Finished'),
