@@ -1927,6 +1927,154 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[3][0].connections.length).toBe(1);
     expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
   });
+
+  it('does not reopen the watch websocket when watch events update list resourceVersion', async () => {
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-1', '1')],
+            resourceVersion: '1',
+          })
+        ),
+    } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() =>
+      expect(
+        mockUseWebSockets.mock.calls.some(
+          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=1'
+        )
+      ).toBe(true)
+    );
+
+    const activeCall = mockUseWebSockets.mock.calls.find(
+      ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=1'
+    )![0];
+    const initialConnections = activeCall.connections;
+
+    act(() => {
+      initialConnections[0].onMessage({
+        type: 'ADDED',
+        object: makePod('pod-2', '2'),
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.result.current.items?.map(item => item.jsonData?.metadata?.name)).toContain(
+        'pod-2'
+      )
+    );
+
+    act(() => {
+      initialConnections[0].onMessage({
+        type: 'BOOKMARK',
+        object: { metadata: { resourceVersion: '3' } },
+      });
+    });
+
+    await waitFor(() =>
+      expect(initialConnections[0].getReconnectUrl?.()).toBe(
+        'api/v1/pods?watch=1&resourceVersion=3'
+      )
+    );
+
+    // Every render after the watch became active must keep the exact same connections reference
+    // and never build a watch URL with the updated resourceVersion.
+    const latestConnections = mockUseWebSockets.mock.calls.at(-1)?.[0].connections;
+    expect(latestConnections).toBe(initialConnections);
+    expect(latestConnections[0].url).toBe('api/v1/pods?watch=1&resourceVersion=1');
+  });
+
+  it('relists and watches from new resourceVersion on 410 Expired ERROR without multiplexer', async () => {
+    const queryClient = new QueryClient();
+    const relistDeferred = deferred<Response>();
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-1', '1')],
+              resourceVersion: '1',
+            })
+          ),
+      } as Response)
+      .mockReturnValueOnce(relistDeferred.promise);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+      }
+    );
+
+    await waitFor(() =>
+      expect(
+        mockUseWebSockets.mock.calls.some(
+          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=1'
+        )
+      ).toBe(true)
+    );
+
+    const activeConnection = mockUseWebSockets.mock.calls.find(
+      ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=1'
+    )![0].connections[0];
+
+    act(() => {
+      activeConnection.onMessage({
+        type: 'ERROR',
+        object: { kind: 'Status', metadata: {}, reason: 'Expired', code: 410 },
+      });
+    });
+
+    // Cached list keeps its resourceVersion (not set to undefined) and reconnect is paused while relisting.
+    const cachedBeforeRelist = queryClient.getQueryData<ListResponse<any>>([
+      'kubeObject',
+      'list',
+      'v1',
+      'pods',
+      'default',
+      '',
+      {},
+    ]);
+    expect(cachedBeforeRelist?.list.metadata.resourceVersion).toBe('1');
+    expect(activeConnection.shouldReconnect?.()).toBe(false);
+
+    await act(async () => {
+      relistDeferred.resolve({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-1', '10')],
+              resourceVersion: '10',
+            })
+          ),
+      } as Response);
+    });
+
+    await waitFor(() =>
+      expect(
+        mockUseWebSockets.mock.calls.some(
+          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=10'
+        )
+      ).toBe(true)
+    );
+  });
 });
 
 describe('useWatchKubeObjectLists (Multiplexer)', () => {

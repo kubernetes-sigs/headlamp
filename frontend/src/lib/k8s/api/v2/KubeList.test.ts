@@ -139,24 +139,45 @@ describe('KubeList.applyUpdate', () => {
     expect(updatedList.items).toHaveLength(0);
   });
 
-  it('should log an error on ERROR event', () => {
+  it('should log an error on ERROR event without clearing list resourceVersion', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
       type: 'ERROR',
       object: {
         apiVersion: 'v1',
-        kind: 'MockKubeObject',
-        metadata: { uid: '1', resourceVersion: '2' },
-      },
+        kind: 'Status',
+        metadata: {},
+      } as any,
     };
 
-    KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', updateEvent);
+    expect(updatedList).toBe(initialList);
+    expect(updatedList.metadata.resourceVersion).toBe('1');
     consoleErrorSpy.mockRestore();
   });
 
-  it('should log an error on unknown event type', () => {
+  it('should update resourceVersion on BOOKMARK event without copying items', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'BOOKMARK',
+      object: {
+        apiVersion: 'v1',
+        kind: 'MockKubeObject',
+        metadata: { resourceVersion: '5' },
+      },
+    };
+
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    expect(updatedList.metadata.resourceVersion).toBe('5');
+    expect(updatedList.items).toBe(initialList.items);
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should log an error on unknown event type without clearing resourceVersion', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
       type: 'UNKNOWN' as any,
@@ -167,9 +188,10 @@ describe('KubeList.applyUpdate', () => {
       },
     };
 
-    KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith('Unknown update type', updateEvent);
+    expect(updatedList).toBe(initialList);
     consoleErrorSpy.mockRestore();
   });
 });
