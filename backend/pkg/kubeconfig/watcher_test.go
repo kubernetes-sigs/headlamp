@@ -2364,3 +2364,240 @@ func TestSyncContextsKeepsContextsOfKubeConfigRewrittenDuringReload(t *testing.T
 	_, err = inner.GetContext("test-context")
 	require.NoError(t, err, "a failed reload should leave the store unchanged")
 }
+
+func TestSyncContextsKeepsFailedContextWhenDuplicateLoads(t *testing.T) {
+	for _, customName := range []bool{false, true} {
+		name := "same context name"
+		if customName {
+			name = "same custom name"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			firstPath := filepath.Join(tempDir, "first")
+			secondPath := filepath.Join(tempDir, "second")
+
+			writeConfig := func(path, contextName, clusterName, server string, includeCluster bool) {
+				config := clientcmdapi.NewConfig()
+				if includeCluster {
+					config.Clusters[clusterName] = &clientcmdapi.Cluster{Server: server}
+				}
+
+				config.AuthInfos["user"] = &clientcmdapi.AuthInfo{Token: "token"}
+
+				kubeContext := &clientcmdapi.Context{Cluster: clusterName, AuthInfo: "user"}
+				if customName {
+					kubeContext.Extensions = map[string]k8sruntime.Object{
+						"headlamp_info": &k8sruntime.Unknown{Raw: []byte(`{"customName":"shared"}`)},
+					}
+				}
+
+				config.Contexts[contextName] = kubeContext
+				require.NoError(t, clientcmd.WriteToFile(*config, path))
+			}
+
+			firstContextName := "shared"
+			secondContextName := "shared"
+
+			if customName {
+				firstContextName = "context-a"
+				secondContextName = "context-b"
+			}
+
+			writeConfig(firstPath, firstContextName, "cluster-a", "https://cluster-a.example.com", true)
+
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, firstPath, kubeconfig.KubeConfig, nil))
+
+			stored, err := store.GetContext("shared")
+			require.NoError(t, err)
+			require.Equal(t, "https://cluster-a.example.com", stored.Cluster.Server)
+
+			writeConfig(secondPath, secondContextName, "cluster-b", "https://cluster-b.example.com", true)
+			writeConfig(firstPath, firstContextName, "cluster-a", "https://cluster-a.example.com", false)
+			paths := strings.Join([]string{firstPath, secondPath}, string(os.PathListSeparator))
+			require.Error(t, kubeconfig.SyncContexts(store, paths, kubeconfig.KubeConfig, nil))
+
+			retained, err := store.GetContext("shared")
+			require.NoError(t, err, "a failed reload must retain the currently stored duplicate")
+			require.Same(t, stored, retained)
+		})
+	}
+}
+
+// writeMissingUserKubeConfig writes a kubeconfig whose context references a
+// user entry, including it only when includeUser is set. A partial rewrite can
+// leave the context stanza referencing a user that has not been written back
+// yet. If customName is set the context is renamed in Headlamp, so it is
+// stored under that name instead.
+func writeMissingUserKubeConfig(t *testing.T, kubeConfigPath, customName string, includeUser bool) {
+	t.Helper()
+
+	users := "users: []"
+	if includeUser {
+		users = `users:
+- name: test-user
+  user:
+    token: test-token`
+	}
+
+	extensions := ""
+	if customName != "" {
+		extensions = `
+    extensions:
+    - name: headlamp_info
+      extension:
+        customName: ` + customName
+	}
+
+	require.NoError(t, os.WriteFile(kubeConfigPath, []byte(`apiVersion: v1
+kind: Config
+clusters:
+- name: test-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+`+users+`
+contexts:
+- name: test-context
+  context:
+    cluster: test-cluster
+    user: test-user`+extensions+"\n"), 0o600))
+}
+
+// TestSyncContextsKeepsContextWhileReferencedUserIsMissing checks that a
+// reload that cannot resolve the context's user entry keeps the stored
+// context. The cluster still resolves, so the context converts and would
+// otherwise lose the identity needed to match it against the store.
+func TestSyncContextsKeepsContextWhileReferencedUserIsMissing(t *testing.T) {
+	for _, customName := range []string{"", "renamed-context"} {
+		name := "stored under its kubeconfig name"
+		storeKey := "test-context"
+
+		if customName != "" {
+			name = "stored under its custom name"
+			storeKey = customName
+		}
+
+		t.Run(name, func(t *testing.T) {
+			kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+			writeMissingUserKubeConfig(t, kubeConfigPath, customName, true)
+
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+			stored, err := store.GetContext(storeKey)
+			require.NoError(t, err)
+
+			writeMissingUserKubeConfig(t, kubeConfigPath, customName, false)
+			// The context fails to load, which SyncContexts reports.
+			require.Error(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+			kept, err := store.GetContext(storeKey)
+			require.NoError(t, err, "the context should be kept while its user entry is missing")
+			require.Same(t, stored, kept)
+		})
+	}
+}
+
+// writeUnnamedContextKubeConfig writes a kubeconfig whose single context
+// stanza carries a name only when named is set. A reload can catch the file
+// after the stanza is written but before its name is.
+func writeUnnamedContextKubeConfig(t *testing.T, kubeConfigPath string, named bool) {
+	t.Helper()
+
+	contextEntry := `- context:
+    cluster: test-cluster
+    user: test-user`
+	if named {
+		contextEntry = `- name: test-context
+  context:
+    cluster: test-cluster
+    user: test-user`
+	}
+
+	require.NoError(t, os.WriteFile(kubeConfigPath, []byte(`apiVersion: v1
+kind: Config
+clusters:
+- name: test-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+users:
+- name: test-user
+  user:
+    token: test-token
+contexts:
+`+contextEntry+"\n"), 0o600))
+}
+
+// TestSyncContextsKeepsContextWhileReloadEntryHasNoName checks that a reload
+// catching a context stanza before its name is written keeps that file's
+// stored contexts, since a nameless entry cannot say which context failed.
+func TestSyncContextsKeepsContextWhileReloadEntryHasNoName(t *testing.T) {
+	kubeConfigPath := filepath.Join(t.TempDir(), "kubeconfig")
+	writeUnnamedContextKubeConfig(t, kubeConfigPath, true)
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	stored, err := store.GetContext("test-context")
+	require.NoError(t, err)
+
+	writeUnnamedContextKubeConfig(t, kubeConfigPath, false)
+	// The nameless context fails to load, which SyncContexts reports.
+	require.Error(t, kubeconfig.SyncContexts(store, kubeConfigPath, kubeconfig.KubeConfig, nil))
+
+	kept, err := store.GetContext("test-context")
+	require.NoError(t, err, "the context should be kept while the reload entry has no name")
+	require.Same(t, stored, kept)
+}
+
+// TestSyncContextsRemovesOtherFilesContextWhenReloadEntryHasNoName checks that
+// retaining a file whose entry has no name does not keep contexts genuinely
+// removed from a different kubeconfig.
+func TestSyncContextsRemovesOtherFilesContextWhenReloadEntryHasNoName(t *testing.T) {
+	tempDir := t.TempDir()
+	unnamedPath := filepath.Join(tempDir, "unnamed")
+	otherPath := filepath.Join(tempDir, "other")
+
+	writeUnnamedContextKubeConfig(t, unnamedPath, true)
+	require.NoError(t, os.WriteFile(otherPath, []byte(`apiVersion: v1
+kind: Config
+clusters:
+- name: other-cluster
+  cluster:
+    server: https://127.0.0.1:6444
+users:
+- name: other-user
+  user:
+    token: other-token
+contexts:
+- name: other-context
+  context:
+    cluster: other-cluster
+    user: other-user
+`), 0o600))
+
+	paths := strings.Join([]string{unnamedPath, otherPath}, string(os.PathListSeparator))
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, paths, kubeconfig.KubeConfig, nil))
+
+	_, err := store.GetContext("other-context")
+	require.NoError(t, err)
+
+	writeUnnamedContextKubeConfig(t, unnamedPath, false)
+	require.NoError(t, os.WriteFile(otherPath, []byte(`apiVersion: v1
+kind: Config
+clusters: []
+users: []
+contexts: []
+`), 0o600))
+	// The nameless context fails to load, which SyncContexts reports.
+	require.Error(t, kubeconfig.SyncContexts(store, paths, kubeconfig.KubeConfig, nil))
+
+	_, err = store.GetContext("test-context")
+	require.NoError(t, err, "the context of the file whose entry has no name should be kept")
+
+	_, err = store.GetContext("other-context")
+	require.Error(t, err, "a context removed from another kubeconfig should still be removed")
+}
