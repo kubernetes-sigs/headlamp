@@ -20,6 +20,7 @@ import LabelListItem from '../common/LabelListItem';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { compareCapacity } from './sortByCapacity';
 import { makePVStatusLabel } from './VolumeDetails';
 
 export default function VolumeList() {
@@ -58,6 +59,7 @@ export default function VolumeList() {
         },
         {
           id: 'capacity',
+          sort: (a, b) => compareCapacity(a.spec?.capacity?.storage, b.spec?.capacity?.storage),
           label: t('Capacity'),
           getValue: volume => volume.spec.capacity.storage,
         },
