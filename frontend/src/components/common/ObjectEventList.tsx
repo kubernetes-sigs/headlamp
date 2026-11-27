@@ -130,7 +130,9 @@ export default function ObjectEventList(props: ObjectEventListProps) {
           {
             label: t('From'),
             getter: item => {
-              return item.source.component;
+              // Events created through events.k8s.io report their emitter in
+              // reportingComponent; the legacy core/v1 ones use source.component.
+              return item.source?.component ?? item.reportingComponent ?? '';
             },
           },
           {
