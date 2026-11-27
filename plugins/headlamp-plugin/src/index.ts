@@ -24,6 +24,7 @@ import { Activity } from './components/activity/Activity';
 import * as CommonComponents from './components/common';
 import * as ResourceMap from './components/resourceMap';
 import type { AppTheme } from './lib/AppTheme';
+import { useRegisteredClusters } from './lib/clusterRegistration';
 import * as K8s from './lib/k8s';
 import * as ApiProxy from './lib/k8s/apiProxy';
 import * as Notification from './lib/notification';
@@ -93,6 +94,11 @@ import Registry, {
 } from './plugin/registry';
 import type { ClusterDeleteHandler, ClusterEmptyStateProps } from './redux/clusterProviderSlice';
 export type { ApiResource } from './plugin/registry';
+export type {
+  RegisteredCluster,
+  RegisteredClusterOrigin,
+  UseRegisteredClustersOptions,
+} from './lib/clusterRegistration';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
 export {
@@ -157,6 +163,7 @@ export {
   registerProjectApiResource,
   registerProjectDeleteButton,
   Activity,
+  useRegisteredClusters,
 };
 
 export type {
