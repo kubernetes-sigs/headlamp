@@ -23,6 +23,7 @@ import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import {
   DEFAULT_LIST_LIMIT,
+  isSameWatchedLists,
   isWatchedListStillRequested,
   kubeObjectListQuery,
   ListResponse,
@@ -36,6 +37,7 @@ import * as websocket from './webSocket';
 // Mock WebSocket functionality
 const mockUseWebSockets = vi.fn();
 const mockSubscribe = vi.fn().mockImplementation(() => Promise.resolve(() => {}));
+const mockUpdateSubscriptionResourceVersion = vi.fn();
 const mockClusterFetch = vi.mocked(clusterFetch);
 
 vi.mock('./webSocket', () => ({
@@ -46,6 +48,10 @@ vi.mock('./webSocket', () => ({
 vi.mock('./multiplexer', () => ({
   WebSocketManager: {
     subscribe: (...args: any[]) => mockSubscribe(...args),
+    unsubscribe: vi.fn(),
+    createKey: (cluster: string, path: string, query: string) => `${cluster}:${path}:${query}`,
+    updateSubscriptionResourceVersion: (...args: any[]) =>
+      mockUpdateSubscriptionResourceVersion(...args),
   },
 }));
 
@@ -170,6 +176,12 @@ const mockClass = class {
   };
 
   constructor(public jsonData: any) {}
+
+  // KubeObject exposes metadata off jsonData; KubeList.applyUpdate matches
+  // items by metadata.uid, so the stub needs it too.
+  get metadata() {
+    return this.jsonData?.metadata;
+  }
 } as any;
 
 const mockNodeClass = class {
@@ -299,6 +311,562 @@ describe('useWatchKubeObjectLists', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
     vi.clearAllMocks();
+  });
+
+  it('does not rebuild watch connections when only resourceVersion changes', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    // Wait for the initial watch connections to be established.
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    const connectionsBefore = spy.mock.calls.at(-1)![0].connections;
+    const callsBefore = spy.mock.calls.length;
+
+    // Deliver a real watch event through the hook's handler so KubeList.applyUpdate
+    // advances the cached resourceVersion and triggers a rerender.
+    await act(async () => {
+      connectionsBefore[0].onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '2') as any,
+      } as any);
+    });
+
+    // Wait for the hook to rerender with the updated item and re-invoke useWebSockets
+    // so the identity assertion below cannot pass against a stale pre-event call.
+    await waitFor(() => {
+      expect(result.current.items?.[0].metadata.resourceVersion).toBe('2');
+      expect(spy.mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+
+    // Flush effects from the rerender so any resourceVersion-based setListsToWatch
+    // update would also render and rebuild connections.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // The bumped resourceVersion must not become part of the watch identity,
+    // otherwise every applied event tears down and re-establishes the
+    // WebSocket.
+    expect(spy.mock.calls.at(-1)![0].connections).toBe(connectionsBefore);
+  });
+
+  it('resumes from the cached live resourceVersion when remounting with a fresh event-updated cache', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: 60_000 } },
+    });
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    const firstMount = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    // Deliver a live watch event advancing the cached list's resourceVersion past the original LIST version.
+    await act(async () => {
+      spy.mock.calls.at(-1)![0].connections[0].onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '42') as any,
+      } as any);
+    });
+
+    await waitFor(() => {
+      expect(firstMount.result.current.items?.[0].metadata.resourceVersion).toBe('42');
+    });
+
+    // Unmount and remount while the cache is still fresh (no new LIST fetch).
+    firstMount.unmount();
+    spy.mockClear();
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    // Must resume from the cached live version ('42'), not the original LIST version ('1').
+    expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls.at(-1)![0].connections[0].url).toContain('resourceVersion=42');
+  });
+
+  it('resumes with the freshest cached resourceVersion when watch is toggled off and on without a new LIST', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: 60_000 } },
+    });
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    const { result, rerender } = renderHook(
+      ({ watch }: { watch: boolean }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+          watch,
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: { watch: true },
+      }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    // Deliver a watch event advancing the cached list's resourceVersion to '77'
+    await act(async () => {
+      spy.mock.calls.at(-1)![0].connections[0].onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '77') as any,
+      } as any);
+    });
+
+    await waitFor(() => {
+      expect(result.current.items?.[0].metadata.resourceVersion).toBe('77');
+    });
+
+    // Toggle watch off
+    rerender({ watch: false });
+
+    await waitFor(() => {
+      expect(spy.mock.calls.at(-1)![0].connections).toEqual([]);
+    });
+
+    // Toggle watch back on without a new LIST fetch
+    rerender({ watch: true });
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    // Must resume using the freshest cached resourceVersion ('77'), not '1'
+    expect(mockClusterFetch).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls.at(-1)![0].connections[0].url).toContain('resourceVersion=77');
+  });
+
+  it('rebuilds watch connections when a LIST refetch brings a new snapshot', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    const connectionsBefore = spy.mock.calls.at(-1)![0].connections;
+
+    // A background LIST refetch commits a newer snapshot. It replaces the
+    // cached list wholesale, so any event the open watch already consumed and
+    // applied is gone from the cache and will never be replayed on that
+    // connection: the watch has to restart from the new snapshot.
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '5')], resourceVersion: '5' })),
+    } as Response);
+
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['kubeObject', 'list'] });
+    });
+
+    await waitFor(() => {
+      expect(spy.mock.calls.at(-1)![0].connections).not.toBe(connectionsBefore);
+    });
+
+    expect(spy.mock.calls.at(-1)![0].connections[0].url).toContain('resourceVersion=5');
+  });
+
+  it('keeps the connection identity when only an applied event moved the version', () => {
+    const watched = { cluster: 'default', resourceVersion: '1', listGeneration: 1 };
+
+    // KubeList.applyUpdate bumps resourceVersion for every applied event. The
+    // open watch already delivered it, so rebuilding here would mean one
+    // WebSocket teardown and resubscribe per event.
+    expect(
+      isSameWatchedLists(
+        [watched],
+        [{ cluster: 'default', resourceVersion: '9', listGeneration: 1 }]
+      )
+    ).toBe(true);
+
+    // A new LIST snapshot replaces the cached list wholesale and can drop an
+    // event the watch already consumed, so that watch must restart.
+    expect(
+      isSameWatchedLists(
+        [watched],
+        [{ cluster: 'default', resourceVersion: '9', listGeneration: 2 }]
+      )
+    ).toBe(false);
+
+    expect(
+      isSameWatchedLists([watched], [{ cluster: 'other', resourceVersion: '1', listGeneration: 1 }])
+    ).toBe(false);
+    expect(
+      isSameWatchedLists(
+        [watched],
+        [{ cluster: 'default', namespace: 'ns', resourceVersion: '1', listGeneration: 1 }]
+      )
+    ).toBe(false);
+    expect(isSameWatchedLists([watched], [])).toBe(false);
+  });
+
+  it('leaves the LIST generation untouched when a watch event is applied', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    const listQueryKey = kubeObjectListQuery(
+      mockClass,
+      { version: 'v1', resource: 'pods' },
+      '',
+      'default',
+      {}
+    ).queryKey;
+
+    const initialCached = queryClient.getQueryData(listQueryKey) as any;
+    const initialGeneration = initialCached.listGeneration;
+    expect(typeof initialGeneration).toBe('number');
+
+    // Deliver the event the way the WebSocket does, through the hook's own
+    // handler, so KubeList.applyUpdate really runs.
+    await act(async () => {
+      spy.mock.calls.at(-1)![0].connections[0].onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '9') as any,
+      } as any);
+    });
+
+    // This is the premise the watch identity rests on: an applied event moves
+    // the list's own resourceVersion but not the LIST generation, so
+    // isSameWatchedLists keeps the connection.
+    const cached = queryClient.getQueryData(listQueryKey) as any;
+    expect(cached.list.metadata.resourceVersion).toBe('9');
+    expect(cached.listGeneration).toBe(initialGeneration);
+  });
+
+  it('rebuilds watch connections when a refetch returns the same resourceVersion after an intervening watch event', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    const connectionsBefore = spy.mock.calls.at(-1)![0].connections;
+
+    // Deliver an intervening watch event to advance the list resourceVersion
+    await act(async () => {
+      spy.mock.calls.at(-1)![0].connections[0].onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '2') as any,
+      } as any);
+    });
+
+    // An event alone must not trigger a reconnection
+    expect(spy.mock.calls.at(-1)![0].connections).toBe(connectionsBefore);
+
+    // Refetch returns the same resourceVersion '1' as the initial LIST
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['kubeObject', 'list'] });
+    });
+
+    // The new LIST snapshot represents a new generation and overwrites the event,
+    // so watch connections must be rebuilt to resume from the snapshot
+    await waitFor(() => {
+      expect(spy.mock.calls.at(-1)![0].connections).not.toBe(connectionsBefore);
+    });
+
+    expect(spy.mock.calls.at(-1)![0].connections[0].url).toContain('resourceVersion=1');
+  });
+
+  it('preserves immutable LIST version for generation restarts and ignores old-generation watch callbacks', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-a', '1'), makePod('pod-b', '1')],
+            resourceVersion: '1',
+          })
+        ),
+    } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length ?? 0).toBeGreaterThan(0);
+    });
+
+    const oldConnections = spy.mock.calls.at(-1)![0].connections;
+    const oldWatchHandler = oldConnections[0].onMessage;
+
+    // 1. Old watch delivers A@2
+    await act(async () => {
+      oldWatchHandler({
+        type: 'MODIFIED',
+        object: makePod('pod-a', '2') as any,
+      } as any);
+    });
+
+    const listQueryKey = kubeObjectListQuery(
+      mockClass,
+      { version: 'v1', resource: 'pods' },
+      '',
+      'default',
+      {}
+    ).queryKey;
+
+    let cached = queryClient.getQueryData(listQueryKey) as any;
+    expect(cached.list.metadata.resourceVersion).toBe('2');
+
+    // 2. Refetch LIST snapshot at version '1'
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-a', '1'), makePod('pod-b', '1')],
+            resourceVersion: '1',
+          })
+        ),
+    } as Response);
+
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['kubeObject', 'list'] });
+    });
+
+    cached = queryClient.getQueryData(listQueryKey) as any;
+    expect(cached.list.metadata.resourceVersion).toBe('1');
+    const newGeneration = cached.listGeneration;
+
+    // 3. Stale old watch callback delivers B@3 after the LIST commit
+    await act(async () => {
+      oldWatchHandler({
+        type: 'MODIFIED',
+        object: makePod('pod-b', '3') as any,
+      } as any);
+    });
+
+    // The stale old-generation callback must be ignored and not advance the cache
+    cached = queryClient.getQueryData(listQueryKey) as any;
+    expect(cached.list.metadata.resourceVersion).toBe('1');
+    expect(cached.listGeneration).toBe(newGeneration);
+    const podB = cached.list.items.find((p: any) => p.metadata.name === 'pod-b');
+    expect(podB.metadata.resourceVersion).toBe('1');
+
+    // 4. Watch connections must restart with resourceVersion=1
+    await waitFor(() => {
+      const currentConnections = spy.mock.calls.at(-1)![0].connections;
+      expect(currentConnections).not.toBe(oldConnections);
+      expect(currentConnections[0].url).toContain('resourceVersion=1');
+    });
+
+    const newWatchHandler = spy.mock.calls.at(-1)![0].connections[0].onMessage;
+
+    // 5. New watch replays A@2 and then B@3, both should be accepted
+    await act(async () => {
+      newWatchHandler({
+        type: 'MODIFIED',
+        object: makePod('pod-a', '2') as any,
+      } as any);
+    });
+
+    cached = queryClient.getQueryData(listQueryKey) as any;
+    expect(cached.list.metadata.resourceVersion).toBe('2');
+    const updatedPodA = cached.list.items.find((p: any) => p.metadata.name === 'pod-a');
+    expect(updatedPodA.metadata.resourceVersion).toBe('2');
+
+    await act(async () => {
+      newWatchHandler({
+        type: 'MODIFIED',
+        object: makePod('pod-b', '3') as any,
+      } as any);
+    });
+
+    cached = queryClient.getQueryData(listQueryKey) as any;
+    expect(cached.list.metadata.resourceVersion).toBe('3');
+    const updatedPodB = cached.list.items.find((p: any) => p.metadata.name === 'pod-b');
+    expect(updatedPodB.metadata.resourceVersion).toBe('3');
+  });
+
+  it('does not rewind an unchanged list when another namespace is refetched', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockImplementation(async (url: string | URL) => {
+      if (String(url).includes('/namespaces/ns-a/')) {
+        return {
+          json: () =>
+            Promise.resolve(
+              makeListResponse({ items: [makePod('pod-a', '10')], resourceVersion: '10' })
+            ),
+        } as Response;
+      }
+      return {
+        json: () =>
+          Promise.resolve(
+            makeListResponse({ items: [makePod('pod-b', '100')], resourceVersion: '100' })
+          ),
+      } as Response;
+    });
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['ns-a', 'ns-b'] }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      const lastCall = spy.mock.calls.at(-1);
+      expect(lastCall?.[0].connections.length).toBe(2);
+    });
+
+    const initialConnections = spy.mock.calls.at(-1)![0].connections;
+    const nsBConn = initialConnections.find((c: any) => c.url.includes('/namespaces/ns-b/'));
+    expect(nsBConn).toBeDefined();
+
+    // Advance ns-b via a live watch event to RV 200
+    await act(async () => {
+      nsBConn!.onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-b', '200') as any,
+      } as any);
+    });
+
+    // Refetch ONLY ns-a with a new snapshot RV 20
+    mockClusterFetch.mockImplementation(async (url: string | URL) => {
+      if (String(url).includes('/namespaces/ns-a/')) {
+        return {
+          json: () =>
+            Promise.resolve(
+              makeListResponse({ items: [makePod('pod-a', '20')], resourceVersion: '20' })
+            ),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch for ${String(url)}`);
+    });
+
+    const nsAQueryKey = kubeObjectListQuery(
+      mockClass,
+      { version: 'v1', resource: 'pods' },
+      'ns-a',
+      'default',
+      {}
+    ).queryKey;
+
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: nsAQueryKey });
+    });
+
+    await waitFor(() => {
+      const latestConnections = spy.mock.calls.at(-1)![0].connections;
+      expect(latestConnections).not.toBe(initialConnections);
+      const latestNsA = latestConnections.find((c: any) => c.url.includes('/namespaces/ns-a/'));
+      const latestNsB = latestConnections.find((c: any) => c.url.includes('/namespaces/ns-b/'));
+      expect(latestNsA?.url).toContain('resourceVersion=20');
+      // ns-b kept its live version '200' instead of rewinding to its original LIST version '100'
+      expect(latestNsB?.url).toContain('resourceVersion=200');
+    });
   });
 
   it('should not be enabled when no endpoint is provided', () => {
@@ -2127,6 +2695,133 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         )
       ).toBe(true)
     );
+  });
+
+  it('does not resubscribe on applied watch events and advances the multiplexer reconnect cursor', async () => {
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(makeListResponse({ items: [makePod('pod-1', '1')], resourceVersion: '1' })),
+    } as Response);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    const onMessage = mockSubscribe.mock.calls[0][3];
+
+    await act(async () => {
+      onMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-1', '2'),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.items?.[0].metadata.resourceVersion).toBe('2');
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockSubscribe).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSubscriptionResourceVersion).toHaveBeenCalledWith(
+      'default',
+      '/api/v1/pods',
+      'watch=1',
+      '2'
+    );
+  });
+
+  it('restarts multiplexed watch on LIST refetch and ignores stale old-generation callbacks', async () => {
+    const queryClient = new QueryClient();
+    mockClusterFetch.mockResolvedValue({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            items: [makePod('pod-a', '1'), makePod('pod-b', '1')],
+            resourceVersion: '1',
+          })
+        ),
+    } as Response);
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    const oldOnMessage = mockSubscribe.mock.calls[0][3];
+
+    // Deliver A@2 on generation 1
+    await act(async () => {
+      oldOnMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-a', '2'),
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        result.current.items?.find(p => p.metadata.name === 'pod-a')?.metadata.resourceVersion
+      ).toBe('2');
+    });
+
+    // Refetch LIST snapshot at same RV '1' (generation 2)
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['kubeObject', 'list'] });
+    });
+
+    await waitFor(() => {
+      expect(mockSubscribe).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockSubscribe.mock.calls[1][2]).toBe('watch=1&resourceVersion=1');
+
+    // Stale callback from generation 1 delivers B@3 — must be ignored
+    await act(async () => {
+      oldOnMessage({
+        type: 'MODIFIED',
+        object: makePod('pod-b', '3'),
+      });
+    });
+
+    expect(
+      result.current.items?.find(p => p.metadata.name === 'pod-b')?.metadata.resourceVersion
+    ).toBe('1');
+
+    // Replacement callback from generation 2 replays A@2 and B@3 — both accepted
+    const newOnMessage = mockSubscribe.mock.calls[1][3];
+    await act(async () => {
+      newOnMessage({ type: 'MODIFIED', object: makePod('pod-a', '2') });
+      newOnMessage({ type: 'MODIFIED', object: makePod('pod-b', '3') });
+    });
+
+    await waitFor(() => {
+      expect(
+        result.current.items?.find(p => p.metadata.name === 'pod-a')?.metadata.resourceVersion
+      ).toBe('2');
+      expect(
+        result.current.items?.find(p => p.metadata.name === 'pod-b')?.metadata.resourceVersion
+      ).toBe('3');
+    });
   });
 });
 
