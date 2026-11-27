@@ -133,9 +133,10 @@ func TestRegistryRejectsUnusableSources(t *testing.T) {
 		name       string
 		descriptor Descriptor
 	}{
-		{name: "no ID", descriptor: Descriptor{DisplayName: "Fleet", Resource: sampleFleetResource}},
-		{name: "no display name", descriptor: Descriptor{ID: "fleet", Resource: sampleFleetResource}},
-		{name: "no owner resource", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet"}},
+		{name: "no ID", descriptor: Descriptor{DisplayName: "Fleet", Resource: sampleFleetResource, Kind: "FleetMember"}},
+		{name: "no display name", descriptor: Descriptor{ID: "fleet", Resource: sampleFleetResource, Kind: "FleetMember"}},
+		{name: "no owner resource", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet", Kind: "FleetMember"}},
+		{name: "no owner kind", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet", Resource: sampleFleetResource}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := registry.Register(describedSource{descriptor: tc.descriptor})

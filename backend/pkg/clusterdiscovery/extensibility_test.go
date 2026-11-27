@@ -63,6 +63,7 @@ func (*sampleFleetSource) Descriptor() Descriptor {
 		ID:          sampleFleetID,
 		DisplayName: "Sample Fleet",
 		Resource:    sampleFleetResource,
+		Kind:        "FleetMember",
 		View: SourceView{
 			NameLabel:     "Member",
 			Columns:       []SourceColumn{{Key: "region", Label: "Region"}},
@@ -163,7 +164,10 @@ func sampleFleetRunner(
 	}
 
 	runner, err := NewRunner(
-		Options{Store: store, OIDC: testOIDCOptions(), HubConfig: &rest.Config{Host: "https://hub.example.com"}},
+		Options{
+			Store: store, OIDC: testOIDCOptions(),
+			HubConfig: &rest.Config{Host: "https://hub.example.com"}, HubCluster: "management",
+		},
 		source,
 	)
 	require.NoError(t, err)
@@ -231,6 +235,7 @@ func TestSampleSourceUsesSharedOIDCLifecycle(t *testing.T) {
 	require.Equal(t, &kubeconfig.DiscoveryOrigin{
 		Source: sampleFleetID, DisplayName: "Sample Fleet", Root: inClusterRootID,
 		Namespace: "default", Name: "edge-1", Entry: "default",
+		Cluster: "management", ResourceAPIVersion: "example.com/v1", ResourceKind: "FleetMember", ResourceUID: "uid-edge-1",
 	}, connection.Discovery)
 	require.Equal(t, "sample-fleet/in-cluster/default/edge-1", connection.ClusterID)
 	require.JSONEq(t, `{"region":"eu"}`, string(connection.DiscoveryMetadata["sampleFleet"]))

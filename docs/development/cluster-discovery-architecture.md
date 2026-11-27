@@ -96,6 +96,7 @@ classDiagram
         +string ID
         +string DisplayName
         +GroupVersionResource Resource
+        +string Kind
         +SourceView View
     }
     class SourceView {
@@ -240,9 +241,9 @@ also exposes `enable-<source>`, `<source>-namespaces`, `<source>-label-selector`
 `<source>-root-reconcile-interval`, and `<source>-no-crd-cache-ttl` flags, with
 underscores in the source ID replaced by hyphens:
 
-- `Descriptor` supplies a stable source ID, display name, primary resource, and
-  `View` with the name-column label, text columns, additional connection-detail
-  fields, and compact summary fields.
+- `Descriptor` supplies a stable source ID, display name, primary resource and
+  its kind, and `View` with the name-column label, text columns, additional
+  connection-detail fields, and compact summary fields.
 - `Watches` creates unstarted informer factories and caches for a namespace.
 - `OwnersForChange` maps primary or dependency events to an owner name.
 - `Build` reads the cache snapshot and returns one `GeneratedKubeconfig` per
@@ -258,7 +259,10 @@ not create proxies or write directly to the context store.
 The engine owns informer startup, initial synchronization, shutdown, root
 replacement, and connection publication and removal. Adapters can use typed or
 dynamic client-go informers. Source-specific metadata is JSON; it must not contain
-credentials. The source display name is returned as `meta_data.sourceLabel`. Its `View` is
+credentials. The source display name is returned as `meta_data.sourceLabel`. The
+owner resource and the name of the connection that reaches its cluster are
+returned as `meta_data.discoveryOrigin`; that connection name is empty when the
+management cluster has no connection in Headlamp. Its `View` is
 returned in `/config.clusterSources`; enabled sources remain available as tabs
 even when they have no connections. The frontend renders those column definitions
 without source-specific components.

@@ -1173,6 +1173,10 @@ func TestStoreSeedsSkipClusterInventoryAndAllowSameServerPerRoot(t *testing.T) {
 	assert.Equal(t, "seed-b", fromB.Presentation.Fields["root"])
 	assert.Equal(t, "store/seed-a", fromA.Discovery.Root)
 	assert.Equal(t, "store/seed-b", fromB.Discovery.Root)
+	assert.Equal(t, "seed-a", fromA.Discovery.Cluster)
+	assert.Equal(t, "seed-b", fromB.Discovery.Cluster)
+	assert.Equal(t, "ClusterProfile", fromA.Discovery.ResourceKind)
+	assert.Equal(t, "multicluster.x-k8s.io/v1alpha1", fromA.Discovery.ResourceAPIVersion)
 }
 
 func TestRemovedStoreSeedStopsWatcherAndPrunesDiscoveredContexts(t *testing.T) {

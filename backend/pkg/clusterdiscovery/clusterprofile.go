@@ -72,6 +72,7 @@ func (*clusterProfileSource) Descriptor() Descriptor {
 			{Key: logFieldNamespace, Label: "Resource namespace"}, {Key: "provider", Label: "Access provider"},
 		}, SummaryFields: []string{"namespace", "provider"}},
 		Resource:      clusterProfileResource,
+		Kind:          "ClusterProfile",
 		ContextSource: kubeconfig.ClusterInventory,
 	}
 }

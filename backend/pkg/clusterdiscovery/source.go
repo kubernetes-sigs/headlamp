@@ -42,6 +42,8 @@ type Descriptor struct {
 	DisplayName string
 	// Resource is the owner resource. Each of its objects produces connections.
 	Resource schema.GroupVersionResource
+	// Kind is the Kubernetes kind of the owner resource.
+	Kind string
 	// ContextSource preserves existing source values. New sources use DiscoveredCluster.
 	ContextSource int
 	// View describes how clients present the connections of the source.
@@ -135,7 +137,7 @@ func (r *Registry) Register(source Source) error {
 	}
 
 	d := source.Descriptor()
-	if d.ID == "" || d.DisplayName == "" || d.Resource.Empty() {
+	if d.ID == "" || d.DisplayName == "" || d.Resource.Empty() || d.Kind == "" {
 		return errors.New("discovery source descriptor is incomplete")
 	}
 
@@ -225,12 +227,15 @@ func (r *Runner) loadGenerated(
 	context.ClusterID = g.ClusterID
 	context.OidcConf = r.oidcConfig.Copy()
 	context.Discovery = &kubeconfig.DiscoveryOrigin{
-		Source:      d.ID,
-		DisplayName: d.DisplayName,
-		Root:        root,
-		Namespace:   owner.Namespace,
-		Name:        owner.Name,
-		Entry:       g.Key,
+		Source:             d.ID,
+		DisplayName:        d.DisplayName,
+		Root:               root,
+		Namespace:          owner.Namespace,
+		Name:               owner.Name,
+		Entry:              g.Key,
+		Cluster:            r.originCluster(root),
+		ResourceAPIVersion: d.Resource.GroupVersion().String(),
+		ResourceKind:       d.Kind,
 	}
 
 	if err := context.SetDiscoveryMetadata(g.Metadata); err != nil {

@@ -33,9 +33,15 @@ func TestConfigPublishesRegisteredSourceMetadata(t *testing.T) {
 			connection := clusterInventoryConfigContext()
 			connection.Source = kubeconfig.DiscoveredCluster
 			connection.ClusterInventory = nil
-			connection.Discovery = &kubeconfig.DiscoveryOrigin{Source: source, DisplayName: "Example discovery source"}
+			connection.Discovery = &kubeconfig.DiscoveryOrigin{
+				Source: source, DisplayName: "Example discovery source", Namespace: "fleet", Name: "spoke",
+				Cluster: "management", ResourceAPIVersion: "example.com/v1", ResourceKind: "FleetMember",
+				ResourceUID: "uid-spoke",
+			}
 			require.NoError(t, connection.SetDiscoveryMetadata(map[string]json.RawMessage{
 				"example": json.RawMessage(`{"name":"spoke"}`),
+				// A source cannot replace the origin that the engine recorded.
+				"discoveryOrigin": json.RawMessage(`"spoofed"`),
 			}))
 
 			store := kubeconfig.NewContextStore()
@@ -54,6 +60,19 @@ func TestConfigPublishesRegisteredSourceMetadata(t *testing.T) {
 			require.Equal(t, "Example discovery source", metadata["sourceLabel"])
 			require.Equal(t, false, metadata["canRename"])
 			require.Equal(t, map[string]interface{}{"name": "spoke"}, metadata["example"])
+			require.Equal(t, map[string]interface{}{
+				"cluster": "management",
+				"resource": map[string]interface{}{
+					"apiVersion": "example.com/v1", "kind": "FleetMember",
+					"namespace": "fleet", "name": "spoke", "uid": "uid-spoke",
+				},
+			}, metadata["discoveryOrigin"])
 		})
 	}
+}
+
+func TestConfigOmitsDiscoveryOriginForOtherConnections(t *testing.T) {
+	metadata := clusterMetadata(clusterInventoryConfigContext())
+
+	require.NotContains(t, metadata, "discoveryOrigin")
 }

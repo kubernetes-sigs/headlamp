@@ -143,6 +143,12 @@ type DiscoveryOrigin struct {
 	Namespace   string
 	Name        string
 	Entry       string
+	// Cluster is the name of the connection that reaches the owner resource's cluster.
+	// It is empty when that cluster has no connection in Headlamp.
+	Cluster            string
+	ResourceAPIVersion string
+	ResourceKind       string
+	ResourceUID        string
 }
 
 // proxyMu guards the lazily set up proxy field of every Context. It is package-level rather than a

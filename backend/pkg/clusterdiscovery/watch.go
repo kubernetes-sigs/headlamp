@@ -185,6 +185,8 @@ func (r *Runner) reconcileOwner(state *rootState, watch rootWatch, owner types.N
 			continue
 		}
 
+		context.Discovery.ResourceUID = string(accessor.GetUID())
+
 		if err = r.store.AddContext(context); err != nil {
 			logger.Log(logger.LevelWarn, map[string]string{"owner": key}, err, "discovery: failed to store connection")
 		}
