@@ -177,6 +177,27 @@ describe('JobDetails', () => {
     expect(row('Max Failed Indexes')).toMatchObject({ value: 2, hide: false });
   });
 
+  it('shows Active Deadline when activeDeadlineSeconds is 0 and hides it when undefined', () => {
+    const jobWithZeroDeadline: any = {
+      ...fakeJob,
+      spec: { ...fakeJob.spec, activeDeadlineSeconds: 0 },
+    };
+
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
+        <JobDetails />
+      </TestContext>
+    );
+
+    const getDeadlineRow = (item: any) =>
+      mockDetailsGrid.mock.calls[0][0]
+        .extraInfo(item)
+        .find((f: any) => f.name === 'Active Deadline');
+
+    expect(getDeadlineRow(jobWithZeroDeadline)).toMatchObject({ value: '0s', hide: false });
+    expect(getDeadlineRow(fakeJob).hide).toBe(true);
+  });
+
   it('provides onResourceUpdate to DetailsGrid for tracking workload changes', () => {
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
