@@ -92,6 +92,8 @@ type HeadlampConfig struct {
 	statelessCacheMu  sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
+	// discoveryHubCluster is the name of the in-cluster connection that discovery reads from.
+	discoveryHubCluster string
 	// activeDrains holds the cache keys of the drains that are running, so that a node is drained
 	// by one goroutine at a time.
 	activeDrains sync.Map
@@ -828,7 +830,9 @@ func globalOidcConfig(config *HeadlampConfig) *kubeconfig.OidcConfig {
 	}
 }
 
-func setupInClusterContext(config *HeadlampConfig) {
+// setupInClusterContext adds the in-cluster context to the store and returns its name.
+// It returns an empty name when the context could not be added.
+func setupInClusterContext(config *HeadlampConfig) string {
 	if config.UnsafeUseServiceAccountToken {
 		logger.Log(
 			logger.LevelWarn,
@@ -855,18 +859,22 @@ func setupInClusterContext(config *HeadlampConfig) {
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
 
-		return
+		return ""
 	}
 
 	if err := inClusterContext.SetupProxy(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
 
-		return
+		return ""
 	}
 
 	if err := config.KubeConfigStore.AddContext(inClusterContext); err != nil {
 		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+
+		return ""
 	}
+
+	return inClusterContext.Name
 }
 
 // loadKubeConfigClusters loads clusters from the user-configured kubeconfig file.
@@ -990,7 +998,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// In-cluster
 	if config.UseInCluster {
-		setupInClusterContext(config)
+		config.discoveryHubCluster = setupInClusterContext(config)
 	}
 
 	if config.StaticDir != "" {
@@ -4296,6 +4304,20 @@ func clusterMetadata(context *kubeconfig.Context) map[string]interface{} {
 		metadata[key] = value
 	}
 
+	// Set after the source's metadata so a source cannot replace the engine's value.
+	if origin := context.Discovery; origin != nil {
+		metadata["discoveryOrigin"] = map[string]interface{}{
+			"cluster": origin.Cluster,
+			"resource": map[string]string{
+				"apiVersion": origin.ResourceAPIVersion,
+				"kind":       origin.ResourceKind,
+				"namespace":  origin.Namespace,
+				"name":       origin.Name,
+				"uid":        origin.ResourceUID,
+			},
+		}
+	}
+
 	if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
 		metadata["clusterInventory"] = context.ClusterInventory
 	}
@@ -4322,6 +4344,7 @@ func startDiscoverySources(ctx context.Context, config *HeadlampConfig, defaults
 		options.OIDC = globalOidcConfig(config)
 		options.HubConfig = defaults.HubConfig
 		options.HubNamespace = defaults.HubNamespace
+		options.HubCluster = config.discoveryHubCluster
 		options.DiscoverFromStore = !config.UseInCluster
 
 		runner, err := clusterdiscovery.NewRunner(options, source)

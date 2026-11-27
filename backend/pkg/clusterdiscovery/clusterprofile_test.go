@@ -995,6 +995,66 @@ func TestInformerSyncsEachAccessProvider(t *testing.T) {
 	requireNoProfileContextEventually(t, store, key)
 }
 
+// A ClusterProfile created again under the same name replaces every provider's connection.
+func TestClusterProfileRecreationReplacesProviderConnections(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	runner := newTestRunner(t, Options{Store: store, HubConfig: &rest.Config{Host: "https://hub.example.com"}})
+	profile := clusterProfile("spoke", "direct", "https://direct.example.com")
+	profile.UID = "profile-uid"
+	profile.Status.AccessProviders = append(profile.Status.AccessProviders,
+		apisv1alpha1.AccessProvider{Name: "gateway", Cluster: clientcmdv1.Cluster{Server: "https://gateway.example.com"}})
+	client := ciafake.NewSimpleClientset(profile)
+	runner.source.(*clusterProfileSource).clientForConfig = func(*rest.Config) (ciaclient.Interface, error) {
+		return client, nil
+	}
+	ctx := testRunnerContext(t, runner)
+	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+
+	namesByID := func() map[string]string {
+		names := map[string]string{}
+
+		contexts, _ := store.GetContexts()
+		for _, connection := range contexts {
+			names[connection.ClusterID] = connection.Name
+		}
+
+		return names
+	}
+
+	var original map[string]string
+
+	require.Eventually(t, func() bool {
+		original = namesByID()
+		return len(original) == 2
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
+
+	key := "in-cluster/default/spoke"
+	for _, provider := range []string{"direct", "gateway"} {
+		require.Equal(t,
+			nameWithOwnerUID(contextNameFromProfileKey(key, provider), "profile-uid"),
+			original[clusterInventoryIDPrefix+key+"/"+provider])
+	}
+
+	profiles := client.ApisV1alpha1().ClusterProfiles("default")
+	require.NoError(t, profiles.Delete(ctx, profile.Name, metav1.DeleteOptions{}))
+	requireNoProfileContextEventually(t, store, key)
+
+	profile.UID = "profile-uid-recreated"
+	_, err := profiles.Create(ctx, profile, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		recreated := namesByID()
+		for id, name := range original {
+			if recreated[id] == "" || recreated[id] == name {
+				return false
+			}
+		}
+
+		return len(recreated) == 2
+	}, clusterInventoryTestEventuallyTimeout, clusterInventoryTestEventuallyTick)
+}
+
 func TestInformerDoesNotDiscoverClusterProfilesFromDiscoveredClusters(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	runner := newTestRunner(t, Options{
@@ -1113,6 +1173,10 @@ func TestStoreSeedsSkipClusterInventoryAndAllowSameServerPerRoot(t *testing.T) {
 	assert.Equal(t, "seed-b", fromB.Presentation.Fields["root"])
 	assert.Equal(t, "store/seed-a", fromA.Discovery.Root)
 	assert.Equal(t, "store/seed-b", fromB.Discovery.Root)
+	assert.Equal(t, "seed-a", fromA.Discovery.Cluster)
+	assert.Equal(t, "seed-b", fromB.Discovery.Cluster)
+	assert.Equal(t, "ClusterProfile", fromA.Discovery.ResourceKind)
+	assert.Equal(t, "multicluster.x-k8s.io/v1alpha1", fromA.Discovery.ResourceAPIVersion)
 }
 
 func TestRemovedStoreSeedStopsWatcherAndPrunesDiscoveredContexts(t *testing.T) {

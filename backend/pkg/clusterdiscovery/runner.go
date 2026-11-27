@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -82,6 +83,8 @@ type Options struct {
 	HubConfig *rest.Config
 	// HubNamespace is the default namespace for the in-cluster root.
 	HubNamespace string
+	// HubCluster is the name of the Headlamp connection for the in-cluster root.
+	HubCluster string
 	// DiscoverFromStore enables discovery from non-internal contexts already in Store.
 	DiscoverFromStore bool
 }
@@ -96,6 +99,7 @@ type Runner struct {
 	namespaces            []string
 	hubConfig             *rest.Config
 	hubNamespace          string
+	hubCluster            string
 	discoverFromStore     bool
 
 	source Source
@@ -193,6 +197,7 @@ func NewRunner(opts Options, source Source) (*Runner, error) {
 		namespaces:            namespaces,
 		hubConfig:             opts.HubConfig,
 		hubNamespace:          opts.HubNamespace,
+		hubCluster:            opts.HubCluster,
 		discoverFromStore:     opts.DiscoverFromStore,
 		source:                source,
 		now:                   time.Now,
@@ -768,6 +773,28 @@ func (r *Runner) isCurrentRoot(state *rootState) bool {
 // makeOwnerKey combines a root ID and owner path into a stable owner key.
 func makeOwnerKey(rootID, ownerPath string) string {
 	return rootID + "/" + ownerPath
+}
+
+// originCluster returns the name of the connection that reaches a root's cluster.
+func (r *Runner) originCluster(root string) string {
+	if root == inClusterRootID {
+		return r.hubCluster
+	}
+
+	return strings.TrimPrefix(root, storeRootPrefix)
+}
+
+// nameWithOwnerUID appends a short hash of the owner's UID to a connection name, so an
+// owner that is deleted and created again under the same name gets a new connection.
+// An empty name stays invalid, and an owner without a UID keeps the name.
+func nameWithOwnerUID(name string, uid types.UID) string {
+	if name == "" || uid == "" {
+		return name
+	}
+
+	sum := sha256.Sum256([]byte(uid))
+
+	return name + "-" + hex.EncodeToString(sum[:6])
 }
 
 // normalizeLabelSelector parses a user-provided label selector.

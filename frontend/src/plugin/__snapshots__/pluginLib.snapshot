@@ -509,6 +509,8 @@
   "Headlamp": [Function],
   "Iconify": "Present",
   "K8s": {
+    "ClusterAPICluster": [Function],
+    "ClusterProfile": [Function],
     "ResourceClasses": {
       "CertificateSigningRequest": [Function],
       "ClusterRole": [Function],
@@ -933,5 +935,6 @@
     "storeStatelessClusterKubeconfig": [Function],
     "toStatelessConfigState": [Function],
   },
+  "useRegisteredClusters": [Function],
   "useTranslation": [Function],
 }

@@ -133,9 +133,10 @@ func TestRegistryRejectsUnusableSources(t *testing.T) {
 		name       string
 		descriptor Descriptor
 	}{
-		{name: "no ID", descriptor: Descriptor{DisplayName: "Fleet", Resource: sampleFleetResource}},
-		{name: "no display name", descriptor: Descriptor{ID: "fleet", Resource: sampleFleetResource}},
-		{name: "no owner resource", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet"}},
+		{name: "no ID", descriptor: Descriptor{DisplayName: "Fleet", Resource: sampleFleetResource, Kind: "FleetMember"}},
+		{name: "no display name", descriptor: Descriptor{ID: "fleet", Resource: sampleFleetResource, Kind: "FleetMember"}},
+		{name: "no owner resource", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet", Kind: "FleetMember"}},
+		{name: "no owner kind", descriptor: Descriptor{ID: "fleet", DisplayName: "Fleet", Resource: sampleFleetResource}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := registry.Register(describedSource{descriptor: tc.descriptor})
@@ -248,6 +249,15 @@ func TestGeneratedOIDCConfigRejectsIncompleteConnections(t *testing.T) {
 			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
+}
+
+func TestNameWithOwnerUID(t *testing.T) {
+	// Replicas and later releases must agree on the name of the same owner.
+	require.Equal(t, "member-95467e443182", nameWithOwnerUID("member", "uid-edge-1"))
+	require.NotEqual(t, nameWithOwnerUID("member", "uid-edge-1"), nameWithOwnerUID("member", "uid-edge-2"))
+
+	require.Equal(t, "member", nameWithOwnerUID("member", ""))
+	require.Empty(t, nameWithOwnerUID("", "uid-edge-1"), "a missing name must stay invalid")
 }
 
 // A connection whose Cluster Inventory metadata clients could not read is not published.

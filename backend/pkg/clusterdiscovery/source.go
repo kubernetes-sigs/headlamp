@@ -42,6 +42,8 @@ type Descriptor struct {
 	DisplayName string
 	// Resource is the owner resource. Each of its objects produces connections.
 	Resource schema.GroupVersionResource
+	// Kind is the Kubernetes kind of the owner resource.
+	Kind string
 	// ContextSource preserves existing source values. New sources use DiscoveredCluster.
 	ContextSource int
 	// View describes how clients present the connections of the source.
@@ -77,7 +79,8 @@ type Source interface {
 	// OwnersForChange maps a changed object of a watched resource to the owners to rebuild.
 	OwnersForChange(resource schema.GroupVersionResource, obj interface{}) []types.NamespacedName
 	// Build returns the connections of one owner from the cached objects. Connections the
-	// owner no longer returns are removed, and an error removes all of them.
+	// owner no longer returns are removed, and an error removes all of them. The engine
+	// makes their names specific to the owner's UID.
 	Build(root string, owner types.NamespacedName, snapshot Snapshot) ([]GeneratedKubeconfig, error)
 }
 
@@ -110,7 +113,8 @@ type Snapshot interface {
 type GeneratedKubeconfig struct {
 	// Key identifies the connection among those of its owner and stays stable across updates.
 	Key string
-	// Name is the context name, which is the connection key in Headlamp.
+	// Name is the context name without the owner's UID. The engine appends a hash of that
+	// UID to form the connection key in Headlamp.
 	Name string
 	// ClusterID is the stable public ID of the connection.
 	ClusterID string
@@ -133,7 +137,7 @@ func (r *Registry) Register(source Source) error {
 	}
 
 	d := source.Descriptor()
-	if d.ID == "" || d.DisplayName == "" || d.Resource.Empty() {
+	if d.ID == "" || d.DisplayName == "" || d.Resource.Empty() || d.Kind == "" {
 		return errors.New("discovery source descriptor is incomplete")
 	}
 
@@ -223,12 +227,15 @@ func (r *Runner) loadGenerated(
 	context.ClusterID = g.ClusterID
 	context.OidcConf = r.oidcConfig.Copy()
 	context.Discovery = &kubeconfig.DiscoveryOrigin{
-		Source:      d.ID,
-		DisplayName: d.DisplayName,
-		Root:        root,
-		Namespace:   owner.Namespace,
-		Name:        owner.Name,
-		Entry:       g.Key,
+		Source:             d.ID,
+		DisplayName:        d.DisplayName,
+		Root:               root,
+		Namespace:          owner.Namespace,
+		Name:               owner.Name,
+		Entry:              g.Key,
+		Cluster:            r.originCluster(root),
+		ResourceAPIVersion: d.Resource.GroupVersion().String(),
+		ResourceKind:       d.Kind,
 	}
 
 	if err := context.SetDiscoveryMetadata(g.Metadata); err != nil {

@@ -63,6 +63,7 @@ func (*sampleFleetSource) Descriptor() Descriptor {
 		ID:          sampleFleetID,
 		DisplayName: "Sample Fleet",
 		Resource:    sampleFleetResource,
+		Kind:        "FleetMember",
 		View: SourceView{
 			NameLabel:     "Member",
 			Columns:       []SourceColumn{{Key: "region", Label: "Region"}},
@@ -137,7 +138,7 @@ func sampleFleetMember(name, server, region string) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: map[string]interface{}{
 		"apiVersion": "example.com/v1",
 		"kind":       "FleetMember",
-		"metadata":   map[string]interface{}{"name": name, "namespace": "default"},
+		"metadata":   map[string]interface{}{"name": name, "namespace": "default", "uid": "uid-" + name},
 		"spec":       map[string]interface{}{"server": server, "region": region},
 	}}
 }
@@ -163,7 +164,10 @@ func sampleFleetRunner(
 	}
 
 	runner, err := NewRunner(
-		Options{Store: store, OIDC: testOIDCOptions(), HubConfig: &rest.Config{Host: "https://hub.example.com"}},
+		Options{
+			Store: store, OIDC: testOIDCOptions(),
+			HubConfig: &rest.Config{Host: "https://hub.example.com"}, HubCluster: "management",
+		},
 		source,
 	)
 	require.NoError(t, err)
@@ -231,6 +235,7 @@ func TestSampleSourceUsesSharedOIDCLifecycle(t *testing.T) {
 	require.Equal(t, &kubeconfig.DiscoveryOrigin{
 		Source: sampleFleetID, DisplayName: "Sample Fleet", Root: inClusterRootID,
 		Namespace: "default", Name: "edge-1", Entry: "default",
+		Cluster: "management", ResourceAPIVersion: "example.com/v1", ResourceKind: "FleetMember", ResourceUID: "uid-edge-1",
 	}, connection.Discovery)
 	require.Equal(t, "sample-fleet/in-cluster/default/edge-1", connection.ClusterID)
 	require.JSONEq(t, `{"region":"eu"}`, string(connection.DiscoveryMetadata["sampleFleet"]))
@@ -264,6 +269,61 @@ func TestSampleSourceUsesSharedOIDCLifecycle(t *testing.T) {
 	requireContextCount(t, runner.store, 0)
 }
 
+// An owner created again under the same name is a different resource, so it must not
+// inherit the connection name that routes, sessions and saved settings are keyed by.
+func TestRecreatedOwnerGetsNewConnectionName(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// deleteFirst is false when the watch missed the deletion and only sees the new object.
+		deleteFirst bool
+	}{
+		{"deleted and created again", true},
+		{"replaced while the watch was disconnected", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runner, client := sampleFleetRunner(t, nil, &sampleFleetSource{},
+				sampleFleetMember("edge-1", "https://edge-1.example.com", "eu"))
+			ctx := testRunnerContext(t, runner)
+			reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+
+			original := requireDiscovered(t, runner)
+			require.Equal(t, "sample-fleet-in-cluster--default--edge-1-95467e443182", original.Name)
+
+			members := client.Resource(sampleFleetResource).Namespace("default")
+			recreated := sampleFleetMember("edge-1", "https://edge-1-new.example.com", "eu")
+			recreated.SetUID("uid-edge-1-recreated")
+
+			var err error
+
+			if tc.deleteFirst {
+				require.NoError(t, members.Delete(ctx, "edge-1", metav1.DeleteOptions{}))
+				requireContextCount(t, runner.store, 0)
+
+				_, err = members.Create(ctx, recreated, metav1.CreateOptions{})
+			} else {
+				_, err = members.Update(ctx, recreated, metav1.UpdateOptions{})
+			}
+
+			require.NoError(t, err)
+
+			// The new name is stored before the old one is removed.
+			require.Eventually(t, func() bool {
+				contexts, _ := runner.store.GetContexts()
+
+				return len(contexts) == 1 && contexts[0].Name != original.Name
+			}, sampleFleetEventually, sampleFleetTick)
+
+			replacement := requireDiscovered(t, runner)
+			require.Equal(t, "sample-fleet-in-cluster--default--edge-1-fac3439ed75a", replacement.Name)
+			require.Equal(t, "https://edge-1-new.example.com", replacement.Cluster.Server)
+			require.Equal(t, original.ClusterID, replacement.ClusterID)
+
+			_, err = runner.store.GetContext(original.Name)
+			require.Error(t, err)
+		})
+	}
+}
+
 // The engine validates every source's output, so a faulty source cannot publish a bad connection.
 func TestEngineRejectsSampleSourceOutputThatBreaksTheContract(t *testing.T) {
 	for _, tc := range []struct {
@@ -280,6 +340,7 @@ func TestEngineRejectsSampleSourceOutputThatBreaksTheContract(t *testing.T) {
 			g.Config.Clusters[g.Name].Server = "https://user:pass@bad.example.com"
 		}},
 		{"missing connection ID", func(g *GeneratedKubeconfig) { g.ClusterID = "" }},
+		{"missing connection name", func(g *GeneratedKubeconfig) { g.Name = "" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source := &sampleFleetSource{mutate: func(owner types.NamespacedName, g *GeneratedKubeconfig) {

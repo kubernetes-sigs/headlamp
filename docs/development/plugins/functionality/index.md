@@ -152,6 +152,23 @@ Or, add a component to the bottom of a details view with
 - Example plugin: [How To set a Details View Section](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/details-view)
 - API reference: [registerDetailsViewSection](../../api/plugin/registry/functions/registerdetailsviewsection)
 
+### Discovered Clusters
+
+Get the clusters that Headlamp discovered from Cluster Inventory API
+ClusterProfiles or Cluster API Clusters with
+[useRegisteredClusters](../../api/lib/clusterRegistration/functions/useRegisteredClusters.md).
+Pass their IDs to the Kubernetes resource hooks, such as
+`K8s.ResourceClasses.Pod.useList({ clusters })`, to read from those clusters.
+The list updates as clusters are added or removed.
+
+To also get the ClusterProfile or Cluster of each cluster, read with the user's
+credentials, use
+[ClusterProfile.useRegisteredClusters](../../api/lib/k8s/clusterProfile/classes/ClusterProfile.md#property-useregisteredclusters)
+or
+[ClusterAPICluster.useRegisteredClusters](../../api/lib/k8s/clusterApiCluster/classes/ClusterAPICluster.md#property-useregisteredclusters).
+
+- API reference: [useRegisteredClusters](../../api/lib/clusterRegistration/functions/useRegisteredClusters.md), [ClusterProfile](../../api/lib/k8s/clusterProfile/classes/ClusterProfile.md), [ClusterAPICluster](../../api/lib/k8s/clusterApiCluster/classes/ClusterAPICluster.md)
+
 ### Dynamic Clusters
 
 Set a cluster dynamically, instead of from a configuration file, with

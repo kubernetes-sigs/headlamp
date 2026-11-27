@@ -67,7 +67,8 @@ ClusterProfile access; `*` cannot be combined with named namespaces. The default
 label selector excludes profiles carrying `headlamp.dev/ignore`.
 
 Each valid `status.accessProviders` entry becomes a selectable connection, with
-`-<access-provider-name>` appended to its context name. Its `cluster` supplies the
+`-<access-provider-name>` and a hash of the ClusterProfile's UID appended to its
+context name. Its `cluster` supplies the
 HTTPS endpoint, inline CA data, TLS settings, and proxy URL. Invalid entries are
 excluded independently. Provider names do not select credentials.
 Headlamp does not execute access-provider plugins or read cluster credentials
