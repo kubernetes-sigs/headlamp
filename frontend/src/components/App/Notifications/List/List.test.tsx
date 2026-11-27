@@ -21,9 +21,9 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryHistory } from 'history';
 import { Provider } from 'react-redux';
 import { Router } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createMuiTheme } from '../../../../lib/themes';
-import { Notification } from '../notificationsSlice';
+import notificationsReducer, { Notification } from '../notificationsSlice';
 import NotificationList from './List';
 
 const theme = createMuiTheme({ base: 'light', name: 'light' });
@@ -31,22 +31,7 @@ const theme = createMuiTheme({ base: 'light', name: 'light' });
 function createTestStore(notifications: Notification[], clusters: Record<string, any> = {}) {
   return configureStore({
     reducer: {
-      notifications: (state = { notifications }, action: any) => {
-        if (action.type === 'notifications/setNotifications') {
-          return { ...state, notifications: action.payload };
-        }
-        if (action.type === 'notifications/updateNotifications') {
-          const updated = Array.isArray(action.payload) ? action.payload : [action.payload];
-          return {
-            ...state,
-            notifications: state.notifications.map((n: any) => {
-              const match = updated.find((u: any) => u.id === n.id);
-              return match ? { ...n, ...match } : n;
-            }),
-          };
-        }
-        return state;
-      },
+      notifications: notificationsReducer,
       config: (state = { clusters, settings: {} }) => state,
       filter: (state = { namespaces: new Set(), search: '' }) => state,
       shortcuts: (state = { shortcuts: {} }) => state,
@@ -57,6 +42,9 @@ function createTestStore(notifications: Notification[], clusters: Record<string,
           isFullWidth: false,
         }
       ) => state,
+    },
+    preloadedState: {
+      notifications: { notifications },
     },
     middleware: getDefaultMiddleware =>
       getDefaultMiddleware({ immutableCheck: false, serializableCheck: false }),
@@ -96,6 +84,10 @@ function renderList(
 }
 
 describe('NotificationList', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('shows empty state and disables menu actions when all notifications are deleted or empty', async () => {
     const deleted = makeNotification({ id: 'n1', deleted: true });
     renderList([deleted]);
@@ -145,8 +137,8 @@ describe('NotificationList', () => {
     });
     const n2 = makeNotification({
       id: 'n2',
-      message: 'No URL notice',
-      url: '',
+      message: 'Unread notice',
+      url: '/c/cluster-a/pods',
       seen: false,
     });
 
@@ -154,16 +146,26 @@ describe('NotificationList', () => {
 
     await userEvent.click(screen.getByText('Clickable notice'));
     expect(history.location.pathname).toBe('/c/cluster-a/deployments');
-    expect(store.getState().notifications.notifications[0].seen).toBe(true);
+    expect(store.getState().notifications.notifications.find(n => n.id === 'n1')?.seen).toBe(true);
 
     const markReadButtons = screen.getAllByRole('button', { name: 'Mark as read' });
     expect(markReadButtons).toHaveLength(1);
     await userEvent.click(markReadButtons[0]);
-    expect(store.getState().notifications.notifications[1].id).toBe('n2');
+    expect(store.getState().notifications.notifications.find(n => n.id === 'n2')?.seen).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Mark as read' })).not.toBeInTheDocument();
+  });
 
-    // Clicking a notification without a URL should not change the route.
+  it('does not change route when clicking a notification without a URL', async () => {
+    const n = makeNotification({
+      id: 'n3',
+      message: 'No URL notice',
+      url: '',
+      seen: false,
+    });
+    const { history } = renderList([n]);
+
     await userEvent.click(screen.getByText('No URL notice'));
-    expect(history.location.pathname).toBe('/c/cluster-a/deployments');
+    expect(history.location.pathname).toBe('/notifications');
   });
 
   it('marks all as read and clears all notifications from the menu', async () => {
