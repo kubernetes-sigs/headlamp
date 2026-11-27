@@ -45,6 +45,12 @@ const (
 	// reading the shared token. It lives on the shared cookie's path so it is
 	// renewed with it (RenewLogoutMarkers).
 	logoutMarkerPrefix = "headlamp-auth~out-"
+	// logoutMarkerMaxAge is the lifetime of a logout marker: 400 days, the most
+	// browsers allow. It is not the session TTL: a refresh that started before
+	// the logout renews the shared cookie without the marker in its request, so
+	// a marker with the session TTL could expire before the shared cookie.
+	// A login lifts the marker, so a long lifetime never outlasts the logout.
+	logoutMarkerMaxAge = 400 * 24 * 60 * 60
 )
 
 // logoutMarkerNameRegex matches the marker cookies MarkLoggedOut sets.
@@ -394,33 +400,34 @@ func ClearTokenCookieBounded(w http.ResponseWriter, r *http.Request, cluster, ba
 }
 
 // MarkLoggedOut keeps a cluster from reading the shared token until its next
-// login or set-token. The marker is renewed with the shared cookie
-// (RenewLogoutMarkers), so it cannot expire first. markerID is the cluster's
-// LogoutMarkerID.
-func MarkLoggedOut(w http.ResponseWriter, r *http.Request, markerID, baseURL string, sessionTTL int) {
+// login or set-token. The marker lives for logoutMarkerMaxAge, not the session
+// TTL, so it cannot expire before the shared cookie it guards. markerID is the
+// cluster's LogoutMarkerID.
+func MarkLoggedOut(w http.ResponseWriter, r *http.Request, markerID, baseURL string) {
 	if markerID == "" {
 		return
 	}
 
-	setLogoutMarker(w, IsSecureContext(r), GetCookiePath(baseURL, ""), LogoutMarkerName(markerID), sessionTTL)
+	setLogoutMarker(w, IsSecureContext(r), GetCookiePath(baseURL, ""), LogoutMarkerName(markerID))
 }
 
-// RenewLogoutMarkers re-sets every logout marker the request carries with the
-// session TTL. Called when the shared cookie is renewed, so the markers slide
-// with it. Only well-formed marker names are renewed, and only with the fixed
-// value, so nothing from the request is reflected into the response.
-func RenewLogoutMarkers(w http.ResponseWriter, r *http.Request, baseURL string, sessionTTL int) {
+// RenewLogoutMarkers re-sets every logout marker the request carries. Called
+// when the shared cookie is renewed, so a session refreshed for longer than
+// logoutMarkerMaxAge still keeps its markers. Only well-formed marker names are
+// renewed, and only with the fixed value, so nothing from the request is
+// reflected into the response.
+func RenewLogoutMarkers(w http.ResponseWriter, r *http.Request, baseURL string) {
 	secure := IsSecureContext(r)
 	cookiePath := GetCookiePath(baseURL, "")
 
 	for name := range parseRequestCookies(r) {
 		if logoutMarkerNameRegex.MatchString(name) {
-			setLogoutMarker(w, secure, cookiePath, name, sessionTTL)
+			setLogoutMarker(w, secure, cookiePath, name)
 		}
 	}
 }
 
-func setLogoutMarker(w http.ResponseWriter, secure bool, cookiePath, name string, sessionTTL int) {
+func setLogoutMarker(w http.ResponseWriter, secure bool, cookiePath, name string) {
 	// G124: Secure is set from IsSecureContext so localhost development still works;
 	// HttpOnly and SameSite are set unconditionally.
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // Secure attribute is dynamically set based on request context
@@ -430,7 +437,7 @@ func setLogoutMarker(w http.ResponseWriter, secure bool, cookiePath, name string
 		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 		Path:     cookiePath,
-		MaxAge:   sessionTTL,
+		MaxAge:   logoutMarkerMaxAge,
 	})
 }
 

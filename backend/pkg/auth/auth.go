@@ -847,8 +847,8 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			newTokenString, params.BaseURL, params.SessionTTL)
 		if err == nil {
 			// The markers guard the shared cookie, so they must outlive it: renew
-			// them with it.
-			RenewLogoutMarkers(params.Writer, params.Request, params.BaseURL, params.SessionTTL)
+			// the ones this request carries with it.
+			RenewLogoutMarkers(params.Writer, params.Request, params.BaseURL)
 		}
 	} else {
 		err = SetTokenCookie(params.Writer, params.Request, params.Cluster,

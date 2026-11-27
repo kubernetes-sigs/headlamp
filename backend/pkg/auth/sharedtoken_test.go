@@ -37,6 +37,10 @@ const (
 	sharedTestOther   = "other-cluster"
 )
 
+// logoutMarkerMaxAge is the lifetime a logout marker must be set with: 400
+// days, the most browsers allow.
+const logoutMarkerMaxAge = 400 * 24 * 60 * 60
+
 // countingStore counts GetContext calls so tests can assert the middleware
 // loads a context only when a token or a shared cookie makes it necessary.
 type countingStore struct {
@@ -609,8 +613,8 @@ func TestRefreshAndSetToken_SharedClusterUpdatesSharedCookie(t *testing.T) {
 }
 
 // TestRefreshAndSetToken_SharedClusterRenewsLogoutMarkers: renewing the shared
-// cookie renews the logout markers of the clusters that left it, with the same
-// TTL, so a marker never expires before the shared token it guards.
+// cookie renews the logout markers of the clusters that left it, so a session
+// refreshed for longer than the marker lifetime still keeps its markers.
 func TestRefreshAndSetToken_SharedClusterRenewsLogoutMarkers(t *testing.T) {
 	const oldToken = "OLD"
 
@@ -652,8 +656,72 @@ func TestRefreshAndSetToken_SharedClusterRenewsLogoutMarkers(t *testing.T) {
 	marker := findResponseCookie(t, rr, otherOut)
 	require.NotNil(t, marker, "the sibling's logout marker must be renewed with the shared cookie")
 	assert.Equal(t, "1", marker.Value)
-	assert.Equal(t, 600, marker.MaxAge, "the marker slides with the shared cookie")
+	assert.Equal(t, logoutMarkerMaxAge, marker.MaxAge, "the marker keeps its own lifetime, not the session TTL")
 	assert.Equal(t, shared.Path, marker.Path, "the marker lives on the shared cookie's path")
+}
+
+// TestLogoutMarkerOutlivesRefreshStartedBeforeLogout: a sibling's refresh that
+// started before the logout carries no marker, so it renews the shared cookie
+// without renewing the marker. The marker must still outlive that shared
+// cookie, or the logged-out cluster would read the shared token again once the
+// marker expired.
+func TestLogoutMarkerOutlivesRefreshStartedBeforeLogout(t *testing.T) {
+	const (
+		oldToken   = "OLD"
+		sessionTTL = 600
+		// inFlight bounds how long the sibling's refresh may finish after the logout.
+		inFlight = 60 * 60
+	)
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		require.NoError(t, r.ParseForm())
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	// The sibling's request was sent before the logout: it has no marker.
+	refreshReq := clusterRequest(sharedTestCluster)
+	addRequestCookie(refreshReq, sharedCookieName(sharedTestKey, 0), oldToken)
+
+	logoutRR := httptest.NewRecorder()
+	auth.MarkLoggedOut(logoutRR, clusterRequest(sharedTestOther), sharedTestOther, "/headlamp")
+
+	marker := findResponseCookie(t, logoutRR, auth.LogoutMarkerName(sharedTestOther))
+	require.NotNil(t, marker)
+
+	refreshRR := httptest.NewRecorder()
+	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
+		Cache:            &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}},
+		Token:            oldToken,
+		Cluster:          sharedTestCluster,
+		Writer:           refreshRR,
+		Request:          refreshReq,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		SessionTTL:       sessionTTL,
+		SharedTokenKey:   sharedTestKey,
+	})
+
+	shared := findResponseCookie(t, refreshRR, sharedCookieName(sharedTestKey, 0))
+	require.NotNil(t, shared, "the refresh must renew the shared cookie")
+	assert.Nil(t, findResponseCookie(t, refreshRR, marker.Name), "the refresh cannot renew a marker it did not see")
+	assert.Greater(t, marker.MaxAge, inFlight+shared.MaxAge,
+		"the marker must outlive a shared cookie renewed after the logout")
+
+	// While the marker lives, the logged-out cluster does not read the renewed token.
+	resolve := func(cluster string) (string, string, bool) {
+		return sharedTestKey, auth.LogoutMarkerName(cluster), true
+	}
+	req := clusterRequest(sharedTestOther)
+	addRequestCookie(req, shared.Name, shared.Value)
+	addRequestCookie(req, marker.Name, marker.Value)
+
+	token, _, err := auth.ReadClusterToken(req, sharedTestOther, resolve)
+	require.NoError(t, err)
+	assert.Empty(t, token, "the logged-out cluster must not read the shared token")
 }
 
 // TestRenewLogoutMarkersOnlyWellFormedNames: only marker cookies are renewed,
@@ -666,7 +734,7 @@ func TestRenewLogoutMarkersOnlyWellFormedNames(t *testing.T) {
 		"headlamp-auth~shared-"+sharedTestKey+".out=1; other=keep; headlamp-auth~out-xyz=1; headlamp-auth-a.out=1")
 
 	rr := httptest.NewRecorder()
-	auth.RenewLogoutMarkers(rr, req, "/headlamp", 300)
+	auth.RenewLogoutMarkers(rr, req, "/headlamp")
 
 	cookies := rr.Result().Cookies()
 	require.Len(t, cookies, 2)
@@ -674,7 +742,7 @@ func TestRenewLogoutMarkersOnlyWellFormedNames(t *testing.T) {
 	for _, ck := range cookies {
 		assert.Contains(t, []string{markerA, markerB}, ck.Name)
 		assert.Equal(t, "1", ck.Value, "the request value is never reflected")
-		assert.Equal(t, 300, ck.MaxAge)
+		assert.Equal(t, logoutMarkerMaxAge, ck.MaxAge)
 		assert.Equal(t, "/headlamp/clusters/", ck.Path)
 		assert.True(t, ck.HttpOnly)
 	}
@@ -703,7 +771,7 @@ func TestLogoutMarkerNamesDoNotCollide(t *testing.T) {
 				"the names must collide once sanitized, or this case proves nothing")
 
 			rr := httptest.NewRecorder()
-			auth.MarkLoggedOut(rr, clusterRequest(tt.loggedOut), tt.loggedOut, "/headlamp", 900)
+			auth.MarkLoggedOut(rr, clusterRequest(tt.loggedOut), tt.loggedOut, "/headlamp")
 
 			cookies := rr.Result().Cookies()
 			require.Len(t, cookies, 1)
@@ -722,18 +790,18 @@ func TestLogoutMarkerNamesDoNotCollide(t *testing.T) {
 	}
 }
 
-// TestMarkLoggedOutUsesSharedPathAndSessionTTL: the marker is set where every
-// cluster request sends it, with the session TTL, and lifted from there.
-func TestMarkLoggedOutUsesSharedPathAndSessionTTL(t *testing.T) {
+// TestMarkLoggedOutUsesSharedPathAndMarkerLifetime: the marker is set where
+// every cluster request sends it, with its own lifetime, and lifted from there.
+func TestMarkLoggedOutUsesSharedPathAndMarkerLifetime(t *testing.T) {
 	req := clusterRequest(sharedTestCluster)
 
 	rr := httptest.NewRecorder()
-	auth.MarkLoggedOut(rr, req, sharedTestCluster, "/headlamp", 900)
+	auth.MarkLoggedOut(rr, req, sharedTestCluster, "/headlamp")
 
 	marker := findResponseCookie(t, rr, outCookieName())
 	require.NotNil(t, marker)
 	assert.Equal(t, "1", marker.Value)
-	assert.Equal(t, 900, marker.MaxAge)
+	assert.Equal(t, logoutMarkerMaxAge, marker.MaxAge)
 	assert.Equal(t, "/headlamp/clusters/", marker.Path)
 
 	rr = httptest.NewRecorder()

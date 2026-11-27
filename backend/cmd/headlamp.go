@@ -1906,7 +1906,7 @@ func (c *HeadlampConfig) clearTokenCookie(w http.ResponseWriter, r *http.Request
 	auth.ClearTokenCookieBounded(w, r, cluster, c.BaseURL)
 
 	if c.OidcUseTokenBroadcast {
-		auth.MarkLoggedOut(w, r, c.logoutMarkerID(cluster), c.BaseURL, c.SessionTTL)
+		auth.MarkLoggedOut(w, r, c.logoutMarkerID(cluster), c.BaseURL)
 	}
 }
 

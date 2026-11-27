@@ -6465,7 +6465,7 @@ func TestClearTokenEndpointWithSpecialContext(t *testing.T) {
 					require.Len(t, cookies, 2)
 					assert.Equal(t, auth.LogoutMarkerName(cluster), cookies[1].Name)
 					assert.Equal(t, "1", cookies[1].Value)
-					assert.Equal(t, 1800, cookies[1].MaxAge, "the marker gets the session TTL and slides with the shared cookie")
+					assert.Equal(t, 400*24*60*60, cookies[1].MaxAge, "the marker outlives the shared cookie, not the session TTL")
 					assert.Equal(t, "/clusters/", cookies[1].Path, "markers live on the shared path")
 				}
 
@@ -6960,7 +6960,7 @@ func TestRenameKeepsWhoMayReceiveTheSharedToken(t *testing.T) { //nolint:funlen 
 
 		markers := logoutMarkers(t, handler, "main", "")
 		require.Len(t, markers, 1)
-		require.Equal(t, 3600, markers[0].MaxAge, "the logout sets the marker")
+		require.Equal(t, 400*24*60*60, markers[0].MaxAge, "the logout sets the marker")
 
 		loggedOut := sharedCookie + "; " + markers[0].Name + "=" + markers[0].Value
 		assert.Empty(t, listPods(t, routes, "main", loggedOut), "before the rename")
@@ -7000,7 +7000,7 @@ func TestRenameKeepsWhoMayReceiveTheSharedToken(t *testing.T) { //nolint:funlen 
 		again := logoutMarkers(t, handler, "renamed", "")
 		require.Len(t, again, 1)
 		assert.Equal(t, markers[0].Name, again[0].Name)
-		assert.Equal(t, 3600, again[0].MaxAge)
+		assert.Equal(t, 400*24*60*60, again[0].MaxAge)
 	})
 
 	// Two files may name a context alike; both are loaded once one of them has
