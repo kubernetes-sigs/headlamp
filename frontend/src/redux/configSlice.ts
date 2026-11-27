@@ -54,6 +54,10 @@ export interface ConfigState {
    */
   isDynamicClusterEnabled: boolean;
   /**
+   * Whether the built-in cluster terminal is enabled on the backend.
+   */
+  clusterTerminalEnabled?: boolean;
+  /**
    * Whether the backend can discover the namespaces a user may access when the
    * user is not allowed to list namespaces.
    */
@@ -225,6 +229,7 @@ export const initialState: ConfigState = {
   statelessClusters: null,
   allClusters: null,
   isDynamicClusterEnabled: false,
+  clusterTerminalEnabled: false,
   namespaceDiscoveryEnabled: false,
   allowKubeconfigChanges: false,
   defaultPodDebugImage: '',
@@ -259,6 +264,7 @@ const configSlice = createSlice({
         clusters: ConfigState['clusters'];
         clusterSources?: ClusterSourceView[];
         isDynamicClusterEnabled?: boolean;
+        clusterTerminalEnabled?: boolean;
         namespaceDiscoveryEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
         defaultPodDebugImage?: string;
@@ -284,6 +290,9 @@ const configSlice = createSlice({
       }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
+      }
+      if (action.payload.clusterTerminalEnabled !== undefined) {
+        state.clusterTerminalEnabled = action.payload.clusterTerminalEnabled;
       }
       if (action.payload.namespaceDiscoveryEnabled !== undefined) {
         state.namespaceDiscoveryEnabled = action.payload.namespaceDiscoveryEnabled;

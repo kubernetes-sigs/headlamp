@@ -40,6 +40,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -84,28 +85,32 @@ func main() {
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
-		AppName:                conf.AppName,
-		UseInCluster:           conf.InCluster,
-		InClusterContextName:   conf.InClusterContextName,
-		KubeConfigPath:         conf.KubeConfigPath,
-		KubeConfigDir:          conf.KubeConfigDir,
-		SkippedKubeContexts:    conf.SkippedKubeContexts,
-		ListenAddr:             conf.ListenAddr,
-		CacheEnabled:           conf.CacheEnabled,
-		CacheMaxClientsets:     conf.CacheMaxClientsets,
-		Port:                   conf.Port,
-		DevMode:                conf.DevMode,
-		StaticDir:              conf.StaticDir,
-		Insecure:               conf.InsecureSsl,
-		PluginDir:              conf.PluginsDir,
-		UserPluginDir:          conf.UserPluginsDir,
-		EnableHelm:             conf.EnableHelm,
-		EnableDynamicClusters:  conf.EnableDynamicClusters,
-		DiscoverySources:       conf.DiscoverySources,
-		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
-		WatchPluginsChanges:    conf.WatchPluginsChanges,
-		KubeConfigStore:        kubeConfigStore,
-		BaseURL:                conf.BaseURL,
+		AppName:                  conf.AppName,
+		UseInCluster:             conf.InCluster,
+		InClusterContextName:     conf.InClusterContextName,
+		KubeConfigPath:           conf.KubeConfigPath,
+		KubeConfigDir:            conf.KubeConfigDir,
+		SkippedKubeContexts:      conf.SkippedKubeContexts,
+		ListenAddr:               conf.ListenAddr,
+		CacheEnabled:             conf.CacheEnabled,
+		CacheMaxClientsets:       conf.CacheMaxClientsets,
+		Port:                     conf.Port,
+		DevMode:                  conf.DevMode,
+		StaticDir:                conf.StaticDir,
+		Insecure:                 conf.InsecureSsl,
+		PluginDir:                conf.PluginsDir,
+		UserPluginDir:            conf.UserPluginsDir,
+		EnableHelm:               conf.EnableHelm,
+		EnableClusterTerminal:    conf.EnableClusterTerminal,
+		ClusterTerminalNamespace: conf.ClusterTerminalNamespace,
+		ClusterTerminalImage:     conf.ClusterTerminalImage,
+		TerminalTokens:           terminal.NewSessionTokenStore(),
+		EnableDynamicClusters:    conf.EnableDynamicClusters,
+		DiscoverySources:         conf.DiscoverySources,
+		AllowKubeconfigChanges:   conf.AllowKubeconfigChanges,
+		WatchPluginsChanges:      conf.WatchPluginsChanges,
+		KubeConfigStore:          kubeConfigStore,
+		BaseURL:                  conf.BaseURL,
 		ProxyURLs: func() []string {
 			proxyURLs := []string{}
 
