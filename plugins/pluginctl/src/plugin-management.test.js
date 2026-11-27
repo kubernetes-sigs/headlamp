@@ -402,7 +402,9 @@ describe('archive structure', () => {
     const folder = path.join(root, 'package');
     fs.mkdirSync(folder);
     for (const [name, contents] of Object.entries(files)) {
-      if (contents === null) fs.mkdirSync(path.join(folder, name));
+      if (contents && typeof contents === 'object') {
+        fs.symlinkSync(contents.target, path.join(folder, name));
+      } else if (contents === null) fs.mkdirSync(path.join(folder, name));
       else fs.writeFileSync(path.join(folder, name), contents);
     }
     const archivePath = path.join(root, 'plugin.tar.gz');
@@ -419,6 +421,16 @@ describe('archive structure', () => {
   }
 
   const invalid = [
+    ...['main.js', 'package.json'].flatMap(name => [false, true].map(dangling => [
+      `${dangling ? 'dangling' : 'resolving'} symlink ${name}`,
+      {
+        'main.js': '// plugin',
+        'package.json': JSON.stringify(metadata),
+        ...(dangling ? {} : { 'target.txt': name === 'main.js' ? '// plugin' : JSON.stringify(metadata) }),
+        [name]: { target: 'target.txt' },
+      },
+      new RegExp(name.replace('.', '\\.')),
+    ])),
     ['missing main.js', { 'package.json': JSON.stringify(metadata) }, /main\.js/],
     ['directory main.js', { 'main.js': null, 'package.json': JSON.stringify(metadata) }, /main\.js/],
     ['missing package.json', { 'main.js': '// plugin' }, /package\.json/],

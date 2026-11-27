@@ -520,11 +520,11 @@ async function downloadExtractPlugin(
   // add artifacthub metadata to the plugin
   let packageJSON;
   try {
-    if (!fs.statSync(path.join(tempFolder, 'main.js'), { throwIfNoEntry: false })?.isFile()) {
+    if (!fs.lstatSync(path.join(tempFolder, 'main.js'), { throwIfNoEntry: false })?.isFile()) {
       throw new Error('main.js must be a file');
     }
     const packagePath = path.join(tempFolder, 'package.json');
-    if (!fs.statSync(packagePath, { throwIfNoEntry: false })?.isFile()) {
+    if (!fs.lstatSync(packagePath, { throwIfNoEntry: false })?.isFile()) {
       throw new Error('package.json must be a file');
     }
     try {
