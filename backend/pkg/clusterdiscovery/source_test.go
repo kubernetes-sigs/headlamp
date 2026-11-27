@@ -250,6 +250,15 @@ func TestGeneratedOIDCConfigRejectsIncompleteConnections(t *testing.T) {
 	}
 }
 
+func TestNameWithOwnerUID(t *testing.T) {
+	// Replicas and later releases must agree on the name of the same owner.
+	require.Equal(t, "member-95467e443182", nameWithOwnerUID("member", "uid-edge-1"))
+	require.NotEqual(t, nameWithOwnerUID("member", "uid-edge-1"), nameWithOwnerUID("member", "uid-edge-2"))
+
+	require.Equal(t, "member", nameWithOwnerUID("member", ""))
+	require.Empty(t, nameWithOwnerUID("", "uid-edge-1"), "a missing name must stay invalid")
+}
+
 // A connection whose Cluster Inventory metadata clients could not read is not published.
 func TestLoadGeneratedRejectsInvalidInventoryMetadata(t *testing.T) {
 	runner, _ := sampleFleetRunner(t, nil, &sampleFleetSource{})

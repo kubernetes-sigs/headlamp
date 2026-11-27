@@ -77,7 +77,8 @@ type Source interface {
 	// OwnersForChange maps a changed object of a watched resource to the owners to rebuild.
 	OwnersForChange(resource schema.GroupVersionResource, obj interface{}) []types.NamespacedName
 	// Build returns the connections of one owner from the cached objects. Connections the
-	// owner no longer returns are removed, and an error removes all of them.
+	// owner no longer returns are removed, and an error removes all of them. The engine
+	// makes their names specific to the owner's UID.
 	Build(root string, owner types.NamespacedName, snapshot Snapshot) ([]GeneratedKubeconfig, error)
 }
 
@@ -110,7 +111,8 @@ type Snapshot interface {
 type GeneratedKubeconfig struct {
 	// Key identifies the connection among those of its owner and stays stable across updates.
 	Key string
-	// Name is the context name, which is the connection key in Headlamp.
+	// Name is the context name without the owner's UID. The engine appends a hash of that
+	// UID to form the connection key in Headlamp.
 	Name string
 	// ClusterID is the stable public ID of the connection.
 	ClusterID string

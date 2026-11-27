@@ -50,9 +50,12 @@ for example `--cluster-api-namespaces=workload-team-a`. Avoid
 `--cluster-api-namespaces=*` if namespaces have differently trusted writers,
 because this option includes discovery resource writers in every namespace.
 
-One Cluster creates one connection named `cluster-api-<root-and-cluster-key>--<hash>`,
-with ID `cluster-api/<root>/<namespace>/<cluster-name>`. The name and ID are stable
+One Cluster creates one connection named
+`cluster-api-<root-and-cluster-key>--<hash>-<cluster-uid-hash>`, with ID
+`cluster-api/<root>/<namespace>/<cluster-name>`. The name and ID are stable
 across Secret updates. Deleting the Cluster or Secret, invalidating its connection,
 or excluding the Cluster with the selector removes its connection. Restoring the
-resources restores it. Generated kubeconfigs are held in memory and cannot be
-renamed in Headlamp.
+Secret or the selection restores the same connection. A Cluster that is deleted
+and created again has a new UID, and therefore a new connection name with the
+same ID; users sign in to it again. Generated kubeconfigs are held in memory and
+cannot be renamed in Headlamp.

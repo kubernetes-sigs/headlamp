@@ -246,6 +246,41 @@ func TestClusterAPIUsesSharedOIDCLifecycle(t *testing.T) { //nolint:funlen // ex
 	)
 }
 
+// The Cluster identifies the connection. Its kubeconfig Secret can be replaced without
+// changing the name, but a Cluster created again under the same name is a new connection.
+func TestClusterAPIConnectionNameFollowsClusterUID(t *testing.T) {
+	cluster, secret := capiFixture(t)
+	cluster.SetUID("cluster-uid")
+	secret.SetUID("secret-uid")
+
+	runner, client := capiRunner(t, cluster, secret)
+	ctx := testRunnerContext(t, runner)
+	reconcileAndWaitForRoot(t, ctx, runner, inClusterRootID)
+
+	original := requireDiscovered(t, runner)
+	secrets := client.Resource(secretResource).Namespace("default")
+	clusters := client.Resource(clusterAPIResource).Namespace("default")
+
+	require.NoError(t, secrets.Delete(ctx, "spoke-kubeconfig", metav1.DeleteOptions{}))
+	requireContextCount(t, runner.store, 0)
+	secret.SetUID("secret-uid-rotated")
+
+	_, err := secrets.Create(ctx, secret, metav1.CreateOptions{})
+	require.NoError(t, err)
+	require.Equal(t, original.Name, requireDiscovered(t, runner).Name)
+
+	require.NoError(t, clusters.Delete(ctx, "spoke", metav1.DeleteOptions{}))
+	requireContextCount(t, runner.store, 0)
+	cluster.SetUID("cluster-uid-recreated")
+
+	_, err = clusters.Create(ctx, cluster, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	recreated := requireDiscovered(t, runner)
+	require.NotEqual(t, original.Name, recreated.Name)
+	require.Equal(t, original.ClusterID, recreated.ClusterID)
+}
+
 func TestClusterAPISecretCache(t *testing.T) { //nolint:funlen // checks initial sync and invalidation.
 	cluster, secret := capiFixture(t)
 	secret.SetUID("kubeconfig-uid")

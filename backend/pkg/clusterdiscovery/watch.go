@@ -168,6 +168,8 @@ func (r *Runner) reconcileOwner(state *rootState, watch rootWatch, owner types.N
 
 	names := make([]string, 0, len(generated))
 	for _, entry := range generated {
+		entry.Name = nameWithOwnerUID(entry.Name, accessor.GetUID())
+
 		context, err := r.loadGenerated(state.rootID, owner, entry)
 		if err != nil {
 			logger.Log(

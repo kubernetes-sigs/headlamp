@@ -32,18 +32,21 @@ ClusterProfiles; use Kubernetes RBAC to restrict updates to ClusterProfile
 status to trusted cluster managers.
 
 Each access-provider entry with valid connection metadata appears separately in
-the cluster list. Its context name ends in `-<access-provider-name>`, so a profile
-with providers named `direct` and `fleet-gateway` offers two selectable connections.
+the cluster list. Its context name ends in
+`-<access-provider-name>-<profile-uid-hash>`, so a profile with providers named
+`direct` and `fleet-gateway` offers two selectable connections.
 The Cluster Inventory API tab shows the ClusterProfile name, resource namespace,
 and access provider in separate columns. The generated context name is available
 in Connection details.
 
 Names and cluster IDs stay stable when providers are reordered or their connection
 settings change. Removing a provider removes only its connection; renaming a
-provider replaces that connection. There is no automatic failover between them.
+provider replaces that connection. Deleting a ClusterProfile and creating it again
+replaces all its connections with newly named ones; their cluster IDs stay the
+same. There is no automatic failover between them.
 
-For example, this connection has the suffix `-fleet-gateway` and reaches a gateway
-while validating the certificate for `kubernetes.internal`:
+For example, this connection has `-fleet-gateway-` before its UID hash and reaches
+a gateway while validating the certificate for `kubernetes.internal`:
 
 ```yaml
 apiVersion: multicluster.x-k8s.io/v1alpha1
@@ -71,8 +74,9 @@ Invalid connection metadata removes that
 provider's existing connection without affecting other valid providers. Removing
 a profile or excluding it with the label selector removes all its connections.
 
-Generated kubeconfigs are held in memory. Their names are managed by the profile
-and provider names, so Headlamp does not offer renaming for these connections.
+Generated kubeconfigs are held in memory. Their names are derived from the
+profile's name and UID and the provider name, so Headlamp does not offer renaming
+for these connections.
 File-backed and IndexedDB-backed connections retain their existing name editing.
 
 ## Configuration

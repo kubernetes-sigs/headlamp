@@ -237,7 +237,8 @@ config:
 
 The pod's service account reads ClusterProfiles; it is not used to authenticate
 user requests to discovered clusters. Each valid access-provider entry becomes a
-separate selectable connection with `-<access-provider-name>` appended to its name.
+separate selectable connection with `-<access-provider-name>` and a hash of the
+ClusterProfile's UID appended to its name.
 Invalid entries are excluded independently. All discovered API servers must trust
 the configured OIDC issuer and client.
 

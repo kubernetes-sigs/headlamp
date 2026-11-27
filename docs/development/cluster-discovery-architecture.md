@@ -24,7 +24,9 @@ Each source has independent watches and CRD availability tracking. A management
 cluster can provide either API or both; one missing API does not disable the
 other. Transient watch failures retry without discarding previously discovered
 connections. Once caches synchronize, removed owners and invalid connections are
-pruned. Names and IDs remain stable when connection settings change. Entries from
+pruned. Names and IDs remain stable when connection settings change. A name ends
+with a hash of its owner resource's UID, so an owner that is deleted and created
+again under the same name gets a new connection name and keeps its ID. Entries from
 different sources remain separate even when their API server URLs match.
 
 ## Design
@@ -245,7 +247,8 @@ underscores in the source ID replaced by hyphens:
 - `OwnersForChange` maps primary or dependency events to an owner name.
 - `Build` reads the cache snapshot and returns one `GeneratedKubeconfig` per
   connection, including its stable key, name, ID, public metadata, and optional
-  `Presentation` display name and string fields.
+  `Presentation` display name and string fields. The engine appends a hash of the
+  owner's UID to each name, so a source does not add the UID itself.
 
 Each output contains exactly one context and connection information, without
 cluster credentials. The engine supplies the configured OIDC user, copies only
@@ -265,7 +268,8 @@ without source-specific components.
 `backend/pkg/clusterdiscovery/extensibility_test.go` defines a source that exists only
 in that file and runs it through the unmodified engine. It checks registration,
 the home page view, the OIDC connection, credential removal, update and delete,
-rejection of invalid output, and coexistence with the built-in sources.
+a new connection name for a recreated resource, rejection of invalid output, and
+coexistence with the built-in sources.
 
 | Layer | Change for a new source |
 | --- | --- |
@@ -294,7 +298,9 @@ fields. Column visibility, sorting, and filters are saved separately for each ta
 | Cluster API           | Cluster resource name        | Resource namespace, management context      |
 
 `Cluster.name` remains the connection key for routes, authentication, saved
-appearance, and recent selections. `meta_data.presentation.displayName` supplies
+appearance, and recent selections. A recreated owner has a new name, so it starts
+without the earlier connection's sign-in, saved appearance, and recent
+selections. `meta_data.presentation.displayName` supplies
 the human-readable name; an existing custom name takes precedence. The engine
 adds the owner's namespace and management context name to `presentation.fields`; adapters
 supply fields such as `provider` or `secret`. These fields contain no credentials.

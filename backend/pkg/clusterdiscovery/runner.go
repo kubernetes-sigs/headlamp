@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -768,6 +769,19 @@ func (r *Runner) isCurrentRoot(state *rootState) bool {
 // makeOwnerKey combines a root ID and owner path into a stable owner key.
 func makeOwnerKey(rootID, ownerPath string) string {
 	return rootID + "/" + ownerPath
+}
+
+// nameWithOwnerUID appends a short hash of the owner's UID to a connection name, so an
+// owner that is deleted and created again under the same name gets a new connection.
+// An empty name stays invalid, and an owner without a UID keeps the name.
+func nameWithOwnerUID(name string, uid types.UID) string {
+	if name == "" || uid == "" {
+		return name
+	}
+
+	sum := sha256.Sum256([]byte(uid))
+
+	return name + "-" + hex.EncodeToString(sum[:6])
 }
 
 // normalizeLabelSelector parses a user-provided label selector.
