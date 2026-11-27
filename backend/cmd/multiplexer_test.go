@@ -1699,6 +1699,72 @@ func TestWriteMessageToCluster(t *testing.T) {
 	assert.Equal(t, StateError, conn.Status.State)
 }
 
+// TestHeartbeatConcurrentWrite covers #8109, where heartbeat pings and
+// client requests could write concurrently to the same cluster WebSocket.
+func TestHeartbeatConcurrentWrite(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m.heartbeatInterval = time.Millisecond
+
+	wsConn, wsServer := createTestWebSocketConn()
+	require.NotNil(t, wsConn)
+
+	defer wsServer.Close()
+	defer func() { _ = wsConn.Close() }()
+
+	require.NoError(t, wsConn.SetWriteDeadline(time.Now().Add(5*time.Second)))
+
+	pong := make(chan struct{})
+	signalPong := sync.OnceFunc(func() { close(pong) })
+
+	wsConn.SetPongHandler(func(string) error {
+		signalPong()
+
+		return nil
+	})
+
+	// Drain echoed messages and receive the heartbeat pong.
+	go func() {
+		for {
+			if _, _, err := wsConn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", nil)
+	conn.WSConn = wsConn
+	conn.Status.State = StateConnected
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+
+		m.monitorConnection(conn)
+	}()
+
+	defer func() {
+		conn.safeClose()
+		<-done
+	}()
+
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() {
+			for deadline := time.Now().Add(100 * time.Millisecond); time.Now().Before(deadline); {
+				assert.NoError(t, m.writeMessageToCluster(conn, []byte("x")))
+			}
+		})
+	}
+
+	wg.Wait()
+
+	select {
+	case <-pong:
+	case <-time.After(time.Second):
+		t.Error("cluster heartbeat did not receive a pong")
+	}
+}
+
 func TestHandleClusterMessages(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	clientConn, clientServer := createTestWebSocketConnection()
