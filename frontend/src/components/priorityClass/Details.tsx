@@ -38,7 +38,7 @@ export default function PriorityClassDetails(props: { name?: string; cluster?: s
           },
           {
             name: t('translation|Global Default'),
-            value: item.globalDefault || 'False',
+            value: String(item.globalDefault || 'False'),
           },
           {
             name: t('translation|Preemption Policy'),
