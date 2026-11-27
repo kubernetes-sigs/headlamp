@@ -125,6 +125,28 @@ describe('HpaDetails', () => {
     expect(lastScale.hide).toBe(true);
   });
 
+  it('shows a custom target as text and keeps a recognized target linked', () => {
+    render(
+      <TestContext>
+        <HpaDetails />
+      </TestContext>
+    );
+    const { extraInfo } = mockDetailsGrid.mock.calls[0][0];
+    const reference = (item: typeof hpa) =>
+      extraInfo(item).find((row: { name: string }) => row.name.split('|').pop() === 'Reference')
+        .value;
+    expect(
+      reference({
+        ...hpa,
+        referenceObject: null,
+        spec: {
+          scaleTargetRef: { apiVersion: 'argoproj.io/v1alpha1', kind: 'Rollout', name: 'checkout' },
+        },
+      })
+    ).toBe('Rollout/checkout');
+    expect(reference(hpa).props.kubeObject).toBe(hpa.referenceObject);
+  });
+
   it('safely handles resources with undefined status and spec in extraInfo', () => {
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'my-hpa' }}>

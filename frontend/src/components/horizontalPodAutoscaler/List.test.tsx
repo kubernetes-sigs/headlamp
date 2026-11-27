@@ -93,6 +93,24 @@ describe('HpaList', () => {
     expect(getColumn('targets').getValue(hpa)).toBe('50%/80%, 10/20');
   });
 
+  it('displays and indexes a custom scale target without linking it', () => {
+    render(
+      <TestContext>
+        <HpaList />
+      </TestContext>
+    );
+    const item = {
+      spec: {
+        scaleTargetRef: { apiVersion: 'argoproj.io/v1alpha1', kind: 'Rollout', name: 'checkout' },
+      },
+      referenceObject: null,
+    };
+    const column = getColumn('reference');
+    expect(column.getValue(item)).toBe('checkout');
+    expect(column.render(item)).toBe('Rollout/checkout');
+    expect(column.render(hpa).props.kubeObject).toBe(hpa.referenceObject);
+  });
+
   it('renders a raw target reference as plain text after a group mismatch', () => {
     render(
       <TestContext>

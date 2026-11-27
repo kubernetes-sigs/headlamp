@@ -19,8 +19,8 @@ import { styled } from '@mui/system';
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import HPA from '../../lib/k8s/hpa';
-import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { renderHpaReference } from './renderHpaReference';
 
 const RootDiv = styled('div')(({ theme }) => ({
   display: 'flex',
@@ -51,16 +51,7 @@ export default function HpaList() {
           id: 'reference',
           label: t('translation|Reference'),
           getValue: item => item.referenceObject?.metadata?.name ?? item.spec?.scaleTargetRef?.name,
-          render: item => {
-            const target = item.spec?.scaleTargetRef;
-            return item.referenceObject ? (
-              <Link kubeObject={item.referenceObject}>
-                {item.referenceObject?.kind}/{item.referenceObject?.metadata?.name}
-              </Link>
-            ) : target?.kind && target?.name ? (
-              `${target.kind}/${target.name}`
-            ) : null;
-          },
+          render: renderHpaReference,
         },
         {
           id: 'targets',

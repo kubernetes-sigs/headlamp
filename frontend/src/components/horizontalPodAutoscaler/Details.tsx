@@ -18,10 +18,10 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import HPA from '../../lib/k8s/hpa';
 import { localeDate } from '../../lib/util';
-import Link from '../common/Link';
 import { ConditionsSection } from '../common/Resource';
 import { DetailsGrid } from '../common/Resource';
 import SimpleTable from '../common/SimpleTable';
+import { renderHpaReference } from './renderHpaReference';
 
 export default function HpaDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();
@@ -39,18 +39,7 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
         item && [
           {
             name: t('translation|Reference'),
-            value: (() => {
-              const target = item.spec?.scaleTargetRef;
-              return item.referenceObject ? (
-                <Link kubeObject={item.referenceObject}>
-                  {item.referenceObject?.kind}/{item.referenceObject?.metadata?.name}
-                </Link>
-              ) : target?.kind && target?.name ? (
-                `${target.kind}/${target.name}`
-              ) : (
-                '-'
-              );
-            })(),
+            value: renderHpaReference(item) ?? '-',
           },
           {
             name: t('translation|Metrics'),
