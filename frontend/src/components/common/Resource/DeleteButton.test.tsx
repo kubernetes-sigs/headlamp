@@ -22,6 +22,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+vi.mock('@iconify/react', () => ({
+  Icon: ({ icon }: { icon: string }) => <span data-testid="icon" data-icon={icon} />,
+}));
+
 // Hoist mock classes before imports so vi.mock can use them. We mock KubeObject/namespace
 // (rather than importing the real ones) to avoid a circular-import ordering issue in the
 // lib/k8s barrel when these modules are loaded first by a unit test.
@@ -105,6 +109,8 @@ vi.mock('./AuthVisible', () => ({
 }));
 
 import Pod from '../../../lib/k8s/pod';
+import { setAppSettings } from '../../../redux/configSlice';
+import defaultStore from '../../../redux/stores/store';
 import { TestContext } from '../../../test';
 import DeleteButton from './DeleteButton';
 
@@ -143,6 +149,7 @@ describe('DeleteButton', () => {
   beforeEach(() => {
     authState.canDelete = true;
     authState.canEvict = true;
+    defaultStore.dispatch(setAppSettings({ useEvict: true }));
   });
 
   it('renders nothing when no item is provided', () => {
@@ -160,6 +167,22 @@ describe('DeleteButton', () => {
 
     expect(await screen.findByRole('menuitem', { name: 'translation|Delete' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'translation|Evict' })).not.toBeInTheDocument();
+  });
+
+  it('renders mdi:logout icon on the primary action button for a pod when useEvict is true', async () => {
+    defaultStore.dispatch(setAppSettings({ useEvict: true }));
+    renderButton(makePod({ name: 'my-pod' }));
+
+    const primaryButton = await screen.findByLabelText('translation|Evict');
+    expect(within(primaryButton).getByTestId('icon')).toHaveAttribute('data-icon', 'mdi:logout');
+  });
+
+  it('renders mdi:delete icon on the primary action button for a pod when useEvict is false', async () => {
+    defaultStore.dispatch(setAppSettings({ useEvict: false }));
+    renderButton(makePod({ name: 'my-pod' }));
+
+    const primaryButton = await screen.findByLabelText('translation|Delete');
+    expect(within(primaryButton).getByTestId('icon')).toHaveAttribute('data-icon', 'mdi:delete');
   });
 
   it('opens the evict confirmation when the primary action is chosen for a pod', async () => {
