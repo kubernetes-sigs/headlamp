@@ -191,3 +191,21 @@ func TestCreateHeadlampConfig_CacheMaxClientsetsPrecedence(t *testing.T) {
 		assert.Equal(t, 256, k8cache.MaxClientsets())
 	})
 }
+
+func TestCreateHeadlampConfig_OIDCAuthorizationParams(t *testing.T) {
+	k8cache.ResetForTesting()
+	t.Cleanup(k8cache.ResetForTesting)
+
+	conf := &config.Config{
+		AppName:                 "Headlamp Test",
+		SessionTTL:              86400,
+		OidcAuthorizationParams: `{"prompt":"select_account","login_hint":"user@example.com"}`,
+	}
+
+	headlampConfig := createHeadlampConfig(conf)
+	require.NotNil(t, headlampConfig)
+	assert.Equal(t, map[string]string{
+		"prompt":     "select_account",
+		"login_hint": "user@example.com",
+	}, headlampConfig.OidcAuthorizationParams)
+}

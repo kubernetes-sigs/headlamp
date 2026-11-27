@@ -60,6 +60,7 @@ type HeadlampConfig struct {
 	OidcUsePKCE               bool
 	OidcSkipLogout            bool
 	OidcScopes                []string
+	OidcAuthorizationParams   map[string]string
 	Cache                     cache.Cache[interface{}]
 	Multiplexer               WebSocketMultiplexer
 	TelemetryConfig           config.Config

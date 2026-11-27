@@ -19,6 +19,7 @@ package config
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,6 +30,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
@@ -117,6 +119,7 @@ type Config struct {
 	MeGroupsPath                 string `koanf:"me-groups-path"`
 	MeUserInfoURL                string `koanf:"me-user-info-url"`
 	OidcUsePKCE                  bool   `koanf:"oidc-use-pkce"`
+	OidcAuthorizationParams      string `koanf:"oidc-authorization-params"`
 	ProxyAuthEnabled             bool   `koanf:"proxy-auth"`
 	ProxyAuthUsernameHeader      string `koanf:"proxy-auth-username-header"`
 	ProxyAuthGroupHeader         string `koanf:"proxy-auth-group-header"`
@@ -278,6 +281,125 @@ func (c *Config) Validate() error {
 
 	if err := c.validateDiscoverySources(); err != nil {
 		return err
+	}
+
+	if err := c.validateOIDCAuthorizationParams(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// IsReservedOIDCAuthorizationParam reports whether key is a core OAuth2 or
+// OIDC protocol parameter managed by Headlamp that cannot be overridden.
+func IsReservedOIDCAuthorizationParam(key string) bool {
+	switch strings.ToLower(key) {
+	case "client_id", "redirect_uri", "response_type", "scope", "state",
+		"code_challenge", "code_challenge_method":
+		return true
+	default:
+		return false
+	}
+}
+
+// ParseOIDCAuthorizationParams parses additional OIDC authorization request
+// parameters from either a JSON object or comma-separated key=value pairs.
+func ParseOIDCAuthorizationParams(raw string) (map[string]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	if strings.HasPrefix(trimmed, "{") {
+		return parseJSONOIDCAuthorizationParams(trimmed)
+	}
+
+	return parseKeyValueOIDCAuthorizationParams(trimmed)
+}
+
+func (c *Config) validateOIDCAuthorizationParams() error {
+	_, err := ParseOIDCAuthorizationParams(c.OidcAuthorizationParams)
+
+	return err
+}
+
+func parseJSONOIDCAuthorizationParams(raw string) (map[string]string, error) {
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return nil, fmt.Errorf("invalid OIDC authorization parameters JSON: %w", err)
+	}
+
+	if len(decoded) == 0 {
+		return nil, nil
+	}
+
+	params := make(map[string]string, len(decoded))
+
+	for k, v := range decoded {
+		if err := validateOIDCAuthorizationParamKey(k); err != nil {
+			return nil, err
+		}
+
+		strVal, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("OIDC authorization parameter %q must have a string value", k)
+		}
+
+		params[k] = strVal
+	}
+
+	return params, nil
+}
+
+func parseKeyValueOIDCAuthorizationParams(raw string) (map[string]string, error) {
+	parts := strings.Split(raw, ",")
+	params := make(map[string]string, len(parts))
+
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+
+		key, value, ok := strings.Cut(trimmed, "=")
+		if !ok {
+			return nil, fmt.Errorf("invalid OIDC authorization parameter %q: expected key=value format", trimmed)
+		}
+
+		if err := validateOIDCAuthorizationParamKey(key); err != nil {
+			return nil, err
+		}
+
+		if _, exists := params[key]; exists {
+			return nil, fmt.Errorf("duplicate OIDC authorization parameter %q", key)
+		}
+
+		params[key] = value
+	}
+
+	if len(params) == 0 {
+		return nil, nil
+	}
+
+	return params, nil
+}
+
+func validateOIDCAuthorizationParamKey(key string) error {
+	if key == "" {
+		return errors.New("OIDC authorization parameter key must not be empty")
+	}
+
+	for _, r := range key {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return fmt.Errorf(
+				"OIDC authorization parameter key %q must not contain whitespace or control characters",
+				key,
+			)
+		}
+	}
+
+	if IsReservedOIDCAuthorizationParam(key) {
+		return fmt.Errorf("OIDC authorization parameter %q is reserved and cannot be overridden", key)
 	}
 
 	return nil
@@ -871,6 +993,9 @@ func addOIDCFlags(f *flag.FlagSet) {
 			"default. Preconditions and caveats: "+
 			"https://headlamp.dev/docs/latest/installation/in-cluster/oidc/")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.String("oidc-authorization-params", "",
+		"Additional OIDC authorization request parameters as a JSON object or comma-separated "+
+			"key=value pairs (e.g. prompt=select_account)")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
