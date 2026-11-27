@@ -634,5 +634,5 @@ const [item, error] = MyResource.useGet('name', 'namespace');
 ### Useful Links
 
 - [KubeObject API Reference](https://headlamp.dev/docs/latest/development/api/lib/k8s/KubeObject/classes/KubeObject)
-- [ApiProxy API Reference](https://headlamp.dev/docs/latest/development/api/classes/lib_k8s_apiProxy.ApiProxy/)
+- [ApiProxy API Reference](https://headlamp.dev/docs/latest/development/api/lib/k8s/apiProxy/API)
 - [Kubernetes API Concepts](https://kubernetes.io/docs/reference/using-api/api-concepts/)
