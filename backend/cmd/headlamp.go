@@ -3081,7 +3081,12 @@ func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) (string, error
 		return "", fmt.Errorf("decoding kubeconfig: %w", err)
 	}
 
-	config, err := clientcmd.Load(kubeConfigByte)
+	decoded, err := kubeconfig.DecodeKubeConfigData(kubeConfigByte)
+	if err != nil {
+		return "", fmt.Errorf("decoding kubeconfig: %w", err)
+	}
+
+	config, err := clientcmd.Load(decoded)
 	if err != nil {
 		return "", fmt.Errorf("loading kubeconfig: %w", err)
 	}
@@ -3337,7 +3342,7 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 	}
 
 	// Load kubeconfig file
-	config, err := clientcmd.LoadFromFile(path)
+	config, err := kubeconfig.LoadFromFile(path)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "loading kubeconfig file")

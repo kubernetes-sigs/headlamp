@@ -1040,9 +1040,14 @@ func loadContextsFromData(
 
 // UnmarshalKubeconfig unmarshals the kubeconfig data.
 func UnmarshalKubeconfig(data []byte) (map[string]interface{}, error) {
+	decoded, err := DecodeKubeConfigData(data)
+	if err != nil {
+		return nil, DataError{Field: "kubeconfig", Reason: fmt.Sprintf("error decoding kubeconfig: %v", err)}
+	}
+
 	var kubeconfig map[string]interface{}
 
-	err := yaml.Unmarshal(data, &kubeconfig)
+	err = yaml.Unmarshal(decoded, &kubeconfig)
 	if err != nil {
 		return nil, DataError{Field: "kubeconfig", Reason: fmt.Sprintf("error unmarshaling YAML: %v", err)}
 	}
