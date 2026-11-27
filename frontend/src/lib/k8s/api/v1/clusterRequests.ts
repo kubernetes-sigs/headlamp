@@ -303,26 +303,18 @@ export async function clusterRequest(
 
     let message = statusText;
     try {
-      if (isJSON) {
-        const json = await response.json();
-        message += ` - ${json.message}`;
-      } else {
-        // When not expecting JSON, still try to get error details from body
-        const text = await response.text();
-        if (text) {
-          try {
-            // Try to parse as JSON in case backend returns JSON error
-            const json = JSON.parse(text);
-            message += ` - ${json.message || text}`;
-          } catch {
-            // Not JSON, use as plain text
-            message += ` - ${text}`;
-          }
+      const text = await response.text();
+      if (text) {
+        try {
+          const json = JSON.parse(text);
+          message += ` - ${json.message || text}`;
+        } catch {
+          message += ` - ${text}`;
         }
       }
     } catch (err) {
       console.error(
-        'Unable to parse error json at url:',
+        'Unable to read error response at url:',
         url,
         { err },
         'with request data:',
