@@ -21,6 +21,10 @@ import { createMuiTheme } from '../../lib/themes';
 import { TestContext, TestContextProps } from '../../test';
 import SimpleTable, { SimpleTableProps } from './SimpleTable';
 
+vi.mock('../App/Settings/hook', () => ({
+  useSettings: () => [10, 20, 50],
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -492,6 +496,18 @@ describe('SimpleTable', () => {
           '',
         ])
       );
+    });
+    it('clamps out-of-bounds page index when item count is an exact multiple of rowsPerPage', () => {
+      const data = Array.from({ length: 20 }, (_, i) => ({ value: `Item ${i + 1}` }));
+
+      renderTable({
+        columns: [{ label: 'Name', getter: (item: { value: string }) => item.value }],
+        data,
+        rowsPerPage: [10],
+        page: 2,
+      });
+
+      expect(screen.getByText('Item 11')).toBeInTheDocument();
     });
   });
 });
