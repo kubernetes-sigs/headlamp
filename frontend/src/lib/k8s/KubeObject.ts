@@ -284,7 +284,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListSingleNamespaceOptions
   ): () => Promise<CancelFunction> {
-    const createInstance = (item: any): any => this.create(item);
+    const createInstance = (item: any): any => this.create(item, opts?.cluster);
 
     const args: any[] = [(list: any[]) => onList(list.map((item: any) => createInstance(item)))];
 
@@ -841,7 +841,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
-    const createInstance = (item: any) => this.create(item);
+    const createInstance = (item: any) => this.create(item, opts?.cluster);
     const args: any[] = [name, (obj: any) => onGet(createInstance(obj))];
 
     if (this.apiEndpoint.isNamespaced) {

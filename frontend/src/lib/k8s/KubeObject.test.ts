@@ -283,6 +283,34 @@ describe('KubeObject', () => {
       expect(onGet).toHaveBeenCalledWith(expect.objectContaining({ jsonData: data }));
     });
 
+    it('preserves the requested cluster on objects returned by apiList', async () => {
+      vi.mocked(getCluster).mockReturnValue('clusterA');
+      vi.mocked(endpoint.list).mockImplementation(async (_namespace, onList) => {
+        onList([data] as unknown as KubeObjectInterface);
+        return () => {};
+      });
+      const onList = vi.fn();
+
+      await Widget.apiList(onList, undefined, { cluster: 'clusterB' })();
+
+      expect(onList).toHaveBeenCalledTimes(1);
+      expect(onList.mock.calls[0][0][0].cluster).toBe('clusterB');
+    });
+
+    it('preserves the requested cluster on objects returned by apiGet', async () => {
+      vi.mocked(getCluster).mockReturnValue('clusterA');
+      vi.mocked(endpoint.get).mockImplementation(async (_namespace, _name, onGet) => {
+        onGet(data);
+        return () => {};
+      });
+      const onGet = vi.fn();
+
+      await Widget.apiGet(onGet, 'sample', 'apps', undefined, { cluster: 'clusterB' })();
+
+      expect(onGet).toHaveBeenCalledTimes(1);
+      expect(onGet.mock.calls[0][0].cluster).toBe('clusterB');
+    });
+
     it('sets background propagation and immediate deletion for a forced Job deletion', () => {
       class Job extends Widget {
         static kind = 'Job';
