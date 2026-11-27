@@ -31,9 +31,12 @@ import (
 )
 
 // RequestHandler is an HTTP handler that proxies requests to a Kubernetes service.
+// contextKey is the key of the cluster context in kubeConfigStore; for dynamic
+// (stateless) clusters it differs from the cluster name in the URL.
 func RequestHandler(
 	kubeConfigStore kubeconfig.ContextStore,
 	unsafeUseServiceAccountToken bool,
+	contextKey string,
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
@@ -45,7 +48,7 @@ func RequestHandler(
 	setResponseSecurityHeaders(w)
 
 	// Get the context
-	ctx, err := kubeConfigStore.GetContext(clusterName)
+	ctx, err := kubeConfigStore.GetContext(contextKey)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "failed to get context")
 		w.WriteHeader(http.StatusNotFound)

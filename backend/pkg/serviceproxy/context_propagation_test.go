@@ -324,7 +324,7 @@ func startServiceProxyRequest(t *testing.T, apiURL string) (context.CancelFunc, 
 	router := mux.NewRouter()
 	router.HandleFunc("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		func(w http.ResponseWriter, r *http.Request) {
-			RequestHandler(store, false, w, r)
+			RequestHandler(store, false, k8sCtx.Name, w, r)
 		})
 
 	reqCtx, cancel := context.WithCancel(context.Background())
