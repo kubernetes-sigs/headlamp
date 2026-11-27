@@ -1994,6 +1994,37 @@ describe('plugin archive integrity', () => {
     );
   });
 
+  it('leaves no pending filesystem writes after an aborted archive extraction', async () => {
+    const sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-tar-source-'));
+    const extractionDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'headlamp-plugin-extraction-')
+    );
+    temporaryDirectories.push(sourceDirectory, extractionDirectory);
+
+    const pluginDir = path.join(sourceDirectory, 'plugin');
+    fs.mkdirSync(pluginDir);
+    for (let i = 0; i < 20; i++) {
+      const nested = path.join(pluginDir, `dir-${i}`);
+      fs.mkdirSync(nested);
+      fs.writeFileSync(path.join(nested, 'file.txt'), 'x'.repeat(256));
+    }
+    const archive = path.join(sourceDirectory, 'many-entries.tar.gz');
+    await tar.c({ cwd: sourceDirectory, file: archive, gzip: true }, ['plugin']);
+
+    await expect(
+      extractArchive('limited', archive, extractionDirectory, undefined, {
+        maxEntries: 10,
+        maxBytes: 1024 * 1024,
+      })
+    ).rejects.toThrow('entry limit');
+
+    // Removing the extraction directory immediately after rejection must not race
+    // with orphaned async tar writes (ENOTEMPTY) or recreate files afterward.
+    fs.rmSync(extractionDirectory, { recursive: true, force: true });
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(fs.existsSync(extractionDirectory)).toBe(false);
+  });
+
   it('rejects unsafe or empty plugin names', () => {
     for (const name of ['', '   ', '.', '..', '../outside', 'nested/plugin', 'nested\\plugin']) {
       expect(() => validatePluginSource({ name, file: './plugin.tar.gz' }, true)).toThrow(

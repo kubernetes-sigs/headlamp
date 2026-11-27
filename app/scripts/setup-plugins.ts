@@ -317,6 +317,9 @@ export async function extractArchive(
   let extractionError: Error | undefined;
   const extractor = tar.x({
     C: temporaryFolder,
+    // Extract synchronously so aborting in onReadEntry cannot leave async fs writes
+    // running in libuv after pipeline() rejects and callers clean up temporaryFolder.
+    sync: true,
     filter: (_entryPath, entry) => {
       const entryType = 'type' in entry ? entry.type : 'File';
       if (!['File', 'OldFile', 'Directory'].includes(entryType)) {
