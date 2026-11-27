@@ -329,7 +329,9 @@ describe('fetchAndExecutePlugins — retry and 404 package.json', () => {
     expect(onSettingsChange).toHaveBeenCalled();
     // The plugin should have been added with version 0.0.0 and name from path
     const calledWith = onSettingsChange.mock.calls[0][0] as PluginInfo[];
-    expect(calledWith.some(p => p.name === 'myplugin' || p.version === '0.0.0')).toBe(true);
+    expect(calledWith).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'myplugin', version: '0.0.0' })])
+    );
   });
 
   it('calls onIncompatible when a plugin has incompatible headlamp-plugin version', async () => {
