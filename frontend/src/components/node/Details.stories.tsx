@@ -45,6 +45,9 @@ const commonHandlers = [
   http.get(`${API_BASE}/api/v1/nodes/node/proxy/stats/summary`, () =>
     HttpResponse.json({
       node: {
+        // The kubelet's start time: the node rebooted long after it joined, so
+        // Uptime counts from here and not from the Ready transition.
+        startTime: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
         fs: {
           capacityBytes: 50000000000,
           usedBytes: 10000000000,
