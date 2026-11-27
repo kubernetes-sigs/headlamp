@@ -60,7 +60,13 @@ describe('createProtocolHandler', () => {
       protocolScheme: 'headlamp',
       startUrl: 'file:///headlamp/index.html',
       getMainWindow: () =>
-        ({ focus, isMinimized: () => false, loadURL, restore: vi.fn() } as never),
+        ({
+          focus,
+          isMinimized: () => false,
+          isVisible: () => true,
+          loadURL,
+          restore: vi.fn(),
+        } as never),
     });
     const callbackUrl = 'headlamp://oauth/callback?code=code&state=state';
     const event = { preventDefault: vi.fn() };
@@ -92,7 +98,13 @@ describe('createProtocolHandler', () => {
         protocolScheme: 'headlamp',
         startUrl: 'file:///headlamp/index.html',
         getMainWindow: () =>
-          ({ focus: vi.fn(), isMinimized: () => false, loadURL, restore: vi.fn() } as never),
+          ({
+            focus: vi.fn(),
+            isMinimized: () => false,
+            isVisible: () => true,
+            loadURL,
+            restore: vi.fn(),
+          } as never),
       });
 
       protocolHandler.setReady([]);
@@ -109,7 +121,13 @@ describe('createProtocolHandler', () => {
       protocolScheme: 'headlamp',
       startUrl: 'file:///headlamp/index.html/',
       getMainWindow: () =>
-        ({ focus: vi.fn(), isMinimized: () => false, loadURL, restore: vi.fn() } as never),
+        ({
+          focus: vi.fn(),
+          isMinimized: () => false,
+          isVisible: () => true,
+          loadURL,
+          restore: vi.fn(),
+        } as never),
     });
     const callbackUrl = new URL('headlamp://cluster?name=local');
 
@@ -120,6 +138,30 @@ describe('createProtocolHandler', () => {
     expect(dialog.showErrorBox).not.toHaveBeenCalled();
     expect(loadURL).toHaveBeenCalledOnce();
     expect(loadURL).toHaveBeenCalledWith('file:///headlamp/index.html#/cluster?name=local');
+  });
+
+  it('keeps the path segments of an unclaimed deep link', () => {
+    const loadURL = vi.fn();
+    const protocolHandler = createProtocolHandler({
+      protocolScheme: 'headlamp',
+      startUrl: 'file:///headlamp/index.html',
+      getMainWindow: () =>
+        ({
+          focus: vi.fn(),
+          isMinimized: () => false,
+          isVisible: () => true,
+          loadURL,
+          restore: vi.fn(),
+        } as never),
+    });
+
+    protocolHandler.setReady([]);
+    protocolHandler.handle('headlamp://c/mycluster/pods?namespace=kube-system');
+
+    expect(dialog.showErrorBox).not.toHaveBeenCalled();
+    expect(loadURL).toHaveBeenCalledWith(
+      'file:///headlamp/index.html#/c/mycluster/pods?namespace=kube-system'
+    );
   });
 
   it('shows a user-visible error when an OAuth provider fails', () => {
@@ -183,7 +225,13 @@ describe('createProtocolHandler', () => {
       protocolScheme: 'headlamp',
       startUrl: 'file:///headlamp/index.html',
       getMainWindow: () =>
-        ({ focus, isMinimized: () => false, loadURL: vi.fn(), restore: vi.fn() } as never),
+        ({
+          focus,
+          isMinimized: () => false,
+          isVisible: () => true,
+          loadURL: vi.fn(),
+          restore: vi.fn(),
+        } as never),
     });
     const unregister = registerOAuthProvider({
       id: 'failed-load',
@@ -326,7 +374,14 @@ describe('createProtocolHandler', () => {
     const protocolHandler = createProtocolHandler({
       protocolScheme: 'headlamp',
       startUrl: 'file:///headlamp/index.html',
-      getMainWindow: () => ({ focus, isMinimized: () => true, loadURL: vi.fn(), restore } as never),
+      getMainWindow: () =>
+        ({
+          focus,
+          isMinimized: () => true,
+          isVisible: () => true,
+          loadURL: vi.fn(),
+          restore,
+        } as never),
     });
     const unregister = registerOAuthProvider({
       id: 'second-instance',
@@ -346,6 +401,33 @@ describe('createProtocolHandler', () => {
     unregister();
   });
 
+  it('shows a window hidden to the tray before routing a deep link', () => {
+    const show = vi.fn();
+    const focus = vi.fn();
+    const loadURL = vi.fn();
+    const protocolHandler = createProtocolHandler({
+      protocolScheme: 'headlamp',
+      startUrl: 'file:///headlamp/index.html',
+      getMainWindow: () =>
+        ({
+          focus,
+          isMinimized: () => false,
+          isVisible: () => false,
+          loadURL,
+          restore: vi.fn(),
+          show,
+        } as never),
+    });
+
+    protocolHandler.setReady([]);
+    protocolHandler.handle('headlamp://c/mycluster/pods');
+
+    expect(show).toHaveBeenCalledOnce();
+    expect(focus).toHaveBeenCalledOnce();
+    expect(show.mock.invocationCallOrder[0]).toBeLessThan(focus.mock.invocationCallOrder[0]);
+    expect(loadURL).toHaveBeenCalledWith('file:///headlamp/index.html#/c/mycluster/pods');
+  });
+
   it('ignores second-instance arguments without a product protocol URL', () => {
     createProtocolHandler({
       protocolScheme: 'headlamp',
@@ -363,7 +445,13 @@ describe('createProtocolHandler', () => {
       protocolScheme: 'headlamp',
       startUrl: 'file:///headlamp/index.html',
       getMainWindow: () =>
-        ({ focus, isMinimized: () => false, loadURL: vi.fn(), restore } as never),
+        ({
+          focus,
+          isMinimized: () => false,
+          isVisible: () => true,
+          loadURL: vi.fn(),
+          restore,
+        } as never),
     });
 
     electronMocks.listeners.get('second-instance')?.({}, ['electron']);
