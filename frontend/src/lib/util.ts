@@ -500,13 +500,17 @@ export function useURLState<T extends string | number | undefined = string>(
 
       if (urlValue !== prevUrlValueRef.current) {
         prevUrlValueRef.current = urlValue;
+        const willKeepCurrentDefault =
+          urlValue === null && value === defaultValue && defaultValue !== undefined;
         setValue(prev => {
           if (urlValue === null) {
             return defaultValue !== undefined ? defaultValue : prev;
           }
           return (urlValue !== prev ? urlValue : prev) as T;
         });
-        return;
+        if (!willKeepCurrentDefault || hideDefault) {
+          return;
+        }
       }
 
       const urlCurrentValue = getURLValue(history.location.search);

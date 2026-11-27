@@ -645,6 +645,41 @@ describe('useURLState', () => {
     expect(history.location.search).toBe('?mode=auto');
   });
 
+  it('restores default parameter in URL when removed externally and hideDefault is false', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?mode=auto'] });
+    const { result } = renderHook(
+      () => useURLState('mode', { defaultValue: 'auto', hideDefault: false }),
+      { wrapper: createRouterWrapper(history) }
+    );
+
+    expect(result.current[0]).toBe('auto');
+    expect(history.location.search).toBe('?mode=auto');
+
+    act(() => {
+      history.push('/test?tab=logs');
+    });
+
+    expect(result.current[0]).toBe('auto');
+    expect(history.location.search).toBe('?tab=logs&mode=auto');
+  });
+
+  it('does not restore removed default parameter in URL when hideDefault is true', () => {
+    const history = createMemoryHistory({ initialEntries: ['/test?mode=auto'] });
+    const { result } = renderHook(
+      () => useURLState('mode', { defaultValue: 'auto', hideDefault: true }),
+      { wrapper: createRouterWrapper(history) }
+    );
+
+    expect(result.current[0]).toBe('auto');
+
+    act(() => {
+      history.push('/test?tab=logs');
+    });
+
+    expect(result.current[0]).toBe('auto');
+    expect(history.location.search).toBe('?tab=logs');
+  });
+
   it('handles prefixed keys correctly in URL reading and writing', () => {
     const history = createMemoryHistory({ initialEntries: ['/test?sub.tab=details'] });
     const { result } = renderHook(
