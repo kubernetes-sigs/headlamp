@@ -49,11 +49,18 @@ export default function VpaDetails(props: { name?: string; namespace?: string; c
         item && [
           {
             name: t('translation|Reference'),
-            value: (
-              <Link kubeObject={item?.referenceObject}>
-                {item?.referenceObject?.kind}/{item?.referenceObject?.metadata?.name}
-              </Link>
-            ),
+            value: (() => {
+              const target = item.spec?.targetRef;
+              return item.referenceObject ? (
+                <Link kubeObject={item.referenceObject}>
+                  {item.referenceObject.kind}/{item.referenceObject.metadata?.name}
+                </Link>
+              ) : target?.kind && target?.name ? (
+                `${target.kind}/${target.name}`
+              ) : (
+                '-'
+              );
+            })(),
           },
           {
             name: t('glossary|Update Policy'),

@@ -23,12 +23,15 @@ import { getCluster } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
+
 export { ResourceClasses } from './resourceClasses';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from './labelSelector';
 
 // Defined in a leaf module so resource classes can use them without importing
 // this file, which re-exports ResourceClasses and would create a cycle.
 export { matchExpressionSimplifier, matchLabelsSimplifier };
+
+export { getResourceClass } from './getResourceClass';
 
 /** Hook for getting or fetching the clusters configuration.
  * This gets the clusters from the redux store. The redux store is updated

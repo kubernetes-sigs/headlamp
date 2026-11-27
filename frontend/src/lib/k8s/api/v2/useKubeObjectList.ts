@@ -415,6 +415,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
 
   if (
     kubeObjectClass.kind === 'Namespace' &&
+    kubeObjectClass.apiGroupName === undefined &&
     !isResolvingAllowedNamespaces &&
     hasAllowedNamespacesRestriction(cluster)
   ) {

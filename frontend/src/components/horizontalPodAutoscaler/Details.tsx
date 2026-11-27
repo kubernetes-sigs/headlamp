@@ -39,13 +39,18 @@ export default function HpaDetails(props: { name?: string; namespace?: string; c
         item && [
           {
             name: t('translation|Reference'),
-            value: item.referenceObject ? (
-              <Link kubeObject={item.referenceObject}>
-                {item.referenceObject?.kind}/{item.referenceObject?.metadata?.name}
-              </Link>
-            ) : (
-              '-'
-            ),
+            value: (() => {
+              const target = item.spec?.scaleTargetRef;
+              return item.referenceObject ? (
+                <Link kubeObject={item.referenceObject}>
+                  {item.referenceObject?.kind}/{item.referenceObject?.metadata?.name}
+                </Link>
+              ) : target?.kind && target?.name ? (
+                `${target.kind}/${target.name}`
+              ) : (
+                '-'
+              );
+            })(),
           },
           {
             name: t('translation|Metrics'),

@@ -19,6 +19,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setDiscoveredNamespaces } from '../../../../helpers/clusterSettings';
+import { KubeObject } from '../../KubeObject';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import {
@@ -1700,6 +1701,45 @@ describe('useKubeObjectList', () => {
     expect(mockClusterFetch).toHaveBeenCalledWith('api/v1/namespaces', {
       cluster: 'unrestricted',
     });
+    expect(response.skipWatch).toBeUndefined();
+  });
+
+  it('uses the custom resource endpoint for a Namespace CRD when allowed namespaces are configured', async () => {
+    class CustomNamespace extends KubeObject {
+      static apiVersion = 'tenancy.example.com/v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+    }
+
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({ allowedNamespaces: ['team-a'] })
+    );
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve({
+          kind: 'NamespaceList',
+          apiVersion: 'tenancy.example.com/v1',
+          metadata: { resourceVersion: '1' },
+          items: [{ metadata: { name: 'custom-team' } }],
+        }),
+    } as Response);
+
+    const query = kubeObjectListQuery(
+      CustomNamespace,
+      { group: 'tenancy.example.com', version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      {}
+    );
+    const response = await (query.queryFn as any)();
+
+    expect(mockClusterFetch).toHaveBeenCalledWith('apis/tenancy.example.com/v1/namespaces', {
+      cluster: 'restricted',
+    });
+    expect(response.list.items.map((item: CustomNamespace) => item.metadata.name)).toEqual([
+      'custom-team',
+    ]);
     expect(response.skipWatch).toBeUndefined();
   });
 
