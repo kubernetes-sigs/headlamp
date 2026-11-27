@@ -93,6 +93,7 @@ import {
   createHeadlampTray,
   isHeadlampTrayCreated,
   isTrayIconEnabled,
+  setTrayConnectedClusters,
   setTrayIconEnabled,
 } from './tray';
 import { isAppUrl, isSafeExternalUrl } from './urlSafety';
@@ -1941,6 +1942,13 @@ function startElectron() {
         return;
       }
       applyTrayIconSetting(enabled);
+    });
+
+    ipcMain.on('connected-clusters-changed', (event: IpcMainEvent, names: unknown) => {
+      if (!isFromMainWindowFrame(event, mainWindow) || !Array.isArray(names)) {
+        return;
+      }
+      setTrayConnectedClusters(names.filter((n): n is string => typeof n === 'string'));
     });
 
     setupDevelopmentPluginsHandlers(mainWindow, ipcMain, startUrl);

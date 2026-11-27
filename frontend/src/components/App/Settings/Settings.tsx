@@ -15,6 +15,8 @@
  */
 
 import Box from '@mui/material/Box';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import Tooltip from '@mui/material/Tooltip';
@@ -71,6 +73,7 @@ export default function Settings() {
   const timezone = useSetting<string>('timezone');
   const tableRows = useSetting<number[]>('tableRowsPerPageOptions');
   const sidebarSort = useSetting<boolean>('sidebarSortAlphabetically');
+  const autoConnectPolicy = useSetting<'none' | 'recent' | 'all'>('autoConnectPolicy');
   const expandGraphSetting = useSetting<boolean>('expandLargeGraph');
   const evict = useSetting<boolean>('useEvict');
   const tutorialTooltips = useSetting<boolean>('tutorialTooltips');
@@ -194,6 +197,30 @@ export default function Settings() {
             ),
             nameID: sidebarLabelID,
             hide: sidebarSort.hidden,
+          },
+          {
+            name: t('translation|Cluster auto-connect'),
+            value: (
+              <AdminControlled disabled={autoConnectPolicy.disabled} t={t}>
+                <Select
+                  value={autoConnectPolicy.value ?? 'none'}
+                  onChange={e =>
+                    dispatch(
+                      setAppSettings({
+                        autoConnectPolicy: e.target.value as 'none' | 'recent' | 'all',
+                      })
+                    )
+                  }
+                  disabled={autoConnectPolicy.disabled}
+                  size="small"
+                >
+                  <MenuItem value="none">{t('translation|None (only clusters I open)')}</MenuItem>
+                  <MenuItem value="recent">{t('translation|Recent clusters only')}</MenuItem>
+                  <MenuItem value="all">{t('translation|All clusters')}</MenuItem>
+                </Select>
+              </AdminControlled>
+            ),
+            hide: autoConnectPolicy.hidden,
           },
           {
             name: t('translation|Use evict for pod deletion'),

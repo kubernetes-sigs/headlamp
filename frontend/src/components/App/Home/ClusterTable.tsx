@@ -294,6 +294,8 @@ export interface ClusterTableProps {
   connectedClusterNames?: Set<string>;
   /** Connect to a cluster on demand (adds it to the auto-connect set). */
   onConnectCluster?: (clusterName: string) => void;
+  /** Disconnect from a cluster and release its backend proxy/credentials. */
+  onDisconnectCluster?: (clusterName: string) => void;
 }
 
 /**
@@ -368,6 +370,7 @@ export default function ClusterTable({
   warningLabels,
   connectedClusterNames,
   onConnectCluster,
+  onDisconnectCluster,
   source,
   sourceViews = EMPTY_SOURCE_VIEWS,
 }: ClusterTableProps) {
@@ -738,7 +741,14 @@ export default function ClusterTable({
           },
           accessorFn: cluster => getClusterStatusAccessor(cluster, errors[cluster?.name], t),
           Cell: ({ row: { original: cluster } }) => {
-            return <ClusterContextMenu cluster={cluster} />;
+            return (
+              <ClusterContextMenu
+                cluster={cluster}
+                isConnected={isClusterConnected(cluster.name)}
+                onConnect={onConnectCluster}
+                onDisconnect={onDisconnectCluster}
+              />
+            );
           },
           enableSorting: false,
           enableColumnFilter: false,

@@ -2619,6 +2619,8 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 		c.authenticatedHandler(http.HandlerFunc(c.handleSetToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/accessible-namespaces",
 		c.authenticatedHandler(http.HandlerFunc(c.handleAccessibleNamespaces))).Methods("GET")
+	router.Handle("/clusters/{clusterName}/connection",
+		c.authenticatedHandler(http.HandlerFunc(c.handleDisconnectCluster))).Methods("DELETE")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {
@@ -2626,6 +2628,22 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	}
 
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(c.authenticatedHandler(handler))
+}
+
+func (c *HeadlampConfig) handleDisconnectCluster(w http.ResponseWriter, r *http.Request) {
+	clusterName := mux.Vars(r)["clusterName"]
+
+	kContext, err := c.KubeConfigStore.GetContext(clusterName)
+	if err != nil {
+		http.Error(w, "cluster not found", http.StatusNotFound)
+		return
+	}
+
+	kContext.ResetProxy()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"message":"disconnected"}`))
 }
 
 func (c *HeadlampConfig) handleClearToken(w http.ResponseWriter, r *http.Request) {

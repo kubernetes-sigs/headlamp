@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-development-plugins',
       'set-development-plugins',
       'cluster-changed',
+      'connected-clusters-changed',
       'route-changed',
     ];
     if (validChannels.includes(channel)) {

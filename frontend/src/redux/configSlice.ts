@@ -104,6 +104,11 @@ export interface ConfigState {
      * tutorialTooltips shows guided tooltips that help new users navigate Headlamp.
      */
     tutorialTooltips: boolean;
+    /**
+     * Controls which clusters are automatically connected to at startup:
+     * 'none' (only clusters opened by the user), 'recent', or 'all'.
+     */
+    autoConnectPolicy?: 'none' | 'recent' | 'all';
     [key: string]: any;
   };
   /**
@@ -186,6 +191,13 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
     if (isBoolean(parsedSettings.tutorialTooltips)) {
       sanitizedSettings.tutorialTooltips = parsedSettings.tutorialTooltips;
     }
+    if (
+      parsedSettings.autoConnectPolicy === 'none' ||
+      parsedSettings.autoConnectPolicy === 'recent' ||
+      parsedSettings.autoConnectPolicy === 'all'
+    ) {
+      sanitizedSettings.autoConnectPolicy = parsedSettings.autoConnectPolicy;
+    }
 
     return sanitizedSettings;
   } catch {
@@ -200,6 +212,7 @@ export const builtInSettings: Record<string, any> = {
   expandLargeGraph: false,
   useEvict: true,
   tutorialTooltips: true,
+  autoConnectPolicy: 'none',
 };
 
 /**
@@ -240,6 +253,7 @@ export const initialState: ConfigState = {
     expandLargeGraph: storedSettings.expandLargeGraph ?? builtInSettings.expandLargeGraph,
     useEvict: storedSettings.useEvict ?? builtInSettings.useEvict,
     tutorialTooltips: storedSettings.tutorialTooltips ?? builtInSettings.tutorialTooltips,
+    autoConnectPolicy: storedSettings.autoConnectPolicy ?? builtInSettings.autoConnectPolicy,
   },
   userSettings: storedSettings,
 };

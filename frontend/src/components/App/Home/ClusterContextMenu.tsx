@@ -78,6 +78,12 @@ interface ClusterContextMenuProps {
   cluster: Cluster;
   /** Called after the cluster is successfully removed. */
   onClusterRemoved?: () => void;
+  /** Whether the cluster is currently connected. */
+  isConnected?: boolean;
+  /** Connect to the cluster on demand. */
+  onConnect?: (clusterName: string) => void;
+  /** Disconnect from the cluster and release its backend connection. */
+  onDisconnect?: (clusterName: string) => void;
 }
 
 /**
@@ -86,6 +92,9 @@ interface ClusterContextMenuProps {
 export default function ClusterContextMenu({
   cluster,
   onClusterRemoved = () => window.location.reload(),
+  isConnected,
+  onConnect,
+  onDisconnect,
 }: ClusterContextMenuProps) {
   const { t } = useTranslation(['translation']);
   const { getLabel, sources } = useClusterPresentation();
@@ -209,6 +218,26 @@ export default function ClusterContextMenu({
         >
           <ListItemText>{t('translation|View')}</ListItemText>
         </MenuItem>
+        {isConnected && onDisconnect && (
+          <MenuItem
+            onClick={() => {
+              onDisconnect(cluster.name);
+              handleMenuClose();
+            }}
+          >
+            <ListItemText>{t('translation|Disconnect')}</ListItemText>
+          </MenuItem>
+        )}
+        {isConnected === false && onConnect && (
+          <MenuItem
+            onClick={() => {
+              onConnect(cluster.name);
+              handleMenuClose();
+            }}
+          >
+            <ListItemText>{t('translation|Connect')}</ListItemText>
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             history.push(createRouteURL('settingsCluster', { cluster: cluster.name }));
