@@ -730,6 +730,28 @@ func (h *Handler) getChart(
 // fails the install instead of blocking it.
 var verifyUserTimeout = 10 * time.Second
 
+var errUnauthorizedUser = errors.New("user is not authorized to perform this operation")
+
+// VerifyUserWithClient performs a SelfSubjectReview whoami check using cs and
+// returns the authenticated username, rejecting empty and system:anonymous users.
+func VerifyUserWithClient(ctx context.Context, cs kubernetes.Interface) (string, error) {
+	reviewCtx, cancel := context.WithTimeout(ctx, verifyUserTimeout)
+	defer cancel()
+
+	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(reviewCtx,
+		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	user := review.Status.UserInfo.Username
+	if user == "" || user == "system:anonymous" {
+		return "", errUnauthorizedUser
+	}
+
+	return user, nil
+}
+
 // Verify the user has minimal privileges by performing a whoami check.
 // This prevents spurious downloads by ensuring basic authentication before proceeding.
 func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
@@ -751,22 +773,15 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 		return false
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), verifyUserTimeout)
-	defer cancel()
-
-	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(ctx,
-		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
-	if err != nil {
-		logger.Log(logger.LevelError,
-			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "checking user identity")
-
-		return false
-	}
-
-	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
-		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			errors.New("insufficient privileges"), "user is not authorized to perform this operation")
+	if _, err := VerifyUserWithClient(context.Background(), cs); err != nil {
+		if errors.Is(err, errUnauthorizedUser) {
+			logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+				errors.New("insufficient privileges"), "user is not authorized to perform this operation")
+		} else {
+			logger.Log(logger.LevelError,
+				map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+				err, "checking user identity")
+		}
 
 		return false
 	}

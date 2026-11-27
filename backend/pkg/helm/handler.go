@@ -18,8 +18,11 @@ package helm
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -76,6 +79,44 @@ func NewHandlerWithSettings(cache cache.Cache[interface{}], settings *cli.EnvSet
 		EnvSettings: settings,
 		Cache:       cache,
 	}, nil
+}
+
+// ForUser returns a Handler whose RepositoryConfig and RepositoryCache are
+// isolated to the given authenticated username, preventing cross-user
+// repository poisoning in shared deployments. If username is empty, h is
+// returned unchanged.
+func (h *Handler) ForUser(username string) *Handler {
+	if h == nil || username == "" {
+		return h
+	}
+
+	baseSettings := h.EnvSettings
+	if baseSettings == nil {
+		baseSettings = settings
+	}
+
+	sum := sha256.Sum256([]byte(username))
+	userKey := hex.EncodeToString(sum[:])
+
+	userSettings := cli.New()
+
+	baseConfig := baseSettings.RepositoryConfig
+	if baseConfig == "" {
+		baseConfig = userSettings.RepositoryConfig
+	}
+
+	baseCache := baseSettings.RepositoryCache
+	if baseCache == "" {
+		baseCache = userSettings.RepositoryCache
+	}
+
+	userSettings.RepositoryConfig = filepath.Join(filepath.Dir(baseConfig), "users", userKey, "repositories.yaml")
+	userSettings.RepositoryCache = filepath.Join(baseCache, "users", userKey)
+
+	return &Handler{
+		EnvSettings: userSettings,
+		Cache:       h.Cache,
+	}
 }
 
 // https://github.com/helm/helm/issues/6910#issuecomment-601277026

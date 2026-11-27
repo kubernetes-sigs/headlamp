@@ -2315,6 +2315,84 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 		})))
 }
 
+func (c *HeadlampConfig) verifyHelmRequestUser(
+	ctx context.Context,
+	span trace.Span,
+	w http.ResponseWriter,
+	r *http.Request,
+	kContext *kubeconfig.Context,
+) (string, bool) {
+	token := requestBearerToken(r)
+	if token == "" {
+		c.handleError(
+			w, ctx, span,
+			errors.New("no authentication token provided"),
+			"failed to get token",
+			http.StatusUnauthorized,
+		)
+
+		return "", false
+	}
+
+	cs, err := kContext.ClientSetWithToken(token)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to create kubernetes client", http.StatusUnauthorized)
+		return "", false
+	}
+
+	username, err := helm.VerifyUserWithClient(ctx, cs)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to verify user authentication token", http.StatusUnauthorized)
+		return "", false
+	}
+
+	return username, true
+}
+
+func (c *HeadlampConfig) resolveHelmContextAndUser(
+	ctx context.Context,
+	span trace.Span,
+	w http.ResponseWriter,
+	r *http.Request,
+	clusterName string,
+	requireUserCheck bool,
+) (*kubeconfig.Context, string, bool) {
+	kContext, err := c.KubeConfigStore.GetContext(clusterName)
+	if err != nil {
+		if resolved, ok := r.Context().Value(resolvedClusterContextKey{}).(resolvedClusterContext); ok &&
+			resolved.context != nil {
+			kContext = resolved.context
+			err = nil
+		}
+	}
+
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
+		return nil, "", false
+	}
+
+	kContext = kContext.Copy()
+
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		clearRequestAuthorization(r)
+		return kContext, "", true
+	}
+
+	requiresUserAuth := kContext.RequiresUserAuthentication()
+	applyRequestTokenToContext(r, clusterName, kContext)
+
+	if requireUserCheck && (c.UseInCluster || requiresUserAuth) {
+		username, ok := c.verifyHelmRequestUser(ctx, span, w, r, kContext)
+		if !ok {
+			return nil, "", false
+		}
+
+		return kContext, username, true
+	}
+
+	return kContext, "", true
+}
+
 func (c *HeadlampConfig) helmRouteReleaseHandler(
 	ctx context.Context,
 	span trace.Span,
@@ -2323,6 +2401,22 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	clusterName, route, operation string,
 	handler func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
 ) {
+	c.helmRouteReleaseHandlerWithHelm(ctx, span, r, w, clusterName, route, operation, nil, false,
+		func(_ *helm.Handler, clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+			handler(clientConfig, w, r)
+		})
+}
+
+func (c *HeadlampConfig) helmRouteReleaseHandlerWithHelm(
+	ctx context.Context,
+	span trace.Span,
+	r *http.Request,
+	w http.ResponseWriter,
+	clusterName, route, operation string,
+	helmHandler *helm.Handler,
+	requireUserCheck bool,
+	handler func(*helm.Handler, clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
+) {
 	c.TelemetryHandler.RecordEvent(span, "Executing route",
 		attribute.String("route", route),
 		attribute.String("operation", operation))
@@ -2330,24 +2424,12 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 
 	logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm operation: "+operation)
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
-	if err != nil {
-		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
+	kContext, username, ok := c.resolveHelmContextAndUser(ctx, span, w, r, clusterName, requireUserCheck)
+	if !ok {
 		return
 	}
 
-	// Create a copy of the context to avoid modifying the cached context
-	context = context.Copy()
-
-	unsafeUseServiceAccountToken := c.shouldUseUnsafeServiceAccountTokenForContext(context)
-
-	if unsafeUseServiceAccountToken {
-		clearRequestAuthorization(r)
-	} else {
-		applyRequestTokenToContext(r, clusterName, context)
-	}
-
-	handler(context.ClientConfig(), w, r)
+	handler(helmHandler.ForUser(username), kContext.ClientConfig(), w, r)
 }
 
 func (c *HeadlampConfig) helmRouteRepositoryHandler(
@@ -2358,30 +2440,28 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 	clusterName, route, operation string,
 	handler func(http.ResponseWriter, *http.Request),
 ) {
+	c.helmRouteRepositoryHandlerWithHelm(ctx, span, r, w, clusterName, route, operation, nil,
+		func(_ *helm.Handler, w http.ResponseWriter, r *http.Request) {
+			handler(w, r)
+		})
+}
+
+func (c *HeadlampConfig) helmRouteRepositoryHandlerWithHelm(
+	ctx context.Context,
+	span trace.Span,
+	r *http.Request,
+	w http.ResponseWriter,
+	clusterName, route, operation string,
+	helmHandler *helm.Handler,
+	handler func(*helm.Handler, http.ResponseWriter, *http.Request),
+) {
 	c.TelemetryHandler.RecordEvent(span, "Executing route",
 		attribute.String("route", route),
 		attribute.String("operation", operation))
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
-	context, err := c.KubeConfigStore.GetContext(clusterName)
-	unsafeUseServiceAccountToken := err == nil && c.shouldUseUnsafeServiceAccountTokenForContext(context)
-
-	if unsafeUseServiceAccountToken {
-		clearRequestAuthorization(r)
-	} else {
-		// fetch token from cookie
-		auth.SetTokenFromCookie(r, clusterName)
-	}
-
-	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
-		c.handleError(
-			w, ctx, span,
-			errors.New("no authentication token provided"),
-			"failed to get token",
-			http.StatusUnauthorized,
-		)
-
+	_, username, ok := c.resolveHelmContextAndUser(ctx, span, w, r, clusterName, true)
+	if !ok {
 		return
 	}
 
@@ -2392,7 +2472,7 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 		"Dispatching helm repository operation: "+operation,
 	)
 
-	handler(w, r)
+	handler(helmHandler.ForUser(username), w, r)
 }
 
 func (c *HeadlampConfig) dispatchHelmRoute(
@@ -2403,47 +2483,46 @@ func (c *HeadlampConfig) dispatchHelmRoute(
 	path, clusterName string,
 	helmHandler *helm.Handler,
 ) {
-	routeReleaseHandler := func(
-		route, operation string,
-		handler func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
-	) {
-		c.helmRouteReleaseHandler(ctx, span, r, w, clusterName, route, operation, handler)
+	routeRelease := func(route, op string, fn func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request)) {
+		c.helmRouteReleaseHandler(ctx, span, r, w, clusterName, route, op, fn)
 	}
-
-	routeRepositoryHandler := func(
-		route, operation string,
-		handler func(http.ResponseWriter, *http.Request),
+	routeUserRelease := func(
+		route, op string,
+		fn func(*helm.Handler, clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
 	) {
-		c.helmRouteRepositoryHandler(ctx, span, r, w, clusterName, route, operation, handler)
+		c.helmRouteReleaseHandlerWithHelm(ctx, span, r, w, clusterName, route, op, helmHandler, true, fn)
+	}
+	routeRepo := func(route, op string, fn func(*helm.Handler, http.ResponseWriter, *http.Request)) {
+		c.helmRouteRepositoryHandlerWithHelm(ctx, span, r, w, clusterName, route, op, helmHandler, fn)
 	}
 
 	switch {
 	case strings.HasSuffix(path, "/releases/list") && r.Method == http.MethodGet:
-		routeReleaseHandler("/releases/list", "ListRelease", helmHandler.ListRelease)
+		routeRelease("/releases/list", "ListRelease", helmHandler.ListRelease)
 	case strings.HasSuffix(path, "/release/install") && r.Method == http.MethodPost:
-		routeReleaseHandler("/release/install", "InstallRelease", helmHandler.InstallRelease)
+		routeUserRelease("/release/install", "InstallRelease", (*helm.Handler).InstallRelease)
 	case strings.HasSuffix(path, "/release/history") && r.Method == http.MethodGet:
-		routeReleaseHandler("/release/history", "GetReleaseHistory", helmHandler.GetReleaseHistory)
+		routeRelease("/release/history", "GetReleaseHistory", helmHandler.GetReleaseHistory)
 	case strings.HasSuffix(path, "/releases/uninstall") && r.Method == http.MethodDelete:
-		routeReleaseHandler("/releases/uninstall", "UninstallRelease", helmHandler.UninstallRelease)
+		routeRelease("/releases/uninstall", "UninstallRelease", helmHandler.UninstallRelease)
 	case strings.HasSuffix(path, "/releases/rollback") && r.Method == http.MethodPut:
-		routeReleaseHandler("/releases/rollback", "RollbackRelease", helmHandler.RollbackRelease)
+		routeRelease("/releases/rollback", "RollbackRelease", helmHandler.RollbackRelease)
 	case strings.HasSuffix(path, "/releases/upgrade") && r.Method == http.MethodPut:
-		routeReleaseHandler("/releases/upgrade", "UpgradeRelease", helmHandler.UpgradeRelease)
+		routeUserRelease("/releases/upgrade", "UpgradeRelease", (*helm.Handler).UpgradeRelease)
 	case strings.HasSuffix(path, "/releases") && r.Method == http.MethodGet:
-		routeReleaseHandler("/releases", "GetRelease", helmHandler.GetRelease)
+		routeRelease("/releases", "GetRelease", helmHandler.GetRelease)
 	case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodGet:
-		routeRepositoryHandler("/repositories", "ListRepo", helmHandler.ListRepo)
+		routeRepo("/repositories", "ListRepo", (*helm.Handler).ListRepo)
 	case strings.HasSuffix(path, "/repositories") && r.Method == http.MethodPost:
-		routeRepositoryHandler("/repositories", "AddRepo", helmHandler.AddRepo)
+		routeRepo("/repositories", "AddRepo", (*helm.Handler).AddRepo)
 	case strings.HasSuffix(path, "/repositories/remove") && r.Method == http.MethodDelete:
-		routeRepositoryHandler("/repositories/remove", "RemoveRepo", helmHandler.RemoveRepo)
+		routeRepo("/repositories/remove", "RemoveRepo", (*helm.Handler).RemoveRepo)
 	case strings.HasSuffix(path, "/repositories/update") && r.Method == http.MethodPut:
-		routeRepositoryHandler("/repositories/update", "UpdateRepository", helmHandler.UpdateRepository)
+		routeRepo("/repositories/update", "UpdateRepository", (*helm.Handler).UpdateRepository)
 	case strings.HasSuffix(path, "/charts") && r.Method == http.MethodGet:
-		routeRepositoryHandler("/charts", "ListCharts", helmHandler.ListCharts)
+		routeRepo("/charts", "ListCharts", (*helm.Handler).ListCharts)
 	case strings.HasSuffix(path, "/action/status") && r.Method == http.MethodGet:
-		routeReleaseHandler("/action/status", "GetActionStatus", helmHandler.GetActionStatus)
+		routeRelease("/action/status", "GetActionStatus", helmHandler.GetActionStatus)
 	default:
 		logger.Log(logger.LevelError, map[string]string{"path": path}, nil, "Unknown helm API route")
 

@@ -745,10 +745,17 @@ func TestPluginRoutesAndCheckUniqueName(t *testing.T) {
 	})
 
 	t.Run("helmRouteRepositoryHandler requires token in-cluster", func(t *testing.T) {
+		store := kubeconfig.NewContextStore()
+		require.NoError(t, store.AddContext(&kubeconfig.Context{
+			Name:        "c1",
+			KubeContext: &api.Context{Cluster: "c1", AuthInfo: "u1"},
+			Cluster:     &api.Cluster{Server: "https://127.0.0.1:6443"},
+			AuthInfo:    &api.AuthInfo{},
+		}))
 		hc := &HeadlampConfig{
 			HeadlampConfig: &headlampconfig.HeadlampConfig{
 				HeadlampCFG: &headlampconfig.HeadlampCFG{
-					KubeConfigStore: kubeconfig.NewContextStore(),
+					KubeConfigStore: store,
 					UseInCluster:    true,
 					EnableHelm:      true,
 				},
@@ -1009,6 +1016,12 @@ func testDispatchHelmListCharts(t *testing.T) {
 	t.Helper()
 
 	cfg := newCmdTestConfig(t)
+	require.NoError(t, cfg.KubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:        "c1",
+		KubeContext: &api.Context{Cluster: "c1", AuthInfo: "u1"},
+		Cluster:     &api.Cluster{Server: "http://127.0.0.1:1"},
+		AuthInfo:    &api.AuthInfo{Token: "tok"},
+	}))
 	helmDir := t.TempDir()
 	helmSettings := cli.New()
 	helmSettings.RepositoryConfig = filepath.Join(helmDir, "repositories.yaml")
