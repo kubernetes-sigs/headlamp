@@ -40,6 +40,7 @@ export default defineConfig({
     'externalBackendToken.spec.ts',
     'pluginSecureStorage.spec.ts',
     'pluginManager.spec.ts',
+    'pluginMenuReload.spec.ts',
     'listenerCleanup.spec.ts',
     'runCommand.spec.ts',
     'updateChecks.spec.ts',

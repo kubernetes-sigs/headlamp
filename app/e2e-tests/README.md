@@ -32,6 +32,18 @@ npm run app:test:e2e -- kubeConfigImport.spec.ts
 
 Run this command from the repository root after completing the prerequisites below.
 
+`pluginMenuReload.spec.ts` needs Electron, but not minikube, the backend or a
+frontend build. It uses an isolated HTML document to verify that a renderer
+reload removes plugin-owned native menu entries and restores the default Help
+links. Run it from the repository root with:
+
+```bash
+npm run app:test:e2e -- pluginMenuReload.spec.ts
+```
+
+The Linux desktop CI job selects this spec explicitly. It runs without a
+`PLAYWRIGHT_TEST_MODE` setting, so the regression cannot silently skip.
+
 App mode runs the app from source rather than from a packaged build, so the
 things the app loads in dev mode have to exist first:
 
