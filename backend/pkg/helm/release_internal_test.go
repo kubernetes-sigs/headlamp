@@ -1308,8 +1308,11 @@ func TestInstallAndUpgradeWorkerErrors(t *testing.T) {
 	h.installRelease(InstallRequest{CommonInstallUpdateRequest: CommonInstallUpdateRequest{
 		Name: "anon-rel", Namespace: "default", Chart: "myrepo/demo", Version: "1.0.0",
 	}}, anonCfg)
-	_, err = h.getReleaseStatus("install", "anon-rel")
-	require.Error(t, err)
+	st, err := h.getReleaseStatus("install", "anon-rel")
+	require.NoError(t, err)
+	assert.Equal(t, failed, st.Status)
+	require.NotNil(t, st.Err)
+	assert.Equal(t, "insufficient privileges or auth check failed", *st.Err)
 
 	rel := &release.Release{
 		Name:      "existing-rel",
@@ -1328,7 +1331,7 @@ func TestInstallAndUpgradeWorkerErrors(t *testing.T) {
 	h.installRelease(InstallRequest{CommonInstallUpdateRequest: CommonInstallUpdateRequest{
 		Name: "bad-chart-rel", Namespace: "default", Chart: "myrepo/does-not-exist", Version: "1.0.0",
 	}}, cfg)
-	st, err := h.getReleaseStatus("install", "bad-chart-rel")
+	st, err = h.getReleaseStatus("install", "bad-chart-rel")
 	require.NoError(t, err)
 	assert.Equal(t, failed, st.Status)
 
