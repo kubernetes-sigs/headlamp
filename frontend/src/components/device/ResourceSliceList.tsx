@@ -16,13 +16,16 @@
 
 import { useTranslation } from 'react-i18next';
 import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import ResourcePoolStatusRequest from '../../lib/k8s/resourcePoolStatusRequest';
 import ResourceSlice from '../../lib/k8s/resourceSlice';
+import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
 import ResourceSliceNode from './ResourceSliceNode';
 
 export default function ResourceSliceList() {
   const { t } = useTranslation(['glossary', 'translation']);
   const servingClusters = useClustersServing(ResourceSlice);
+  const poolStatusClusters = useClustersServing(ResourcePoolStatusRequest);
 
   return (
     <ResourceListView
@@ -42,6 +45,18 @@ export default function ResourceSliceList() {
           id: 'pool',
           label: t('translation|Pool'),
           getValue: item => item.poolName,
+          render: item =>
+            poolStatusClusters?.includes(item.cluster) ? (
+              <Link
+                routeName="poolAvailability"
+                activeCluster={item.cluster}
+                search={{ driver: item.driver, pool: item.poolName }}
+              >
+                {item.poolName}
+              </Link>
+            ) : (
+              item.poolName
+            ),
         },
         {
           id: 'node',

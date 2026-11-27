@@ -26,6 +26,7 @@ import ClusterTrustBundle from '../../lib/k8s/clusterTrustBundle';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
+import ResourcePoolStatusRequest from '../../lib/k8s/resourcePoolStatusRequest';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -111,6 +112,7 @@ describe('useSidebarItems', () => {
     servedSchedulingVersions.current = [];
     vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(ClusterTrustBundle, 'isEnabled').mockResolvedValue(false);
+    vi.spyOn(ResourcePoolStatusRequest, 'isEnabled').mockResolvedValue(false);
     const emptyCRDs: [CRD[], null] = [[], null];
     vi.spyOn(CRD, 'useList').mockReturnValue(
       Object.assign(emptyCRDs, {
@@ -220,6 +222,83 @@ describe('useSidebarItems', () => {
       });
 
       await waitFor(() => expect(securityItems(result.current)).toContain('clusterTrustBundles'));
+    });
+  });
+
+  describe('the Devices (alpha) section', () => {
+    const deviceItems = (items: ReturnType<typeof useSidebarItems>) =>
+      items.find(item => item.name === 'devices')?.subList?.map(item => item.name);
+
+    beforeEach(() => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+      vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(true);
+    });
+
+    it('lists Pool Availability when the cluster serves pool status requests', async () => {
+      vi.spyOn(ResourcePoolStatusRequest, 'isEnabled').mockResolvedValue(true);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() =>
+        expect(deviceItems(result.current)).toEqual([
+          'deviceClasses',
+          'resourceClaims',
+          'resourceClaimTemplates',
+          'resourceSlices',
+          'poolAvailability',
+        ])
+      );
+    });
+
+    it('adds Pool Availability when its probe answers after the Devices section is shown', async () => {
+      let answerProbe: (served: boolean) => void = () => {};
+      vi.spyOn(ResourcePoolStatusRequest, 'isEnabled').mockReturnValue(
+        new Promise(resolve => {
+          answerProbe = resolve;
+        })
+      );
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(deviceItems(result.current)).toBeDefined());
+      expect(deviceItems(result.current)).not.toContain('poolAvailability');
+
+      answerProbe(true);
+
+      await waitFor(() => expect(deviceItems(result.current)).toContain('poolAvailability'));
+    });
+
+    it('adds the Devices section when its probe answers last', async () => {
+      let answerProbe: (served: boolean) => void = () => {};
+      vi.spyOn(DeviceClass, 'isEnabled').mockReturnValue(
+        new Promise(resolve => {
+          answerProbe = resolve;
+        })
+      );
+      const poolStatusProbe = vi
+        .spyOn(ResourcePoolStatusRequest, 'isEnabled')
+        .mockResolvedValue(true);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(poolStatusProbe).toHaveBeenCalled());
+      expect(deviceItems(result.current)).toBeUndefined();
+
+      answerProbe(true);
+
+      await waitFor(() => expect(deviceItems(result.current)).toContain('poolAvailability'));
+    });
+
+    it('leaves out Pool Availability when the cluster does not serve them', async () => {
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => expect(deviceItems(result.current)).toBeDefined());
+      expect(deviceItems(result.current)).not.toContain('poolAvailability');
     });
   });
 

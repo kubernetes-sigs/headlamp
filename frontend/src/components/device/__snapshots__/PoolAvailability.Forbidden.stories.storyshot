@@ -1,0 +1,61 @@
+<body>
+  <div>
+    <div
+      class="MuiContainer-root MuiContainer-maxWidthXl css-4hqp1a-MuiContainer-root"
+    >
+      <div
+        class="MuiBox-root css-j1fy4m"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-70qvj9"
+            >
+              <h2
+                class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+              >
+                Pool Availability
+              </h2>
+              <div
+                class="MuiBox-root css-ldp2l3"
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          class="MuiBox-root css-1txv3mw"
+        >
+          <div
+            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-standardWarning MuiAlert-standard css-179gzu5-MuiPaper-root-MuiAlert-root"
+            role="alert"
+          >
+            <div
+              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+            >
+              <svg
+                aria-hidden="true"
+                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
+                data-testid="ReportProblemOutlinedIcon"
+                focusable="false"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"
+                />
+              </svg>
+            </div>
+            <div
+              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
+            >
+              You are not allowed to request pool status. By default, only cluster admins can.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

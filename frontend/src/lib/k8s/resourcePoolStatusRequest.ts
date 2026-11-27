@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { post, remove, request } from './api/v1/clusterRequests';
 import type { ApiError } from './api/v2/ApiError';
 import type { KubeCondition } from './cluster';
@@ -39,6 +40,14 @@ export interface PoolStatus {
   availableDevices?: number;
   unavailableDevices?: number;
   validationError?: string;
+}
+
+/**
+ * @param pool - A pool from the status of a request.
+ * @returns true when the driver had not published the whole pool, so its counts are unset.
+ */
+export function isPoolIncomplete(pool: PoolStatus): boolean {
+  return !!pool.validationError?.startsWith('PoolIncomplete:');
 }
 
 export type PoolStatusRequestCondition = Omit<KubeCondition, 'lastProbeTime' | 'lastUpdateTime'>;
@@ -96,6 +105,10 @@ class ResourcePoolStatusRequest extends KubeObject<KubeResourcePoolStatusRequest
     return this.hasCondition('Failed');
   }
 
+  get isWaitingForPools(): boolean {
+    return this.hasCondition('WaitingForPools');
+  }
+
   get isPending(): boolean {
     return !this.isComplete && !this.isFailed;
   }
@@ -130,6 +143,13 @@ export class PoolStatusRequestTimeoutError extends Error {
   }
 }
 
+export interface PoolStatusRequestOptions {
+  /** Called with the request while it is not answered yet. */
+  onProgress?: (current: ResourcePoolStatusRequest) => void;
+  /** Stops the wait when aborted. A request already created is still removed. */
+  signal?: AbortSignal;
+}
+
 /**
  * Asks a cluster for the status of a driver's pools, and removes the request afterwards.
  *
@@ -137,15 +157,21 @@ export class PoolStatusRequestTimeoutError extends Error {
  * 1.37, a driver with an incomplete pool leaves its request without a status.
  * @param spec - The driver, and optionally the pool, to ask about.
  * @param cluster - The cluster to ask.
+ * @param options - How to follow or cancel the wait.
  * @returns The answered request, which may have failed.
  * @throws PoolStatusRequestTimeoutError when the cluster does not answer in time.
+ * @throws The reason of the signal when it is aborted.
  */
 export async function requestPoolStatus(
   spec: ResourcePoolStatusRequestSpec,
-  cluster: string
+  cluster: string,
+  { onProgress, signal }: PoolStatusRequestOptions = {}
 ): Promise<ResourcePoolStatusRequest> {
+  signal?.throwIfAborted();
+
   const { apiVersion, apiName, kind } = ResourcePoolStatusRequest;
   const url = `/apis/${apiVersion}/${apiName}`;
+  // Not cancelled with the signal, as the name in its answer is needed to remove the request.
   const created: KubeResourcePoolStatusRequest = await post(
     url,
     { apiVersion, kind, metadata: { generateName: 'headlamp-pool-status-' }, spec },
@@ -154,14 +180,25 @@ export async function requestPoolStatus(
   );
   const requestUrl = `${url}/${created.metadata.name}`;
 
+  const aborted = new Promise<never>((_resolve, reject) => {
+    signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+  // Nothing may be waiting for it when the signal is aborted.
+  aborted.catch(() => {});
+
   try {
     const deadline = Date.now() + POOL_STATUS_TIMEOUT_MS;
     let current = new ResourcePoolStatusRequest(created, cluster);
 
     while (current.isPending) {
-      await new Promise(resolve =>
-        setTimeout(resolve, Math.min(POOL_STATUS_POLL_INTERVAL_MS, deadline - Date.now()))
-      );
+      signal?.throwIfAborted();
+      onProgress?.(current);
+      await Promise.race([
+        new Promise(resolve =>
+          setTimeout(resolve, Math.min(POOL_STATUS_POLL_INTERVAL_MS, deadline - Date.now()))
+        ),
+        aborted,
+      ]);
 
       const timeout = deadline - Date.now();
       if (timeout <= 0) {
@@ -170,10 +207,11 @@ export async function requestPoolStatus(
 
       try {
         current = new ResourcePoolStatusRequest(
-          await request(requestUrl, { cluster, timeout }),
+          await Promise.race([request(requestUrl, { cluster, timeout }), aborted]),
           cluster
         );
       } catch (err) {
+        signal?.throwIfAborted();
         const timedOut =
           (err as ApiError).status === REQUEST_TIMED_OUT_STATUS ||
           (err as Error).name === 'AbortError';
@@ -190,12 +228,43 @@ export async function requestPoolStatus(
 }
 
 /**
- * Runs a pool status request when asked, for example from a button.
+ * Asks a cluster for the status of a driver's pools, once for each driver and cluster given.
+ *
+ * Asking about another driver or cluster, or unmounting, cancels the current request.
  * @param cluster - The cluster to ask.
- * @returns A mutation whose variables are the spec of the request.
+ * @param spec - What to ask about, or undefined to ask nothing.
+ * @returns The answer, whether it is still awaited, and a function to ask again.
  */
-export function usePoolStatusRequest(cluster: string) {
-  return useMutation({
-    mutationFn: (spec: ResourcePoolStatusRequestSpec) => requestPoolStatus(spec, cluster),
+export function usePoolStatusRequest(cluster: string, spec?: ResourcePoolStatusRequestSpec) {
+  const [progress, setProgress] = useState<ResourcePoolStatusRequest>();
+
+  const { data, error, isFetching, refetch } = useQuery({
+    queryKey: ['poolStatusRequest', cluster, spec],
+    queryFn: ({ signal }) => {
+      setProgress(undefined);
+      return requestPoolStatus(spec!, cluster, { onProgress: setProgress, signal });
+    },
+    enabled: !!spec,
+    // Every run creates an object in the cluster and its answer ages at once, so neither
+    // keep an answer nor ask again unless told to.
+    gcTime: 0,
+    staleTime: 0,
+    retry: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
+
+  // The progress of the last request is still set while the next one is being created.
+  const isOwnProgress =
+    progress?.cluster === cluster &&
+    progress.spec.driver === spec?.driver &&
+    progress.spec.poolName === spec?.poolName;
+
+  return {
+    answer: data,
+    error,
+    isPending: isFetching,
+    isWaitingForPools: isFetching && isOwnProgress && progress.isWaitingForPools,
+    refetch,
+  };
 }

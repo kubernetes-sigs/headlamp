@@ -1,0 +1,213 @@
+<body>
+  <div>
+    <div
+      class="MuiContainer-root MuiContainer-maxWidthXl css-4hqp1a-MuiContainer-root"
+    >
+      <div
+        class="MuiBox-root css-j1fy4m"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          >
+            <div
+              class="MuiBox-root css-70qvj9"
+            >
+              <h2
+                class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+              >
+                Pool Availability
+              </h2>
+              <div
+                class="MuiBox-root css-ldp2l3"
+              />
+            </div>
+          </div>
+        </div>
+        <div
+          class="MuiBox-root css-1txv3mw"
+        >
+          <div
+            class="MuiBox-root css-1payfi1"
+          >
+            <div
+              class="MuiFormControl-root MuiTextField-root css-9sfuha-MuiFormControl-root-MuiTextField-root"
+            >
+              <label
+                class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-standard MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-standard css-1xqhkuv-MuiFormLabel-root-MuiInputLabel-root"
+                data-shrink="true"
+                for=":mock-test-id:"
+                id=":mock-test-id:"
+              >
+                Driver
+              </label>
+              <div
+                class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-16i65zs-MuiInputBase-root-MuiInput-root"
+              >
+                <div
+                  aria-controls=":mock-test-id:"
+                  aria-expanded="false"
+                  aria-haspopup="listbox"
+                  aria-labelledby=":mock-test-id:"
+                  class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input MuiInputBase-inputSizeSmall css-1q7gfwb-MuiSelect-select-MuiInputBase-input-MuiInput-input"
+                  id=":mock-test-id:"
+                  role="combobox"
+                  tabindex="0"
+                >
+                  gpu.example.com
+                </div>
+                <input
+                  aria-hidden="true"
+                  aria-invalid="false"
+                  class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                  tabindex="-1"
+                  value="gpu.example.com"
+                />
+                <svg
+                  aria-hidden="true"
+                  class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiSelect-icon MuiSelect-iconStandard css-pqjvzy-MuiSvgIcon-root-MuiSelect-icon"
+                  data-testid="ArrowDropDownIcon"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M7 10l5 5 5-5z"
+                  />
+                </svg>
+              </div>
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+            >
+              Pool: gpu-worker-0
+            </p>
+            <button
+              class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+              tabindex="0"
+              type="button"
+            >
+              Show all pools
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+            <button
+              class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+              tabindex="0"
+              type="button"
+            >
+              Refresh
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
+          <div
+            aria-atomic="true"
+            aria-live="polite"
+            class="MuiBox-root css-ty8jgw"
+            role="status"
+          />
+          <div
+            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-3v2uip-MuiPaper-root-MuiTableContainer-root"
+            tabindex="0"
+          >
+            <table
+              class="MuiTable-root css-15jmevm-MuiTable-root"
+            >
+              <thead
+                class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+              >
+                <tr
+                  class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                >
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Pool
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Node
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Available
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Allocated
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Unavailable
+                  </th>
+                  <th
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                    scope="col"
+                  >
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody
+                class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+              >
+                <tr
+                  class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                >
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    gpu-worker-0
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    <a
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                      href="/c/gpu-cluster/nodes/gpu-worker-0"
+                    >
+                      gpu-worker-0
+                    </a>
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    3
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    1
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    0
+                  </td>
+                  <td
+                    class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  >
+                    4
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
