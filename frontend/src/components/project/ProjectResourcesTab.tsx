@@ -119,17 +119,20 @@ export function ProjectResourcesTab({
     () => [
       {
         id: 'kind',
-        accessorFn: item => item.kind,
+        accessorFn: item => item?.kind,
         header: t('Kind'),
         gridTemplate: 'min-content',
       },
       {
         id: 'name',
-        accessorFn: item => item.metadata.uid + item.metadata.name,
+        accessorFn: item => (item?.metadata?.uid ?? '') + (item?.metadata?.name ?? ''),
         header: t('Name'),
         Cell: ({ row }) => {
           const resource = row.original;
-          return <Link kubeObject={resource}>{resource.metadata?.name}</Link>;
+          if (!resource?.metadata?.name) {
+            return null;
+          }
+          return <Link kubeObject={resource}>{resource.metadata.name}</Link>;
         },
       },
       {
@@ -233,13 +236,13 @@ export function ProjectResourcesTab({
       },
       {
         id: 'namespace',
-        accessorFn: item => item.metadata.namespace || 'default',
+        accessorFn: item => item?.metadata?.namespace || 'default',
         header: t('Namespace'),
         gridTemplate: 'min-content',
       },
       {
         id: 'cluster',
-        accessorFn: item => item.cluster,
+        accessorFn: item => item?.cluster,
         header: t('Cluster'),
         gridTemplate: 'min-content',
       },
@@ -303,7 +306,7 @@ export function ProjectResourcesTab({
       },
       {
         id: 'age',
-        accessorFn: item => item.metadata.creationTimestamp,
+        accessorFn: item => item?.metadata?.creationTimestamp,
         header: t('Age'),
         gridTemplate: 'min-content',
         Cell: ({ row }) => {
@@ -325,9 +328,12 @@ export function ProjectResourcesTab({
         id: 'actions',
         header: t('Actions'),
         gridTemplate: 'min-content',
-        accessorFn: item => item.metadata.uid,
+        accessorFn: item => item?.metadata?.uid,
         Cell: ({ row }) => {
           const resource = row.original;
+          if (!resource?.metadata?.name) {
+            return null;
+          }
           const kind = resource.kind;
           const isScalable = resource.isScalable;
           const isPod = kind === 'Pod';
@@ -344,10 +350,10 @@ export function ProjectResourcesTab({
                       description={t('Show Logs')}
                       icon="mdi:file-document-box-outline"
                       onClick={() => {
-                        const id = 'logs-' + resource.metadata.uid;
+                        const id = 'logs-' + (resource.metadata?.uid ?? '');
                         Activity.launch({
                           id,
-                          title: t('Logs: {{ itemName }}', { itemName: resource.metadata.name }),
+                          title: t('Logs: {{ itemName }}', { itemName: resource.metadata?.name }),
                           cluster: resource.cluster,
                           icon: (
                             <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />
@@ -370,10 +376,10 @@ export function ProjectResourcesTab({
                       description={t('Terminal / Exec')}
                       icon="mdi:console"
                       onClick={() => {
-                        const id = 'terminal-' + resource.metadata.uid;
+                        const id = 'terminal-' + (resource.metadata?.uid ?? '');
                         Activity.launch({
                           id,
-                          title: resource.metadata.name,
+                          title: resource.metadata?.name,
                           cluster: resource.cluster,
                           icon: <Icon icon="mdi:console" width="100%" height="100%" />,
                           location: 'full',

@@ -307,4 +307,66 @@ describe('ProjectResourcesTab', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Terminal / Exec' })[0]);
     expect(mockActivityLaunch).toHaveBeenCalledTimes(2);
   });
+
+  it('omits action controls and renders safely when metadata or name is missing', () => {
+    mockActivityLaunch.mockClear();
+
+    const missingMetadata = {
+      kind: 'Pod',
+      category: 'Workloads',
+      cluster: 'test',
+      spec: {},
+      status: { phase: 'Running', conditions: [] },
+    } as unknown as KubeObject;
+
+    const missingName = {
+      kind: 'Pod',
+      category: 'Workloads',
+      cluster: 'test',
+      metadata: {},
+      spec: {},
+      status: { phase: 'Running', conditions: [] },
+    } as unknown as KubeObject;
+
+    const missingUid = resource('ConfigMap', 'no-uid', {
+      category: 'Workloads',
+      metadata: { name: 'no-uid', uid: undefined },
+    });
+
+    render(
+      <ProjectResourcesTab
+        projectResources={[missingMetadata, missingName, missingUid]}
+        selectedCategoryName="Workloads"
+        setSelectedCategoryName={() => {}}
+      />
+    );
+
+    expect(screen.getByText('no-uid')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show Logs' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Terminal / Exec' })).not.toBeInTheDocument();
+    expect(mockActivityLaunch).not.toHaveBeenCalled();
+  });
+
+  it('launches pod logs and terminal when uid is missing but metadata.name is present', () => {
+    mockActivityLaunch.mockClear();
+
+    const podWithoutUid = resource('Pod', 'no-uid-pod', {
+      category: 'Workloads',
+      metadata: { name: 'no-uid-pod', uid: undefined },
+      status: { phase: 'Running', conditions: [] },
+    });
+
+    render(
+      <ProjectResourcesTab
+        projectResources={[podWithoutUid]}
+        selectedCategoryName="Workloads"
+        setSelectedCategoryName={() => {}}
+      />
+    );
+
+    expect(screen.getByText('no-uid-pod')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show Logs' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal / Exec' }));
+    expect(mockActivityLaunch).toHaveBeenCalledTimes(2);
+  });
 });
