@@ -810,6 +810,36 @@ func TestGetPortForwardByIDHandler_ReturnsRouteClusterName(t *testing.T) {
 	assert.Equal(t, "cluster", response.Cluster)
 }
 
+func TestGetPortForwardByIDHandler_RejectsInvalidIDBeforeCacheLookup(t *testing.T) {
+	c := cache.New[interface{}]()
+
+	t.Cleanup(func() { assert.NoError(t, c.Close()) })
+
+	// Even if a cache entry exists under an invalid ID, validation must reject it with 400.
+	pf := portForward{
+		ID: "../bad", Cluster: "cluster", cacheKey: "cluster",
+		Pod: "redis", Namespace: "cache", Status: RUNNING,
+	}
+	portforwardstore(c, pf)
+
+	w := httptest.NewRecorder()
+	rawQuery := url.Values{"id": {"../bad"}}.Encode()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward?"+rawQuery, nil)
+	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
+
+	GetPortForwardByID(c, "cluster", w, r)
+
+	res := w.Result()
+	defer func() { _ = res.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "invalid portforward id")
+	assert.NotContains(t, string(body), "../bad")
+}
+
 // TestStopOrDeletePortForwardHandler_UserIDKeyIsolation verifies that
 // StopOrDeletePortForward uses the provided context key as the cache key.
 func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {

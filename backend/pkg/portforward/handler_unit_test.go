@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -179,6 +180,129 @@ func TestGetPortForwardByID_NotFound(t *testing.T) {
 	body, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "no portforward running with id")
+}
+
+func TestGetPortForwardByID_EmptyID(t *testing.T) {
+	t.Parallel()
+
+	ch := cache.New[interface{}]()
+
+	t.Cleanup(func() { assert.NoError(t, ch.Close()) })
+
+	w := httptest.NewRecorder()
+	r := newRequestWithVars(http.MethodGet, "/portforward?id=", nil, map[string]string{
+		"clusterName": "test-cluster",
+	})
+
+	portforward.GetPortForwardByID(ch, "test-cluster", w, r)
+
+	res := w.Result()
+	defer func() { _ = res.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "id is required")
+}
+
+func TestGetPortForwardByID_InvalidID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{name: "path traversal", id: "../bad"},
+		{name: "forward slash", id: "bad/id"},
+		{name: "backslash", id: `bad\id`},
+		{name: "space", id: "bad id"},
+		{name: "leading space", id: " pf-1"},
+		{name: "trailing space", id: "pf-1 "},
+		{name: "whitespace only", id: "   "},
+		{name: "tab", id: "pf\t1"},
+		{name: "newline", id: "pf\n1"},
+		{name: "CRLF injection", id: "pf\r\nX-Injected: 1"},
+		{name: "null byte", id: "pf\x00other"},
+		{name: "colon", id: "pf:1"},
+		{name: "percent", id: "pf%201"},
+		{name: "HTML script tag", id: "<script>alert(1)</script>"},
+		{name: "non-ASCII unicode", id: "pf-é"},
+		{name: "exceeds max length", id: strings.Repeat("a", 129)},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ch := cache.New[interface{}]()
+
+			t.Cleanup(func() { assert.NoError(t, ch.Close()) })
+
+			w := httptest.NewRecorder()
+			rawQuery := url.Values{"id": {tt.id}}.Encode()
+			r := newRequestWithVars(http.MethodGet, "/portforward?"+rawQuery, nil, map[string]string{
+				"clusterName": "test-cluster",
+			})
+
+			portforward.GetPortForwardByID(ch, "test-cluster", w, r)
+
+			res := w.Result()
+			defer func() { _ = res.Body.Close() }()
+
+			assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), "invalid portforward id: must be 1-128 characters matching [A-Za-z0-9._-]")
+			assert.NotContains(t, string(body), tt.id)
+		})
+	}
+}
+
+func TestGetPortForwardByID_ValidIDBoundaries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   string
+	}{
+		{name: "single character", id: "a"},
+		{name: "max length 128", id: strings.Repeat("a", 128)},
+		{name: "all allowed character classes", id: "Az09._-"},
+		{name: "UUID format", id: "550e8400-e29b-41d4-a716-446655440000"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ch := cache.New[interface{}]()
+
+			t.Cleanup(func() { assert.NoError(t, ch.Close()) })
+
+			w := httptest.NewRecorder()
+			rawQuery := url.Values{"id": {tt.id}}.Encode()
+			r := newRequestWithVars(http.MethodGet, "/portforward?"+rawQuery, nil, map[string]string{
+				"clusterName": "test-cluster",
+			})
+
+			portforward.GetPortForwardByID(ch, "test-cluster", w, r)
+
+			res := w.Result()
+			defer func() { _ = res.Body.Close() }()
+
+			assert.Equal(t, http.StatusNotFound, res.StatusCode)
+
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), "no portforward running with id "+tt.id)
+		})
+	}
 }
 
 // --- StopOrDeletePortForward handler tests ---
