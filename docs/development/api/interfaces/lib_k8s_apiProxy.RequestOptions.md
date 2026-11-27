@@ -1,8 +1,8 @@
-[API](../API.md) / [lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md) / RequestParams
+[API](../API.md) / [lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md) / RequestOptions
 
-# Interface: RequestParams
+# Interface: RequestOptions
 
-[lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md).RequestParams
+[lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md).RequestOptions
 
 Options for the request.
 
@@ -10,9 +10,9 @@ Options for the request.
 
 - `RequestInit`
 
-  ↳ **`RequestParams`**
+  ↳ **`RequestOptions`**
 
-  ↳↳ [`ClusterRequestParams`](lib_k8s_apiProxy.ClusterRequestParams.md)
+  ↳↳ [`ClusterRequestOptions`](lib_k8s_apiProxy.ClusterRequestOptions.md)
 
 ## Properties
 
