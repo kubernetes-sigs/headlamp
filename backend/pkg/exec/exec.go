@@ -17,11 +17,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:funlen,gochecknoinits,gocritic,gosec,govet,lll,noctx,staticcheck,wsl_v5 // Preserve the adapted client-go implementation to ease upstream comparison.
+//nolint:funlen,gochecknoinits,gocritic,gosec,govet,lll,staticcheck,wsl_v5 // Preserve the adapted client-go implementation to ease upstream comparison.
 package exec
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -32,7 +33,6 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
-	goruntime "runtime"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +69,11 @@ To learn more about this feature, consult the documentation available at:
 var (
 	scheme = runtime.NewScheme()
 	codecs = serializer.NewCodecFactory(scheme)
+
+	// A plugin waiting for a login nobody completes would hold requests open forever.
+	// Browser logins can take a while, kubelogin waits up to 3 minutes by default.
+	pluginTimeout        = 3 * time.Minute
+	failedRefreshBackoff = 10 * time.Second
 )
 
 func init() {
@@ -283,6 +288,9 @@ type Authenticator struct {
 	cachedCreds *credentials
 	exp         time.Time
 
+	lastErr   error
+	lastErrAt time.Time
+
 	// getCert makes Authenticator.cert comparable to support TLS config caching
 	getCert *transport.GetCertHolder
 	// dial is used for clients which do not specify a custom dialer
@@ -391,11 +399,28 @@ func (a *Authenticator) getCreds() (*credentials, error) {
 		return a.cachedCreds, nil
 	}
 
-	if err := a.refreshCredsLocked(); err != nil {
+	if err := a.refreshWithBackoffLocked(); err != nil {
 		return nil, err
 	}
 
 	return a.cachedCreds, nil
+}
+
+func (a *Authenticator) refreshWithBackoffLocked() error {
+	if a.lastErr != nil && a.now().Sub(a.lastErrAt) < failedRefreshBackoff {
+		return a.lastErr
+	}
+
+	if err := a.refreshCredsLocked(); err != nil {
+		a.lastErr = err
+		a.lastErrAt = a.now()
+
+		return err
+	}
+
+	a.lastErr = nil
+
+	return nil
 }
 
 // maybeRefreshCreds executes the plugin to force a rotation of the
@@ -411,7 +436,7 @@ func (a *Authenticator) maybeRefreshCreds(creds *credentials) error {
 		return nil
 	}
 
-	return a.refreshCredsLocked()
+	return a.refreshWithBackoffLocked()
 }
 
 // refreshCredsLocked executes the plugin and reads the credentials from
@@ -438,24 +463,35 @@ func (a *Authenticator) refreshCredsLocked() error {
 	}
 	env = append(env, fmt.Sprintf("%s=%s", execInfoEnv, data))
 
+	ctx := context.Background()
+	if !interactive {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, pluginTimeout)
+		defer cancel()
+	}
+
 	stdout := &bytes.Buffer{}
-	cmd := exec.Command(a.cmd, a.args...)
+	stderr := &limitedBuffer{limit: maxStderrInError}
+	cmd := exec.CommandContext(ctx, a.cmd, a.args...)
 	cmd.Env = env
-	cmd.Stderr = a.stderr
+	cmd.Stderr = io.MultiWriter(a.stderr, stderr)
 	cmd.Stdout = stdout
+	// Child processes can keep the output pipes open after the plugin is killed.
+	cmd.WaitDelay = 2 * time.Second
 	if interactive {
 		cmd.Stdin = a.stdin
-	} else if goruntime.GOOS == "windows" {
+	} else {
 		// On Windows, if the process is not interactive, we need to hide the
 		// terminal window, in order to prevent it from flashing when the exec
 		// plugin.
 		cmd.SysProcAttr = GetSysProcAttr()
+		killProcessTreeOnCancel(cmd)
 	}
 
 	err = cmd.Run()
 	// incrementCallsMetric(err)
-	if err != nil {
-		return a.wrapCmdRunErrorLocked(err)
+	if runErr := a.pluginRunErrorLocked(ctx, err, stderr); runErr != nil {
+		return runErr
 	}
 
 	_, gvk, err := codecs.UniversalDecoder(a.group).Decode(stdout.Bytes(), nil, cred)
@@ -522,6 +558,48 @@ func (a *Authenticator) refreshCredsLocked() error {
 	// }
 	// expirationMetrics.set(a, expiry)
 	return nil
+}
+
+// pluginRunErrorLocked returns the error for a finished plugin run, or nil if it succeeded.
+func (a *Authenticator) pluginRunErrorLocked(ctx context.Context, err error, stderr *limitedBuffer) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		msg := fmt.Sprintf("exec: executable %s did not finish within %s", a.cmd, pluginTimeout)
+		if out := strings.TrimSpace(stderr.String()); out != "" {
+			msg += ": " + out
+		}
+
+		return errors.New(msg)
+	}
+
+	// ErrWaitDelay means the plugin succeeded but something it started kept a pipe open.
+	if err != nil && !errors.Is(err, exec.ErrWaitDelay) {
+		return a.wrapCmdRunErrorLocked(err)
+	}
+
+	return nil
+}
+
+const maxStderrInError = 1024
+
+type limitedBuffer struct {
+	buf   bytes.Buffer
+	limit int
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	if room := b.limit - b.buf.Len(); room > 0 {
+		if len(p) > room {
+			b.buf.Write(p[:room])
+		} else {
+			b.buf.Write(p)
+		}
+	}
+
+	return len(p), nil
+}
+
+func (b *limitedBuffer) String() string {
+	return b.buf.String()
 }
 
 // wrapCmdRunErrorLocked pulls out the code to construct a helpful error message

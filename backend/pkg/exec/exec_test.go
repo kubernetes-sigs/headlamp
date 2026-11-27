@@ -33,6 +33,8 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	goruntime "runtime"
 	"strconv"
@@ -1300,4 +1302,184 @@ func genClientCert(t *testing.T) ([]byte, []byte) {
 	}
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certRaw}),
 		pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
+}
+
+func setPluginTimeoutForTest(t *testing.T, timeout time.Duration) {
+	t.Helper()
+
+	old := pluginTimeout
+	pluginTimeout = timeout
+
+	t.Cleanup(func() { pluginTimeout = old })
+}
+
+func newHangingAuthenticator(t *testing.T) *Authenticator {
+	t.Helper()
+
+	c := api.ExecConfig{
+		APIVersion:      "client.authentication.k8s.io/v1beta1",
+		InteractiveMode: api.NeverExecInteractiveMode,
+		Env: []api.ExecEnvVar{
+			{Name: "TEST_SLEEP_SECONDS", Value: "30"},
+			{Name: "TEST_STDERR", Value: "To sign in, open https://microsoft.com/devicelogin and enter the code ABC123"},
+		},
+	}
+	setTestPluginCommand(&c)
+
+	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a.stderr = io.Discard
+
+	return a
+}
+
+func TestRefreshCredsTimesOutHangingPlugin(t *testing.T) {
+	setPluginTimeoutForTest(t, 5*time.Second)
+	a := newHangingAuthenticator(t)
+
+	start := time.Now()
+	err := a.refreshCredsLocked()
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected an error from a plugin that never finishes")
+	}
+
+	if elapsed > 15*time.Second {
+		t.Fatalf("refresh took %v, want it to stop shortly after the 5s timeout", elapsed)
+	}
+
+	if !strings.Contains(err.Error(), "did not finish within 5s") {
+		t.Errorf("error %q should say the plugin timed out", err)
+	}
+
+	if !strings.Contains(err.Error(), "devicelogin") {
+		t.Errorf("error %q should include what the plugin printed to stderr", err)
+	}
+}
+
+func TestRefreshCredsStopsPluginChildrenOnTimeout(t *testing.T) {
+	setPluginTimeoutForTest(t, 3*time.Second)
+	a := newHangingAuthenticator(t)
+
+	pidFile := filepath.Join(t.TempDir(), "child.pid")
+	a.env = append(a.env, "TEST_CHILD_PID_FILE="+pidFile)
+
+	if err := a.refreshCredsLocked(); err == nil {
+		t.Fatal("expected an error from a plugin that never finishes")
+	}
+
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatalf("the plugin's child process did not write its pid: %v", err)
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("bad pid %q: %v", data, err)
+	}
+
+	t.Cleanup(func() { killTestProcess(pid) })
+
+	deadline := time.Now().Add(5 * time.Second)
+	for processRunning(pid) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the plugin's child process %d is still running after the timeout", pid)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func TestRefreshCredsAcceptsCredentialsWhenHelperKeepsStderrOpen(t *testing.T) {
+	c := api.ExecConfig{
+		APIVersion:      "client.authentication.k8s.io/v1beta1",
+		InteractiveMode: api.NeverExecInteractiveMode,
+		Env: []api.ExecEnvVar{
+			{Name: "TEST_STDERR_HELPER_SECONDS", Value: "10"},
+			testOutputEnv(`{
+				"kind": "ExecCredential",
+				"apiVersion": "client.authentication.k8s.io/v1beta1",
+				"status": {"token": "foo-bar"}
+			}`),
+		},
+	}
+	setTestPluginCommand(&c)
+
+	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &c, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a.stderr = io.Discard
+
+	if err := a.refreshCredsLocked(); err != nil {
+		t.Fatalf("valid credentials were rejected: %v", err)
+	}
+
+	if a.cachedCreds == nil || a.cachedCreds.token != "foo-bar" {
+		t.Fatalf("got credentials %+v, want token foo-bar", a.cachedCreds)
+	}
+}
+
+func TestMaybeRefreshCredsFailsFastAfterPluginTimeout(t *testing.T) {
+	setPluginTimeoutForTest(t, time.Second)
+	a := newHangingAuthenticator(t)
+
+	creds := &credentials{token: "rejected"}
+	a.cachedCreds = creds
+
+	if err := a.maybeRefreshCreds(creds); err == nil {
+		t.Fatal("expected the refresh after a 401 to time out")
+	}
+
+	start := time.Now()
+	err := a.maybeRefreshCreds(creds)
+
+	if err == nil || !strings.Contains(err.Error(), "did not finish within 1s") {
+		t.Fatalf("got %v, want the earlier timeout error", err)
+	}
+
+	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
+		t.Fatalf("second refresh took %v, want it to fail without running the plugin", elapsed)
+	}
+}
+
+func TestGetCredsFailsFastAfterPluginTimeout(t *testing.T) {
+	setPluginTimeoutForTest(t, time.Second)
+	a := newHangingAuthenticator(t)
+
+	now := time.Now()
+	a.now = func() time.Time { return now }
+
+	if _, err := a.getCreds(); err == nil {
+		t.Fatal("expected the first refresh to time out")
+	}
+
+	start := time.Now()
+	_, err := a.getCreds()
+	elapsed := time.Since(start)
+
+	if err == nil || !strings.Contains(err.Error(), "did not finish within 1s") {
+		t.Fatalf("got %v, want the earlier timeout error", err)
+	}
+
+	if elapsed > 500*time.Millisecond {
+		t.Fatalf("second getCreds took %v, want it to fail without running the plugin", elapsed)
+	}
+
+	now = now.Add(failedRefreshBackoff + time.Second)
+	start = time.Now()
+	_, err = a.getCreds()
+
+	if err == nil {
+		t.Fatal("expected the retried refresh to time out again")
+	}
+
+	if elapsed := time.Since(start); elapsed < 900*time.Millisecond {
+		t.Fatalf("retry took %v, want the plugin to run again after the backoff", elapsed)
+	}
 }
