@@ -51,11 +51,11 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
         item && [
           {
             name: t('translation|Max Unavailable'),
-            value: <>{item.spec.maxUnavailable}</>,
+            value: <>{item.spec?.maxUnavailable}</>,
           },
           {
             name: t('translation|Min Available'),
-            value: <>{item.spec.minAvailable}</>,
+            value: <>{item.spec?.minAvailable}</>,
           },
           {
             name: t('glossary|Selector'),
@@ -73,19 +73,19 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
             value: (
               <>
                 <StatusLabel status="">
-                  {t('translation|Allowed disruptions')}:{item.status.disruptionsAllowed}
+                  {t('translation|Allowed disruptions')}:{item.status?.disruptionsAllowed}
                 </StatusLabel>
                 <br />
                 <StatusLabel status="">
-                  {t('translation|Current', { context: 'pods' })}:{item.status.currentHealthy}
+                  {t('translation|Current', { context: 'pods' })}:{item.status?.currentHealthy}
                 </StatusLabel>
                 <br />
                 <StatusLabel status="">
-                  {t('translation|Desired', { context: 'pods' })}:{item.status.desiredHealthy}
+                  {t('translation|Desired', { context: 'pods' })}:{item.status?.desiredHealthy}
                 </StatusLabel>
                 <br />
                 <StatusLabel status="">
-                  {t('translation|Total')}:{item.status.expectedPods}
+                  {t('translation|Total')}:{item.status?.expectedPods}
                 </StatusLabel>
                 <br />
               </>

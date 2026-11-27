@@ -110,6 +110,11 @@ describe('PDBList', () => {
     const empty = { spec: {}, status: {} } as any;
     expect(getColumn('minAvailable').getValue(empty)).toContain('N/A');
     expect(getColumn('allowedDisruptions').getValue(empty)).toContain('N/A');
+
+    const undefinedSpecAndStatus = {} as any;
+    expect(getColumn('minAvailable').getValue(undefinedSpecAndStatus)).toContain('N/A');
+    expect(getColumn('maxUnavailable').getValue(undefinedSpecAndStatus)).toContain('N/A');
+    expect(getColumn('allowedDisruptions').getValue(undefinedSpecAndStatus)).toContain('N/A');
   });
 
   it('shows an explicit 0 instead of falling back to N/A', () => {
