@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -172,6 +173,15 @@ type Multiplexer struct {
 	saTokenMu sync.RWMutex
 	// heartbeatInterval is HeartbeatInterval; tests shorten it.
 	heartbeatInterval time.Duration
+	// keyLocks maps connection keys to locks to coordinate lookup through installation per key.
+	keyLocks map[string]*keyLock
+	// keyLocksMu guards keyLocks.
+	keyLocksMu sync.Mutex
+}
+
+type keyLock struct {
+	mu       sync.Mutex
+	refCount int
 }
 
 // errDialIncomplete is what waiters get if the dial they wait on never finished, e.g. it panicked.
@@ -216,6 +226,10 @@ func NewWSConnLock(conn *websocket.Conn) *WSConnLock {
 // WriteJSON writes the JSON encoding of v as a message to the WebSocket connection.
 // It ensures thread-safety by using a mutex lock during the write operation.
 func (conn *WSConnLock) WriteJSON(v interface{}) error {
+	if conn == nil || conn.conn == nil {
+		return nil
+	}
+
 	conn.writeMu.Lock()
 	defer conn.writeMu.Unlock()
 
@@ -264,12 +278,44 @@ func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAcc
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
 		heartbeatInterval:            HeartbeatInterval,
+		keyLocks:                     make(map[string]*keyLock),
 		upgrader: websocket.Upgrader{
 			Subprotocols: []string{MultiplexerProtocol},
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
 		},
+	}
+}
+
+// acquireKeyLock coordinates lookup through installation for a specific connection key.
+// It returns an unlock function that releases the lock and cleans up unreferenced entries.
+func (m *Multiplexer) acquireKeyLock(key string) func() {
+	m.keyLocksMu.Lock()
+
+	kl, ok := m.keyLocks[key]
+	if !ok {
+		kl = &keyLock{}
+		m.keyLocks[key] = kl
+	}
+
+	kl.refCount++
+
+	m.keyLocksMu.Unlock()
+
+	kl.mu.Lock()
+
+	return func() {
+		kl.mu.Unlock()
+
+		m.keyLocksMu.Lock()
+
+		kl.refCount--
+		if kl.refCount == 0 {
+			delete(m.keyLocks, key)
+		}
+
+		m.keyLocksMu.Unlock()
 	}
 }
 
@@ -577,6 +623,25 @@ func (m *Multiplexer) createConnection(
 	}
 }
 
+type handshakeError struct {
+	err        error
+	statusCode int
+	status     string
+	body       string
+}
+
+func (e *handshakeError) Error() string {
+	if e.body != "" {
+		return fmt.Sprintf("dialing WebSocket (%s: %s): %v", e.status, e.body, e.err)
+	}
+
+	return fmt.Sprintf("dialing WebSocket (%s): %v", e.status, e.err)
+}
+
+func (e *handshakeError) Unwrap() error {
+	return e.err
+}
+
 // dialWebSocket establishes a WebSocket connection.
 func (m *Multiplexer) dialWebSocket(
 	wsURL string,
@@ -622,6 +687,17 @@ func (m *Multiplexer) dialWebSocket(
 
 			if resp.StatusCode == http.StatusGone {
 				return nil, fmt.Errorf("dialing WebSocket: %w: %w", errWatchExpired, err)
+			}
+
+			const maxHandshakeErrorBodyBytes = 64 * 1024
+
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, maxHandshakeErrorBodyBytes))
+
+			return nil, &handshakeError{
+				err:        err,
+				statusCode: resp.StatusCode,
+				status:     resp.Status,
+				body:       strings.TrimSpace(string(body)),
 			}
 		}
 
@@ -810,10 +886,14 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 // replaceRegistered reports whether conn is still open and registered for its key, and if so
 // registers newConn in its place when newConn is not nil.
 func (m *Multiplexer) replaceRegistered(conn, newConn *Connection) bool {
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
+
+	unlock := m.acquireKeyLock(connKey)
+	defer unlock()
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
 	if m.connections[connKey] != conn || conn.IsClosed() {
 		return false
 	}
@@ -993,6 +1073,19 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 	conn, exists := m.connections[connKey]
 	m.mutex.RUnlock()
 
+	if exists {
+		conn.mu.RLock()
+		queryChanged := conn.Query != msg.Query
+		clientChanged := conn.Client != clientConn
+		conn.mu.RUnlock()
+
+		if queryChanged || clientChanged {
+			m.removeConnection(conn)
+
+			exists = false
+		}
+	}
+
 	if !exists {
 		var (
 			err     error
@@ -1088,10 +1181,19 @@ func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *str
 
 // sendClientError sends an error message to the client WebSocket connection.
 func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, query, userID string, err error) {
+	var statusCode int
+
+	var hErr *handshakeError
+	if errors.As(err, &hErr) {
+		statusCode = hErr.statusCode
+	}
+
 	errorData := struct {
-		Error string `json:"error"`
+		Error      string `json:"error"`
+		StatusCode int    `json:"statusCode,omitempty"`
 	}{
-		Error: err.Error(),
+		Error:      err.Error(),
+		StatusCode: statusCode,
 	}
 
 	jsonData, jsonErr := json.Marshal(errorData)
@@ -1416,6 +1518,10 @@ func (m *Multiplexer) sendDataMessage(
 // removeConnection closes conn and removes it from the registry. A replacement client may
 // have registered the same key since, so the entry is only removed if it still is conn.
 func (m *Multiplexer) removeConnection(conn *Connection) {
+	if conn == nil {
+		return
+	}
+
 	m.mutex.Lock()
 
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
