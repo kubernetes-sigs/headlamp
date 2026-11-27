@@ -38,6 +38,7 @@ import {
 import {
   buildEnvironmentVariables,
   ConditionsTable,
+  ContainersSection,
   DataField,
   DetailsGrid,
   extractEnvVarReferences,
@@ -727,6 +728,66 @@ describe('ConditionsTable', () => {
       '-',
       'GateOpen',
     ]);
+  });
+});
+
+describe('ContainersSection', () => {
+  const initContainer: KubeContainer = {
+    name: 'wait-for-config',
+    image: 'busybox',
+    imagePullPolicy: 'IfNotPresent',
+  };
+  const sidecar: KubeContainer = {
+    name: 'log-shipper',
+    image: 'busybox',
+    imagePullPolicy: 'IfNotPresent',
+    restartPolicy: 'Always',
+  };
+
+  function renderSection(resource: any) {
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainersSection resource={resource} />
+        </ThemedContext>
+      </TestContext>
+    );
+  }
+
+  it('shows the init and sidecar containers from a workload pod template', () => {
+    renderSection({
+      kind: 'Deployment',
+      metadata,
+      spec: {
+        template: {
+          spec: { containers: [container], initContainers: [initContainer, sidecar] },
+        },
+      },
+    });
+
+    expect(screen.getByRole('heading', { name: 'Container Spec' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Init Containers' })).toBeInTheDocument();
+    expect(screen.getByText('app')).toBeInTheDocument();
+    expect(screen.getByText('wait-for-config')).toBeInTheDocument();
+    expect(screen.getByText('log-shipper')).toBeInTheDocument();
+  });
+
+  it('shows the init containers of a pod', () => {
+    renderSection({ ...pod, spec: { ...pod.spec, initContainers: [initContainer] } });
+
+    expect(screen.getByRole('heading', { name: 'Init Containers' })).toBeInTheDocument();
+    expect(screen.getByText('wait-for-config')).toBeInTheDocument();
+  });
+
+  it('has no Init Containers section when the workload has none', () => {
+    renderSection({
+      kind: 'Deployment',
+      metadata,
+      spec: { template: { spec: { containers: [container] } } },
+    });
+
+    expect(screen.getByText('app')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Init Containers' })).not.toBeInTheDocument();
   });
 });
 

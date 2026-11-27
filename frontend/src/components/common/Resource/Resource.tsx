@@ -1993,7 +1993,8 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
   }
 
   function getInitContainers() {
-    return resource?.spec?.initContainers || [];
+    // Workloads keep their init containers, sidecars included, in the pod template.
+    return resource?.spec?.initContainers || resource?.spec?.template?.spec?.initContainers || [];
   }
 
   function getEphemeralContainers() {
