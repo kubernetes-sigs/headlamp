@@ -27,6 +27,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/terminal"
 )
 
 // WebSocketMultiplexer handles client websocket connections. Implemented in cmd to avoid circular import.
@@ -78,32 +79,36 @@ type HeadlampConfig struct {
 }
 
 type HeadlampCFG struct {
-	AppName                string
-	UseInCluster           bool
-	InClusterContextName   string
-	ListenAddr             string
-	CacheEnabled           bool
-	CacheMaxClientsets     int
-	DevMode                bool
-	Insecure               bool
-	EnableHelm             bool
-	EnableDynamicClusters  bool
-	AllowKubeconfigChanges bool
-	WatchPluginsChanges    bool
-	Port                   uint
-	KubeConfigPath         string
-	KubeConfigDir          string
-	SkippedKubeContexts    string
-	StaticDir              string
-	PluginDir              string
-	UserPluginDir          string
-	StaticPluginDir        string
-	KubeConfigStore        kubeconfig.ContextStore
-	Telemetry              *telemetry.Telemetry
-	Metrics                *telemetry.Metrics
-	BaseURL                string
-	ProxyURLs              []string
-	BackstageOrigin        string
+	AppName                  string
+	UseInCluster             bool
+	InClusterContextName     string
+	ListenAddr               string
+	CacheEnabled             bool
+	CacheMaxClientsets       int
+	DevMode                  bool
+	Insecure                 bool
+	EnableHelm               bool
+	EnableClusterTerminal    bool
+	ClusterTerminalNamespace string
+	ClusterTerminalImage     string
+	TerminalTokens           *terminal.SessionTokenStore
+	EnableDynamicClusters    bool
+	AllowKubeconfigChanges   bool
+	WatchPluginsChanges      bool
+	Port                     uint
+	KubeConfigPath           string
+	KubeConfigDir            string
+	SkippedKubeContexts      string
+	StaticDir                string
+	PluginDir                string
+	UserPluginDir            string
+	StaticPluginDir          string
+	KubeConfigStore          kubeconfig.ContextStore
+	Telemetry                *telemetry.Telemetry
+	Metrics                  *telemetry.Metrics
+	BaseURL                  string
+	ProxyURLs                []string
+	BackstageOrigin          string
 
 	TLSCertPath                  string
 	TLSKeyPath                   string

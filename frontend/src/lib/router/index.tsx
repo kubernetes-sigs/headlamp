@@ -134,6 +134,7 @@ import VolumeAttributesClassDetails from '../../components/storage/VolumeAttribu
 import VolumeAttributesClassList from '../../components/storage/VolumeAttributesClassList';
 import PersistentVolumeDetails from '../../components/storage/VolumeDetails';
 import PersistentVolumeList from '../../components/storage/VolumeList';
+import ClusterTerminal from '../../components/terminal/ClusterTerminal';
 import VpaDetails from '../../components/verticalPodAutoscaler/Details';
 import VpaList from '../../components/verticalPodAutoscaler/List';
 import MutatingWebhookConfigurationDetails from '../../components/webhookconfiguration/MutatingWebhookConfigDetails';
@@ -1243,6 +1244,13 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'map',
     isFullWidth: true,
     component: () => <LazyGraphView height="100%" />,
+  },
+  clusterTerminal: {
+    path: '/terminal',
+    exact: true,
+    name: 'Terminal',
+    sidebar: 'clusterTerminal',
+    component: () => <ClusterTerminal />,
   },
 };
 

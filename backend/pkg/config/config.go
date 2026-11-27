@@ -74,6 +74,9 @@ type Config struct {
 	CacheMaxClientsets         int    `koanf:"cache-max-clientsets"`
 	CacheMaxClientsetsExplicit bool   `koanf:"-"`
 	EnableHelm                 bool   `koanf:"enable-helm"`
+	EnableClusterTerminal      bool   `koanf:"enable-cluster-terminal"`
+	ClusterTerminalNamespace   string `koanf:"cluster-terminal-namespace"`
+	ClusterTerminalImage       string `koanf:"cluster-terminal-image"`
 	EnableDynamicClusters      bool   `koanf:"enable-dynamic-clusters"`
 	AllowKubeconfigChanges     bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr                 string `koanf:"listen-addr"`
@@ -828,6 +831,9 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("backstage-origin", "",
 		"Comma-separated list of trusted Backstage origins for postMessage integration")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.Bool("enable-cluster-terminal", false, "Enable built-in cluster terminal")
+	f.String("cluster-terminal-namespace", "headlamp-terminals", "Namespace for in-cluster terminal pods")
+	f.String("cluster-terminal-image", "alpine:3.21", "Container image for in-cluster terminal pods")
 	addClusterDiscoveryFlags(f)
 	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
 	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")

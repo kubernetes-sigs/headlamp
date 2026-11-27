@@ -65,6 +65,7 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
 
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
+  const clusterTerminalEnabled = useTypedSelector(state => state.config.clusterTerminalEnabled);
   const settings = useTypedSelector(selectEffectiveSettings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
@@ -248,6 +249,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'advancedSearch',
             label: t('Advanced Search (Beta)'),
           },
+          ...(clusterTerminalEnabled
+            ? [
+                {
+                  name: 'clusterTerminal',
+                  label: t('Terminal'),
+                },
+              ]
+            : []),
         ],
       },
       {
@@ -685,6 +694,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     crdsSidebarEntries,
     gatewayKinds,
     clusterTrustBundlesEnabled,
+    clusterTerminalEnabled,
     devicesEnabled,
     schedulingWorkloadsEnabled,
     compositePodGroupsEnabled,

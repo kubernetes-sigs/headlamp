@@ -209,6 +209,7 @@ type clientConfig struct {
 	ClusterSources            []clusterdiscovery.SourceView `json:"clusterSources"`
 	Clusters                  []Cluster                     `json:"clusters"`
 	IsDynamicClusterEnabled   bool                          `json:"isDynamicClusterEnabled"`
+	ClusterTerminalEnabled    bool                          `json:"clusterTerminalEnabled"`
 	NamespaceDiscoveryEnabled bool                          `json:"namespaceDiscoveryEnabled"`
 	AllowKubeconfigChanges    bool                          `json:"allowKubeconfigChanges"`
 	DefaultPodDebugImage      string                        `json:"defaultPodDebugImage"`
@@ -1361,6 +1362,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			http.HandlerFunc(config.Multiplexer.HandleClientWebSocket),
 		))
 	}
+
+	r.Handle("/wsTerminal", http.HandlerFunc(config.handleClusterTerminalWS))
 
 	config.addClusterSetupRoute(r)
 
@@ -2877,6 +2880,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		ClusterSources:            clusterdiscovery.ClientSourceViews(clusterdiscovery.BuiltinSources(), c.DiscoverySources),
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
+		ClusterTerminalEnabled:    c.isClusterTerminalEnabled(),
 		NamespaceDiscoveryEnabled: c.EnableNamespaceDiscovery,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
 		DefaultPodDebugImage:      c.PodDebugImage,

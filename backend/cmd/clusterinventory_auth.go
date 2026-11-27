@@ -127,6 +127,16 @@ func requestBearerToken(r *http.Request) string {
 	return auth.BearerTokenValue(authorization)
 }
 
+func (c *HeadlampConfig) resolveTerminalToken(token, cluster string) string {
+	if c.TerminalTokens != nil && token != "" {
+		if mappedToken, ok := c.TerminalTokens.Resolve(token, cluster); ok {
+			return mappedToken
+		}
+	}
+
+	return token
+}
+
 // normalizeClusterCredentials makes cache authorization and cluster handlers use
 // the same selected credential, including auth-proxy and cookie authentication.
 func (c *HeadlampConfig) normalizeClusterCredentials(r *http.Request, cluster string, k *kubeconfig.Context) {
@@ -140,6 +150,8 @@ func (c *HeadlampConfig) normalizeClusterCredentials(r *http.Request, cluster st
 		if token == "" {
 			token = c.requestTokenForContext(r, cluster, k)
 		}
+
+		token = c.resolveTerminalToken(token, cluster)
 
 		if token != "" {
 			r.Header.Set("Authorization", "Bearer "+token)
