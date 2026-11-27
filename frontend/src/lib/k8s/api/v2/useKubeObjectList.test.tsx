@@ -1462,6 +1462,158 @@ describe('useKubeObjectList', () => {
     await waitFor(() => expect(mockClusterFetch).not.toHaveBeenCalled());
   });
 
+  describe('when clusters serve different versions of a resource', () => {
+    const gatewayClass = class {
+      static apiVersion = ['gateway.networking.k8s.io/v1', 'gateway.networking.k8s.io/v1beta1'];
+      static apiName = 'gateways';
+      static apiEndpoint = {
+        apiInfo: [
+          { group: 'gateway.networking.k8s.io', version: 'v1', resource: 'gateways' },
+          { group: 'gateway.networking.k8s.io', version: 'v1beta1', resource: 'gateways' },
+        ],
+      };
+
+      constructor(public jsonData: any) {}
+
+      get metadata() {
+        return this.jsonData?.metadata;
+      }
+    } as any;
+
+    // Each cluster answers only for the versions it serves, with one gateway named after it.
+    function serveGateways(versionsByCluster: Record<string, string[]>) {
+      mockClusterFetch.mockImplementation(async (url, init) => {
+        const version = String(url).split('/')[2];
+        if (!versionsByCluster[init.cluster]?.includes(version)) {
+          const error = new ApiError('Not Found', { status: 404 });
+          error.cluster = init.cluster;
+          throw error;
+        }
+        return {
+          json: () =>
+            Promise.resolve(
+              makeListResponse({
+                kind: 'GatewayList',
+                items: [{ metadata: { name: `gateway-${init.cluster}`, uid: init.cluster } }],
+              })
+            ),
+        } as Response;
+      });
+    }
+
+    function renderGatewayList(clusters: string[], watch = false) {
+      return renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: gatewayClass,
+            requests: clusters.map(cluster => ({ cluster })),
+            watch,
+          }),
+        { wrapper: queryClientWrapper(new QueryClient()) }
+      );
+    }
+
+    const names = (items: any[] | null) => items?.map(item => item.metadata.name).sort();
+    const listUrls = () =>
+      mockClusterFetch.mock.calls
+        .filter(([, init]) => (init as any).method !== 'GET')
+        .map(([url, init]) => [init.cluster, url])
+        .sort();
+
+    it('lists each cluster with the version it serves', async () => {
+      serveGateways({ 'cluster-a': ['v1'], 'cluster-b': ['v1beta1'] });
+
+      const { result } = renderGatewayList(['cluster-a', 'cluster-b']);
+
+      await waitFor(() =>
+        expect(names(result.current.items)).toEqual(['gateway-cluster-a', 'gateway-cluster-b'])
+      );
+      expect(result.current.errors).toBeNull();
+      expect(listUrls()).toEqual([
+        ['cluster-a', 'apis/gateway.networking.k8s.io/v1/gateways'],
+        ['cluster-b', 'apis/gateway.networking.k8s.io/v1beta1/gateways'],
+      ]);
+    });
+
+    it.each([[['cluster-a', 'cluster-b']], [['cluster-b', 'cluster-a']]])(
+      'keeps the other clusters when one does not serve the resource (order %j)',
+      async clusters => {
+        serveGateways({ 'cluster-b': ['v1'] });
+
+        const { result } = renderGatewayList(clusters);
+
+        await waitFor(() => expect(names(result.current.items)).toEqual(['gateway-cluster-b']));
+        await waitFor(() =>
+          expect(result.current.errors?.map(error => [error.cluster, error.status])).toEqual([
+            ['cluster-a', 404],
+          ])
+        );
+        expect(listUrls()).toEqual([['cluster-b', 'apis/gateway.networking.k8s.io/v1/gateways']]);
+      }
+    );
+
+    it('returns an empty list when no cluster serves the resource', async () => {
+      serveGateways({});
+
+      const { result } = renderGatewayList(['cluster-a', 'cluster-b']);
+
+      await waitFor(() => expect(result.current.errors).toHaveLength(2));
+      expect(result.current.items).toEqual([]);
+      expect(listUrls()).toEqual([]);
+    });
+
+    it('keeps clusters added by loadMore when an earlier cluster finishes probing', async () => {
+      serveGateways({ 'cluster-a': ['v1beta1'], 'cluster-b': ['v1'] });
+      const serve = mockClusterFetch.getMockImplementation()!;
+      let finishProbe!: () => void;
+      const probeHeldBack = new Promise<void>(resolve => (finishProbe = resolve));
+      mockClusterFetch.mockImplementation(async (url, init) => {
+        if (init.cluster === 'cluster-a' && init.method === 'GET') {
+          await probeHeldBack;
+        }
+        return serve(url, init);
+      });
+
+      const { result } = renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: gatewayClass,
+            requests: [{ cluster: 'cluster-a' }, { cluster: 'cluster-b' }],
+            queryParams: { limit: 1 },
+          }),
+        { wrapper: queryClientWrapper(new QueryClient()) }
+      );
+
+      // Load the next page as soon as cluster-b has been probed, while cluster-a still is.
+      await waitFor(() => {
+        void result.current.loadMore?.();
+        expect(names(result.current.items)).toEqual(['gateway-cluster-b']);
+      });
+
+      finishProbe();
+
+      await waitFor(() =>
+        expect(names(result.current.items)).toEqual(['gateway-cluster-a', 'gateway-cluster-b'])
+      );
+    });
+
+    it('watches each cluster on the endpoint it was listed from', async () => {
+      serveGateways({ 'cluster-a': ['v1'], 'cluster-b': ['v1beta1'] });
+
+      renderGatewayList(['cluster-a', 'cluster-b'], true);
+
+      await waitFor(() => {
+        const connections = mockUseWebSockets.mock.lastCall?.[0].connections ?? [];
+        expect(
+          connections.map((connection: any) => [connection.cluster, connection.url.split('?')[0]])
+        ).toEqual([
+          ['cluster-a', 'apis/gateway.networking.k8s.io/v1/gateways'],
+          ['cluster-b', 'apis/gateway.networking.k8s.io/v1beta1/gateways'],
+        ]);
+      });
+    });
+  });
+
   describe('with discovered namespaces', () => {
     const namespaceClass = class {
       static apiVersion = 'v1';
