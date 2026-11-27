@@ -1085,6 +1085,49 @@ describe('useWatchKubeObjectLists', () => {
     expect(onReconnect).toHaveBeenCalledWith('default', 'default', '');
   });
 
+  it('limits direct watch handshake recovery across changing LIST versions', () => {
+    vi.useFakeTimers();
+    try {
+      const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+      const onReconnect = vi.fn();
+      const queryClient = new QueryClient();
+      const endpoint = { version: 'v1', resource: 'pods' };
+      const { rerender } = renderHook(
+        ({ resourceVersion }) =>
+          useWatchKubeObjectLists({
+            kubeObjectClass: mockClass,
+            endpoint,
+            lists: [{ cluster: 'default', namespace: 'default', resourceVersion }],
+            onReconnect,
+          }),
+        { initialProps: { resourceVersion: '100' }, wrapper: queryClientWrapper(queryClient) }
+      );
+
+      const handshakeFailure = new CloseEvent('close', {
+        code: 1002,
+        reason: 'Handshake failed repeatedly',
+      });
+      for (const [index, delay] of [0, 1000, 2000, 4000, 8000].entries()) {
+        const connection = useWebSocketSpy.mock.lastCall![0].connections[0];
+        act(() => {
+          connection.onClose?.(handshakeFailure);
+          vi.advanceTimersByTime(delay);
+        });
+        expect(onReconnect).toHaveBeenCalledTimes(index + 1);
+        rerender({ resourceVersion: String(101 + index) });
+      }
+
+      const latestConnection = useWebSocketSpy.mock.lastCall![0].connections[0];
+      act(() => {
+        latestConnection.onClose?.(handshakeFailure);
+        vi.advanceTimersByTime(60000);
+      });
+      expect(onReconnect).toHaveBeenCalledTimes(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('backs off repeated protocol closes without watch traffic', () => {
     vi.useFakeTimers();
     try {
@@ -4581,6 +4624,31 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       expect.any(Function),
       expect.any(Function)
     );
+  });
+
+  it('limits retries after a multiplexed watch fails to subscribe', async () => {
+    vi.useFakeTimers();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockSubscribe.mockRejectedValue(new Error('offline'));
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }];
+
+    try {
+      renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, endpoint, lists }), {
+        wrapper: queryClientWrapper(new QueryClient()),
+      });
+
+      for (const [attempt, delay] of [1000, 2000, 4000, 8000, 16000].entries()) {
+        await act(() => vi.advanceTimersByTimeAsync(delay));
+        expect(mockSubscribe).toHaveBeenCalledTimes(attempt + 2);
+      }
+      await act(() => vi.advanceTimersByTimeAsync(60000));
+      expect(mockSubscribe).toHaveBeenCalledTimes(6);
+    } finally {
+      mockSubscribe.mockImplementation(() => Promise.resolve(mockSubscribeCleanup));
+      consoleError.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it('should subscribe to multiple clusters', () => {

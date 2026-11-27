@@ -651,11 +651,13 @@ describe('WebSocket Multiplexer', () => {
 
       // Verify reconnection state is reset
       expect(WebSocketManager.isReconnecting).toBe(false);
+      expect(WebSocketManager.reconnectRetryCount).toBe(0);
+      expect(WebSocketManager.reconnectTimer).toBeNull();
 
       newServer.close();
     });
 
-    it('schedules transport reconnect after an unexpected close', async () => {
+    it('backs off and stops after five failed transport reconnects', async () => {
       vi.useFakeTimers();
       try {
         const socket = {
@@ -678,9 +680,16 @@ describe('WebSocket Multiplexer', () => {
 
         WebSocketManager.handleWebSocketClose();
 
-        expect(connectSpy).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(1000);
-        expect(connectSpy).toHaveBeenCalledTimes(1);
+        const retryDelays = [1000, 2000, 4000, 8000, 16000];
+        for (const [attempt, delay] of retryDelays.entries()) {
+          await vi.advanceTimersByTimeAsync(delay - 1);
+          expect(connectSpy).toHaveBeenCalledTimes(attempt);
+          await vi.advanceTimersByTimeAsync(1);
+          expect(connectSpy).toHaveBeenCalledTimes(attempt + 1);
+        }
+
+        await vi.advanceTimersByTimeAsync(60000);
+        expect(connectSpy).toHaveBeenCalledTimes(retryDelays.length);
       } finally {
         vi.useRealTimers();
       }

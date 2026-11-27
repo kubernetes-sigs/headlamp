@@ -20,6 +20,7 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { getBaseWsUrl } from './webSocket';
 
 const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
+const MAX_RECONNECT_ATTEMPTS = 5;
 const DECIMAL_INTEGER_PATTERN = /^\d+$/;
 
 function getQueryResourceVersion(query: string): string {
@@ -631,8 +632,12 @@ export const WebSocketManager = {
   },
 
   scheduleReconnect(): void {
-    if (this.activeSubscriptions.size > 0 && !this.reconnectTimer) {
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectRetryCount), 30000);
+    if (
+      this.activeSubscriptions.size > 0 &&
+      !this.reconnectTimer &&
+      this.reconnectRetryCount < MAX_RECONNECT_ATTEMPTS
+    ) {
+      const delay = 1000 * Math.pow(2, this.reconnectRetryCount);
       this.reconnectRetryCount += 1;
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
