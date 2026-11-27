@@ -697,6 +697,17 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             cluster,
             stableQueryParams ?? {}
           ).queryKey;
+
+          if (
+            update.type === 'ERROR' &&
+            update.object &&
+            'code' in update.object &&
+            update.object.code === 410
+          ) {
+            client.invalidateQueries({ queryKey: key });
+            return;
+          }
+
           client.setQueryData(key, (oldResponse: ListResponse<any> | undefined | null) => {
             if (!oldResponse) return oldResponse;
 
