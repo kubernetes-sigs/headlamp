@@ -239,8 +239,8 @@ export function useCrdInstalled(crdName: string, cluster?: string): 'loading' | 
   return crd ? 'present' : 'loading';                       // distinguishes not-installed from installed-but-empty
 }
 
-// List pages: the selected clusters that serve the CRD, or null while checking. A cluster whose CRDs
-// can't be listed (e.g. 403) has no result and is kept, so its list surfaces its own access error.
+// List pages: the selected clusters that serve the CRD, or null while checking. Only a successful empty
+// list drops a cluster. One that errors (403, failed refetch) is kept, so its list surfaces the error.
 export function useCrdClusters(crdName: string): string[] | null {
   const selected = K8s.useSelectedClusters();
   const { clusterResults, isLoading } = CRD.useList({
@@ -249,8 +249,8 @@ export function useCrdClusters(crdName: string): string[] | null {
   });
   if (isLoading) return null;
   return selected.filter(cluster => {
-    const items = clusterResults?.[cluster]?.items;
-    return !items || items.length > 0;
+    const result = clusterResults?.[cluster];
+    return !result?.isSuccess || !!result.items?.length;
   });
 }
 
