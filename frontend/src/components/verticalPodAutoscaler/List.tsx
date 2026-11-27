@@ -23,6 +23,7 @@ import VPA from '../../lib/k8s/vpa';
 import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
 import SectionBox from '../common/SectionBox';
+import { sortByCpuRecommendation, sortByMemoryRecommendation } from './sortByRecommendation';
 
 export default function VpaList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -60,11 +61,13 @@ export default function VpaList() {
               id: 'cpu',
               label: t('glossary|CPU'),
               getValue: item => item?.targetRecommendations?.cpu ?? null,
+              sort: sortByCpuRecommendation,
             },
             {
               id: 'memory',
               label: t('glossary|Memory'),
               getValue: item => item?.targetRecommendations?.memory ?? null,
+              sort: sortByMemoryRecommendation,
             },
             {
               id: 'provided',
