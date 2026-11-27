@@ -163,10 +163,17 @@ const Title = styled('div')({
 
 const EXPAND_DELAY = 450;
 
+/**
+ * Hover (or focus) state of a node.
+ * A hovered node stays 'pending' for EXPAND_DELAY before it becomes 'expanded'.
+ */
+type HoverState = 'idle' | 'pending' | 'expanded';
+
 export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const node = useNode(id);
-  const [isHovered, setHovered] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [hoverState, setHoverState] = useState<HoverState>('idle');
+  const isPending = hoverState === 'pending';
+  const isExpanded = hoverState === 'expanded';
   const theme = useTheme();
   const graph = useGraphView();
   const drawerLocation = useTypedSelector(
@@ -199,15 +206,19 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   }
 
   useEffect(() => {
-    if (!isHovered) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsExpanded(false);
-      return;
-    }
+    if (!isPending) return;
 
-    const id = setTimeout(() => setIsExpanded(true), EXPAND_DELAY);
+    // The timer can fire after the hover ended but before this effect is cleaned up,
+    // so only expand a node that is still pending.
+    const id = setTimeout(
+      () => setHoverState(state => (state === 'pending' ? 'expanded' : state)),
+      EXPAND_DELAY
+    );
     return () => clearTimeout(id);
-  }, [isHovered]);
+  }, [isPending]);
+
+  const startHover = () => setHoverState(state => (state === 'idle' ? 'pending' : state));
+  const endHover = () => setHoverState('idle');
 
   const icon = kubeObject ? (
     <KubeIcon width="42px" height="42px" kind={kubeObject.kind} apiGroup={apiGroup} />
@@ -217,7 +228,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
 
   const openDetails = () => {
     graph.setNodeSelection(id);
-    setHovered(false);
+    endHover();
 
     if (!node || node?.nodes) return;
 
@@ -260,12 +271,10 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
       isSelected={isSelected}
       isExpanded={isExpanded}
       onClick={openDetails}
-      onFocus={() => setHovered(true)}
-      onBlur={() => setHovered(false)}
-      onPointerEnter={() => setHovered(true)}
-      onPointerLeave={() => {
-        setHovered(false);
-      }}
+      onFocus={startHover}
+      onBlur={endHover}
+      onPointerEnter={startHover}
+      onPointerLeave={endHover}
       onKeyDown={e => {
         if (e.key !== 'Enter' && e.key !== ' ') {
           return;
