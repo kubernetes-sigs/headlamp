@@ -41,14 +41,16 @@ field — never a fabricated value.
 import { useTranslation } from '@kinvolk/headlamp-plugin/lib';
 import { ResourceListView } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import { Widget } from '../../resources/widget';
-import { CrdInstalledGate } from '../common/NotInstalled';
+import { CrdListGate } from '../common/NotInstalled';
 import { ReadyStatusLabel } from '../common/ReadyStatusLabel';   // shared status wrapper (see below)
 
 export function WidgetList() {
   const { t } = useTranslation();
   return (
-    <CrdInstalledGate crd="widgets.example.com">           {/* install banner on clusters without the CRD */}
+    <CrdListGate crd="widgets.example.com">                {/* banner only if no selected cluster has the CRD */}
+      {clusters => (
       <ResourceListView
+        clusters={clusters}                                // only the selected clusters that have the CRD
         title={t('Widgets')}                               // prose → t()
         id="my-plugin-widgets"                             // plugin-prefixed table id
         resourceClass={Widget}                             // typed item in getters below
@@ -62,7 +64,8 @@ export function WidgetList() {
           { id: 'target', label: 'Target', getValue: i => i.spec.target.name, show: false }, // -o wide extra
         ]}
       />
-    </CrdInstalledGate>
+      )}
+    </CrdListGate>
   );
 }
 ```
@@ -236,6 +239,22 @@ export function useCrdInstalled(crdName: string, cluster?: string): 'loading' | 
   return crd ? 'present' : 'loading';                       // distinguishes not-installed from installed-but-empty
 }
 
+// List pages: the selected clusters that serve the CRD, or null while checking. A cluster whose CRDs
+// can't be listed (e.g. 403) has no result and is kept, so its list surfaces its own access error.
+export function useCrdClusters(crdName: string): string[] | null {
+  const selected = K8s.useSelectedClusters();
+  const { clusterResults, isLoading } = CRD.useList({
+    clusters: selected,
+    fieldSelector: `metadata.name=${crdName}`,
+  });
+  if (isLoading) return null;
+  return selected.filter(cluster => {
+    const items = clusterResults?.[cluster]?.items;
+    return !items || items.length > 0;
+  });
+}
+
+// Detail pages: one cluster, the one in the route.
 export function CrdInstalledGate({ crd, cluster, children }: { crd: string; cluster?: string; children: React.ReactNode }) {
   const { t } = useTranslation();
   const state = useCrdInstalled(crd, cluster);
@@ -243,6 +262,20 @@ export function CrdInstalledGate({ crd, cluster, children }: { crd: string; clus
   // 'unknown' = the CRD itself can't be read (e.g. 403: users may read CRs but not CRDs) —
   // render the view and let it surface its own access error instead of a false "not installed".
   if (state === 'present' || state === 'unknown') return <>{children}</>;
+  return <NotInstalledBanner crd={crd} />;
+}
+
+// List pages: `children` gets the clusters to pass to `ResourceListView clusters={…}`.
+export function CrdListGate({ crd, children }: { crd: string; children: (clusters: string[]) => React.ReactNode }) {
+  const { t } = useTranslation();
+  const clusters = useCrdClusters(crd);
+  if (clusters === null) return <Loader title={t('Loading…')} />;
+  if (clusters.length > 0) return <>{children(clusters)}</>;
+  return <NotInstalledBanner crd={crd} />;
+}
+
+function NotInstalledBanner({ crd }: { crd: string }) {
+  const { t } = useTranslation();
   return (
     <SectionBox title={PROJECT.name}>
       <Alert severity="info" icon={<Icon icon="mdi:information-outline" />}>
@@ -261,9 +294,13 @@ export function CrdInstalledGate({ crd, cluster, children }: { crd: string; clus
 }
 ```
 
-Wrap **both** List and Detail bodies in `<CrdInstalledGate crd="…">` (this is the same
-`CustomResourceDefinition.useGet` detection cluster-api uses). Verify the banner by loading on a
-cluster **without** the CRD.
+Wrap the **List** body in `<CrdListGate crd="…">` and pass the clusters it gives you to
+`ResourceListView`. A list can span several selected clusters (`/c/A+B/...`), so it checks each one:
+the CRD missing on A doesn't hide B's resources, and the banner shows only when no selected cluster
+has it. Wrap the **Detail** body in `<CrdInstalledGate crd="…" cluster={cluster}>`, since a detail
+page shows one cluster (the same `CustomResourceDefinition.useGet` detection cluster-api uses).
+Verify the banner by loading on a cluster **without** the CRD, and the list with one cluster that
+has it and one that doesn't.
 
 **North star:** KEDA — https://github.com/headlamp-k8s/plugins/tree/main/keda (`src/resources/*.ts`,
 `src/components/<resource>/List.tsx`, the `kedaSource` Map parent).
