@@ -56,11 +56,21 @@ const pluginSupportedLocales: { [pluginName: string]: string[] } = {};
 // reacts to the same language change starts its own duplicate request.
 const pendingLocaleLoads: { [key: string]: Promise<void> } = {};
 
-// The language most recently asked for. Concurrent switches can finish out of
-// order - a slow fetch for one locale landing after a later, faster one - so
-// completions that are no longer the active request are dropped instead of
-// being applied on top of it.
-let latestRequestedLanguage: string | null = null;
+// In-flight instance creation, keyed by plugin name. An instance is only cached
+// once its first locale has loaded, so without this startup, a mounted
+// `useTranslation` hook and `getPluginTranslation` could each create their own.
+const pendingInstanceInits: { [pluginName: string]: Promise<i18n> } = {};
+
+// Used by `getPluginTranslation` when a plugin has no translations: it returns
+// the key itself, with `{{placeholders}}` filled in.
+let keyFallbackInstance: i18n | null = null;
+
+// The language most recently asked for, per plugin. Concurrent switches can
+// finish out of order - a slow fetch for one locale landing after a later,
+// faster one - so completions that are no longer the active request are
+// dropped instead of being applied on top of it. Kept per plugin so catching
+// one plugin up cannot cancel another plugin's switch.
+const latestRequestedLanguage: { [pluginName: string]: string } = {};
 
 /**
  * Load translations for a plugin from its directory
@@ -123,13 +133,14 @@ async function ensurePluginLocaleLoaded(
 /**
  * Load the target locale if needed and switch a plugin instance to it, ignoring
  * the result if a newer language change has been requested in the meantime.
+ * Returns whether the switch was applied.
  */
 async function applyPluginLanguage(
   instance: i18n,
   pluginName: string,
   language: string
-): Promise<void> {
-  latestRequestedLanguage = language;
+): Promise<boolean> {
+  latestRequestedLanguage[pluginName] = language;
 
   const pluginPath = pluginPaths[pluginName];
   const supportedLocales = pluginSupportedLocales[pluginName];
@@ -137,11 +148,34 @@ async function applyPluginLanguage(
     await ensurePluginLocaleLoaded(instance, pluginName, pluginPath, language);
   }
 
-  if (latestRequestedLanguage !== language) {
-    return;
+  if (latestRequestedLanguage[pluginName] !== language) {
+    return false;
   }
 
   await instance.changeLanguage(language);
+  return true;
+}
+
+function getAppLanguage(): string {
+  return i18next.resolvedLanguage || i18next.language || 'en';
+}
+
+/**
+ * Switch a plugin instance to Headlamp's current language and wait for it. If
+ * the language changes again while its locale loads, try again with the newer
+ * one: that load is either dropped as stale or finishes on the old language.
+ */
+async function syncPluginLanguage(instance: i18n, pluginName: string): Promise<void> {
+  for (;;) {
+    const language = getAppLanguage();
+    if (instance.language === language) {
+      return;
+    }
+    const applied = await applyPluginLanguage(instance, pluginName, language);
+    if (applied && getAppLanguage() === language) {
+      return;
+    }
+  }
 }
 
 /**
@@ -157,6 +191,24 @@ async function getPluginI18nInstance(
     return pluginI18nInstances[pluginName];
   }
 
+  if (!pendingInstanceInits[pluginName]) {
+    pendingInstanceInits[pluginName] = createPluginI18nInstance(
+      pluginName,
+      pluginPath,
+      supportedLocales
+    ).finally(() => {
+      delete pendingInstanceInits[pluginName];
+    });
+  }
+
+  return pendingInstanceInits[pluginName];
+}
+
+async function createPluginI18nInstance(
+  pluginName: string,
+  pluginPath: string,
+  supportedLocales?: string[]
+): Promise<i18n> {
   const instance = createInstance();
 
   // Only consider the locales a plugin explicitly declares via `headlamp.i18n`
@@ -201,7 +253,9 @@ async function getPluginI18nInstance(
   }
 
   await instance.init({
-    lng: i18next.resolvedLanguage || i18next.language || 'en',
+    // The language whose translations were just loaded. A switch made while
+    // they were loading is applied below.
+    lng: currentLanguage,
     fallbackLng: 'en',
     defaultNS: pluginName,
     ns: [pluginName],
@@ -221,6 +275,13 @@ async function getPluginI18nInstance(
   });
 
   pluginI18nInstances[pluginName] = instance;
+
+  // `changePluginLanguage` only reaches cached instances, so a switch made
+  // while this one was loading has not been applied to it yet.
+  await syncPluginLanguage(instance, pluginName).catch(error => {
+    console.error(`Failed to change language for plugin ${pluginName}:`, error);
+  });
+
   return instance;
 }
 
@@ -400,6 +461,74 @@ export function useTranslation(pluginNameParam?: string): UseTranslationResult {
     i18n: instance,
     ready,
   };
+}
+
+function getKeyFallbackInstance(): i18n {
+  if (!keyFallbackInstance) {
+    keyFallbackInstance = createInstance();
+    keyFallbackInstance.init({
+      lng: 'en',
+      resources: {},
+      // No resources to load, so initialize synchronously.
+      initImmediate: false,
+      interpolation: {
+        escapeValue: false,
+      },
+      // Treat the whole key as text, so ':' and '.' in a sentence are kept.
+      nsSeparator: false,
+      keySeparator: false,
+      returnEmptyString: false,
+      saveMissing: false,
+    });
+  }
+
+  return keyFallbackInstance;
+}
+
+/**
+ * Get a plugin's translation function outside React, for code such as
+ * commands, notifications and callbacks that can't call `useTranslation`.
+ *
+ * Resolves once the plugin's translations for Headlamp's current language
+ * have loaded. The returned function follows later language changes, so it can
+ * be kept and reused. When the plugin declares no locales, or its translations
+ * failed to load, it returns the key with `{{placeholders}}` filled in.
+ *
+ * Call it when the text is needed rather than while the plugin is loading:
+ * plugin translations are set up after the plugins have run.
+ *
+ * @param pluginName The plugin's package name, as in its package.json.
+ *
+ * @example
+ * ```ts
+ * import { getPluginTranslation } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * async function notifyDone(name: string) {
+ *   const t = await getPluginTranslation('my-plugin');
+ *   console.log(t('Finished {{name}}', { name }));
+ * }
+ * ```
+ */
+export async function getPluginTranslation(pluginName: string): Promise<TFunction> {
+  const pluginPath = pluginPaths[pluginName];
+  const supportedLocales = pluginSupportedLocales[pluginName];
+
+  if (pluginPath && supportedLocales?.length) {
+    try {
+      const instance = await getPluginI18nInstance(pluginName, pluginPath, supportedLocales);
+      await syncPluginLanguage(instance, pluginName);
+    } catch (error) {
+      console.error(`Failed to initialize translations for plugin ${pluginName}:`, error);
+    }
+  }
+
+  // Forward every argument, so all of i18next's `t` overloads keep working.
+  const t = (...args: unknown[]) => {
+    const instance = pluginI18nInstances[pluginName] ?? getKeyFallbackInstance();
+    return (instance.t as unknown as (...tArgs: unknown[]) => string)(...args);
+  };
+
+  return t as unknown as TFunction;
 }
 
 /**

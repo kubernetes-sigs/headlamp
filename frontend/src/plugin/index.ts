@@ -68,7 +68,7 @@ import {
 import { fetchPluginResource } from './fetchPluginResource';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
-import { useTranslation } from './pluginI18n';
+import { getPluginTranslation, useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
 import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
@@ -117,6 +117,7 @@ window.pluginLib = {
   Headlamp,
   Plugin,
   useTranslation,
+  getPluginTranslation,
   ...registryToExport,
   Activity,
   stateless,
@@ -789,6 +790,12 @@ async function initializePluginsI18n(
   pluginPaths: string[],
   deadline: number
 ) {
+  // Set up language change synchronization before loading, so plugins that
+  // finish early still follow a switch made while later ones load.
+  i18next.on('languageChanged', language => {
+    changePluginLanguage(language);
+  });
+
   for (let i = 0; i < packageInfos.length; i++) {
     const packageInfo = packageInfos[i];
     const pluginPath = pluginPaths[i];
@@ -798,11 +805,6 @@ async function initializePluginsI18n(
       deadline
     );
   }
-
-  // Set up language change synchronization
-  i18next.on('languageChanged', language => {
-    changePluginLanguage(language);
-  });
 }
 
 /**
