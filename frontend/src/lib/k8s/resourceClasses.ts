@@ -28,6 +28,7 @@ import Deployment from './deployment';
 import DeviceClass from './deviceClass';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
+import FlowSchema from './flowSchema';
 import Gateway from './gateway';
 import GatewayClass from './gatewayClass';
 import GRPCRoute from './grpcRoute';
@@ -87,6 +88,7 @@ export const ResourceClasses = {
   Endpoint: Endpoints,
   Endpoints,
   EndpointSlice,
+  FlowSchema,
   LimitRange,
   Lease,
   MutatingAdmissionPolicy,

@@ -525,6 +525,7 @@
       "Endpoint": [Function],
       "EndpointSlice": [Function],
       "Endpoints": [Function],
+      "FlowSchema": [Function],
       "GRPCRoute": [Function],
       "Gateway": [Function],
       "GatewayClass": [Function],

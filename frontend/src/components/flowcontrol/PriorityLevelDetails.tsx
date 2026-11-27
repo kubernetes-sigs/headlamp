@@ -16,12 +16,49 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import FlowSchema from '../../lib/k8s/flowSchema';
 import PriorityLevelConfiguration from '../../lib/k8s/priorityLevelConfiguration';
+import Link from '../common/Link';
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 
 const percent = (value?: number) => (value === undefined ? undefined : `${value}%`);
+
+function ReferencingFlowSchemas({ level }: { level: PriorityLevelConfiguration }) {
+  const { t } = useTranslation(['glossary', 'translation']);
+  const { items, error } = FlowSchema.useList({ cluster: level.cluster });
+  const matchingSchemas = items?.filter(schema => schema.priorityLevelName === level.getName());
+  // SimpleTable only shows its loader or error for null data, so a pending or failed
+  // list must not arrive as undefined or an empty array: that reads as a cluster with
+  // no Flow Schemas pointing here, which is not what we know.
+  const data = error ? null : matchingSchemas ?? null;
+
+  return (
+    <SectionBox title={t('glossary|Flow Schemas')}>
+      <SimpleTable
+        columns={[
+          {
+            label: t('glossary|Flow Schema'),
+            getter: (schema: FlowSchema) => (
+              <Link
+                routeName={FlowSchema.detailsRoute}
+                activeCluster={schema.cluster}
+                params={{ name: schema.getName() }}
+              >
+                {schema.getName()}
+              </Link>
+            ),
+          },
+        ]}
+        data={data}
+        emptyMessage={t('translation|No Flow Schemas reference this priority level.')}
+        errorMessage={error?.message}
+        reflectInURL="flowschemas"
+      />
+    </SectionBox>
+  );
+}
 
 export default function PriorityLevelDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
@@ -86,6 +123,10 @@ export default function PriorityLevelDetails(props: { name?: string; cluster?: s
                   <ConditionsTable resource={item.jsonData} showLastUpdate={false} />
                 </SectionBox>
               ) : null,
+          },
+          {
+            id: 'headlamp.prioritylevel-flowschemas',
+            section: <ReferencingFlowSchemas level={item} />,
           },
         ]
       }

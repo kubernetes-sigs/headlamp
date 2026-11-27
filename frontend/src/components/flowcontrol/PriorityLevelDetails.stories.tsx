@@ -18,6 +18,7 @@ import type { Meta, StoryObj } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { expect, within } from 'storybook/test';
 import { TestContext } from '../../test';
+import { FLOW_SCHEMA_DUMMY_DATA, flowSchemaList, flowSchemaUrl } from './flowSchemaStoryHelper';
 import PriorityLevelDetails from './PriorityLevelDetails';
 import {
   allowsActions,
@@ -47,7 +48,16 @@ const collection = http.get(priorityLevelUrl, () => priorityLevelList(PRIORITY_L
 const detailsUrl = (name: string) => `${priorityLevelUrl}/${name}`;
 
 function mswFor(name: string, respond: () => Response | Promise<Response>) {
-  return { handlers: { story: [allowsActions, collection, http.get(detailsUrl(name), respond)] } };
+  return {
+    handlers: {
+      story: [
+        allowsActions,
+        collection,
+        http.get(detailsUrl(name), respond),
+        http.get(flowSchemaUrl, () => flowSchemaList(FLOW_SCHEMA_DUMMY_DATA)),
+      ],
+    },
+  };
 }
 
 export const Queued: Story = {
@@ -60,6 +70,11 @@ export const Queued: Story = {
         expect(screen.getByText('128')).toBeVisible();
         expect(screen.getByText('6')).toBeVisible();
         expect(screen.getByText('50')).toBeVisible();
+        expect(screen.getByRole('link', { name: 'system-leader-election' })).toHaveAttribute(
+          'href',
+          '/c/main/flowschemas/system-leader-election'
+        );
+        expect(screen.queryByRole('link', { name: 'pending-schema' })).toBeNull();
       },
     },
   },
@@ -88,6 +103,46 @@ export const Exempt: Story = {
         const screen = within(document.body);
         expect(screen.getByText('Exempt', { exact: true })).toBeVisible();
         expect(screen.queryByText('Queue Length Limit')).toBeNull();
+      },
+    },
+  },
+};
+
+/**
+ * Listing Flow Schemas can fail on its own, for example for a user without
+ * cluster-wide read access. The referencing table then has to say so, rather than
+ * claim that nothing points at this priority level.
+ */
+export const ReferencesUnavailable: Story = {
+  parameters: {
+    msw: {
+      handlers: {
+        story: [
+          allowsActions,
+          collection,
+          http.get(detailsUrl(queued.metadata.name), () => HttpResponse.json(queued)),
+          http.get(flowSchemaUrl, () =>
+            HttpResponse.json(
+              {
+                kind: 'Status',
+                status: 'Failure',
+                reason: 'Forbidden',
+                code: 403,
+                message:
+                  'flowschemas.flowcontrol.apiserver.k8s.io is forbidden: ' +
+                  'User "dev" cannot list resource "flowschemas" at the cluster scope',
+              },
+              { status: 403 }
+            )
+          ),
+        ],
+      },
+    },
+    storyshots: {
+      waitForState: () => {
+        const screen = within(document.body);
+        expect(screen.getByText('Queue Length Limit')).toBeVisible();
+        expect(screen.queryByText('No Flow Schemas reference this priority level.')).toBeNull();
       },
     },
   },

@@ -25,6 +25,7 @@ import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
 import ClusterTrustBundle from '../../lib/k8s/clusterTrustBundle';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
+import FlowSchema from '../../lib/k8s/flowSchema';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import PriorityLevelConfiguration from '../../lib/k8s/priorityLevelConfiguration';
 import reducers from '../../redux/reducers/reducers';
@@ -112,6 +113,7 @@ describe('useSidebarItems', () => {
     servedSchedulingVersions.current = [];
     vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(ClusterTrustBundle, 'isEnabled').mockResolvedValue(false);
+    vi.spyOn(FlowSchema, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(PriorityLevelConfiguration, 'isEnabled').mockResolvedValue(false);
     const emptyCRDs: [CRD[], null] = [[], null];
     vi.spyOn(CRD, 'useList').mockReturnValue(
@@ -237,6 +239,21 @@ describe('useSidebarItems', () => {
         expect.arrayContaining([expect.objectContaining({ name: 'priorityLevelConfigurations' })])
       )
     );
+  });
+
+  it('shows Flow Schemas under Cluster when discovery serves that resource', async () => {
+    vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+    vi.spyOn(FlowSchema, 'isEnabled').mockResolvedValue(true);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(mockStore({}, [])),
+    });
+
+    await waitFor(() => {
+      const cluster = result.current.find(item => item.name === 'cluster');
+      const entries = cluster?.subList?.map(item => item.name);
+      expect(entries).toContain('flowSchemas');
+      expect(entries).not.toContain('priorityLevelConfigurations');
+    });
   });
 
   describe('the Scheduling (alpha) section', () => {
