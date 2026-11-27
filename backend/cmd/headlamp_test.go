@@ -293,7 +293,9 @@ func TestLoadKubeConfigClustersLogging(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			logs := captureLogs(t)
+			logs := captureLogs(t, "loadKubeConfigClusters")
+
+			logFromOtherGoroutine()
 
 			config := &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -367,7 +369,9 @@ func TestLoadDynamicClustersLogging(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			logs := captureLogs(t)
+			logs := captureLogs(t, "loadDynamicClusters")
+
+			logFromOtherGoroutine()
 
 			config := &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -6606,6 +6610,24 @@ func TestOIDCLogoutState(t *testing.T) {
 	assert.False(t, validateOIDCLogoutState(state, "team/cluster", "id-token", now.Add(2*time.Minute)))
 }
 
+// loggedFrom reports whether the current call stack goes through the function with the given
+// name, so a log line can be told apart from one logged by another goroutine.
+func loggedFrom(funcName string) bool {
+	pcs := make([]uintptr, 64)
+	frames := runtime.CallersFrames(pcs[:runtime.Callers(2, pcs)])
+
+	for {
+		frame, more := frames.Next()
+		if strings.HasSuffix(frame.Function, "."+funcName) {
+			return true
+		}
+
+		if !more {
+			return false
+		}
+	}
+}
+
 // capturedLog is a single entry recorded by captureLogs.
 type capturedLog struct {
 	level uint
@@ -6613,14 +6635,15 @@ type capturedLog struct {
 }
 
 // captureLogs redirects the logger for the duration of the test and returns a
-// function reporting what was logged.
+// function reporting what funcName logged.
 //
-// The log function is process-wide, and the plugin and kubeconfig watchers each
-// log a line when the context they were started with is cancelled, which
-// happens as tests finish. Those lines can therefore land in an unrelated
-// test's capture, so watcher messages are dropped and the entries are guarded
-// by a mutex because they arrive from those goroutines.
-func captureLogs(t *testing.T) func() []capturedLog {
+// The log function is process-wide, and the plugin and kubeconfig watchers log
+// from their own goroutines while they shut down after a test, for example
+// "watcher: shutting down plugin watcher" or "adding path to watcher". Those lines
+// can land in an unrelated test's capture, so only lines logged from inside
+// funcName are kept, and the entries are guarded by a mutex because the log
+// function is called from those goroutines.
+func captureLogs(t *testing.T, funcName string) func() []capturedLog {
 	t.Helper()
 
 	var (
@@ -6629,7 +6652,7 @@ func captureLogs(t *testing.T) func() []capturedLog {
 	)
 
 	original := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
-		if strings.HasPrefix(msg, "watcher: ") {
+		if !loggedFrom(funcName) {
 			return
 		}
 
@@ -6647,6 +6670,20 @@ func captureLogs(t *testing.T) func() []capturedLog {
 
 		return append([]capturedLog(nil), logs...)
 	}
+}
+
+// logFromOtherGoroutine logs a line from another goroutine and waits for it, like
+// a watcher of an earlier test that logs while it shuts down.
+func logFromOtherGoroutine() {
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		logger.Log(logger.LevelInfo, nil, nil, "adding path to watcher")
+	}()
+
+	<-done
 }
 
 // newTestHandlerCtx returns a context that is cancelled when the test ends.
