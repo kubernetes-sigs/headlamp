@@ -28,7 +28,7 @@ import { DataField, DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';
 
-function ConfigMapDataSection({ item }: { item: ConfigMap }) {
+export function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
@@ -60,16 +60,24 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
 
   React.useEffect(() => {
     const newData = _.cloneDeep(item.data || {});
+    const newBinaryData = _.cloneDeep(item.binaryData || {});
+    // Keep the draft dirty until the server reflects it. A queued save can
+    // still be cancelled or fail, and newer edits may exist while it runs.
+    if (isDirty && _.isEqual(newData, data) && _.isEqual(newBinaryData, binaryData)) {
+      lastDataRef.current = newData;
+      lastBinaryDataRef.current = newBinaryData;
+      setIsDirty(false);
+      return;
+    }
     if (!isDirty && !_.isEqual(newData, lastDataRef.current)) {
       setData(newData);
       lastDataRef.current = newData;
     }
-    const newBinaryData = _.cloneDeep(item.binaryData || {});
     if (!isDirty && !_.isEqual(newBinaryData, lastBinaryDataRef.current)) {
       setBinaryData(newBinaryData);
       lastBinaryDataRef.current = newBinaryData;
     }
-  }, [item.data, item.binaryData, isDirty]);
+  }, [item.data, item.binaryData, isDirty, data, binaryData]);
 
   const handleSave = () => {
     const updatedConfigMap = { ...item.jsonData, data, binaryData };
@@ -89,9 +97,6 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
         }),
       })
     );
-    lastDataRef.current = _.cloneDeep(data);
-    lastBinaryDataRef.current = _.cloneDeep(binaryData);
-    setIsDirty(false);
   };
 
   const dataRows: NameValueTableRow[] = Object.entries(data).map(([key, value]) => ({
