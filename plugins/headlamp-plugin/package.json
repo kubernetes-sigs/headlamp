@@ -1,6 +1,6 @@
 {
   "name": "@kinvolk/headlamp-plugin",
-  "version": "0.15.0-alpha.0",
+  "version": "0.15.0-alpha.1",
   "description": "The needed infrastructure for building Headlamp plugins.",
   "main": "lib/index.js",
   "types": "./lib/additional.d.ts",
@@ -17,6 +17,7 @@
     "test:upgrade": "node --test test-upgrade.js",
     "test:tooling": "node --test test/*.test.cjs",
     "test:coverage": "node scripts/test-coverage.cjs",
+    "test:vitest": "node --test test-vitest.js",
     "update-dependencies": "node dependencies-sync.js update && npm install && node scripts/copy-package-lock.js",
     "check-dependencies": "node dependencies-sync.js check",
     "copy-package-lock": "node scripts/copy-package-lock.js"

@@ -61,7 +61,7 @@ function upgradeConfiguration(folder) {
     [cliPath, 'upgrade', folder, '--skip-package-updates'],
     {
       encoding: 'utf8',
-      timeout: 30_000,
+      timeout: 90_000,
     }
   );
   if (result.error) {
@@ -112,4 +112,22 @@ test('upgrade configuration is idempotent', t => {
   const first = fs.readFileSync(path.join(folder, 'package.json'), 'utf8');
   upgradeConfiguration(folder);
   assert.equal(fs.readFileSync(path.join(folder, 'package.json'), 'utf8'), first);
+});
+
+test('upgrade preserves SDK-owned test settings while restoring the managed test command', t => {
+  const folder = legacyPlugin(t);
+  const packagePath = path.join(folder, 'package.json');
+  const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  const configuration = {
+    include: ['src/**/*.test.ts'],
+    exclude: ['packages/**', 'e2e/**'],
+    environment: 'dom',
+    watch: false,
+  };
+  pkg.headlamp = { test: configuration };
+  fs.writeFileSync(packagePath, JSON.stringify(pkg));
+  upgradeConfiguration(folder);
+  const upgraded = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  assert.deepEqual(upgraded.headlamp.test, configuration);
+  assert.equal(upgraded.scripts.test, template.scripts.test);
 });

@@ -30,6 +30,7 @@ fs.mkdirSync(raw, { recursive: true });
 const files = [
   'typescript.test.js',
   'test-upgrade.js',
+  'test-vitest.js',
   ...fs
     .readdirSync(path.join(root, 'test'))
     .filter(file => file.endsWith('.test.cjs'))
