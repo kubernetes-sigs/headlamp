@@ -1,16 +1,21 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-172hjuw"
+      class="MuiBox-root css-x2s6p3"
     >
       <div
-        class="MuiBox-root css-iyhyxy"
+        class="MuiBox-root css-u8qmit"
       />
-      <span
-        class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+      <div
+        class="MuiBox-root css-1xhmi63"
       >
-        my-cluster
-      </span>
+        <span
+          class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+          title="my-cluster"
+        >
+          my-cluster
+        </span>
+      </div>
     </div>
   </div>
 </body>

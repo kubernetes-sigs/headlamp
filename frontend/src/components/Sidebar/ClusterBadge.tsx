@@ -29,32 +29,33 @@ export interface ClusterBadgeProps {
   accentColor?: string;
   /** Icon to display in the badge */
   icon?: string;
+  /**
+   * Text color for the name. Defaults to a near-black that stays readable on the
+   * yellow "selected" sidebar background. The secondary text uses the same color
+   * with reduced opacity.
+   */
 }
 
+const ellipsisSx = {
+  display: 'block',
+  minWidth: 0,
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+} as const;
+
 /**
- * ClusterBadge displays an icon with a colored circle and cluster name
- * Used in the sidebar to show selected clusters
+ * ClusterBadge displays an icon with a colored circle and cluster name.
+ * Used in the sidebar to show selected clusters.
+ *
+ * Both lines are single-line and truncated with an ellipsis; the full text is
+ * available through the native `title` tooltip.
  */
 export default function ClusterBadge({ name, secondary, accentColor, icon }: ClusterBadgeProps) {
   const theme = useTheme();
   const iconColor = theme.palette.primary.main;
   const backgroundColor = theme.palette.secondary.main;
-
-  const label = (
-    <Typography
-      variant="caption"
-      display={secondary ? 'block' : undefined}
-      sx={{
-        fontSize: '0.875rem',
-        fontWeight: 500,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {name}
-    </Typography>
-  );
 
   return (
     <Box
@@ -62,6 +63,8 @@ export default function ClusterBadge({ name, secondary, accentColor, icon }: Clu
         display: 'flex',
         alignItems: 'center',
         gap: 0.75,
+        minWidth: 0, // lets flex children shrink so ellipsis can kick in
+        width: '100%',
       }}
     >
       {/* Colored circle with icon, only if icon is provided */}
@@ -75,7 +78,7 @@ export default function ClusterBadge({ name, secondary, accentColor, icon }: Clu
             height: 28,
             borderRadius: '50%',
             backgroundColor,
-            border: `2px solid ${accentColor}`,
+            border: accentColor ? `2px solid ${accentColor}` : undefined,
             flexShrink: 0,
           }}
         >
@@ -89,21 +92,24 @@ export default function ClusterBadge({ name, secondary, accentColor, icon }: Clu
         </Box>
       )}
 
-      {secondary ? (
-        <Box sx={{ minWidth: 0 }}>
-          {label}
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            display="block"
-            sx={{ overflowWrap: 'anywhere', whiteSpace: 'normal' }}
-          >
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography
+          variant="caption"
+          title={name}
+          sx={{
+            ...ellipsisSx,
+            fontSize: '0.875rem',
+            fontWeight: 500,
+          }}
+        >
+          {name}
+        </Typography>
+        {secondary && (
+          <Typography variant="caption" color="text.secondary" title={secondary} sx={ellipsisSx}>
             {secondary}
           </Typography>
-        </Box>
-      ) : (
-        label
-      )}
+        )}
+      </Box>
     </Box>
   );
 }

@@ -6,13 +6,18 @@
       type="button"
     >
       <div
-        class="MuiBox-root css-172hjuw"
+        class="MuiBox-root css-x2s6p3"
       >
-        <span
-          class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+        <div
+          class="MuiBox-root css-1xhmi63"
         >
-          cluster-a, cluster-b
-        </span>
+          <span
+            class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+            title="cluster-a, cluster-b"
+          >
+            cluster-a, cluster-b
+          </span>
+        </div>
       </div>
       <span
         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"

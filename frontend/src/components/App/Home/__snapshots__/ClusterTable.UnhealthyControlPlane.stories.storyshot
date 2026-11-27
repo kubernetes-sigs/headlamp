@@ -544,13 +544,18 @@
                   href="/c/spoke-b/"
                 >
                   <div
-                    class="MuiBox-root css-172hjuw"
+                    class="MuiBox-root css-x2s6p3"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1xhmi63"
                     >
-                      spoke-b
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                        title="spoke-b"
+                      >
+                        spoke-b
+                      </span>
+                    </div>
                   </div>
                 </a>
               </span>
