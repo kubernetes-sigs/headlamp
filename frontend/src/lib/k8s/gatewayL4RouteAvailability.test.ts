@@ -34,8 +34,8 @@ vi.mock('./api/v2/fetch', () => ({
   clusterFetch: vi.fn(),
 }));
 
-const resource = (kind: 'TCPRoute' | 'UDPRoute', verbs = ['list']) => ({
-  name: kind === 'TCPRoute' ? 'tcproutes' : 'udproutes',
+const resource = (kind: 'TCPRoute' | 'UDPRoute' | 'TLSRoute', verbs = ['list']) => ({
+  name: kind === 'TCPRoute' ? 'tcproutes' : kind === 'TLSRoute' ? 'tlsroutes' : 'udproutes',
   kind,
   namespaced: true,
   verbs,
@@ -143,5 +143,33 @@ describe('useGatewayL4RouteAvailability', () => {
       queryKey: gatewayL4RouteAvailabilityQueryKey(['cluster-a', 'cluster-b']),
       queryFn: expect.any(Function),
     });
+  });
+});
+
+describe('gatewayL4RouteAvailability: TLSRoute', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('reports TLSRoute when served in v1', async () => {
+    mockDiscovery({
+      cluster1: {
+        v1: [resource('TLSRoute')],
+        v1alpha2: [],
+      },
+    });
+
+    await expect(gatewayL4RouteAvailability(['cluster1'])).resolves.toEqual(['TLSRoute']);
+  });
+
+  it('falls back to v1alpha2 for TLSRoute on older installations', async () => {
+    mockDiscovery({
+      cluster1: {
+        v1: [],
+        v1alpha2: [resource('TLSRoute')],
+      },
+    });
+
+    await expect(gatewayL4RouteAvailability(['cluster1'])).resolves.toEqual(['TLSRoute']);
   });
 });

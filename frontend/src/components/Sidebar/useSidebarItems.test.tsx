@@ -146,33 +146,50 @@ describe('useSidebarItems', () => {
   });
 
   it.each([
-    { label: 'neither route kind', kinds: [], tcpVisible: false, udpVisible: false },
+    {
+      label: 'no route kinds',
+      kinds: [],
+      tcpVisible: false,
+      udpVisible: false,
+      tlsVisible: false,
+    },
     {
       label: 'only TCPRoute',
       kinds: ['TCPRoute'],
       tcpVisible: true,
       udpVisible: false,
+      tlsVisible: false,
     },
     {
       label: 'only UDPRoute',
       kinds: ['UDPRoute'],
       tcpVisible: false,
       udpVisible: true,
+      tlsVisible: false,
     },
     {
-      label: 'both route kinds',
-      kinds: ['TCPRoute', 'UDPRoute'],
+      label: 'only TLSRoute',
+      kinds: ['TLSRoute'],
+      tcpVisible: false,
+      udpVisible: false,
+      tlsVisible: true,
+    },
+    {
+      label: 'all route kinds',
+      kinds: ['TCPRoute', 'UDPRoute', 'TLSRoute'],
       tcpVisible: true,
       udpVisible: true,
+      tlsVisible: true,
     },
   ])(
     'independently gates Gateway API L4 routes when focused discovery returns $label',
-    ({ kinds, tcpVisible, udpVisible }) => {
+    ({ kinds, tcpVisible, udpVisible, tlsVisible }) => {
       queryClient.setQueryData(
         ['api-discovery'],
         [
           { groupName: 'gateway.networking.k8s.io', kind: 'TCPRoute' },
           { groupName: 'gateway.networking.k8s.io', kind: 'UDPRoute' },
+          { groupName: 'gateway.networking.k8s.io', kind: 'TLSRoute' },
         ]
       );
       vi.mocked(useGatewayL4RouteAvailability).mockReturnValue({
@@ -190,6 +207,7 @@ describe('useSidebarItems', () => {
       expect(gatewayItems.some(item => item.name === 'grpcroutes')).toBe(true);
       expect(gatewayItems.some(item => item.name === 'tcproutes')).toBe(tcpVisible);
       expect(gatewayItems.some(item => item.name === 'udproutes')).toBe(udpVisible);
+      expect(gatewayItems.some(item => item.name === 'tlsroutes')).toBe(tlsVisible);
     }
   );
 

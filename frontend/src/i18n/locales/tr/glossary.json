@@ -119,6 +119,7 @@
   "To": "Bitiş",
   "Reference Grants": "Başvuru İzinleri",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Yatay Pod Otomatik Ölçeklendiricileri",
   "Ingress Classes": "Giriş Sınıfları",

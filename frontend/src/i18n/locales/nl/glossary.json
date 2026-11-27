@@ -119,6 +119,7 @@
   "To": "Naar",
   "Reference Grants": "Referentie-toekenningen",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Horizontale automatische schaalaanpassingen voor pods",
   "Ingress Classes": "Inkomende klassen",

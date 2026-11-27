@@ -81,6 +81,7 @@ import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import TLSRoute from '../../../../lib/k8s/tlsRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import VPA from '../../../../lib/k8s/vpa';
@@ -152,7 +153,7 @@ const generateCRSources = (crds: CRD[], vpaEnabled: boolean): GraphSource[] => {
     }
     const isGatewayL4Route =
       crd.spec?.group === 'gateway.networking.k8s.io' &&
-      (kind === 'TCPRoute' || kind === 'UDPRoute');
+      (kind === 'TCPRoute' || kind === 'UDPRoute' || kind === 'TLSRoute');
     if (
       isGatewayL4Route ||
       (BUILTIN_CRD_KINDS.includes(kind) && (kind !== 'VerticalPodAutoscaler' || vpaEnabled))
@@ -215,6 +216,7 @@ export function useGetAllSources(): GraphSource[] {
   const gatewayKinds = new Set(availableGatewayL4RouteKinds);
   const tcpRouteEnabled = gatewayKinds.has('TCPRoute');
   const udpRouteEnabled = gatewayKinds.has('UDPRoute');
+  const tlsRouteEnabled = gatewayKinds.has('TLSRoute');
   const devicesClusters = useClustersServing(DeviceClass);
   const trustBundleClusters = useClustersServing(ClusterTrustBundle);
 
@@ -427,6 +429,14 @@ export function useGetAllSources(): GraphSource[] {
                       },
                     ]
                   : []),
+                ...(tlsRouteEnabled
+                  ? [
+                      {
+                        ...makeKubeSource(TLSRoute),
+                        label: t('glossary|TLS Routes'),
+                      },
+                    ]
+                  : []),
                 makeKubeSource(ReferenceGrant),
                 makeKubeSource(BackendTLSPolicy),
                 makeKubeSource(BackendTrafficPolicy),
@@ -460,6 +470,7 @@ export function useGetAllSources(): GraphSource[] {
     gatewayEnabled,
     tcpRouteEnabled,
     udpRouteEnabled,
+    tlsRouteEnabled,
     schedulingEnabled,
     podGroupClusters,
     workloadClusters,

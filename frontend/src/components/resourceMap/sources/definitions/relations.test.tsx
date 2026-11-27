@@ -39,6 +39,7 @@ import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import TLSRoute from '../../../../lib/k8s/tlsRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { TestContext } from '../../../../test';
@@ -102,7 +103,7 @@ const service = (
   cluster = 'cluster-a'
 ) => new Service({ metadata, spec: { selector, ports: [] }, status: {} } as any, cluster);
 
-type L4RouteClass = typeof HTTPRoute | typeof TCPRoute | typeof UDPRoute;
+type L4RouteClass = typeof HTTPRoute | typeof TCPRoute | typeof UDPRoute | typeof TLSRoute;
 
 const l4Route = (
   RouteClass: L4RouteClass,
@@ -415,6 +416,7 @@ describe('useGetAllRelations', () => {
     ['HTTPRoute', HTTPRoute, 'httproute-gateway'],
     ['TCPRoute', TCPRoute, 'tcproute-gateway'],
     ['UDPRoute', UDPRoute, 'udproute-gateway'],
+    ['TLSRoute', TLSRoute, 'tlsroute-gateway'],
   ] as const)(
     'matches %s parent references by resolved identity and cluster',
     (_kind, RouteClass, relationId) => {
@@ -484,6 +486,7 @@ describe('useGetAllRelations', () => {
     ['HTTPRoute', HTTPRoute, 'httproute-service'],
     ['TCPRoute', TCPRoute, 'tcproute-service'],
     ['UDPRoute', UDPRoute, 'udproute-service'],
+    ['TLSRoute', TLSRoute, 'tlsroute-service'],
   ] as const)(
     'matches %s backend references by resolved identity and cluster',
     (_kind, RouteClass, relationId) => {
@@ -552,7 +555,7 @@ describe('useGetAllRelations', () => {
     }
   );
 
-  it('registers the four stable L4 relation IDs', () => {
+  it('registers the stable L4 relation IDs', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
     const { result } = renderUseGetAllRelations();
     const expectedIds = [
@@ -560,6 +563,8 @@ describe('useGetAllRelations', () => {
       'tcproute-service',
       'udproute-gateway',
       'udproute-service',
+      'tlsroute-gateway',
+      'tlsroute-service',
     ];
 
     expect(result.current.map(relation => relation.id)).toEqual(

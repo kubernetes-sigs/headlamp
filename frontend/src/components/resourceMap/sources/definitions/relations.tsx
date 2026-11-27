@@ -58,6 +58,7 @@ import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import TLSRoute from '../../../../lib/k8s/tlsRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
@@ -560,10 +561,10 @@ const gatewayToGatewayClass = makeRelation(
   (gateway, gatewayClass) => gateway.spec?.gatewayClassName === gatewayClass.metadata.name
 );
 
-// HTTPRoute, TCPRoute and UDPRoute share the same parentRefs and backendRefs
-// semantics, including references to objects in other namespaces.
-type GatewayRoute = HTTPRoute | TCPRoute | UDPRoute;
-type GatewayRouteClass = typeof HTTPRoute | typeof TCPRoute | typeof UDPRoute;
+// HTTPRoute, TCPRoute, UDPRoute and TLSRoute share the same parentRefs and
+// backendRefs semantics, including references to objects in other namespaces.
+type GatewayRoute = HTTPRoute | TCPRoute | UDPRoute | TLSRoute;
+type GatewayRouteClass = typeof HTTPRoute | typeof TCPRoute | typeof UDPRoute | typeof TLSRoute;
 
 const makeRouteToGatewayRelation = (id: string, RouteClass: GatewayRouteClass): Relation => ({
   id,
@@ -623,6 +624,8 @@ const tcpRouteToGateway = makeRouteToGatewayRelation('tcproute-gateway', TCPRout
 const tcpRouteToService = makeRouteToServiceRelation('tcproute-service', TCPRoute);
 const udpRouteToGateway = makeRouteToGatewayRelation('udproute-gateway', UDPRoute);
 const udpRouteToService = makeRouteToServiceRelation('udproute-service', UDPRoute);
+const tlsRouteToGateway = makeRouteToGatewayRelation('tlsroute-gateway', TLSRoute);
+const tlsRouteToService = makeRouteToServiceRelation('tlsroute-service', TLSRoute);
 
 // The scheduling API objects carry no owner references, so the hierarchy is read from
 // the spec fields that name the parent. Edges point from child to parent, as the owner
@@ -724,6 +727,8 @@ const staticRelations = [
   tcpRouteToService,
   udpRouteToGateway,
   udpRouteToService,
+  tlsRouteToGateway,
+  tlsRouteToService,
   backendTLSPolicyToService,
   backendTrafficPolicyToService,
   podGroupToWorkload,
