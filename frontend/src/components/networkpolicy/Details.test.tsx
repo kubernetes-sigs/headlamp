@@ -18,7 +18,7 @@
 import '../../App';
 import { ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import type { NetworkPolicyPeer } from '../../lib/k8s/networkpolicy';
@@ -28,9 +28,15 @@ import { lightTheme } from '../App/defaultAppThemes';
 import { NetworkPolicyDetails } from './Details';
 import { NETWORK_POLICY_DETAIL } from './storyHelper';
 
+const podListPath = /\/api\/v1\/namespaces\/default\/pods$/;
+const emptyPodList = () => HttpResponse.json({ kind: 'PodList', items: [], metadata: {} });
 const server = setupServer(
   http.post(/selfsubjectaccessreviews/, () => HttpResponse.json({ status: { allowed: false } })),
-  http.get(/events/, () => HttpResponse.json({ items: [], metadata: {} }))
+  http.get(/events/, () => HttpResponse.json({ items: [], metadata: {} })),
+  http.get(podListPath, emptyPodList),
+  http.get(/\/apis\/metrics\.k8s\.io\/v1beta1\/namespaces\/default\/pods$/, () =>
+    HttpResponse.json({ kind: 'PodMetricsList', items: [], metadata: {} })
+  )
 );
 let queryClient: QueryClient;
 
@@ -54,6 +60,10 @@ function renderPolicy(direction: 'ingress' | 'egress', peers?: NetworkPolicyPeer
     },
   };
   server.use(http.get(/networkpolicies/, () => HttpResponse.json(policy)));
+  renderDetails();
+}
+
+function renderDetails() {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
@@ -128,5 +138,33 @@ describe.each(['ingress', 'egress'] as const)('%s peer grouping', direction => {
     ).toBeInTheDocument();
     expect(screen.queryAllByRole('group', { name: /Peer/ })).toHaveLength(peerCount);
     expect(screen.queryByText('OR')).not.toBeInTheDocument();
+  });
+});
+
+describe('targeted pods', () => {
+  it.each([
+    {
+      name: 'a label selector',
+      podSelector: { matchLabels: { app: 'frontend' } },
+      query: 'app=frontend',
+    },
+    { name: 'an empty selector', podSelector: {}, query: '' },
+  ])('requests namespace pods for $name', async ({ podSelector, query }) => {
+    const recordSelector = vi.fn();
+    const policy = {
+      ...NETWORK_POLICY_DETAIL,
+      spec: { ...NETWORK_POLICY_DETAIL.spec, podSelector },
+    };
+    server.use(
+      http.get(/networkpolicies/, () => HttpResponse.json(policy)),
+      http.get(podListPath, ({ request }) => {
+        recordSelector(new URL(request.url).searchParams.get('labelSelector') ?? '');
+        return emptyPodList();
+      })
+    );
+
+    renderDetails();
+
+    await waitFor(() => expect(recordSelector).toHaveBeenCalledWith(query));
   });
 });

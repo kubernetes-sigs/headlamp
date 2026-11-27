@@ -19,7 +19,11 @@ import Typography from '@mui/material/Typography';
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
-import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../lib/k8s';
+import {
+  labelSelectorToQuery,
+  matchExpressionSimplifier,
+  matchLabelsSimplifier,
+} from '../../lib/k8s';
 import { LabelSelector } from '../../lib/k8s/cluster';
 import NetworkPolicy, {
   NetworkPolicyEgressRule,
@@ -28,7 +32,7 @@ import NetworkPolicy, {
   NetworkPolicyPort,
 } from '../../lib/k8s/networkpolicy';
 import NameValueTable from '../common/NameValueTable';
-import { DetailsGrid } from '../common/Resource';
+import { DetailsGrid, TargetedPodsSection } from '../common/Resource';
 import { metadataStyles } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 
@@ -235,6 +239,16 @@ export function NetworkPolicyDetails(props: {
       }
       extraSections={item =>
         item && [
+          {
+            id: 'networkpolicy-targeted-pods',
+            section: (
+              <TargetedPodsSection
+                namespace={item.metadata.namespace}
+                labelSelector={labelSelectorToQuery(item.spec?.podSelector ?? {})}
+                cluster={item.cluster}
+              />
+            ),
+          },
           {
             id: 'networkpolicy-ingress',
             section: <Ingress ingress={item.spec?.ingress ?? []} />,

@@ -42,6 +42,12 @@ const Template: StoryFn = () => {
 
 const detailsUrl = `${API_BASE}/apis/networking.k8s.io/v1/namespaces/default/networkpolicies/allow-frontend-traffic`;
 const commonHandlers = [
+  http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () =>
+    HttpResponse.json({ kind: 'PodList', items: [], metadata: {} })
+  ),
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/default/pods`, () =>
+    HttpResponse.json({ kind: 'PodMetricsList', items: [], metadata: {} })
+  ),
   http.get(`${API_BASE}/apis/networking.k8s.io/v1/namespaces/default/networkpolicies`, () =>
     HttpResponse.json({ kind: 'NetworkPolicyList', items: NETWORK_POLICY_ITEMS, metadata: {} })
   ),
