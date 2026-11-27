@@ -931,16 +931,33 @@ describe('Table states and options', () => {
       state: { columnVisibility: { selected: false } },
     });
 
+    const hiddenTableElem = hiddenResult.container.querySelector('table')!;
     expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).toBe(false);
+    expect(window.getComputedStyle(hiddenTableElem).gridTemplateColumns).not.toContain('0.05fr');
     hiddenResult.unmount();
 
-    renderTable({
+    const restoredResult = renderTable({
       columns,
       enableRowActions: true,
       state: { columnVisibility: { selected: true } },
     });
 
+    const restoredTableElem = restoredResult.container.querySelector('table')!;
     expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).not.toBe(false);
+    expect(window.getComputedStyle(restoredTableElem).gridTemplateColumns).toBe('1fr 0.05fr');
+  });
+
+  it('keeps a caller-hidden actions column hidden while data columns are visible', () => {
+    const result = renderTable({
+      columns: [{ id: 'selected', accessorKey: 'selected', header: 'Selection' }],
+      enableRowActions: true,
+      state: { columnVisibility: { 'mrt-row-actions': false } },
+    });
+
+    const tableElem = result.container.querySelector('table')!;
+    expect(tableMocks.setColumnVisibility).not.toHaveBeenCalled();
+    expect(tableMocks.options.state.columnVisibility).toEqual({ 'mrt-row-actions': false });
+    expect(window.getComputedStyle(tableElem).gridTemplateColumns).not.toContain('0.05fr');
   });
 });
 
