@@ -34,7 +34,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import type { KubeObject } from '../../../lib/k8s/KubeObject';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
-import { clusterAction } from '../../../redux/clusterActionSlice';
+import { clusterAction, waitForAll } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
   HeadlampEventType,
@@ -103,7 +103,7 @@ export default function ScaleMultipleButton(props: ScaleMultipleButtonProps) {
   const authChecksPending = authQueries.some(q => q.isLoading);
 
   async function scaleResources() {
-    return Promise.all(authorizedItems.map(item => item.scale(numReplicas)));
+    return waitForAll(authorizedItems.map(item => item.scale(numReplicas)));
   }
 
   function handleSave() {
