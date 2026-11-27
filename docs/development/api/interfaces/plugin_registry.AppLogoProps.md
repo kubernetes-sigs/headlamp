@@ -50,7 +50,7 @@ ___
 
 • `Optional` **themeName**: ``"dark"`` \| ``"light"``
 
-User selected theme. By default it checks which is is active.
+User selected theme. By default it checks which theme is active.
 
 #### Defined in
 
