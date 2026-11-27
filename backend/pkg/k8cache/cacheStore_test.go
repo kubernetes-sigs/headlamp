@@ -206,6 +206,11 @@ func TestGenerateKey(t *testing.T) {
 		{"/apis/apps/v1/namespaces/ns/deployments/app", "/apis/apps/v1beta1/namespaces/ns/deployments/app"},
 		{"/api/v1/namespaces/ns/pods/app", "/api/v1/namespaces/other/pods/app"},
 		{"/api/v1/namespaces/ns/pods/app", "/api/v1/namespaces/ns/pods/app/status"},
+		{
+			"/api/v1/namespaces/payments/pods/api-1/log?container=app",
+			"/api/v1/namespaces/payments/pods/api-2/log?container=app",
+		},
+		{"/api/v1/pods?limit=10", "/api/v1/pods?limit=50"},
 		{"/api/v1/pods?labelSelector=app%3Da", "/api/v1/pods?labelSelector=app%3Db"},
 		{"/api/v1/pods?fieldSelector=metadata.name%3Da", "/api/v1/pods?fieldSelector=metadata.name%3Db"},
 		{"/api/v1/pods?continue=a", "/api/v1/pods?continue=b"},
@@ -221,7 +226,7 @@ func TestGenerateKey(t *testing.T) {
 	}
 
 	left, _ := url.Parse("/clusters/main/api/v1/pods?b=2&a=1")
-	right, _ := url.Parse("/api/v1/pods?a=1&b=2")
+	right, _ := url.Parse("/api/v1//pods/?a=1&b=2")
 	a, _ := k8cache.GenerateKey(left, "connection")
 	b, _ := k8cache.GenerateKey(right, "connection")
 	assert.Equal(t, a, b)

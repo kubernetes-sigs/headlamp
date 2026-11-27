@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	stdpath "path"
 	"strconv"
 	"strings"
 
@@ -89,7 +90,8 @@ type CacheKey struct {
 
 // apiRequestPath returns the Kubernetes API path without any /clusters/{name} prefix.
 func apiRequestPath(u *url.URL) (string, bool) {
-	parts := strings.Split(strings.TrimRight(u.Path, "/"), "/")
+	cleaned := stdpath.Clean("/" + strings.TrimPrefix(u.Path, "/"))
+	parts := strings.Split(strings.TrimRight(cleaned, "/"), "/")
 
 	index := kubernetesAPIPathIndex(parts)
 	if index < 0 {
@@ -178,7 +180,9 @@ func CacheableRequest(r *http.Request) bool {
 	}
 
 	watching, _ := strconv.ParseBool(query.Get("watch"))
-	if watching || query.Get("sendInitialEvents") != "" || query.Get("continue") != "" ||
+
+	following, _ := strconv.ParseBool(query.Get("follow"))
+	if watching || following || query.Get("sendInitialEvents") != "" || query.Get("continue") != "" ||
 		query.Get("limit") != "" || query.Get("resourceVersionMatch") != "" ||
 		(query.Get("resourceVersion") != "" && query.Get("resourceVersion") != "0") {
 		return false

@@ -155,9 +155,12 @@ func TestSkipWebSocket(t *testing.T) {
 
 func TestCacheableRequest(t *testing.T) {
 	for _, path := range []string{
-		"/api/v1/pods?watch=true", "/api/v1/pods?watch=1", "/api/v1/pods?limit=10", "/api/v1/pods?continue=page-2",
+		"/api/v1/pods?watch=true", "/api/v1/pods?watch=1", "/api/v1/pods?follow=true",
+		"/api/v1/pods?limit=10", "/api/v1/pods?continue=page-2",
 		"/api/v1/pods?resourceVersion=123", "/api/v1/pods?resourceVersionMatch=Exact",
-		"/api/v1/namespaces/ns/pods/pod/log", "/apis/authentication.k8s.io/v1/selfsubjectreviews",
+		"/api/v1/namespaces/ns/pods/pod/log",
+		"/api/v1/namespaces/payments/pods/api-1/log?container=app",
+		"/apis/authentication.k8s.io/v1/selfsubjectreviews",
 		"/apis/authorization.k8s.io/v1/selfsubjectrulesreviews", "/api/v1/pods?bad;query",
 	} {
 		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
