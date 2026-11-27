@@ -916,7 +916,11 @@ func (m *Multiplexer) processClientMessage(
 		return
 	}
 
-	if msg.Type == "REQUEST" && conn.Status.State == StateConnected {
+	conn.mu.RLock()
+	state := conn.Status.State
+	conn.mu.RUnlock()
+
+	if msg.Type == "REQUEST" && state == StateConnected {
 		_ = m.writeMessageToCluster(conn, []byte(msg.Data))
 	}
 }

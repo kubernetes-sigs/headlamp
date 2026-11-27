@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -3047,4 +3048,53 @@ func testRetryAfterFailedDial(t *testing.T) {
 	m.mutex.RUnlock()
 
 	m.cleanupConnections()
+}
+
+func TestProcessClientMessageDoesNotRaceWithStatusUpdate(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	token := "token"
+	conn := &Connection{
+		ClusterID: "cluster-a",
+		UserID:    "user-a",
+		Path:      "/api/v1/pods",
+		Token:     &token,
+		Done:      make(chan struct{}),
+	}
+	conn.Status.State = StateClosed
+
+	m.connections[m.createConnectionKey("cluster-a", "/api/v1/pods", "user-a")] = conn
+
+	msg := Message{
+		Type:      "REQUEST",
+		ClusterID: "cluster-a",
+		Path:      "/api/v1/pods",
+		UserID:    "user-a",
+		Data:      "{}",
+	}
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		m.processClientMessage(req, nil, msg)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		conn.updateStatus(StateError, nil)
+	}()
+
+	wg.Wait()
+
+	conn.mu.RLock()
+	state := conn.Status.State
+	conn.mu.RUnlock()
+
+	require.Equal(t, StateError, state)
 }
