@@ -117,6 +117,27 @@ describe('PluginSettingsDetails events', () => {
     );
     expect(screen.getByText('Development')).toBeInTheDocument();
   });
+
+  it.each<{ label: string; routerMap: Record<string, string> }>([
+    { label: 'name', routerMap: { name: '%25E0%25A4%25A' } },
+    { label: 'type', routerMap: { name: plugin.name, type: '%25E0%25A4%25A' } },
+  ])(
+    'renders NotFoundComponent without throwing when route $label contains malformed URI encoding',
+    ({ routerMap }) => {
+      store.dispatch(setPluginSettings([plugin]));
+
+      render(
+        <TestContext routerMap={routerMap}>
+          <ThemeProvider theme={theme}>
+            <PluginSettingsDetails />
+          </ThemeProvider>
+        </TestContext>
+      );
+
+      expect(screen.getByText("Whoops! This page doesn't exist")).toBeInTheDocument();
+      expect(screen.queryByText(plugin.name)).not.toBeInTheDocument();
+    }
+  );
 });
 
 describe('PluginSettingsDetailsPure branches', () => {
