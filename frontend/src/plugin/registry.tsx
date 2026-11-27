@@ -83,6 +83,13 @@ import {
   setClusterEmptyState,
 } from '../redux/clusterProviderSlice';
 import {
+  CustomViewWidgetConfigProps,
+  CustomViewWidgetDefinition,
+  CustomViewWidgetRenderProps,
+  CustomViewWidgetResourceFactoryParams,
+  registerWidgetDefinition,
+} from '../redux/customViewsSlice';
+import {
   addEventCallback,
   ClusterSettingsViewLoadedEvent,
   CreateProjectEvent,
@@ -149,6 +156,10 @@ export type {
   AppLogoType,
   ClusterChooserProps,
   ClusterChooserType,
+  CustomViewWidgetConfigProps,
+  CustomViewWidgetDefinition,
+  CustomViewWidgetRenderProps,
+  CustomViewWidgetResourceFactoryParams,
   DefaultSidebars,
   DetailsViewSectionProps,
   DetailsViewSectionType,
@@ -860,6 +871,36 @@ export function registerPluginSettings(
  */
 export function registerOverviewChartsProcessor(processor: OverviewChartsProcessor) {
   store.dispatch(addOverviewChartsProcessor(processor));
+}
+
+/**
+ * Register a widget type that users can add to Custom Views / Dashboards.
+ *
+ * Plugins (such as Prometheus) can register custom visualizations alongside Headlamp's
+ * built-in resource, logs, metrics, and events widgets, and optionally advertise
+ * compatibility with Kubernetes resource detail pages via `supportsResource` and
+ * `createConfigFromResource`.
+ *
+ * @param definition - The custom view widget definition to register.
+ */
+export function registerCustomViewWidget<TConfig = Record<string, any>>(
+  definition: CustomViewWidgetDefinition<TConfig>
+): void {
+  if (
+    !definition ||
+    typeof definition.type !== 'string' ||
+    !definition.type.trim() ||
+    typeof definition.label !== 'string' ||
+    !definition.label.trim() ||
+    typeof definition.component !== 'function'
+  ) {
+    console.warn(
+      'Ignoring custom view widget registration: requires non-empty "type", "label", and "component" function.'
+    );
+    return;
+  }
+
+  store.dispatch(registerWidgetDefinition(definition));
 }
 
 /**
