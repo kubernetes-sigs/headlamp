@@ -148,4 +148,21 @@ describe('Dialog — mobile fullscreen policy', () => {
 
     expect(isFullscreen()).toBe(true);
   });
+
+  it('passes synthetic click event and "closeButtonClick" reason when close button is clicked', () => {
+    const handleClose = vi.fn();
+    render(
+      <Dialog open title="Test" onClose={handleClose}>
+        <DialogContent>content</DialogContent>
+      </Dialog>
+    );
+
+    const closeBtn = screen.getByRole('button', { name: /close/i });
+    fireEvent.click(closeBtn);
+
+    expect(handleClose).toHaveBeenCalledTimes(1);
+    const [eventArg, reasonArg] = handleClose.mock.calls[0];
+    expect(eventArg).toHaveProperty('target');
+    expect(reasonArg).toBe('closeButtonClick');
+  });
 });
