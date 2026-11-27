@@ -275,6 +275,35 @@ func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
 	assert.False(t, marshalingError, "Logger should not receive non-serializable *http.Response")
 }
 
+func TestDialWebSocket_PreservesHTTPAuthorizationStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec // Test server is local.
+	}
+	ws, err := m.dialWebSocket(wsURL, tlsConfig, "", nil)
+
+	assert.Nil(t, ws)
+	assert.ErrorContains(t, err, "HTTP 403 Forbidden")
+}
+
+func TestCreateConnectionKeyIncludesNormalizedQuery(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	keyA := m.createConnectionKey("cluster", "/api/v1/pods", "user", "watch=1&resourceVersion=10")
+	keyB := m.createConnectionKey("cluster", "/api/v1/pods", "user", "resourceVersion=10&watch=1")
+	keyOther := m.createConnectionKey("cluster", "/api/v1/pods", "user", "watch=1&labelSelector=app%3Dweb")
+
+	assert.Equal(t, keyA, keyB)
+	assert.NotEqual(t, keyA, keyOther)
+}
+
 // TestCreateWebSocketURL verifies that the createWebSocketURL function correctly converts
 // HTTP/HTTPS schemes to WebSocket schemes (ws/wss).
 func TestCreateWebSocketURL(t *testing.T) {
@@ -2901,7 +2930,7 @@ func callGetOrCreateConnectionConcurrently(t *testing.T, m *Multiplexer, g *gate
 	require.Eventually(t, func() bool { return g.arrived.Load() >= 1 }, 5*time.Second, 5*time.Millisecond)
 	// Wait until the second caller has joined the in-flight dial. Without sharing it would
 	// arrive at the upstream too, while the first handshake is still held.
-	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
 
 	require.Eventually(t, func() bool {
 		m.mutex.RLock()
@@ -3045,6 +3074,124 @@ func testRetryAfterFailedDial(t *testing.T) {
 	assert.Len(t, m.connections, 1)
 	assert.Empty(t, m.inFlight)
 	m.mutex.RUnlock()
+
+	m.cleanupConnections()
+}
+
+func readForwardedAfterCloseA(t *testing.T, clientConn *WSConnLock, queryA string) Message {
+	t.Helper()
+
+	sawCloseAck := false
+
+	for range 4 {
+		var msg Message
+
+		require.NoError(t, clientConn.ReadJSON(&msg))
+
+		if msg.Type == "STATUS" && strings.Contains(msg.Data, string(StateClosed)) {
+			assert.Equal(t, queryA, msg.Query)
+
+			sawCloseAck = true
+
+			continue
+		}
+
+		if msg.Type == "COMPLETE" {
+			continue
+		}
+
+		assert.True(t, sawCloseAck, "expected close status acknowledgement for subscription A")
+
+		return msg
+	}
+
+	t.Fatal("did not receive forwarded DATA message for subscription B")
+
+	return Message{}
+}
+
+func startQueryScopedConnection(
+	t *testing.T,
+	m *Multiplexer,
+	clientConn *WSConnLock,
+	query string,
+) (string, *Connection, *WSConnLock, func(), chan struct{}) {
+	t.Helper()
+
+	wsConn, wsServer := createTestWebSocketConnection()
+	key := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user", query)
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", query, clientConn)
+	conn.WSConn = wsConn.conn
+	conn.Status = ConnectionStatus{State: StateConnected}
+
+	m.mutex.Lock()
+	m.connections[key] = conn
+	m.mutex.Unlock()
+
+	done := make(chan struct{})
+
+	go func() {
+		m.handleClusterMessages(conn, clientConn)
+		close(done)
+	}()
+
+	return key, conn, wsConn, wsServer.Close, done
+}
+
+func TestQueryScopedConnectionIsolation(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	const (
+		queryA = "watch=1&labelSelector=app%3Dweb"
+		queryB = "watch=1&labelSelector=app%3Dapi"
+	)
+
+	keyA, _, _, closeServerA, doneA := startQueryScopedConnection(t, m, clientConn, queryA)
+	defer closeServerA()
+
+	keyB, connB, wsConnB, closeServerB, doneB := startQueryScopedConnection(t, m, clientConn, queryB)
+	defer closeServerB()
+
+	require.NotEqual(t, keyA, keyB)
+
+	// Close only subscription A using equivalent query parameter ordering.
+	require.True(t, m.CloseConnection("test-cluster", "/api/v1/pods", "test-user", "labelSelector=app%3Dweb&watch=1"))
+
+	m.mutex.RLock()
+	_, existsA := m.connections[keyA]
+	remainingB, existsB := m.connections[keyB]
+	m.mutex.RUnlock()
+
+	assert.False(t, existsA)
+	assert.True(t, existsB)
+	assert.Same(t, connB, remainingB)
+	assert.Equal(t, StateConnected, connB.Status.State)
+
+	// Subscription B must continue forwarding events independently.
+	payload := []byte(`{"type":"ADDED","object":{"metadata":{"name":"api-pod","resourceVersion":"42"}}}`)
+	require.NoError(t, wsConnB.WriteMessage(websocket.TextMessage, payload))
+
+	forwarded := readForwardedAfterCloseA(t, clientConn, queryA)
+	assert.Equal(t, "DATA", forwarded.Type)
+	assert.Equal(t, "test-cluster", forwarded.ClusterID)
+	assert.Equal(t, "/api/v1/pods", forwarded.Path)
+	assert.Equal(t, queryB, forwarded.Query)
+	assert.Equal(t, "test-user", forwarded.UserID)
+	assert.Contains(t, forwarded.Data, "api-pod")
+
+	_ = wsConnB.Close()
+
+	for _, done := range []chan struct{}{doneA, doneB} {
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for cluster message handler to exit")
+		}
+	}
 
 	m.cleanupConnections()
 }
