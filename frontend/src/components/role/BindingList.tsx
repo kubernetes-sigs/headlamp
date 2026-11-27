@@ -46,10 +46,13 @@ export function sortBindingsByKind(kind: string) {
   };
 }
 
-function RoleLink(props: { role: string; namespace?: string; cluster: string }) {
-  const { role, namespace, cluster } = props;
+function RoleLink(props: { role: string; kind: string; namespace?: string; cluster: string }) {
+  const { role, kind, namespace, cluster } = props;
 
-  if (namespace) {
+  // A RoleBinding can reference a namespaced Role or a cluster-scoped
+  // ClusterRole, so route by roleRef.kind; only a Role lives in the
+  // binding's namespace.
+  if (kind === 'Role' && namespace) {
     return (
       <Link routeName="role" params={{ name: role, namespace }} activeCluster={cluster} tooltip>
         {role}
@@ -157,6 +160,7 @@ export default function RoleBindingList() {
           render: item => (
             <RoleLink
               role={item.roleRef.name}
+              kind={item.roleRef.kind}
               namespace={item.getNamespace()}
               cluster={item.cluster}
             />
