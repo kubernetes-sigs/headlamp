@@ -66,84 +66,84 @@ export default function ServiceDetails(props: {
         item && [
           {
             name: t('translation|Type'),
-            value: item.spec.type,
+            value: item.spec?.type,
           },
           {
             name: t('Cluster IP'),
-            value: item.spec.clusterIP,
+            value: item.spec?.clusterIP,
           },
           {
             name: t('Cluster IPs'),
-            value: item.spec.clusterIPs?.join(', '),
+            value: item.spec?.clusterIPs?.join(', '),
             // Hide when redundant with the Cluster IP row above (single entry, same value).
             hide:
-              !item.spec.clusterIPs?.length ||
+              !item.spec?.clusterIPs?.length ||
               _.isEqual(item.spec.clusterIPs, [item.spec.clusterIP]),
           },
           {
             name: t('External IP'),
             value: item.getExternalAddresses(),
             // ExternalName services show their name in the External Name row below.
-            hide: item.spec.type === 'ExternalName' || _.isEmpty(item.getExternalAddresses()),
+            hide: item.spec?.type === 'ExternalName' || _.isEmpty(item.getExternalAddresses()),
           },
           {
             name: t('External Name'),
-            value: item.spec.externalName,
+            value: item.spec?.externalName,
             hide: _.isEmpty,
           },
           {
             name: t('IP Families'),
-            value: item.spec.ipFamilies?.join(', '),
+            value: item.spec?.ipFamilies?.join(', '),
             hide: _.isEmpty,
           },
           {
             name: t('IP Family Policy'),
-            value: item.spec.ipFamilyPolicy,
+            value: item.spec?.ipFamilyPolicy,
             hide: _.isEmpty,
           },
           {
             name: t('Session Affinity'),
             value:
-              item.spec.sessionAffinity === 'ClientIP' &&
-              item.spec.sessionAffinityConfig?.clientIP?.timeoutSeconds
+              item.spec?.sessionAffinity === 'ClientIP' &&
+              item.spec?.sessionAffinityConfig?.clientIP?.timeoutSeconds
                 ? `${item.spec.sessionAffinity} (${item.spec.sessionAffinityConfig.clientIP.timeoutSeconds}s)`
-                : item.spec.sessionAffinity,
+                : item.spec?.sessionAffinity,
             // Match kubectl describe: skip the row for the default 'None' affinity.
-            hide: !item.spec.sessionAffinity || item.spec.sessionAffinity === 'None',
+            hide: !item.spec?.sessionAffinity || item.spec.sessionAffinity === 'None',
           },
           {
             name: t('External Traffic Policy'),
-            value: item.spec.externalTrafficPolicy,
+            value: item.spec?.externalTrafficPolicy,
             hide: _.isEmpty,
           },
           {
             name: t('Internal Traffic Policy'),
-            value: item.spec.internalTrafficPolicy,
+            value: item.spec?.internalTrafficPolicy,
             hide: _.isEmpty,
           },
           {
             name: t('Health Check Node Port'),
-            value: item.spec.healthCheckNodePort,
+            value: item.spec?.healthCheckNodePort,
             hide: value => !value,
           },
           {
             name: t('Load Balancer Class'),
-            value: item.spec.loadBalancerClass,
+            value: item.spec?.loadBalancerClass,
             hide: _.isEmpty,
           },
           {
             name: t('Load Balancer Source Ranges'),
-            value: item.spec.loadBalancerSourceRanges?.join(', '),
+            value: item.spec?.loadBalancerSourceRanges?.join(', '),
             hide: _.isEmpty,
           },
           {
             name: t('Traffic Distribution'),
-            value: item.spec.trafficDistribution,
+            value: item.spec?.trafficDistribution,
             hide: _.isEmpty,
           },
           {
             name: t('Selector'),
-            value: <MetadataDictGrid dict={item.spec.selector} />,
+            value: <MetadataDictGrid dict={item.spec?.selector} />,
           },
         ]
       }
@@ -153,7 +153,7 @@ export default function ServiceDetails(props: {
         }
 
         return [
-          ...(item.spec.selector && Object.keys(item.spec.selector).length > 0
+          ...(item.spec?.selector && Object.keys(item.spec.selector).length > 0
             ? [
                 {
                   id: 'headlamp.service-targeted-pods',
@@ -172,22 +172,25 @@ export default function ServiceDetails(props: {
             section: (
               <SectionBox title={t('Ports')}>
                 <SimpleTable
-                  data={item.spec.ports}
+                  data={item.spec?.ports ?? []}
                   columns={[
                     { label: t('Protocol'), datum: 'protocol' },
                     { label: t('translation|Name'), datum: 'name' },
                     {
                       label: t('Ports'),
-                      getter: ({ port, targetPort }) => (
-                        <>
-                          <ValueLabel>{port}</ValueLabel>
-                          <InlineIcon icon="mdi:chevron-right" />
-                          <ValueLabel>{targetPort}</ValueLabel>
-                          <PortForward containerPort={targetPort} resource={item} />
-                        </>
-                      ),
+                      getter: ({ port, targetPort }) => {
+                        const effectiveTargetPort = targetPort ?? port;
+                        return (
+                          <>
+                            <ValueLabel>{port}</ValueLabel>
+                            <InlineIcon icon="mdi:chevron-right" />
+                            <ValueLabel>{effectiveTargetPort}</ValueLabel>
+                            <PortForward containerPort={effectiveTargetPort} resource={item} />
+                          </>
+                        );
+                      },
                     },
-                    ...(item.spec.ports?.some(p => p.nodePort)
+                    ...(item.spec?.ports?.some(p => p.nodePort)
                       ? [
                           {
                             label: t('Node Port'),
@@ -196,7 +199,7 @@ export default function ServiceDetails(props: {
                           },
                         ]
                       : []),
-                    ...(item.spec.ports?.some(p => p.appProtocol)
+                    ...(item.spec?.ports?.some(p => p.appProtocol)
                       ? [
                           {
                             label: t('App Protocol'),
