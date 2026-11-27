@@ -468,6 +468,11 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 }
 
 func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
+	if err := VerifyUser(actionConfig, req.Name); err != nil {
+		h.setReleaseStatusSilent("uninstall", req.Name, failed, err)
+		return
+	}
+
 	// Get uninstall client
 	uninstallClient := action.NewUninstall(actionConfig)
 
@@ -564,6 +569,11 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 }
 
 func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
+	if err := VerifyUser(actionConfig, req.Name); err != nil {
+		h.setReleaseStatusSilent("rollback", req.Name, failed, err)
+		return
+	}
+
 	rollbackClient := action.NewRollback(actionConfig)
 	rollbackClient.Version = req.Revision
 
@@ -730,25 +740,25 @@ func (h *Handler) getChart(
 // fails the install instead of blocking it.
 var verifyUserTimeout = 10 * time.Second
 
-// Verify the user has minimal privileges by performing a whoami check.
-// This prevents spurious downloads by ensuring basic authentication before proceeding.
-func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
+// VerifyUser verifies that the user has minimal privileges by performing a whoami check.
+// This prevents spurious downloads and unauthorized actions by ensuring basic authentication before proceeding.
+func VerifyUser(actionConfig *action.Configuration, releaseName string) error {
 	restConfig, err := actionConfig.RESTClientGetter.ToRESTConfig()
 	if err != nil {
 		logger.Log(logger.LevelError,
-			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "getting REST config to verify user")
+			map[string]string{logFieldReleaseName: releaseName},
+			err, "verifying user: getting REST config")
 
-		return false
+		return fmt.Errorf("failed to get REST config: %w", err)
 	}
 
 	cs, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		logger.Log(logger.LevelError,
-			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "creating client to verify user")
+			map[string]string{logFieldReleaseName: releaseName},
+			err, "verifying user: creating kubernetes client")
 
-		return false
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), verifyUserTimeout)
@@ -757,21 +767,27 @@ func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(ctx,
 		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
-		logger.Log(logger.LevelError,
-			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			err, "checking user identity")
+		if apierrors.IsNotFound(err) {
+			return errors.New("cluster does not support SelfSubjectReview API (requires Kubernetes 1.28+)")
+		}
 
-		return false
+		logger.Log(logger.LevelError,
+			map[string]string{logFieldReleaseName: releaseName},
+			err, "verifying user: creating selfsubjectreview")
+
+		return fmt.Errorf("failed to verify user identity: %w", err)
 	}
 
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
-		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
-			errors.New("insufficient privileges"), "user is not authorized to perform this operation")
+		err := errors.New("user is not authorized to perform this operation")
 
-		return false
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: releaseName},
+			err, "verifying user: insufficient privileges")
+
+		return err
 	}
 
-	return true
+	return nil
 }
 
 func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Configuration) {
@@ -782,7 +798,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.CreateNamespace = req.CreateNamespace
 	installClient.Version = req.Version
 
-	if !VerifyUser(actionConfig, req) {
+	if err := VerifyUser(actionConfig, req.Name); err != nil {
 		return
 	}
 
@@ -913,10 +929,10 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 	upgradeClient.Description = req.Description
 	upgradeClient.Version = req.Version
 
-	if !VerifyUser(actionConfig, InstallRequest{CommonInstallUpdateRequest: req.CommonInstallUpdateRequest}) {
+	if err := VerifyUser(actionConfig, req.Name); err != nil {
 		h.logActionState(
 			zlog.Error(),
-			errors.New("insufficient privileges"),
+			err,
 			"upgrade",
 			req.Chart,
 			req.Name,

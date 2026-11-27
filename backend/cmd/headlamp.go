@@ -2347,7 +2347,59 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 		applyRequestTokenToContext(r, clusterName, context)
 	}
 
+	// if no token present in in-cluster mode for shared contexts, return error
+	if c.isSharedInClusterContext(context) && !unsafeUseServiceAccountToken {
+		bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
+		if proxyToken := c.proxyAuthToken(r); proxyToken != "" {
+			bearerToken = proxyToken
+		}
+
+		if bearerToken == "" {
+			c.handleError(
+				w, ctx, span,
+				errors.New("no authentication token provided"),
+				"failed to get token",
+				http.StatusUnauthorized,
+			)
+
+			return
+		}
+
+		if err := preserveAPIProxy(context); err != nil {
+			c.handleError(w, ctx, span, err, "failed to get API proxy settings", http.StatusInternalServerError)
+			return
+		}
+
+		// Use request-only credentials in safe in-cluster mode to prevent
+		// fallback to backend client certificates, keys, or token files.
+		context.AuthInfo = &api.AuthInfo{
+			Token: bearerToken,
+		}
+	}
+
 	handler(context.ClientConfig(), w, r)
+}
+
+// isSharedInClusterContext reports whether the context represents a shared cluster configuration
+// in in-cluster mode (either the in-cluster pod context or a mounted shared kubeconfig).
+func (c *HeadlampConfig) isSharedInClusterContext(context *kubeconfig.Context) bool {
+	return c.UseInCluster && context != nil &&
+		(context.Source == kubeconfig.InCluster || context.Source == kubeconfig.KubeConfig)
+}
+
+func preserveAPIProxy(context *kubeconfig.Context) error {
+	if context.OidcConf == nil {
+		apiProxy, err := context.APIProxy()
+		if err != nil {
+			return err
+		}
+
+		if apiProxy != nil {
+			context.OidcConf = &kubeconfig.OidcConfig{APIProxy: apiProxy}
+		}
+	}
+
+	return nil
 }
 
 func (c *HeadlampConfig) helmRouteRepositoryHandler(
@@ -2374,15 +2426,22 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 	}
 
 	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
-		c.handleError(
-			w, ctx, span,
-			errors.New("no authentication token provided"),
-			"failed to get token",
-			http.StatusUnauthorized,
-		)
+	if c.UseInCluster && !unsafeUseServiceAccountToken {
+		bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
+		if proxyToken := c.proxyAuthToken(r); proxyToken != "" {
+			bearerToken = proxyToken
+		}
 
-		return
+		if bearerToken == "" {
+			c.handleError(
+				w, ctx, span,
+				errors.New("no authentication token provided"),
+				"failed to get token",
+				http.StatusUnauthorized,
+			)
+
+			return
+		}
 	}
 
 	logger.Log(
