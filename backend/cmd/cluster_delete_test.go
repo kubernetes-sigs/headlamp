@@ -28,6 +28,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -296,6 +297,42 @@ func TestDeleteClusterWithoutFileMutation(t *testing.T) {
 
 	after := readClusterDeletionConfig(t, configPath)
 	assert.Equal(t, before, after)
+}
+
+func TestDeleteClusterRejectsKubeconfigChangedWhileWaitingForLock(t *testing.T) {
+	c, configPath, replacement, name := newClusterDeletionTestConfig(t, "selected", "", true)
+	writeClusterDeletionConfig(t, replacement, "selected", "")
+
+	original, err := filepath.EvalSymlinks(configPath)
+	require.NoError(t, err)
+	originalBefore := readClusterDeletionConfig(t, original)
+	replacementBefore := readClusterDeletionConfig(t, replacement)
+
+	synctest.Test(t, func(t *testing.T) {
+		lock := flock.New(configPath + ".lock")
+		require.NoError(t, lock.Lock())
+		defer func() { assert.NoError(t, lock.Unlock()) }()
+
+		result := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			result <- deleteClusterTestRequest(c, name, url.Values{"removeKubeConfig": {"true"}})
+		}()
+
+		// Wait until deletion is blocked retrying the origin lock.
+		synctest.Wait()
+		require.Empty(t, result)
+		require.NoError(t, os.Remove(configPath))
+		require.NoError(t, os.Symlink(replacement, configPath))
+		require.NoError(t, lock.Unlock())
+
+		response := <-result
+		assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	})
+
+	_, err = c.KubeConfigStore.GetContext(name)
+	require.NoError(t, err)
+	assert.Equal(t, originalBefore, readClusterDeletionConfig(t, original))
+	assert.Equal(t, replacementBefore, readClusterDeletionConfig(t, replacement))
 }
 
 //nolint:funlen // Exercise import and rename through the runtime handlers before deletion.
