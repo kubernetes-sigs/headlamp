@@ -38,6 +38,7 @@ export default defineConfig({
     'clusterAutoConnect.spec.ts',
     'clusterRegistration.spec.ts',
     'externalBackendToken.spec.ts',
+    'headlessBackendToken.spec.ts',
     'pluginSecureStorage.spec.ts',
     'pluginManager.spec.ts',
     'listenerCleanup.spec.ts',
