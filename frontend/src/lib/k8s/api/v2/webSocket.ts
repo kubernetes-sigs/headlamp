@@ -59,13 +59,43 @@ export type WebSocketConnectionRequest<T> = {
    * @param data The message payload, typed as T (e.g., K8s Pod, Service, etc.)
    */
   onMessage: (data: T) => void;
+
+  /**
+   * Whether to automatically reconnect with backoff if the socket closes unexpectedly.
+   */
+  reconnectOnClose?: boolean;
+
+  /**
+   * Optional lazy URL resolver used when reconnecting after an unexpected close.
+   */
+  getReconnectUrl?: () => string;
+
+  /**
+   * Optional guard evaluated before scheduling or executing an automatic reconnect.
+   */
+  shouldReconnect?: () => boolean;
 };
+
+const INITIAL_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+const RECONNECT_STABILITY_WINDOW_MS = 5000;
 
 /**
  * Keeps track of open WebSocket connections and active listeners
  */
 const sockets = new Map<string, WebSocket | symbol>();
 const listeners = new Map<string, Array<(update: any) => void>>();
+const closeListeners = new Map<string, Array<() => void>>();
+
+function removeMapCallback<C>(map: Map<string, Array<C>>, key: string, callback: C): number {
+  const remaining = (map.get(key) ?? []).filter(it => it !== callback);
+  if (remaining.length === 0) {
+    map.delete(key);
+  } else {
+    map.set(key, remaining);
+  }
+  return remaining.length;
+}
 
 /**
  * Create new WebSocket connection to the backend
@@ -82,6 +112,8 @@ export async function openWebSocket<T>(
     type = 'binary',
     cluster = getCluster() ?? '',
     onMessage,
+    onOpen,
+    onClose,
   }: {
     /**
      * Any additional protocols to include in WebSocket connection
@@ -99,6 +131,14 @@ export async function openWebSocket<T>(
      * Message callback
      */
     onMessage: (data: T) => void;
+    /**
+     * Open callback
+     */
+    onOpen?: () => void;
+    /**
+     * Close callback
+     */
+    onClose?: (socket: WebSocket) => void;
   }
 ) {
   const connectionKey = cluster + url;
@@ -126,6 +166,11 @@ export async function openWebSocket<T>(
 
   const socket = new WebSocket(makeUrl([getBaseWsUrl(), ...path], {}), protocols);
   socket.binaryType = 'arraybuffer';
+  if (onOpen) {
+    socket.addEventListener('open', () => {
+      onOpen();
+    });
+  }
   socket.addEventListener('message', (body: MessageEvent) => {
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
     const callbacks = listeners.get(connectionKey) ?? [onMessage];
@@ -140,6 +185,11 @@ export async function openWebSocket<T>(
   socket.addEventListener('error', error => {
     console.error('WebSocket error:', error);
   });
+  if (onClose) {
+    socket.addEventListener('close', () => {
+      onClose(socket);
+    });
+  }
 
   return socket;
 }
@@ -173,58 +223,152 @@ export function useWebSockets<T>({
     if (!enabled) return;
 
     /** Open a connection to websocket */
-    function connect({ cluster, url, onMessage }: WebSocketConnectionRequest<T>) {
-      const connectionKey = cluster + url;
+    function connect({
+      cluster,
+      url,
+      onMessage,
+      reconnectOnClose = false,
+      getReconnectUrl,
+      shouldReconnect,
+    }: WebSocketConnectionRequest<T>) {
+      let currentKey = cluster + url;
+      let disposed = false;
+      let reconnectAttempts = 0;
+      let openedAt: number | null = null;
+      let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-      // Always register the current listener, even when reusing an existing socket.
-      listeners.set(connectionKey, [...(listeners.get(connectionKey) ?? []), onMessage]);
+      const wrappedOnMessage = (data: T) => {
+        reconnectAttempts = 0;
+        onMessage(data);
+      };
 
-      if (!sockets.has(connectionKey)) {
-        // Mark socket as pending, so we don't open more than one
-        const pendingSocket = Symbol('pendingWebSocket');
-        sockets.set(connectionKey, pendingSocket);
+      const scheduleReconnect = () => {
+        if (disposed || !reconnectOnClose || (shouldReconnect && !shouldReconnect())) {
+          return;
+        }
 
-        openWebSocket(url, { protocols, type, cluster, onMessage })
-          .then(socket => {
-            // A newer connection replaced this pending one while it was opening.
-            if (sockets.get(connectionKey) !== pendingSocket) {
-              socket.close();
-              return;
-            }
+        if (openedAt !== null && Date.now() - openedAt >= RECONNECT_STABILITY_WINDOW_MS) {
+          reconnectAttempts = 0;
+        }
+        openedAt = null;
 
-            // All listeners unsubscribed while the socket was opening.
-            if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
-              socket.close();
-              sockets.delete(connectionKey);
-              return;
-            }
+        if (reconnectTimer !== null) {
+          return;
+        }
 
-            sockets.set(connectionKey, socket);
+        const delay = Math.min(
+          INITIAL_RECONNECT_DELAY_MS * 2 ** reconnectAttempts,
+          MAX_RECONNECT_DELAY_MS
+        );
+        reconnectAttempts += 1;
+
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          if (disposed || (shouldReconnect && !shouldReconnect())) {
+            return;
+          }
+
+          const nextUrl = getReconnectUrl ? getReconnectUrl() : url;
+          openConnection(nextUrl);
+        }, delay);
+      };
+
+      const notifyUnexpectedClose = (connectionKey: string) => {
+        const callbacks = [...(closeListeners.get(connectionKey) ?? [])];
+        callbacks.forEach(cb => cb());
+      };
+
+      function openConnection(targetUrl: string, registerListeners = true) {
+        const nextKey = cluster + targetUrl;
+
+        if (registerListeners && nextKey !== currentKey) {
+          removeMapCallback(listeners, currentKey, wrappedOnMessage);
+          removeMapCallback(closeListeners, currentKey, scheduleReconnect);
+          currentKey = nextKey;
+        }
+
+        if (registerListeners) {
+          listeners.set(currentKey, [...(listeners.get(currentKey) ?? []), wrappedOnMessage]);
+          closeListeners.set(currentKey, [
+            ...(closeListeners.get(currentKey) ?? []),
+            scheduleReconnect,
+          ]);
+        }
+
+        if (!sockets.has(currentKey)) {
+          // Mark socket as pending, so we don't open more than one
+          const pendingSocket = Symbol('pendingWebSocket');
+          const keyForSocket = currentKey;
+          let closedEarly = false;
+          sockets.set(keyForSocket, pendingSocket);
+
+          openWebSocket(targetUrl, {
+            protocols,
+            type,
+            cluster,
+            onMessage: wrappedOnMessage,
+            onOpen: () => {
+              if (sockets.get(keyForSocket) === pendingSocket || sockets.has(keyForSocket)) {
+                openedAt = Date.now();
+              }
+            },
+            onClose: socket => {
+              closedEarly = true;
+              const active = sockets.get(keyForSocket);
+              if (active === socket || active === pendingSocket) {
+                sockets.delete(keyForSocket);
+                notifyUnexpectedClose(keyForSocket);
+              }
+            },
           })
-          .catch(err => {
-            if (sockets.get(connectionKey) === pendingSocket) {
-              sockets.delete(connectionKey);
-            }
-            console.error(err);
-          });
+            .then(socket => {
+              // A newer connection replaced this pending one, or it closed while opening.
+              if (closedEarly || sockets.get(keyForSocket) !== pendingSocket) {
+                socket.close();
+                return;
+              }
+
+              // All listeners unsubscribed while the socket was opening.
+              if ((listeners.get(keyForSocket)?.length ?? 0) === 0) {
+                socket.close();
+                sockets.delete(keyForSocket);
+                return;
+              }
+
+              sockets.set(keyForSocket, socket);
+            })
+            .catch(err => {
+              if (sockets.get(keyForSocket) === pendingSocket) {
+                sockets.delete(keyForSocket);
+                notifyUnexpectedClose(keyForSocket);
+              }
+              console.error(err);
+            });
+        }
       }
 
-      return () => {
-        const connectionKey = cluster + url;
+      openConnection(url);
 
-        // Clean up the listener
-        const newListeners = listeners.get(connectionKey)?.filter(it => it !== onMessage) ?? [];
-        listeners.set(connectionKey, newListeners);
+      return () => {
+        disposed = true;
+        if (reconnectTimer !== null) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+
+        // Clean up the listeners
+        const remainingCount = removeMapCallback(listeners, currentKey, wrappedOnMessage);
+        removeMapCallback(closeListeners, currentKey, scheduleReconnect);
 
         // No one is listening to the connection
         // so we can close it
-        if (newListeners.length === 0) {
-          const maybeExisting = sockets.get(connectionKey);
+        if (remainingCount === 0) {
+          const maybeExisting = sockets.get(currentKey);
           if (maybeExisting) {
+            sockets.delete(currentKey);
             if (typeof maybeExisting !== 'symbol') {
               maybeExisting.close();
             }
-            sockets.delete(connectionKey);
           }
         }
       };

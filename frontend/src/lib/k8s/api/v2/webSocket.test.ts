@@ -228,3 +228,143 @@ describe('useWebSockets', () => {
     });
   });
 });
+
+describe('useWebSockets reconnect', () => {
+  class MockWebSocketInstance {
+    static OPEN = 1;
+    static CLOSED = 3;
+    binaryType = '';
+    readyState = MockWebSocketInstance.OPEN;
+    private eventListeners: Record<string, Array<(event?: any) => void>> = {};
+    close = vi.fn(() => {
+      this.readyState = MockWebSocketInstance.CLOSED;
+    });
+
+    constructor(public url: string, public protocols?: string | string[]) {}
+
+    addEventListener(type: string, listener: (event?: any) => void) {
+      (this.eventListeners[type] ??= []).push(listener);
+    }
+
+    emitOpen() {
+      this.eventListeners.open?.forEach(cb => cb());
+    }
+
+    emitClose() {
+      this.readyState = MockWebSocketInstance.CLOSED;
+      this.eventListeners.close?.forEach(cb => cb());
+    }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function installWebSocketMock() {
+    const created: MockWebSocketInstance[] = [];
+    const WebSocketMock = vi.fn(function (url: string, protocols?: string | string[]) {
+      const instance = new MockWebSocketInstance(url, protocols);
+      created.push(instance);
+      return instance;
+    });
+    vi.stubGlobal('WebSocket', WebSocketMock);
+    return created;
+  }
+
+  it('reconnects with exponential backoff using getReconnectUrl after an unexpected close', async () => {
+    vi.useFakeTimers();
+    const created = installWebSocketMock();
+    let currentUrl = 'api/v1/pods?watch=1&resourceVersion=10';
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [
+          {
+            cluster: '',
+            url: currentUrl,
+            onMessage: vi.fn(),
+            reconnectOnClose: true,
+            getReconnectUrl: () => currentUrl,
+          },
+        ],
+      })
+    );
+
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    created[0].emitOpen();
+
+    // Server closes unexpectedly (e.g. proxy idle timeout); RV advanced while connected.
+    currentUrl = 'api/v1/pods?watch=1&resourceVersion=15';
+    created[0].emitClose();
+
+    // First retry waits 1000ms.
+    await vi.advanceTimersByTimeAsync(999);
+    expect(created).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.waitFor(() => expect(created).toHaveLength(2));
+    expect(created[1].url).toContain('resourceVersion=15');
+
+    // Rapid second close backs off to 2000ms.
+    created[1].emitClose();
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(created).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.waitFor(() => expect(created).toHaveLength(3));
+  });
+
+  it('does not reconnect when unmounted before backoff timer fires', async () => {
+    vi.useFakeTimers();
+    const created = installWebSocketMock();
+    const url = 'api/v1/pods?watch=1&resourceVersion=20';
+
+    const hook = renderHook(() =>
+      useWebSockets({
+        connections: [
+          {
+            cluster: '',
+            url,
+            onMessage: vi.fn(),
+            reconnectOnClose: true,
+            getReconnectUrl: () => url,
+          },
+        ],
+      })
+    );
+
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    created[0].emitClose();
+    hook.unmount();
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(created).toHaveLength(1);
+  });
+
+  it('suppresses reconnect while shouldReconnect returns false', async () => {
+    vi.useFakeTimers();
+    const created = installWebSocketMock();
+    const url = 'api/v1/pods?watch=1&resourceVersion=30';
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [
+          {
+            cluster: '',
+            url,
+            onMessage: vi.fn(),
+            reconnectOnClose: true,
+            shouldReconnect: () => false,
+            getReconnectUrl: () => url,
+          },
+        ],
+      })
+    );
+
+    await vi.waitFor(() => expect(created).toHaveLength(1));
+    created[0].emitClose();
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(created).toHaveLength(1);
+  });
+});
