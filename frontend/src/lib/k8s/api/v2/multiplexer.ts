@@ -847,8 +847,7 @@ export const WebSocketManager = {
         if (
           !hasPendingReplay &&
           update.type !== 'ERROR' &&
-          update.object?.metadata?.resourceVersion &&
-          /^\d+$/.test(update.object.metadata.resourceVersion)
+          update.object?.metadata?.resourceVersion
         ) {
           const newRV = update.object.metadata.resourceVersion;
           const sub = this.activeSubscriptions.get(key);

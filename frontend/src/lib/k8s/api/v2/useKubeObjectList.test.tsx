@@ -5881,6 +5881,159 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       vi.useRealTimers();
     }
   });
+
+  it('does not schedule retry or recovery when subscribe rejects after unmount', async () => {
+    vi.useFakeTimers();
+    const originalImpl = mockSubscribe.getMockImplementation();
+    try {
+      let rejectSubscribe!: (err: Error) => void;
+      mockSubscribe.mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectSubscribe = reject;
+          })
+      );
+
+      const queryClient = new QueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+      const onReconnect = vi.fn();
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { unmount } = renderHook(
+        () =>
+          useWatchKubeObjectLists({
+            kubeObjectClass: mockClass,
+            endpoint: { version: 'v1', resource: 'pods' },
+            lists: [{ cluster: 'cluster-a', namespace: 'ns-a', resourceVersion: '1' }],
+            onReconnect,
+          }),
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          ),
+        }
+      );
+
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+      unmount();
+
+      await act(async () => {
+        rejectSubscribe(new Error('connection failed after unmount'));
+        await Promise.resolve();
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(mockSubscribe).toHaveBeenCalledTimes(1);
+      expect(invalidateSpy).not.toHaveBeenCalled();
+      expect(onReconnect).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    } finally {
+      if (originalImpl) {
+        mockSubscribe.mockImplementation(originalImpl);
+      }
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not trigger relist when watching is disabled during onError backoff', () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const endpoint = { version: 'v1', resource: 'pods' };
+      const lists = [{ cluster: 'cluster-a', namespace: 'ns-a', resourceVersion: '1' }];
+
+      const { rerender } = renderHook(
+        () =>
+          useWatchKubeObjectLists({
+            kubeObjectClass: mockClass,
+            endpoint,
+            lists,
+          }),
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          ),
+        }
+      );
+
+      const onError = mockSubscribe.mock.calls[0][4];
+      act(() => {
+        onError(new Error('transient error'));
+      });
+
+      vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+      rerender();
+
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(invalidateSpy).not.toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not trigger relist for a removed namespace while preserving retry for remaining namespaces', () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const onReconnect = vi.fn();
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const endpoint = { version: 'v1', resource: 'pods' };
+
+      const { rerender } = renderHook(
+        ({ lists }) =>
+          useWatchKubeObjectLists({
+            kubeObjectClass: mockClass,
+            endpoint,
+            lists,
+            onReconnect,
+          }),
+        {
+          initialProps: {
+            lists: [
+              { cluster: 'cluster-a', namespace: 'ns-a', resourceVersion: '1' },
+              { cluster: 'cluster-a', namespace: 'ns-b', resourceVersion: '1' },
+            ],
+          },
+          wrapper: ({ children }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          ),
+        }
+      );
+
+      expect(mockSubscribe).toHaveBeenCalledTimes(2);
+      const onErrorA = mockSubscribe.mock.calls[0][4];
+      const onErrorB = mockSubscribe.mock.calls[1][4];
+
+      act(() => {
+        onErrorA(new Error('transient error A'));
+        onErrorB(new Error('transient error B'));
+      });
+
+      // Remove ns-a while ns-b remains active
+      rerender({
+        lists: [{ cluster: 'cluster-a', namespace: 'ns-b', resourceVersion: '1' }],
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      expect(onReconnect).toHaveBeenCalledTimes(1);
+      expect(onReconnect).toHaveBeenCalledWith('cluster-a', 'ns-b', '');
+      consoleErrorSpy.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('matchesLabelSelectorString', () => {

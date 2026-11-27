@@ -2243,12 +2243,12 @@ describe('WebSocket Multiplexer', () => {
       const queries = replacement.send.mock.calls
         .map((call: [string]) => JSON.parse(call[0]).query)
         .sort();
-      expect(queries).toEqual([activeQuery, joiningQuery].sort());
+      expect(queries).toEqual(['watch=1&resourceVersion=opaque-advanced', joiningQuery].sort());
       expect(
-        WebSocketManager.keyAliases.has(
+        WebSocketManager.keyAliases.get(
           WebSocketManager.createKey(clusterName, path, 'watch=1&resourceVersion=opaque-advanced')
         )
-      ).toBe(false);
+      ).toBe(WebSocketManager.createKey(clusterName, path, activeQuery));
     });
 
     it('does not collide with an active numeric-cursor subscription when reconnecting an empty-cursor subscription', async () => {
@@ -2343,6 +2343,123 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.activeSubscriptions.has(emptyCursorKey)).toBe(true);
 
       cleanupEmpty();
+    });
+
+    it('consumes catch-up CLOSE acknowledgement after an empty-cursor stream advances to numeric RV and reconnects', async () => {
+      const path = '/api/v1/pods';
+      const emptyQuery = 'watch=1&resourceVersion=';
+      const emptyKey = WebSocketManager.createKey(clusterName, path, emptyQuery);
+      const onInitial = vi.fn();
+      const onJoining = vi.fn();
+      const onJoiningClose = vi.fn();
+
+      const cleanupInitial = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        emptyQuery,
+        onInitial
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      // Advance empty-cursor stream to numeric resourceVersion 105
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: emptyQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-1', resourceVersion: '105' } },
+          }),
+        })
+      );
+      expect(onInitial).toHaveBeenCalledTimes(1);
+
+      // Simulate transport reconnect: resubscribeAll creates alias for watch=1&resourceVersion=105 -> emptyKey
+      WebSocketManager.resubscribeAll(WebSocketManager.socketMultiplexer!);
+      const resubMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(resubMsg.query).toBe('watch=1&resourceVersion=105');
+
+      // Now a joining subscriber with older numeric RV 90 triggers catch-up
+      const joiningQuery = 'watch=1&resourceVersion=90';
+      const cleanupJoining = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        joiningQuery,
+        onJoining,
+        undefined,
+        onJoiningClose
+      );
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      const catchUpReq = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg).toMatchObject({ type: 'CLOSE', query: 'watch=1&resourceVersion=105' });
+      expect(catchUpReq).toMatchObject({ type: 'REQUEST', query: joiningQuery });
+      expect(WebSocketManager.pendingCloseAcks.has(emptyKey)).toBe(true);
+
+      // Backend acknowledges closing the numeric-alias query
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: 'watch=1&resourceVersion=105',
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed' }),
+        })
+      );
+
+      expect(WebSocketManager.pendingCloseAcks.has(emptyKey)).toBe(false);
+      expect(onJoiningClose).not.toHaveBeenCalled();
+
+      // Subsequent events on the catch-up query reach the joining listener
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: joiningQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-2', resourceVersion: '91' } },
+          }),
+        })
+      );
+      expect(onJoining).toHaveBeenCalledTimes(1);
+
+      cleanupJoining();
+      cleanupInitial();
+    });
+
+    it('advances opaque resourceVersion cursors and uses the latest opaque cursor on resubscribeAll', async () => {
+      const path = '/api/v1/configmaps';
+      const initialQuery = 'watch=1&resourceVersion=opaque-1';
+      const onMsg = vi.fn();
+
+      const cleanup = await WebSocketManager.subscribe(clusterName, path, initialQuery, onMsg);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: initialQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-1', resourceVersion: 'opaque-2' } },
+          }),
+        })
+      );
+      expect(onMsg).toHaveBeenCalledTimes(1);
+
+      const replacement = { send: vi.fn() } as any;
+      WebSocketManager.resubscribeAll(replacement);
+      expect(replacement.send).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(replacement.send.mock.calls[0][0])).toMatchObject({
+        type: 'REQUEST',
+        query: 'watch=1&resourceVersion=opaque-2',
+      });
+
+      cleanup();
     });
   });
 });
