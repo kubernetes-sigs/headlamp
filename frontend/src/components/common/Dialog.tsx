@@ -108,12 +108,16 @@ export interface OurDialogProps {
   withFullScreen?: boolean;
   onFullScreenToggled?: (isFullScreen: boolean) => void;
   titleProps?: OurDialogTitleProps;
+  onClose?: (
+    event: React.SyntheticEvent | {},
+    reason: 'backdropClick' | 'escapeKeyDown' | 'closeButtonClick'
+  ) => void;
 }
 
 // Extends has some issue when exporting.
 //   Perhaps because we are stomping over the DialogProps namespace? It's a mystery.
 //   Creating an intersection type works fine though. Shrug emoji: 🤷‍♂️
-export type DialogProps = OurDialogProps & MuiDialogProps;
+export type DialogProps = Omit<MuiDialogProps, 'onClose'> & OurDialogProps;
 
 export function Dialog(props: DialogProps) {
   const {
@@ -175,8 +179,8 @@ export function Dialog(props: DialogProps) {
               <ActionButton
                 key="close"
                 description={t('Close')}
-                onClick={() => {
-                  props.onClose && props.onClose({}, 'escapeKeyDown');
+                onClick={e => {
+                  props.onClose && props.onClose(e, 'closeButtonClick');
                 }}
                 icon={'mdi:close'}
               />,
