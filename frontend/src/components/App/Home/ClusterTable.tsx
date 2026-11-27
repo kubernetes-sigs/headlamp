@@ -197,8 +197,9 @@ interface StatusLinkProps {
  *
  * The rest of the chain is passed on as a single `StatusChain` element, so it
  * is only expanded when React actually renders it: when this link's callback
- * returns null, or when it throws. Each render therefore builds one link per
- * callback tried, not the whole remaining chain at every link.
+ * returns null, renders its `defaultStatus`, or throws. Each render therefore
+ * builds one link per callback tried, not the whole remaining chain at every
+ * link.
  */
 function StatusChain(props: StatusLinkProps) {
   const { statuses, index, fallback } = props;
@@ -223,11 +224,14 @@ function StatusChain(props: StatusLinkProps) {
  */
 function ClusterStatusLink(props: StatusLinkProps) {
   const { statuses, index, cluster, error } = props;
-  const result = statuses[index]({ cluster, error });
+  // What this link shows when its callback returns null: the rest of the
+  // chain. Passed to the callback so it can wrap it instead of replacing it.
+  const defaultStatus = <StatusChain {...props} index={index + 1} />;
+  const result = statuses[index]({ cluster, error, defaultStatus });
   if (result !== null && result !== undefined) {
     return result;
   }
-  return <StatusChain {...props} index={index + 1} />;
+  return defaultStatus;
 }
 
 /**

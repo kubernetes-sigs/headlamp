@@ -33,6 +33,13 @@ export interface MenuItemProps {
 export interface ClusterStatusProps {
   cluster: any;
   error: ApiError | null | undefined;
+  /**
+   * The status shown if this callback returns null: the next registered
+   * callback's status, or Headlamp's own (with its Connect action). Render it
+   * to wrap the status rather than replace it. Headlamp always passes it;
+   * it is optional so code that calls a status callback directly still works.
+   */
+  defaultStatus?: ReactNode;
 }
 
 /** Props passed to a custom Home page cluster empty-state component. */
