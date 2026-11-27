@@ -21,6 +21,7 @@ import {
   filterPod,
   getMaxContainerCpuLimitPercent,
   getMaxContainerMemoryLimitPercent,
+  getReadinessGatesStatus,
   makePodStatusLabel,
   PodListRenderer,
   resourceCellValue,
@@ -609,5 +610,35 @@ describe('makePodStatusLabel container indicators', () => {
     expect(
       renderIndicatorColor(podWithTerminatedContainer({ reason: 'Completed', exitCode: 0 }))
     ).toEqual(['green']);
+  });
+});
+
+describe('getReadinessGatesStatus', () => {
+  const makePod = (gates: string[], conditions: { type: string; status: string }[]) =>
+    ({
+      spec: { readinessGates: gates.map(conditionType => ({ conditionType })) },
+      status: { conditions },
+    } as unknown as Pod);
+
+  it('counts a gate that has no condition yet, like kubectl', () => {
+    const status = getReadinessGatesStatus(
+      makePod(
+        ['example.com/gate-a', 'example.com/gate-b'],
+        [{ type: 'example.com/gate-a', status: 'True' }]
+      )
+    );
+    expect(status).toEqual({ 'example.com/gate-a': 'True', 'example.com/gate-b': '<none>' });
+  });
+
+  it('lists every gate when no gate condition is set yet', () => {
+    const status = getReadinessGatesStatus(
+      makePod(['example.com/gate-a', 'example.com/gate-b'], [{ type: 'Ready', status: 'False' }])
+    );
+    expect(Object.keys(status)).toHaveLength(2);
+    expect(Object.values(status).filter(s => s === 'True')).toHaveLength(0);
+  });
+
+  it('returns an empty map for a pod without readiness gates', () => {
+    expect(getReadinessGatesStatus(makePod([], [{ type: 'Ready', status: 'True' }]))).toEqual({});
   });
 });
