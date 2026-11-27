@@ -962,7 +962,14 @@ export function registerClusterProviderMenuItem(item: MenuItemComponent) {
  * component, so it may use hooks. It must be a function: a class component,
  * `React.memo` or `defaultProps` will not work.
  *
- * @param item - The component to register. Receives `{ cluster, error }` props.
+ * Each callback also gets `defaultStatus`: what the cell would show if it
+ * returned `null`. That is the status from the next callback that handles
+ * the cluster, or Headlamp's own status (with its Connect action) if no later
+ * callback does. Render it to add to the status instead of replacing it. The
+ * Status column still sorts and filters by Headlamp's own status value, not
+ * by what a callback renders.
+ *
+ * @param item - The component to register. Receives `{ cluster, error, defaultStatus }` props.
  *
  * @example
  * ```tsx
@@ -973,6 +980,22 @@ export function registerClusterProviderMenuItem(item: MenuItemComponent) {
  *     return null;
  *   }
  *   return <ClusterStatus cluster={cluster} error={error} />;
+ * });
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // Add a marker in front of the status Headlamp would show.
+ * registerClusterStatus(({ cluster, defaultStatus }) => {
+ *   if (!isPrivate(cluster)) {
+ *     return null;
+ *   }
+ *   return (
+ *     <Box display="flex" alignItems="center" gap={0.5}>
+ *       <Icon icon="mdi:lock" aria-label="Private cluster" />
+ *       {defaultStatus}
+ *     </Box>
+ *   );
  * });
  * ```
  */

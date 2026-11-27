@@ -15,7 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { act, useReducer, useState } from 'react';
 import { Provider } from 'react-redux';
 import { describe, expect, it, vi } from 'vitest';
@@ -312,5 +312,96 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
       store.dispatch(addClusterStatus(() => null));
     });
     expect(screen.getByTestId('hook-chip')).toBeInTheDocument();
+  });
+});
+
+describe('ClusterStatus — defaultStatus passed to callbacks', () => {
+  it('a callback can wrap defaultStatus and Connect still works', () => {
+    const onConnect = vi.fn();
+    const wrapper: ClusterStatusComponent = ({ defaultStatus }) => (
+      <span data-testid="wrapper">
+        <span data-testid="marker">🔒</span>
+        {defaultStatus}
+      </span>
+    );
+
+    render(
+      <Provider store={makeStore([wrapper])}>
+        <ClusterStatus
+          cluster={mockCluster}
+          error={undefined}
+          isConnected={false}
+          onConnect={onConnect}
+        />
+      </Provider>
+    );
+
+    expect(screen.getByTestId('marker')).toBeInTheDocument();
+    const connect = screen.getByRole('button', { name: 'translation|Connect' });
+    expect(screen.getByTestId('wrapper')).toContainElement(connect);
+    fireEvent.click(connect);
+    expect(onConnect).toHaveBeenCalledWith('test-cluster');
+  });
+
+  it("defaultStatus is the rest of the chain: a later callback's status, else Headlamp's", () => {
+    const outer: ClusterStatusComponent = ({ defaultStatus }) => (
+      <span data-testid="outer">{defaultStatus}</span>
+    );
+    const skips: ClusterStatusComponent = () => null;
+    const inner: ClusterStatusComponent = ({ defaultStatus }) => (
+      <span data-testid="inner">{defaultStatus}</span>
+    );
+
+    render(
+      <Provider store={makeStore([outer, skips, inner])}>
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
+      </Provider>
+    );
+
+    const outerEl = screen.getByTestId('outer');
+    const innerEl = screen.getByTestId('inner');
+    expect(outerEl).toContainElement(innerEl);
+    expect(innerEl).toHaveTextContent('translation|Active');
+  });
+
+  it('a later callback that throws inside defaultStatus falls through without losing the wrapper', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const wrapper: ClusterStatusComponent = ({ defaultStatus }) => (
+      <span data-testid="wrapper">
+        <span data-testid="marker">🔒</span>
+        {defaultStatus}
+      </span>
+    );
+    const throws: ClusterStatusComponent = () => {
+      throw new Error('callback failed');
+    };
+    const recovery: ClusterStatusComponent = () => (
+      <span data-testid="recovery-status">Recovery</span>
+    );
+
+    render(
+      <Provider store={makeStore([wrapper, throws, recovery])}>
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
+      </Provider>
+    );
+
+    expect(screen.getByTestId('marker')).toBeInTheDocument();
+    expect(screen.getByTestId('wrapper')).toContainElement(screen.getByTestId('recovery-status'));
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('a callback that ignores defaultStatus still replaces the rest of the chain', () => {
+    const replaces: ClusterStatusComponent = () => <span data-testid="replaced">Mine</span>;
+    const laterSpy = vi.fn(() => <span data-testid="later">Later</span>);
+
+    render(
+      <Provider store={makeStore([replaces, laterSpy])}>
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
+      </Provider>
+    );
+
+    expect(screen.getByTestId('replaced')).toBeInTheDocument();
+    expect(screen.queryByText('translation|Active')).not.toBeInTheDocument();
+    expect(laterSpy).not.toHaveBeenCalled();
   });
 });

@@ -499,6 +499,13 @@ the cluster. Each callback is called as a plain function inside its own
 component, so it may use hooks. It must be a function: a class component,
 `React.memo` or `defaultProps` will not work.
 
+Each callback also gets `defaultStatus`: what the cell would show if it
+returned `null`. That is the status from the next callback that handles
+the cluster, or Headlamp's own status (with its Connect action) if no later
+callback does. Render it to add to the status instead of replacing it. The
+Status column still sorts and filters by Headlamp's own status value, not
+by what a callback renders.
+
 **`example`**
 
 ```tsx
@@ -512,11 +519,28 @@ registerClusterStatus(({ cluster, error }) => {
 });
 ```
 
+**`example`**
+
+```tsx
+// Add a marker in front of the status Headlamp would show.
+registerClusterStatus(({ cluster, defaultStatus }) => {
+  if (!isPrivate(cluster)) {
+    return null;
+  }
+  return (
+    <Box display="flex" alignItems="center" gap={0.5}>
+      <Icon icon="mdi:lock" aria-label="Private cluster" />
+      {defaultStatus}
+    </Box>
+  );
+});
+```
+
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `item` | `ClusterStatusComponent` | The component to register. Receives `{ cluster, error }` props. |
+| `item` | `ClusterStatusComponent` | The component to register. Receives `{ cluster, error, defaultStatus }` props. |
 
 #### Returns
 
