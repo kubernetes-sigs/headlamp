@@ -58,6 +58,9 @@
   .react-flow__pane:not(.dragging) .react-flow__viewport {
     transition-duration: 0;
   }
+  .react-flow__minimap {
+    transition: none !important;
+  }
 }
 
 .react-flow__controls-button {
@@ -69,4 +72,8 @@
   padding: 2px;
   cursor: pointer;
   user-select: none;
+}
+
+.react-flow__minimap-node {
+  vector-effect: non-scaling-stroke;
 }
