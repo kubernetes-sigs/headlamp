@@ -127,4 +127,31 @@ describe('ReplicaSetList column definitions and renderers', () => {
     expect(selectorCol.getValue(replicaSet)).toBe('app=my-app');
     expect(selectorCol.render(replicaSet)).not.toBeNull();
   });
+
+  it('joins multiple container names and images with ", " in getValue', () => {
+    render(<ReplicaSetList />);
+
+    const props = mockResourceListView.mock.calls[0][0];
+    const replicaSet = new ReplicaSet({
+      apiVersion: 'apps/v1',
+      kind: 'ReplicaSet',
+      metadata: { name: 'multi-replicaset', namespace: 'default' },
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              { name: 'web', image: 'nginx:1.25' },
+              { name: 'sidecar', image: 'busybox:latest' },
+            ],
+          },
+        },
+      },
+    } as any);
+
+    const containersCol = props.columns.find((c: any) => c.id === 'containers');
+    expect(containersCol.getValue(replicaSet)).toBe('web, sidecar');
+
+    const imagesCol = props.columns.find((c: any) => c.id === 'images');
+    expect(imagesCol.getValue(replicaSet)).toBe('nginx:1.25, busybox:latest');
+  });
 });
