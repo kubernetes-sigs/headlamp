@@ -23,6 +23,7 @@ import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { AppBarActionsProcessor } from '../../redux/actionButtonsSlice';
+import shortcutsReducer from '../../redux/shortcutsSlice';
 import { uiSlice } from '../../redux/uiSlice';
 import { API_BASE } from '../../test';
 import { initialState as themeInitialState } from './themeSlice';
@@ -42,6 +43,7 @@ const store = configureStore({
     theme: {
       ...themeInitialState,
     },
+    shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
   },
 });
 
