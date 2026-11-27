@@ -73,12 +73,17 @@ var errSSARWorkersAtCapacity = errors.New("SSAR worker capacity reached")
 type CachedClientSet struct {
 	clientset *kubernetes.Clientset
 	lastUsed  time.Time
+	// context is the context the clientset was created from. A reloaded or
+	// updated context is a new one, which can have other credentials, so the
+	// clientset is only used for this one.
+	context *kubeconfig.Context
 }
 
 type inFlightEntry struct {
-	waitCh chan struct{}
-	cs     *kubernetes.Clientset
-	err    error
+	waitCh  chan struct{}
+	cs      *kubernetes.Clientset
+	err     error
+	context *kubeconfig.Context
 }
 
 type lruEntry struct {
@@ -133,7 +138,7 @@ var (
 
 	// clientsetCreator is a hook for testing de-duplication.
 	clientsetCreator = func(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
-		return k.ClientSetWithToken(token)
+		return k.ClientSetWithOwnTransport(token)
 	}
 )
 
@@ -379,12 +384,13 @@ func isClientsetPrefixBlockedLocked(prefix string) bool {
 	return false
 }
 
-// getCachedClientSet retrieves a clientset from the cache if it's valid and not expired.
-func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
+// getCachedClientSet retrieves a clientset from the cache if it's valid, not expired,
+// and was created from context k.
+func getCachedClientSet(cacheKey string, k *kubeconfig.Context) (*kubernetes.Clientset, bool) {
 	mu.Lock()
 
 	elem, found := clientsetCache[cacheKey]
-	if !found {
+	if !found || elem.Value.(*lruEntry).cs.context != k {
 		mu.Unlock()
 		logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf(
 			"telemetry: clientset cache miss for key %s",
@@ -426,7 +432,10 @@ func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 	return cs, true
 }
 
-func getCachedClientSetLocked(cacheKey string) (*kubernetes.Clientset, bool) {
+// getCachedClientSetLocked is getCachedClientSet for callers holding mu. It
+// also removes a clientset created from a replaced context, so the one created
+// for k replaces it in the LRU list too. mu must be held.
+func getCachedClientSetLocked(cacheKey string, k *kubeconfig.Context) (*kubernetes.Clientset, bool) {
 	elem, found := clientsetCache[cacheKey]
 	if !found {
 		return nil, false
@@ -435,7 +444,7 @@ func getCachedClientSetLocked(cacheKey string) (*kubernetes.Clientset, bool) {
 	entry := elem.Value.(*lruEntry)
 	now := time.Now()
 
-	if now.Sub(entry.cs.lastUsed) > clientsetTTL {
+	if entry.cs.context != k || now.Sub(entry.cs.lastUsed) > clientsetTTL {
 		delete(clientsetCache, cacheKey)
 		clientsetLRUList.Remove(elem)
 
@@ -577,10 +586,12 @@ func evictClientsetIfMatch(headlampContextKey, token string, cs *kubernetes.Clie
 	}
 }
 
-// createAndCacheClientSet creates a new clientset and stores it in the cache.
+// createAndCacheClientSet creates a new clientset and stores it in the cache,
+// unless entry, the in-flight creation it is made for, was replaced meanwhile.
 func createAndCacheClientSet(
 	k *kubeconfig.Context,
 	token, cacheKey string,
+	entry *inFlightEntry,
 ) (*kubernetes.Clientset, error) {
 	hookMu.RLock()
 
@@ -595,7 +606,15 @@ func createAndCacheClientSet(
 
 	mu.Lock()
 
-	if existingCS, found := getCachedClientSetLocked(cacheKey); found {
+	// A creation for a newer context replaced entry, and may have cached its
+	// clientset already, which this older one must not replace.
+	if inFlight[cacheKey] != entry {
+		mu.Unlock()
+
+		return cs, nil
+	}
+
+	if existingCS, found := getCachedClientSetLocked(cacheKey, k); found {
 		mu.Unlock()
 
 		return existingCS, nil
@@ -620,7 +639,7 @@ func createAndCacheClientSet(
 		return cs, nil
 	}
 
-	cachedCS := &CachedClientSet{clientset: cs, lastUsed: time.Now()}
+	cachedCS := &CachedClientSet{clientset: cs, lastUsed: time.Now(), context: k}
 	elem := clientsetLRUList.PushFront(&lruEntry{key: cacheKey, cs: cachedCS})
 	clientsetCache[cacheKey] = elem
 
@@ -664,7 +683,11 @@ func finishInFlightClientset(cacheKey string, entry *inFlightEntry, cs *kubernet
 	entry.cs = cs
 	entry.err = err
 
-	delete(inFlight, cacheKey)
+	// A creation for a newer context can have replaced this entry.
+	if inFlight[cacheKey] == entry {
+		delete(inFlight, cacheKey)
+	}
+
 	close(entry.waitCh)
 
 	trimClientsetCacheLocked()
@@ -692,21 +715,23 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 	cacheKey := contextCacheKey + "\x00" + token
 
 	// Check cache first
-	if cs, found := getCachedClientSet(cacheKey); found {
+	if cs, found := getCachedClientSet(cacheKey, k); found {
 		return cs, nil
 	}
 
 	mu.Lock()
 
 	// Re-check cache under lock before deciding to create.
-	if cs, found := getCachedClientSetLocked(cacheKey); found {
+	if cs, found := getCachedClientSetLocked(cacheKey, k); found {
 		mu.Unlock()
 
 		return cs, nil
 	}
 
 	// If another goroutine is already creating this clientset, wait for it.
-	if entry, ok := inFlight[cacheKey]; ok {
+	// One being created from a context that has since been replaced has the
+	// old credentials, so create a new one instead.
+	if entry, ok := inFlight[cacheKey]; ok && entry.context == k {
 		mu.Unlock()
 
 		return waitForInFlightClientset(entry)
@@ -714,13 +739,14 @@ func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string
 
 	// We are the one to create it.
 	entry := &inFlightEntry{
-		waitCh: make(chan struct{}),
+		waitCh:  make(chan struct{}),
+		context: k,
 	}
 	inFlight[cacheKey] = entry
 
 	mu.Unlock()
 
-	cs, err := createAndCacheClientSet(k, token, cacheKey)
+	cs, err := createAndCacheClientSet(k, token, cacheKey, entry)
 
 	invokeTestingBeforeFinishInFlight(cacheKey)
 

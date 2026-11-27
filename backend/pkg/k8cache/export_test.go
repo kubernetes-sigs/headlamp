@@ -82,6 +82,15 @@ func ClientsetCacheLen() int {
 	return len(clientsetCache)
 }
 
+// ClientsetLRULen returns the number of entries in the clientset LRU list,
+// which should match ClientsetCacheLen. It is intended for use in tests.
+func ClientsetLRULen() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	return clientsetLRUList.Len()
+}
+
 // ResetInFlight clears the inFlight map for test isolation.
 func ResetInFlight() {
 	mu.Lock()

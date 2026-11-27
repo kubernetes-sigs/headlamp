@@ -155,7 +155,7 @@ func TestInClusterAndSplitHelpers(t *testing.T) {
 }
 
 func TestWatcherAddFilesAndSyncContexts(t *testing.T) {
-	t.Run("addFilesToWatcher handles relative, missing, and duplicate paths", func(t *testing.T) {
+	t.Run("updateWatcherPaths handles missing and duplicate paths", func(t *testing.T) {
 		w, err := fsnotify.NewWatcher()
 		require.NoError(t, err)
 
@@ -165,7 +165,7 @@ func TestWatcherAddFilesAndSyncContexts(t *testing.T) {
 		f := filepath.Join(dir, "config")
 		require.NoError(t, os.WriteFile(f, []byte("apiVersion: v1\nkind: Config\n"), 0o600))
 
-		addFilesToWatcher(w, []string{f, f, filepath.Join(dir, "missing")})
+		updateWatcherPaths(newFileWatcher(w), []string{f, f, filepath.Join(dir, "missing")})
 		assert.Contains(t, w.WatchList(), f)
 	})
 

@@ -19,6 +19,7 @@ package kubeconfig
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -610,6 +611,91 @@ func (c *Context) RESTConfig() (*rest.Config, error) {
 	return clientConfig.ClientConfig()
 }
 
+// useOwnTransport gives the proxy of a KubeConfig context a transport of its
+// own when its client certificate and key are files. The watcher sets that
+// proxy up again whenever it reloads the context, but client-go shares one
+// transport, with its open connections, between configs that name the same
+// certificate files, so the reloaded proxy would keep presenting the old
+// certificate. client-go does not share the transport of a config with a
+// Proxy function, and ProxyFromEnvironment is the one it uses by default.
+// The transport still loads the files itself, so a rotation the watcher does
+// not reload, for example when it failed to start, is picked up as before.
+func useOwnTransport(conf *rest.Config) {
+	if conf.CertFile != "" && conf.KeyFile != "" && conf.Proxy == nil {
+		conf.Proxy = http.ProxyFromEnvironment
+	}
+}
+
+// retainLastClientCertificate keeps the last usable file-backed pair while a
+// rotation has temporarily left the files missing or mismatched. client-go
+// continues reloading the files, so a completed rotation is still picked up
+// independently and existing connections continue to rotate normally.
+func retainLastClientCertificate(conf *rest.Config) {
+	if conf.CertFile == "" || conf.KeyFile == "" {
+		return
+	}
+
+	conf.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+		base := rt
+		for {
+			t, ok := base.(*http.Transport)
+			if ok {
+				retainLastClientCertificateForTransport(t, conf.CertFile, conf.KeyFile)
+
+				return rt
+			}
+
+			wrapper, ok := base.(interface {
+				WrappedRoundTripper() http.RoundTripper
+			})
+			if !ok {
+				return rt
+			}
+
+			base = wrapper.WrappedRoundTripper()
+		}
+	})
+}
+
+func retainLastClientCertificateForTransport(t *http.Transport, certFile, keyFile string) {
+	if t.TLSClientConfig == nil || t.TLSClientConfig.GetClientCertificate == nil {
+		return
+	}
+
+	t.TLSClientConfig = t.TLSClientConfig.Clone()
+
+	var (
+		mu   sync.Mutex
+		last *tls.Certificate
+	)
+
+	// Seed this transport before any request. Load the files directly rather
+	// than through client-go's rotating callback, whose background reload can
+	// later fail without retaining its previous pair.
+	if cert, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+		last = &cert
+	}
+
+	t.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if err == nil {
+			last = &cert
+
+			return last, nil
+		}
+
+		if last != nil {
+			return last, nil
+		}
+
+		return nil, err
+	}
+}
+
 // makeTransportFor creates an HTTP transport configuration with special handling for
 // Windows systems to prevent terminal window flashing during exec-based authentication.
 func makeTransportFor(conf *rest.Config) (http.RoundTripper, error) {
@@ -783,6 +869,19 @@ func (c *Context) ProxyRequest(writer http.ResponseWriter, request *http.Request
 
 // ClientSetWithToken returns a kubernetes clientset for the context.
 func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error) {
+	return c.clientSetWithToken(token, false)
+}
+
+// ClientSetWithOwnTransport is ClientSetWithToken for a clientset kept per
+// context, such as the response cache's authorization clientsets, which are
+// created again for a reloaded context. Like the proxy, see useOwnTransport,
+// the clientset of a KubeConfig context gets a transport of its own, so after
+// a rotation the new one does not present the old client certificate.
+func (c *Context) ClientSetWithOwnTransport(token string) (*kubernetes.Clientset, error) {
+	return c.clientSetWithToken(token, c.Source == KubeConfig)
+}
+
+func (c *Context) clientSetWithToken(token string, ownTransport bool) (*kubernetes.Clientset, error) {
 	restConf, err := c.RESTConfig()
 	if err != nil {
 		return nil, err
@@ -791,6 +890,11 @@ func (c *Context) ClientSetWithToken(token string) (*kubernetes.Clientset, error
 	if token != "" {
 		restConf.BearerToken = token
 		restConf.BearerTokenFile = ""
+	}
+
+	if ownTransport {
+		useOwnTransport(restConf)
+		retainLastClientCertificate(restConf)
 	}
 
 	return kubernetes.NewForConfig(restConf)
@@ -853,6 +957,11 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 	restConf, err := c.RESTConfig()
 	if err != nil {
 		return fmt.Errorf("build proxy configuration: %w", err)
+	}
+
+	if c.Source == KubeConfig {
+		useOwnTransport(restConf)
+		retainLastClientCertificate(restConf)
 	}
 
 	roundTripper, err := makeTransportFor(restConf)
@@ -925,6 +1034,7 @@ func (c *Context) AuthType() string {
 type ContextLoadError struct {
 	ContextName string
 	Error       error
+	Context     *Context
 }
 
 // LoadContextsFromFile loads contexts from a kubeconfig file.
@@ -937,6 +1047,12 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
 
+	return loadContextsFromFileData(data, kubeConfigPath, source)
+}
+
+// loadContextsFromFileData loads the contexts of the kubeconfig file at
+// kubeConfigPath from its contents, data, as LoadContextsFromFile does.
+func loadContextsFromFileData(data []byte, kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
 	skipProxySetup := source != KubeConfig
 
 	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup, kubeConfigPath)
@@ -1022,9 +1138,11 @@ func loadContextsFromData(
 	for _, rawContext := range rawContexts {
 		context, err := processContext(rawContext, kubeconfig, source, skipProxySetup, kubeConfigPath)
 		if err != nil {
+			failedContext := context.Copy()
 			contextErrors = append(contextErrors, ContextLoadError{
 				ContextName: context.Name,
 				Error:       err,
+				Context:     failedContext,
 			})
 
 			// Do not include any contexts with errors, else they may be
@@ -1106,9 +1224,9 @@ func processContext(
 		errs = append(errs, err)
 	}
 
-	// Eagerly set context.Name so all error paths return a ContextLoadError
-	// with the correct ContextName, even if later steps fail.
-	context.Name = contextName
+	// Preserve naming metadata before validation, because client-go rejects
+	// invalid encoded credentials before it can produce an api.Context.
+	context = rawContextDefinition(contextName, contextMap, source, kubeConfigPath)
 
 	// Extract cluster and user names
 	clusterName, userName, err := extractClusterAndUserNames(contextMap, contextName)
@@ -1126,10 +1244,7 @@ func processContext(
 	singleConfig, err := createAndValidateConfig(contextName, contextMap, cluster, user, kubeconfig)
 	if err != nil {
 		errs = append(errs, err)
-		context = Context{
-			Name:  contextName,
-			Error: err.Error(),
-		}
+		context.Error = err.Error()
 
 		return context, errors.Join(errs...)
 	}
@@ -1139,10 +1254,7 @@ func processContext(
 			ContextName: contextName,
 			Reason:      err.Error(),
 		})
-		context = Context{
-			Name:  contextName,
-			Error: err.Error(),
-		}
+		context.Error = err.Error()
 
 		return context, errors.Join(errs...)
 	}
@@ -1151,14 +1263,93 @@ func processContext(
 	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
 		errs = append(errs, err)
-		// convertToContext returns Context{} on error, losing the context name.
-		// Restore it so callers always receive a populated ContextLoadError.ContextName.
-		if context.Name == "" {
-			context.Name = contextName
-		}
+		context = failedContextDefinition(contextName, singleConfig, source, kubeConfigPath)
 	}
 
 	return context, errors.Join(errs...)
+}
+
+func rawContextDefinition(contextName string, raw map[interface{}]interface{}, source int, path string) Context {
+	context := Context{
+		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigPath:        path,
+		KubeConfigContextName: contextName,
+		Source:                source,
+	}
+
+	rawData, ok := raw["context"]
+	if !ok {
+		return context
+	}
+
+	contextData, ok := rawData.(map[interface{}]interface{})
+	if !ok {
+		return context
+	}
+
+	kubeContext := &api.Context{}
+	if extensions, ok := contextData["extensions"].([]interface{}); ok {
+		kubeContext.Extensions = make(map[string]k8sruntime.Object, len(extensions))
+		for _, item := range extensions {
+			extension, ok := item.(map[interface{}]interface{})
+			if !ok {
+				continue
+			}
+
+			name, _ := extension["name"].(string)
+
+			value, ok := extension["extension"]
+			if name == "" || !ok {
+				continue
+			}
+
+			encoded, err := json.Marshal(yamlValueToJSON(value))
+			if err == nil {
+				kubeContext.Extensions[name] = &k8sruntime.Unknown{Raw: encoded}
+			}
+		}
+	}
+
+	context.KubeContext = kubeContext
+
+	return context
+}
+
+func yamlValueToJSON(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{}, len(typed))
+		for key, child := range typed {
+			result[fmt.Sprint(key)] = yamlValueToJSON(child)
+		}
+
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(typed))
+		for i, child := range typed {
+			result[i] = yamlValueToJSON(child)
+		}
+
+		return result
+	default:
+		return typed
+	}
+}
+
+// failedContextDefinition preserves the raw definition, especially extensions
+// that determine its store name, so reconciliation counts failed contexts.
+func failedContextDefinition(contextName string, config *api.Config, source int, path string) Context {
+	context := Context{
+		Name:                  MakeDNSFriendly(contextName),
+		KubeConfigPath:        path,
+		KubeConfigContextName: contextName,
+		Source:                source,
+	}
+	if raw := config.Contexts[contextName]; raw != nil {
+		context.KubeContext = raw.DeepCopy()
+	}
+
+	return context
 }
 
 // resolveKubeconfigPaths makes relative certificate and key paths absolute using

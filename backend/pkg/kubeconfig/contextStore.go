@@ -19,6 +19,7 @@ package kubeconfig
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -41,12 +42,19 @@ type ContextStore interface {
 	UpdateTTL(key string, ttl time.Duration) error
 	AddListener(listener ContextChangeListener)
 	GetContextKeys() ([]string, error)
+	// ReplaceContext stores newContext under name, or removes the context stored
+	// under name if newContext is nil, but only if the context stored under name
+	// is still old, or there is none if old is nil. It reports whether it did.
+	ReplaceContext(name string, old, newContext *Context) (bool, error)
 }
 
 type contextStore struct {
 	cache     cache.Cache[*Context]
 	listeners []ContextChangeListener
 	mu        sync.RWMutex
+	// writeMu serializes changes to the stored contexts, so that ReplaceContext
+	// checks and changes them atomically.
+	writeMu sync.Mutex
 }
 
 // NewContextStore creates a new ContextStore.
@@ -96,6 +104,28 @@ func (c *contextStore) notifyListeners() {
 
 // AddContext adds a context to the store.
 func (c *contextStore) AddContext(headlampContext *Context) error {
+	name, err := storeName(headlampContext)
+	if err != nil {
+		return err
+	}
+
+	// Keep the stored context identifier consistent with the cache key.
+	headlampContext.Name = name
+
+	c.writeMu.Lock()
+	err = c.cache.Set(context.Background(), name, headlampContext)
+	c.writeMu.Unlock()
+
+	if err == nil {
+		c.notifyListeners()
+	}
+
+	return err
+}
+
+// storeName returns the name AddContext stores the context under: the custom
+// name set in its headlamp_info extension, if any, or else its name.
+func storeName(headlampContext *Context) (string, error) {
 	name := headlampContext.Name
 
 	if headlampContext.KubeContext != nil && headlampContext.KubeContext.Extensions["headlamp_info"] != nil {
@@ -103,7 +133,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		// Convert the runtime.Unknown object to a byte slice
 		unknownBytes, err := json.Marshal(info)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		// Now, decode the byte slice into your desired struct
@@ -111,7 +141,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 
 		err = json.Unmarshal(unknownBytes, &customObj)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		// If the custom name is set, use it as the context name
@@ -120,15 +150,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		}
 	}
 
-	// Keep the stored context identifier consistent with the cache key.
-	headlampContext.Name = name
-
-	err := c.cache.Set(context.Background(), name, headlampContext)
-	if err == nil {
-		c.notifyListeners()
-	}
-
-	return err
+	return name, nil
 }
 
 // UpdateContextIfCurrent cannot recreate an entry removed or replaced during a save.
@@ -196,7 +218,10 @@ func (c *contextStore) GetContext(name string) (*Context, error) {
 
 // RemoveContext removes a context from the store.
 func (c *contextStore) RemoveContext(name string) error {
+	c.writeMu.Lock()
 	err := c.cache.Delete(context.Background(), name)
+	c.writeMu.Unlock()
+
 	if err == nil {
 		c.notifyListeners()
 	}
@@ -209,12 +234,53 @@ func (c *contextStore) AddContextWithKeyAndTTL(headlampContext *Context, key str
 	// Keep the stored context identifier consistent with the cache key.
 	headlampContext.Name = key
 
+	c.writeMu.Lock()
 	err := c.cache.SetWithTTL(context.Background(), key, headlampContext, ttl)
+	c.writeMu.Unlock()
+
 	if err == nil {
 		c.notifyListeners()
 	}
 
 	return err
+}
+
+// ReplaceContext stores newContext under name, or removes the context stored
+// under name if newContext is nil, but only if the context stored under name is
+// still old, or there is none if old is nil. It reports whether it did.
+func (c *contextStore) ReplaceContext(name string, old, newContext *Context) (bool, error) {
+	c.writeMu.Lock()
+
+	current, err := c.cache.Get(context.Background(), name)
+	if errors.Is(err, cache.ErrNotFound) {
+		current, err = nil, nil
+	}
+
+	if err == nil && current != old {
+		c.writeMu.Unlock()
+
+		return false, nil
+	}
+
+	if err == nil {
+		if newContext == nil {
+			err = c.cache.Delete(context.Background(), name)
+		} else {
+			// Keep the stored context identifier consistent with the cache key.
+			newContext.Name = name
+			err = c.cache.Set(context.Background(), name, newContext)
+		}
+	}
+
+	c.writeMu.Unlock()
+
+	if err != nil {
+		return false, err
+	}
+
+	c.notifyListeners()
+
+	return true, nil
 }
 
 // UpdateTTL updates the ttl of a context.

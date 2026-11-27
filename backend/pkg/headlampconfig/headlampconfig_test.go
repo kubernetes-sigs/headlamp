@@ -61,6 +61,9 @@ func (stubContextStore) AddContextWithKeyAndTTL(*kubeconfig.Context, string, tim
 func (stubContextStore) UpdateTTL(string, time.Duration) error        { return nil }
 func (stubContextStore) AddListener(kubeconfig.ContextChangeListener) {}
 func (stubContextStore) GetContextKeys() ([]string, error)            { return nil, nil }
+func (stubContextStore) ReplaceContext(string, *kubeconfig.Context, *kubeconfig.Context) (bool, error) {
+	return false, nil
+}
 
 // Compile-time check that the stub satisfies the interface.
 var _ kubeconfig.ContextStore = stubContextStore{}
