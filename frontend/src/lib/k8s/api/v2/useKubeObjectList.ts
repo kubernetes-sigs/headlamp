@@ -600,6 +600,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       return;
     }
 
+    let isCancelled = false;
     const cleanups: (() => void)[] = [];
 
     // Create subscriptions for each connection
@@ -614,7 +615,13 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         update => handleUpdate(update, cluster, namespace),
         error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
       ).then(
-        cleanup => cleanups.push(cleanup),
+        cleanup => {
+          if (isCancelled) {
+            cleanup();
+          } else {
+            cleanups.push(cleanup);
+          }
+        },
         error => {
           // Track retry count in the URL's searchParams
           const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
@@ -629,6 +636,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
+      isCancelled = true;
       cleanups.forEach(cleanup => cleanup());
     };
   }, [connections, enabled, endpoint, handleUpdate]);
