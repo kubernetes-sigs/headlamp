@@ -686,7 +686,13 @@ describe('WebSocket Multiplexer', () => {
       }
     });
 
-    it('should reconnect and resubscribe using the latest resourceVersion from incoming messages', async () => {
+    it.each([
+      {
+        type: 'MODIFIED',
+        object: { kind: 'Pod', metadata: { name: 'pod-1', resourceVersion: '105' } },
+      },
+      { type: 'BOOKMARK', object: { metadata: { resourceVersion: '105' } } },
+    ])('resubscribes from the resourceVersion in a $type event', async update => {
       const path = '/api/v1/pods';
       const initialQuery = 'watch=1&resourceVersion=100';
 
@@ -705,13 +711,7 @@ describe('WebSocket Multiplexer', () => {
         clusterId: clusterName,
         path,
         query: initialQuery,
-        data: JSON.stringify({
-          type: 'MODIFIED',
-          object: {
-            kind: 'Pod',
-            metadata: { name: 'pod-1', resourceVersion: '105' },
-          },
-        }),
+        data: JSON.stringify(update),
       };
       await mockServer.send(JSON.stringify(updateMessage));
 

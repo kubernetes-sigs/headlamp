@@ -29,7 +29,7 @@ import { clusterFetch } from './fetch';
 import type { QueryListResponse } from './hooks';
 import { useEndpoints } from './hooks';
 import type { KubeListUpdateEvent } from './KubeList';
-import { KubeList } from './KubeList';
+import { isResourceVersionOlder, KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
@@ -111,17 +111,7 @@ export function isForbiddenError(errorOrUpdate: any): boolean {
   return false;
 }
 
-/**
- * Compares two resourceVersion strings numerically if possible.
- * Returns true if a is older than b.
- */
-export function isResourceVersionOlder(a?: string, b?: string): boolean {
-  if (!a || !b) return false;
-  if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
-    return BigInt(a) < BigInt(b);
-  }
-  return false;
-}
+export { isResourceVersionOlder } from './KubeList';
 
 const watchRecoverySnapshots = new WeakSet<object>();
 
@@ -691,6 +681,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           url: makeUrl([KubeObjectEndpoint.toUrl(endpoint, list.namespace)], {
             ...stableWatchQueryParams,
             watch: 1,
+            allowWatchBookmarks: true,
             resourceVersion: latestResourceVersions.current[key] || list.resourceVersion || '',
           }),
           cluster: list.cluster,
@@ -1171,6 +1162,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
         const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
           ...stableWatchQueryParams,
           watch: 1,
+          allowWatchBookmarks: true,
           resourceVersion: onReconnect
             ? resourceVersion || latestResourceVersions.current[watchKey] || ''
             : latestResourceVersions.current[watchKey] || resourceVersion || '',

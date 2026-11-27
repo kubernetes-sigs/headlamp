@@ -185,7 +185,7 @@ export function useKubeObject<K extends KubeObject>({
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
-      if (update.type !== 'ADDED' && update.object) {
+      if (update.type !== 'ADDED' && update.type !== 'BOOKMARK' && update.object) {
         // Rebuild with the cluster this hook was asked for, the same as the
         // initial fetch above. Without it the object falls back to getCluster(),
         // which reads the URL — wrong whenever the caller passed an explicit

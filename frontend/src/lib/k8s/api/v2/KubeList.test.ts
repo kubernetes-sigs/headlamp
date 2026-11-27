@@ -139,6 +139,63 @@ describe('KubeList.applyUpdate', () => {
     expect(updatedList.items).toHaveLength(0);
   });
 
+  it.each(['1', 'W/"abc"'])('skips a duplicate resourceVersion %s', resourceVersion => {
+    const list = { ...initialList, metadata: { resourceVersion } };
+    const event: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'MODIFIED',
+      object: {
+        kind: 'MockKubeObject',
+        apiVersion: 'v1',
+        metadata: { uid: '1', resourceVersion },
+      },
+    };
+
+    expect(KubeList.applyUpdate(list, event, itemClass, cluster)).toBe(list);
+  });
+
+  it('applies a newer resourceVersion above MAX_SAFE_INTEGER and skips a replay', () => {
+    const currentVersion = '9007199254740992';
+    const nextVersion = '9007199254740993';
+    const list = { ...initialList, metadata: { resourceVersion: currentVersion } };
+    const event: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'MODIFIED',
+      object: {
+        kind: 'MockKubeObject',
+        apiVersion: 'v1',
+        metadata: { uid: '1', resourceVersion: nextVersion },
+      },
+    };
+
+    const updatedList = KubeList.applyUpdate(list, event, itemClass, cluster);
+
+    expect(updatedList.metadata.resourceVersion).toBe(nextVersion);
+    expect(updatedList.items[0].metadata.resourceVersion).toBe(nextVersion);
+    expect(
+      KubeList.applyUpdate(
+        updatedList,
+        {
+          ...event,
+          type: 'DELETED',
+          object: { ...event.object, metadata: { uid: '1', resourceVersion: currentVersion } },
+        },
+        itemClass,
+        cluster
+      )
+    ).toBe(updatedList);
+  });
+
+  it('advances the resourceVersion without replacing items on a BOOKMARK event', () => {
+    const event: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'BOOKMARK',
+      object: { metadata: { resourceVersion: 'bookmark-rv' } },
+    };
+
+    const updatedList = KubeList.applyUpdate(initialList, event, itemClass, cluster);
+
+    expect(updatedList.metadata.resourceVersion).toBe('bookmark-rv');
+    expect(updatedList.items).toBe(initialList.items);
+  });
+
   it('should log an error on ERROR event', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const updateEvent: KubeListUpdateEvent<MockKubeObject> = {

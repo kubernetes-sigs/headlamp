@@ -30,9 +30,17 @@ export interface KubeList<T extends KubeObjectInterface> {
   };
 }
 
-export interface KubeListUpdateEvent<T extends KubeObjectInterface> {
-  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
-  object: T;
+export type KubeListUpdateEvent<T extends KubeObjectInterface> =
+  | { type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR'; object: T }
+  | { type: 'BOOKMARK'; object: { metadata: { resourceVersion: string } } };
+
+/** Reports whether both resourceVersions are decimal and the first is older. */
+export function isResourceVersionOlder(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
+    return BigInt(a) < BigInt(b);
+  }
+  return false;
 }
 
 export const KubeList = {
@@ -53,13 +61,20 @@ export const KubeList = {
     itemClass: ObjectClass,
     cluster: string
   ): KubeList<KubeObject<ObjectInterface>> {
-    // Skip if the update's resource version is older than or equal to what we have
+    const resourceVersion = update.object.metadata.resourceVersion;
+    const currentVersion = list.metadata.resourceVersion;
+    // Shared watches can replay earlier decimal versions when a subscriber catches up.
     if (
-      list.metadata.resourceVersion &&
-      update.object.metadata.resourceVersion &&
-      parseInt(update.object.metadata.resourceVersion) <= parseInt(list.metadata.resourceVersion)
+      resourceVersion &&
+      (resourceVersion === currentVersion ||
+        isResourceVersionOlder(resourceVersion, currentVersion))
     ) {
       return list;
+    }
+
+    const metadata = { ...list.metadata, resourceVersion: resourceVersion! };
+    if (update.type === 'BOOKMARK') {
+      return { ...list, metadata };
     }
 
     const newItems = [...list.items];
@@ -88,10 +103,7 @@ export const KubeList = {
 
     return {
       ...list,
-      metadata: {
-        ...list.metadata,
-        resourceVersion: update.object.metadata.resourceVersion!,
-      },
+      metadata,
       items: newItems,
     };
   },
