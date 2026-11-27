@@ -1,0 +1,75 @@
+/*
+ * Copyright 2026 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { Meta, StoryObj } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
+import { expect, within } from 'storybook/test';
+import { TestContext } from '../../test';
+import IPAddressList from './List';
+import { allowsActions, collection, collectionUrl, discovery } from './storyHelper';
+
+const meta = {
+  title: 'IPAddress/List',
+  component: IPAddressList,
+  decorators: [
+    Story => (
+      <TestContext routerMap={{ cluster: 'main' }} urlPrefix="/c">
+        <Story />
+      </TestContext>
+    ),
+  ],
+  parameters: { msw: { handlers: { story: [allowsActions, discovery, collection] } } },
+} satisfies Meta<typeof IPAddressList>;
+export default meta;
+
+type Story = StoryObj<typeof meta>;
+
+export const Items: Story = {
+  parameters: {
+    storyshots: {
+      waitForState: () => {
+        const screen = within(document.body);
+        const link = screen.getByRole('link', { name: 'fd00:1234::10' });
+        expect(link).toHaveAttribute('href', '/c/main/ipaddresses/fd00:1234::10');
+        expect(screen.getByText('services/kube-system/kube-dns')).toBeVisible();
+        expect(
+          screen.getByText('networking.example.com/services/default/external-service')
+        ).toBeVisible();
+      },
+    },
+  },
+};
+
+export const Loading: Story = {
+  parameters: {
+    storyshots: { disable: true },
+    msw: {
+      handlers: {
+        story: [allowsActions, discovery, http.get(collectionUrl, () => new Promise(() => {}))],
+      },
+    },
+  },
+};
+
+export const Error: Story = {
+  parameters: {
+    msw: {
+      handlers: {
+        story: [allowsActions, discovery, http.get(collectionUrl, () => HttpResponse.error())],
+      },
+    },
+  },
+};

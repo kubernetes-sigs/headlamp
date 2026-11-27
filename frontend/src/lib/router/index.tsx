@@ -79,6 +79,8 @@ import IngressClassDetails from '../../components/ingress/ClassDetails';
 import IngressClassList from '../../components/ingress/ClassList';
 import IngressDetails from '../../components/ingress/Details';
 import IngressList from '../../components/ingress/List';
+import IPAddressDetails from '../../components/ipaddress/Details';
+import IPAddressList from '../../components/ipaddress/List';
 import JobDetails from '../../components/job/Details';
 import JobsList from '../../components/job/List';
 import JobSetList from '../../components/jobset/List';
@@ -124,6 +126,8 @@ import ServiceDetails from '../../components/service/Details';
 import ServiceList from '../../components/service/List';
 import ServiceAccountDetails from '../../components/serviceaccount/Details';
 import ServiceAccountList from '../../components/serviceaccount/List';
+import ServiceCIDRDetails from '../../components/servicecidr/Details';
+import ServiceCIDRList from '../../components/servicecidr/List';
 import { DefaultSidebars } from '../../components/Sidebar/sidebarSlice';
 import StatefulSetList from '../../components/statefulset/List';
 import PersistentVolumeClaimDetails from '../../components/storage/ClaimDetails';
@@ -379,6 +383,32 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'services',
     component: () => <ServiceDetails />,
+  },
+  serviceCIDRs: {
+    path: '/servicecidrs',
+    exact: true,
+    name: 'Service CIDRs',
+    sidebar: 'serviceCIDRs',
+    component: () => <ServiceCIDRList />,
+  },
+  serviceCIDR: {
+    path: '/servicecidrs/:name',
+    exact: true,
+    sidebar: 'serviceCIDRs',
+    component: () => <ServiceCIDRDetails />,
+  },
+  ipAddresses: {
+    path: '/ipaddresses',
+    exact: true,
+    name: 'IP Addresses',
+    sidebar: 'ipAddresses',
+    component: () => <IPAddressList />,
+  },
+  ipAddress: {
+    path: '/ipaddresses/:name',
+    exact: true,
+    sidebar: 'ipAddresses',
+    component: () => <IPAddressDetails />,
   },
   endpoints: {
     path: '/endpoints',
