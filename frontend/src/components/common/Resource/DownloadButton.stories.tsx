@@ -15,13 +15,13 @@
  */
 
 import '../../../i18n/config';
+import MenuList from '@mui/material/MenuList';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import { KubeObject } from '../../../lib/k8s/cluster';
 import store from '../../../redux/stores/store';
-import DownloadButton from './DownloadButton';
-import { DownloadButtonProps } from './DownloadButton';
+import DownloadButton, { DownloadButtonProps } from './DownloadButton';
 
 export default {
   title: 'Resource/DownloadButton',
@@ -66,8 +66,15 @@ Default.args = {
   item: defaultItem,
 };
 
-export const MenuStyle = Template.bind({});
-MenuStyle.args = {
+export const MenuButtonStyle = Template.bind({});
+MenuButtonStyle.args = {
   item: defaultItem,
   buttonStyle: 'menu',
 };
+MenuButtonStyle.decorators = [
+  Story => (
+    <MenuList>
+      <Story />
+    </MenuList>
+  ),
+];
