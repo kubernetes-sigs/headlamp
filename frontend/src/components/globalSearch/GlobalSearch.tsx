@@ -22,7 +22,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { lazy, Suspense, useState } from 'react';
+import React, { lazy, Suspense, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { formatShortcutKey, useShortcut, useShortcutKey } from '../../lib/useShortcut';
 import { Delayed } from './Delayed';
@@ -44,10 +44,19 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
   const smallBreakpoint = useMediaQuery(theme.breakpoints.down('md'));
   const { t } = useTranslation();
   const [focused, setFocused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const blur = () => {
+  // Unconditional close for Escape key or selecting an item
+  const closeSearch = () => {
     setFocused(false);
     setPlaceholderValue('');
+  };
+
+  // Bubbling blur handler to detect when focus completely leaves the search widget
+  const handleContainerBlur = (e: React.FocusEvent) => {
+    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
+      closeSearch();
+    }
   };
 
   const searchShortcutKey = useShortcutKey('GLOBAL_SEARCH');
@@ -174,6 +183,14 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
 
   return (
     <Box
+      ref={containerRef}
+      onBlur={handleContainerBlur}
+      onKeyDown={e => {
+        if (focused && e.key === 'Escape' && !e.nativeEvent.isComposing) {
+          e.stopPropagation();
+          closeSearch();
+        }
+      }}
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -224,7 +241,7 @@ export function GlobalSearch({ isIconButton }: { isIconButton?: boolean }) {
         {focused ? (
           <Suspense fallback={searchFallback}>
             <LazySearchContent
-              onBlur={blur}
+              onClose={closeSearch}
               defaultValue={placeholderValue}
               maxWidth={SEARCH_MAX_WIDTH}
             />
