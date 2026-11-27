@@ -379,3 +379,71 @@ describe('fetchWithRetry', () => {
     expect(global.clearTimeout).toHaveBeenCalled();
   });
 });
+
+
+describe('extraction pipeline', () => {
+  const { execFileSync } = require('child_process');
+  for (const callback of [false, true]) {
+    test.each(['invalid gzip', 'truncated gzip', 'invalid tar', 'valid archive'])(
+      `%s settles without crashing or hanging (callback=${callback})`, kind => {
+        const script = `
+          const fs = require('fs');
+          const os = require('os');
+          const path = require('path');
+          const tar = require('tar');
+          const zlib = require('zlib');
+          const crypto = require('crypto');
+          const { PluginManager } = require('./src/plugin-management');
+          (async () => {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pluginctl-pipeline-'));
+            try {
+              const pkg = path.join(root, 'package');
+              fs.mkdirSync(pkg);
+              fs.writeFileSync(path.join(pkg, 'main.js'), '// plugin');
+              fs.writeFileSync(path.join(pkg, 'package.json'), JSON.stringify({ name: 'plugin', version: '1.0.0' }));
+              const file = path.join(root, 'archive.tgz');
+              await tar.c({ gzip: true, file, cwd: root }, ['package']);
+              let bytes = fs.readFileSync(file);
+              const kind = ${JSON.stringify(kind)};
+              if (kind === 'invalid gzip') bytes = Buffer.from('not gzip');
+              if (kind === 'truncated gzip') bytes = bytes.subarray(0, bytes.length - 8);
+              if (kind === 'invalid tar') bytes = zlib.gzipSync(Buffer.from('not a tar archive'));
+              os.tmpdir = () => root;
+              const checksum = crypto.createHash('sha256').update(bytes).digest('hex');
+              global.fetch = async url => url.includes('api/v1')
+                ? { ok: true, json: async () => ({ name: 'plugin', version: '1.0.0', repository: { name: 'example' }, data: {
+                  'headlamp/plugin/archive-url': 'https://github.com/example/plugin/releases/download/v1/plugin.tar.gz',
+                  'headlamp/plugin/archive-checksum': checksum,
+                } }) } : { ok: true, body: [bytes] };
+              const events = [];
+              let error;
+              const destination = path.join(root, 'installed');
+              try {
+                await PluginManager.install('https://artifacthub.io/packages/headlamp/example/plugin', destination, '',
+                  ${callback} ? event => events.push(event) : null);
+              } catch (e) { error = e.message; }
+              console.log('RESULT:' + JSON.stringify({ error, events, installed: fs.existsSync(path.join(destination, 'plugin/main.js')),
+                leftovers: fs.readdirSync(root).filter(name => name.startsWith('headlamp-plugin-temp-')).length }));
+            } finally { fs.rmSync(root, { recursive: true, force: true }); }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+        `;
+        const output = execFileSync(process.execPath, ['-e', script], {
+          cwd: path.join(__dirname, '..'), encoding: 'utf8', timeout: 5000,
+        });
+        const result = JSON.parse(output.split('RESULT:')[1].trim());
+        if (kind === 'valid archive') {
+          expect(result.installed).toBe(true);
+          expect(result.error).toBeUndefined();
+          if (callback) expect(result.events).toContainEqual({ type: 'success', message: 'Plugin Installed' });
+        } else {
+          expect(result.installed).toBe(false);
+          expect(result.leftovers).toBe(0);
+          if (callback) {
+            expect(result.events).toContainEqual({ type: 'error', message: expect.any(String) });
+            expect(result.events.some(event => event.type === 'success')).toBe(false);
+          } else expect(result.error).toEqual(expect.any(String));
+        }
+      }
+    );
+  }
+});
