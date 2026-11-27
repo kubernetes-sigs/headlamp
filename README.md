@@ -109,6 +109,7 @@ Join the community and contribute:
 
 ## Roadmap and release planning
 
+See our [Roadmap](./ROADMAP.md) for overall project direction and scope.
 Track upcoming releases in [GitHub milestones](https://github.com/kubernetes-sigs/headlamp/milestones)
 and proposed changes in [GitHub issues](https://github.com/kubernetes-sigs/headlamp/issues).
 See the [release notes](https://github.com/kubernetes-sigs/headlamp/releases) for changes in published versions.
