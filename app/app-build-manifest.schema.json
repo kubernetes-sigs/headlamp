@@ -45,6 +45,11 @@
       "properties": {
         "name": { "type": "string" },
         "productName": { "type": "string" },
+        "backendAppName": {
+          "type": "string",
+          "pattern": "^[ -~]*[!-~][ -~]*(?![\\s\\S])",
+          "description": "Optional backend application name for Kubernetes user agents and backend-served page titles. Must be non-blank printable ASCII. Defaults to the Electron app name."
+        },
         "errorReporting": {
           "type": "object",
           "description": "Product-specific GitHub crash-reporting destination and button text.",
