@@ -103,11 +103,11 @@ object, not a few picked rows:
   every meaningful `spec`/`status` field.
 - Plan the layout: headline scalars → `DetailsGrid` `extraInfo`; each logical `spec`/`status` group
   → one `SectionBox`/`NameValueTable` in `extraSections`. **`status.conditions` goes LAST**, via
-  `ConditionsSection`, so it sits directly above the auto Events section. (Edit/Delete/Scale/Restart
-  header actions are free from DetailsGrid — plan only project-specific ones, see Actions below.)
+  `ConditionsSection`, so it sits directly above the auto Events section. (Edit/Delete header
+  actions are free from DetailsGrid; Scale and Restart are not, see Actions below.)
 - Plan **related/owner links** (target Deployment/HPA, Secret, ConfigMap, …) as `Link`s.
-- Plan **project-specific actions** (context-dependent — decide per CRD): Edit/Delete/Scale/Restart
-  come free from DetailsGrid, so only plan *project* mutations that make sense for this CRD's
+- Plan **project-specific actions** (context-dependent — decide per CRD): Edit/Delete come free from
+  DetailsGrid. Scale appears only when the resource class sets `static isScalable = true` (the CRD needs a `scale` subresource), and Restart only for the built-in Deployment, StatefulSet and DaemonSet classes, so plan scaling only if the CRD has a `scale` subresource. Otherwise plan only *project* mutations that make sense for this CRD's
   semantics (flux suspend/resume, keda pause, "trigger reconcile", …). Many CRDs need none. For each
   planned action note the API verb/path and the confirm prompt (`add-detail-view` shows how).
 - A **specific free-form field** (embedded YAML/template, script, cert) → an inline read-only Monaco
