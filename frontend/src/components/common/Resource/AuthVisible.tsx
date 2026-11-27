@@ -70,6 +70,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
+  const itemNamespace = (item as KubeObject)?.getNamespace?.();
   const cluster = clusterProp ?? (item as KubeObject)?.cluster ?? getCluster();
 
   const { data } = useQuery<any>({
@@ -82,6 +83,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
       authVerb,
       subresource,
       namespace,
+      itemNamespace,
       cluster,
     ],
     queryFn: async () => {
