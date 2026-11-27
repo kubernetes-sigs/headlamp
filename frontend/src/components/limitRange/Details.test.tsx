@@ -37,7 +37,10 @@ vi.mock('../../lib/k8s/limitRange', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key.replace(/^translation\|/, ''),
+    t: (key: string, values: Record<string, unknown> = {}) =>
+      key
+        .replace(/^translation\|/, '')
+        .replace(/{{\s*(\w+)\s*}}/g, (_, k) => String(values[k] ?? '')),
   }),
 }));
 
@@ -140,6 +143,53 @@ describe('LimitRangeDetails', () => {
     expect(screen.getByText('Default Request')).toBeInTheDocument();
     expect(screen.getByText('Max')).toBeInTheDocument();
     expect(screen.getByText('Min')).toBeInTheDocument();
+  });
+
+  it('renders all limit entries with their type instead of only the first entry', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'limit-range' }}>
+        <LimitRangeDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+
+    const fakeLimitRange: any = {
+      jsonData: {
+        spec: {
+          limits: [
+            {
+              type: 'Pod',
+              max: { cpu: '2', memory: '1Gi' },
+            },
+            {
+              type: 'Container',
+              default: { cpu: '500m', memory: '256Mi' },
+              defaultRequest: { cpu: '100m', memory: '128Mi' },
+            },
+          ],
+        },
+      },
+    };
+
+    const extraInfo = props.extraInfo(fakeLimitRange);
+
+    expect(extraInfo).toHaveLength(2);
+    expect(extraInfo[0].name).toBe('Pod Limits');
+    expect(extraInfo[1].name).toContain('Container Limits');
+
+    const { unmount } = render(<>{extraInfo[0].value}</>);
+    expect(screen.getByText('Max')).toBeInTheDocument();
+    expect(screen.queryByText('Default')).not.toBeInTheDocument();
+    expect(screen.queryByText('Default Request')).not.toBeInTheDocument();
+    expect(screen.queryByText('Min')).not.toBeInTheDocument();
+    unmount();
+
+    render(<>{extraInfo[1].value}</>);
+    expect(screen.getByText('Default')).toBeInTheDocument();
+    expect(screen.getByText('Default Request')).toBeInTheDocument();
+    expect(screen.queryByText('Max')).not.toBeInTheDocument();
+    expect(screen.queryByText('Min')).not.toBeInTheDocument();
   });
 
   it('returns a falsy value when no limit range resource is available', () => {
