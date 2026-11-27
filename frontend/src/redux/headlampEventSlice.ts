@@ -41,6 +41,8 @@ export enum HeadlampEventType {
   EDIT_RESOURCE = 'headlamp.edit-resource',
   /** Events related to scaling a resource. */
   SCALE_RESOURCE = 'headlamp.scale-resource',
+  /** Events related to expanding a resource, such as a persistent volume claim. */
+  EXPAND_RESOURCE = 'headlamp.expand-resource',
   /** Events related to scaling multiple resources. */
   SCALE_RESOURCES = 'headlamp.scale-resources',
   /** Events related to restarting a resource. */
@@ -187,6 +189,20 @@ export interface ScaleResourcesEvent extends HeadlampEvent<HeadlampEventType.SCA
     numReplicas: number;
     /** What exactly this event represents. 'CONFIRMED' when the user confirms scaling of resources.
      * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when expanding a resource.
+ */
+export interface ExpandResourceEvent extends HeadlampEvent<HeadlampEventType.EXPAND_RESOURCE> {
+  data: {
+    /** The resource for which expansion was called. */
+    resource: KubeObject;
+    /** What exactly this event represents. 'CONFIRMED' when the expansion is confirmed by
+     * the user. For now only 'CONFIRMED' is sent.
      */
     status: EventStatus.CONFIRMED;
   };
@@ -550,6 +566,9 @@ export function useEventCallback(
   eventType: HeadlampEventType.SCALE_RESOURCES
 ): (data: EventDataType<ScaleResourcesEvent>) => void;
 export function useEventCallback(
+  eventType: HeadlampEventType.EXPAND_RESOURCE
+): (data: EventDataType<ExpandResourceEvent>) => void;
+export function useEventCallback(
   eventType: HeadlampEventType.RESTART_RESOURCE
 ): (data: EventDataType<RestartResourceEvent>) => void;
 export function useEventCallback(
@@ -646,6 +665,8 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
       return dispatchDataEventFunc<ScaleResourceEvent>(HeadlampEventType.SCALE_RESOURCE);
     case HeadlampEventType.SCALE_RESOURCES:
       return dispatchDataEventFunc<ScaleResourcesEvent>(HeadlampEventType.SCALE_RESOURCES);
+    case HeadlampEventType.EXPAND_RESOURCE:
+      return dispatchDataEventFunc<ExpandResourceEvent>(HeadlampEventType.EXPAND_RESOURCE);
     case HeadlampEventType.RESTART_RESOURCE:
       return dispatchDataEventFunc<RestartResourceEvent>(HeadlampEventType.RESTART_RESOURCE);
     case HeadlampEventType.RESTART_RESOURCES:
