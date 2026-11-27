@@ -602,9 +602,31 @@ describe('ResourceTable columns, actions, sorting, and throttling', () => {
     const kindCol = cols.find((c: any) => c.id === 'kind');
     expect(kindCol.accessorFn(item)).toBe('Pod');
 
+    const copyCol = cols.find((c: any) => c.id === 'copy-col');
     const renderCopyCol = cols.find((c: any) => c.id === 'render-copy-col');
+    const renderOnlyCol = cols.find((c: any) => c.id === 'render-only-col');
     expect(renderCopyCol.sortingFn({ original: item }, { original: item })).toBe(0);
     expect(customSort).toHaveBeenCalled();
+
+    // Verify custom Cell callbacks and CopyableCell presence/absence
+    const mockCell = { getValue: () => item.metadata.name };
+    const copyRendered = render(
+      <TestContext>{copyCol.Cell({ row: { original: item }, cell: mockCell })}</TestContext>
+    );
+    expect(copyRendered.container.textContent).toContain('pod-a');
+    expect(copyRendered.container.querySelector('.copy-button')).not.toBeNull();
+
+    const renderCopyRendered = render(
+      <TestContext>{renderCopyCol.Cell({ row: { original: item }, cell: mockCell })}</TestContext>
+    );
+    expect(renderCopyRendered.container.textContent).toContain('pod-a');
+    expect(renderCopyRendered.container.querySelector('.copy-button')).not.toBeNull();
+
+    const renderOnlyRendered = render(
+      <TestContext>{renderOnlyCol.Cell({ row: { original: item }, cell: mockCell })}</TestContext>
+    );
+    expect(renderOnlyRendered.container.textContent).toContain('pod-a');
+    expect(renderOnlyRendered.container.querySelector('.copy-button')).toBeNull();
 
     // Multi-cluster keeps 'cluster' column
     vi.mocked(useSelectedClusters).mockReturnValue(['cluster-1', 'cluster-2']);

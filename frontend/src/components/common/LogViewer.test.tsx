@@ -186,7 +186,9 @@ describe('SearchPopover', () => {
 
     const input = screen.getByPlaceholderText('Find');
     fireEvent.change(input, { target: { value: 'hello' } });
+    addon.findNext.mockClear();
     fireEvent.keyDown(input, { key: 'Enter' });
+    expect(addon.findNext).toHaveBeenCalledTimes(1);
     expect(addon.findNext).toHaveBeenCalledWith('hello', expect.any(Object));
 
     fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
@@ -273,22 +275,19 @@ describe('LogViewer', () => {
         <LogViewer open noDialog logs={['line 3\n']} onClose={vi.fn()} />
       </TestContext>
     );
-    const activeTerm = terminalInstances[terminalInstances.length - 1];
-    expect(activeTerm.write).toHaveBeenCalledWith('line 3\r\n');
+    expect(terminalInstances).toHaveLength(1);
+    expect(term.clear).toHaveBeenCalled();
+    expect(term.write).toHaveBeenCalledWith('line 3\r\n');
 
     // Custom key event handler for Ctrl+C / Ctrl+V
-    activeTerm.getSelection.mockReturnValueOnce('selected');
-    expect(activeTerm.triggerKeyEvent({ ctrlKey: true, code: 'KeyC', type: 'keydown' })).toBe(
-      false
-    );
-    activeTerm.getSelection.mockReturnValueOnce('');
-    expect(activeTerm.triggerKeyEvent({ ctrlKey: true, code: 'KeyC', type: 'keydown' })).toBe(true);
-    expect(activeTerm.triggerKeyEvent({ ctrlKey: true, code: 'KeyV', type: 'keydown' })).toBe(
-      false
-    );
+    term.getSelection.mockReturnValueOnce('selected');
+    expect(term.triggerKeyEvent({ ctrlKey: true, code: 'KeyC', type: 'keydown' })).toBe(false);
+    term.getSelection.mockReturnValueOnce('');
+    expect(term.triggerKeyEvent({ ctrlKey: true, code: 'KeyC', type: 'keydown' })).toBe(true);
+    expect(term.triggerKeyEvent({ ctrlKey: true, code: 'KeyV', type: 'keydown' })).toBe(false);
 
     unmount();
-    expect(activeTerm.dispose).toHaveBeenCalled();
+    expect(term.dispose).toHaveBeenCalled();
   });
 
   it('handles Clear, Find, Reconnect, Download, and Copy to clipboard actions', async () => {
@@ -406,6 +405,8 @@ describe('LogViewer', () => {
         />
       </TestContext>
     );
-    expect(terminalInstances[0].write.mock.calls.length).toBe(callsAfterMount);
+    expect(terminalInstances).toHaveLength(1);
+    expect(externalRef.current).toBe(terminalInstances[0]);
+    expect(externalRef.current.write).toHaveBeenCalledTimes(callsAfterMount);
   });
 });
