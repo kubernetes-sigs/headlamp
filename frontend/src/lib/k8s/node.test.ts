@@ -16,28 +16,28 @@
 
 import { describe, expect, it } from 'vitest';
 import App from '../../App';
-import Node from './node';
+import Node, { KubeNode, KubeNodeStatus } from './node';
 import { NODE_POOL_LABEL_KEYS } from './nodeConstants';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
 
-function makeNode(labels?: Record<string, string>) {
-  return new Node({
-    apiVersion: 'v1',
-    kind: 'Node',
-    metadata: {
-      name: 'test-node',
-      resourceVersion: '1',
-      ...(labels ? { labels } : {}),
-    },
-    spec: {},
-    status: {},
-  } as any);
-}
-
 describe('Node.getNodePool', () => {
+  function makePoolNode(labels?: Record<string, string>) {
+    return new Node({
+      apiVersion: 'v1',
+      kind: 'Node',
+      metadata: {
+        name: 'test-node',
+        resourceVersion: '1',
+        ...(labels ? { labels } : {}),
+      },
+      spec: {},
+      status: {},
+    } as any);
+  }
+
   const poolNames: Record<(typeof NODE_POOL_LABEL_KEYS)[number], string> = {
     'cloud.google.com/gke-nodepool': 'gke-pool',
     'kubernetes.azure.com/agentpool': 'aks-pool',
@@ -48,11 +48,11 @@ describe('Node.getNodePool', () => {
   };
 
   it.each(NODE_POOL_LABEL_KEYS)('reads the pool name from %s', key => {
-    expect(makeNode({ [key]: poolNames[key] }).getNodePool()).toBe(poolNames[key]);
+    expect(makePoolNode({ [key]: poolNames[key] }).getNodePool()).toBe(poolNames[key]);
   });
 
   it('returns the karpenter pool for an EKS auto mode node', () => {
-    const node = makeNode({
+    const node = makePoolNode({
       'karpenter.sh/nodepool': 'general-purpose',
       'node.kubernetes.io/instance-type': 'c6g.large',
     });
@@ -61,19 +61,98 @@ describe('Node.getNodePool', () => {
   });
 
   it('returns an empty string when no pool label is present', () => {
-    expect(makeNode({ 'node.kubernetes.io/instance-type': 'm5.large' }).getNodePool()).toBe('');
+    expect(makePoolNode({ 'node.kubernetes.io/instance-type': 'm5.large' }).getNodePool()).toBe('');
   });
 
   it('returns an empty string when the node has no labels', () => {
-    expect(makeNode().getNodePool()).toBe('');
+    expect(makePoolNode().getNodePool()).toBe('');
   });
 
   it('prefers the provider label when a node also carries a karpenter label', () => {
-    const node = makeNode({
+    const node = makePoolNode({
       'eks.amazonaws.com/nodegroup': 'managed-group',
       'karpenter.sh/nodepool': 'karpenter-pool',
     });
 
     expect(node.getNodePool()).toBe('managed-group');
+  });
+});
+
+describe('Node class', () => {
+  const makeNode = (metadata: Partial<KubeNode['metadata']> = {}, status?: KubeNodeStatus) =>
+    new Node({
+      apiVersion: 'v1',
+      kind: 'Node',
+      metadata: {
+        name: 'test-node',
+        creationTimestamp: '2022-01-01T00:00:00Z',
+        uid: 'test-node-uid',
+        ...metadata,
+      },
+      spec: {
+        podCIDR: '',
+        taints: [],
+      },
+      ...(status !== undefined ? { status } : {}),
+    });
+
+  describe('getRoles', () => {
+    it('extracts role names from node-role.kubernetes.io labels', () => {
+      const node = makeNode({
+        labels: {
+          'node-role.kubernetes.io/control-plane': '',
+          'node-role.kubernetes.io/worker': '',
+          'kubernetes.io/hostname': 'test-node',
+        },
+      });
+      expect(node.getRoles()).toEqual(['control-plane', 'worker']);
+    });
+
+    it('returns empty array when no role labels exist', () => {
+      const node = makeNode({
+        labels: {
+          'kubernetes.io/hostname': 'test-node',
+        },
+      });
+      expect(node.getRoles()).toEqual([]);
+    });
+
+    it('handles undefined or empty labels gracefully', () => {
+      const node = makeNode({});
+      expect(node.getRoles()).toEqual([]);
+    });
+  });
+
+  describe('getExternalIP and getInternalIP', () => {
+    it('returns addresses when populated', () => {
+      const node = makeNode(
+        {},
+        {
+          addresses: [
+            { type: 'InternalIP', address: '10.0.0.1' },
+            { type: 'ExternalIP', address: '203.0.113.1' },
+          ],
+        }
+      );
+      expect(node.getInternalIP()).toBe('10.0.0.1');
+      expect(node.getExternalIP()).toBe('203.0.113.1');
+    });
+
+    it('returns empty string when address type is not found', () => {
+      const node = makeNode(
+        {},
+        {
+          addresses: [{ type: 'Hostname', address: 'test-node' }],
+        }
+      );
+      expect(node.getInternalIP()).toBe('');
+      expect(node.getExternalIP()).toBe('');
+    });
+
+    it('does not throw and returns empty string when status is undefined', () => {
+      const node = makeNode({}, undefined);
+      expect(node.getInternalIP()).toBe('');
+      expect(node.getExternalIP()).toBe('');
+    });
   });
 });

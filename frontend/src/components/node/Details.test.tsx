@@ -16,43 +16,69 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen, within } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import App from '../../App';
 import type { KubeContainer } from '../../lib/k8s/cluster';
+import Node from '../../lib/k8s/node';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
+import { lightTheme } from '../App/defaultAppThemes';
 import NodeDetails from './Details';
 
-const { useList, node } = vi.hoisted(() => ({
-  useList: vi.fn(),
-  node: {
+const theme = createMuiTheme(lightTheme);
+
+// cyclic imports fix
+// eslint-disable-next-line no-unused-vars
+const _dont_delete_me = App;
+
+const { useList, allocationNode, mockDetailsGrid, mockState } = vi.hoisted(() => ({
+  useList: vi.fn().mockReturnValue([[], null]),
+  allocationNode: {
     metadata: { name: 'worker' },
     status: { allocatable: { cpu: '2', memory: '2Gi' } },
   },
-}));
-
-vi.mock('../../lib/k8s/node', () => ({
-  default: {
-    useGet: () => [node, null],
-    useMetrics: () => [null, null],
-    useNodeSummaryStats: () => [null, null],
+  mockDetailsGrid: vi.fn(),
+  mockState: {
+    renderAllocationSection: false,
   },
 }));
+
+vi.mock('../../lib/k8s/node', async () => {
+  const actual = await vi.importActual<typeof import('../../lib/k8s/node')>('../../lib/k8s/node');
+  actual.default.useMetrics = vi.fn(() => [
+    mockState.renderAllocationSection ? null : [],
+    null,
+  ]) as any;
+  actual.default.useNodeSummaryStats = vi.fn().mockReturnValue([null, null]) as any;
+  actual.default.useGet = vi.fn(() => [
+    mockState.renderAllocationSection ? allocationNode : null,
+    null,
+  ]) as any;
+  return actual;
+});
+
 vi.mock('../../lib/k8s/pod', () => ({ default: { useList } }));
 
-// Keep the real allocation section and its table. Other node details and
-// actions do not participate in resource accounting.
+// Keep the real allocation section and its table when testing resource accounting,
+// and capture DetailsGrid props for NodeDetails unit tests.
 vi.mock('../common/Resource', () => ({
-  ConditionsSection: () => null,
-  OwnedPodsSection: () => null,
-  MetadataDictGrid: () => null,
-  DetailsGrid: ({
-    extraSections,
-  }: {
-    extraSections: (item: typeof node) => { id: string; section: ReactNode }[];
-  }) =>
-    extraSections(node).find(section => section.id === 'headlamp.node-resource-allocation')
-      ?.section,
+  ConditionsSection: () => <div data-testid="conditions-section" />,
+  OwnedPodsSection: () => <div data-testid="owned-pods-section" />,
+  MetadataDictGrid: () => <div data-testid="metadata-dict-grid" />,
+  DetailsGrid: (props: {
+    extraSections: (item: typeof allocationNode) => { id: string; section: ReactNode }[];
+  }) => {
+    mockDetailsGrid(props);
+    if (mockState.renderAllocationSection) {
+      return (
+        props
+          .extraSections(allocationNode)
+          .find(section => section.id === 'headlamp.node-resource-allocation')?.section ?? null
+      );
+    }
+    return null;
+  },
 }));
 
 function container(resources: KubeContainer['resources']): KubeContainer {
@@ -90,6 +116,7 @@ function pod({
 }
 
 function renderAllocation(pods: ReturnType<typeof pod>[] | null) {
+  mockState.renderAllocationSection = true;
   useList.mockReturnValue({ items: pods, isSuccess: true });
   render(
     <TestContext>
@@ -108,7 +135,10 @@ function expectRow(name: string, value: string, percent: string) {
 }
 
 describe('Node resource allocation: pod overhead', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.renderAllocationSection = true;
+  });
 
   it('includes RuntimeClass overhead in requests, nonzero limits and percentages', () => {
     renderAllocation([pod({ overhead: { cpu: '250m', memory: '128Mi' } })]);
@@ -196,5 +226,109 @@ describe('Node resource allocation: pod overhead', () => {
     expectRow('CPU Limits', '0 m', '0.0 %');
     expectRow('Memory Requests', '0 Bi', '0.0 %');
     expectRow('Memory Limits', '0 Bi', '0.0 %');
+  });
+});
+
+function renderWithTheme(ui: React.ReactElement, routerMap?: Record<string, string>) {
+  return render(
+    <ThemeProvider theme={theme}>
+      <TestContext routerMap={routerMap}>{ui}</TestContext>
+    </ThemeProvider>
+  );
+}
+
+describe('NodeDetails', () => {
+  const makeNodeWithoutStatus = () =>
+    new Node({
+      apiVersion: 'v1',
+      kind: 'Node',
+      metadata: {
+        name: 'node-without-status',
+        creationTimestamp: '2022-01-01T00:00:00Z',
+        uid: 'node-without-status-uid',
+      },
+      spec: {
+        podCIDR: '10.244.0.0/24',
+        taints: [],
+      },
+    });
+
+  beforeEach(() => {
+    mockDetailsGrid.mockReset();
+    mockState.renderAllocationSection = false;
+    useList.mockReturnValue([[], null]);
+  });
+
+  it('passes Node resource and route params to DetailsGrid', () => {
+    renderWithTheme(<NodeDetails name="test-node" />, { name: 'test-node' });
+
+    expect(mockDetailsGrid).toHaveBeenCalled();
+    const props = mockDetailsGrid.mock.calls[0][0];
+    expect(props.name).toBe('test-node');
+    expect(props.resourceType).toBe(Node);
+  });
+
+  describe('when node status is undefined (regression test)', () => {
+    it('safely builds extraInfo without throwing or crashing on missing status', () => {
+      renderWithTheme(<NodeDetails name="node-without-status" />, { name: 'node-without-status' });
+
+      const props = mockDetailsGrid.mock.calls[0][0];
+      const node = makeNodeWithoutStatus();
+
+      expect(() => props.extraInfo(node)).not.toThrow();
+      const extraInfo = props.extraInfo(node);
+      expect(Array.isArray(extraInfo)).toBe(true);
+
+      const readyField = extraInfo.find((f: any) => String(f.name).includes('Ready'));
+      expect(readyField).toBeDefined();
+
+      const { container } = renderWithTheme(readyField.value);
+      expect(container.textContent).toContain('No');
+    });
+
+    it('safely renders headerSection (ChartsSection) without throwing on missing status conditions', () => {
+      renderWithTheme(<NodeDetails name="node-without-status" />, { name: 'node-without-status' });
+
+      const props = mockDetailsGrid.mock.calls[0][0];
+      const node = makeNodeWithoutStatus();
+
+      expect(() => props.headerSection(node)).not.toThrow();
+
+      renderWithTheme(props.headerSection(node));
+      expect(screen.getByText('Not ready yet!')).toBeInTheDocument();
+    });
+
+    it('safely handles extraSections (AllocatedResources, SystemInfo) without crashing', () => {
+      renderWithTheme(<NodeDetails name="node-without-status" />, { name: 'node-without-status' });
+
+      const props = mockDetailsGrid.mock.calls[0][0];
+      const node = makeNodeWithoutStatus();
+
+      expect(() => props.extraSections(node)).not.toThrow();
+      const sections = props.extraSections(node);
+      expect(sections).toHaveLength(4);
+
+      const allocationSection = sections.find(
+        (s: any) => s.id === 'headlamp.node-resource-allocation'
+      );
+      expect(allocationSection).toBeDefined();
+      expect(() => renderWithTheme(allocationSection.section)).not.toThrow();
+
+      const systemInfoSection = sections.find((s: any) => s.id === 'headlamp.node-system-info');
+      expect(systemInfoSection).toBeDefined();
+      const { container: sysContainer } = renderWithTheme(systemInfoSection.section);
+      expect(sysContainer).toBeEmptyDOMElement();
+    });
+
+    it('safely handles actions without throwing when node status is omitted', () => {
+      renderWithTheme(<NodeDetails name="node-without-status" />, { name: 'node-without-status' });
+
+      const props = mockDetailsGrid.mock.calls[0][0];
+      const node = makeNodeWithoutStatus();
+
+      expect(() => props.actions(node)).not.toThrow();
+      const actions = props.actions(node);
+      expect(actions.length).toBeGreaterThan(0);
+    });
   });
 });
