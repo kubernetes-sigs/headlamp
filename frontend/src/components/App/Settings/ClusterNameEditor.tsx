@@ -199,7 +199,7 @@ export function ClusterNameEditor({
             <TextField
               onChange={event => {
                 let value = event.target.value;
-                value = value.replace(' ', '');
+                value = value.replace(/\s/g, '');
                 setNewClusterName(value);
                 checkNameInUse(value);
               }}
