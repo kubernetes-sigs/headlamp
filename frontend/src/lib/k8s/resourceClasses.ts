@@ -51,6 +51,7 @@ import Pod from './pod';
 import PodDisruptionBudget from './podDisruptionBudget';
 import PodGroup from './podGroup';
 import PriorityClass from './priorityClass';
+import PriorityLevelConfiguration from './priorityLevelConfiguration';
 import ReplicaSet from './replicaSet';
 import ResourceClaim from './resourceClaim';
 import ResourceClaimTemplate from './resourceClaimTemplate';
@@ -98,6 +99,7 @@ export const ResourceClasses = {
   PodGroup,
   CompositePodGroup,
   PriorityClass,
+  PriorityLevelConfiguration,
   Ingress,
   IngressClass,
   Job,

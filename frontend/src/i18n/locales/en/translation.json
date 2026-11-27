@@ -1,4 +1,12 @@
 {
+  "Nominal Concurrency Shares": "Nominal Concurrency Shares",
+  "Limit Response": "Limit Response",
+  "Lendable": "Lendable",
+  "Borrowing Limit": "Borrowing Limit",
+  "Queuing": "Queuing",
+  "Queues": "Queues",
+  "Hand Size": "Hand Size",
+  "Queue Length Limit": "Queue Length Limit",
   "Whoops! This page doesn't exist": "Whoops! This page doesn't exist",
   "Authentication: {{ clusterName }}": "Authentication: {{ clusterName }}",
   "Authentication": "Authentication",

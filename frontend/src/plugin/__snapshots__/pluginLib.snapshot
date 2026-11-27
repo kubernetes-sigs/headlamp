@@ -548,6 +548,7 @@
       "PodDisruptionBudget": [Function],
       "PodGroup": [Function],
       "PriorityClass": [Function],
+      "PriorityLevelConfiguration": [Function],
       "ReplicaSet": [Function],
       "ResourceClaim": [Function],
       "ResourceClaimTemplate": [Function],

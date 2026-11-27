@@ -27,6 +27,7 @@ import ClusterTrustBundle from '../../lib/k8s/clusterTrustBundle';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
+import PriorityLevelConfiguration from '../../lib/k8s/priorityLevelConfiguration';
 import { useIsResourceServed } from '../../lib/k8s/resourceAvailability';
 import {
   useCompositePodGroupClusters,
@@ -93,6 +94,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   // Trust bundles sit behind their own feature gate, so only offer them on clusters
   // that actually serve the resource.
   const clusterTrustBundlesEnabled = useIsResourceServed(ClusterTrustBundle);
+  const priorityLevelsEnabled = useIsResourceServed(PriorityLevelConfiguration);
 
   // Dynamic resource allocation is stable from Kubernetes 1.34, so only show the
   // Devices section on clusters that serve resource.k8s.io/v1.
@@ -248,6 +250,9 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'advancedSearch',
             label: t('Advanced Search (Beta)'),
           },
+          ...(priorityLevelsEnabled
+            ? [{ name: 'priorityLevelConfigurations', label: t('glossary|Priority Levels') }]
+            : []),
         ],
       },
       {
@@ -685,6 +690,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     crdsSidebarEntries,
     gatewayKinds,
     clusterTrustBundlesEnabled,
+    priorityLevelsEnabled,
     devicesEnabled,
     schedulingWorkloadsEnabled,
     compositePodGroupsEnabled,

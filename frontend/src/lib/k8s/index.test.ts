@@ -500,6 +500,7 @@ const notNamespacedClasses = [
   'Node',
   'PersistentVolume',
   'PriorityClass',
+  'PriorityLevelConfiguration',
   'ResourceSlice',
   'RuntimeClass',
   'StorageClass',
