@@ -54,7 +54,8 @@
     "ai-assistant": [
       { "tool": "gh", "args": ["auth"], "allowTrailingArgs": true },
       { "tool": "az", "args": ["account"], "allowTrailingArgs": true },
-      { "tool": "az", "args": ["cognitiveservices"], "allowTrailingArgs": true }
+      { "tool": "az", "args": ["cognitiveservices"], "allowTrailingArgs": true },
+      { "tool": "aws", "args": ["sso", "login"], "allowTrailingArgs": true }
     ]
   },
   "runCommands": [

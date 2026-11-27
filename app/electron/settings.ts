@@ -21,12 +21,6 @@ import path from 'path';
 export const SETTINGS_PATH = path.join(app?.getPath('userData') || 'testing', 'settings.json');
 const DEVELOPMENT_PLUGINS_SETTING = 'developmentPlugins';
 
-function asSettingsObject(value: unknown): Record<string, any> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, any>)
-    : {};
-}
-
 /**
  * Loads the user settings.
  * If the settings file does not exist, an empty object is returned.
@@ -72,4 +66,27 @@ export function setDevelopmentPluginsEnabled(
   const settings = asSettingsObject(loadSettings(settingsPath));
   settings[DEVELOPMENT_PLUGINS_SETTING] = enabled;
   saveSettings(settingsPath, settings);
+}
+
+/**
+ * Reports whether a value is a non-null, non-array object.
+ *
+ * `typeof value === 'object'` alone is true for both `null` and arrays, so
+ * callers that need an actual key-value object (e.g. before indexing into
+ * settings.json data) should check this instead.
+ */
+export function isPlainObject(value: unknown): value is Record<string, any> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Normalizes an arbitrary value into a plain settings object.
+ *
+ * loadSettings() returns whatever JSON.parse() produced, which can be null,
+ * a number, a string, or an array if settings.json is corrupted. Callers
+ * that read/write properties on the result need a plain object; this
+ * substitutes an empty one for anything else.
+ */
+export function asSettingsObject(value: unknown): Record<string, any> {
+  return isPlainObject(value) ? value : {};
 }
