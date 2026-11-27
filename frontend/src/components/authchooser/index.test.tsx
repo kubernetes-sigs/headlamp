@@ -194,6 +194,54 @@ describe('AuthChooser component', () => {
     expect(sessionStorage.getItem('oidc_return_url')).toBe('/c/test-cluster/pods');
   });
 
+  it.each([false, true])(
+    'shows the service-account error instead of OIDC login when auto-login is %s',
+    async oidcAutoLogin => {
+      store.dispatch(
+        setConfig({
+          clusters: {
+            'test-cluster': {
+              name: 'test-cluster',
+              auth_type: 'oidc',
+              uses_service_account_token: true,
+            } as any,
+          },
+          oidcAutoLogin,
+        })
+      );
+      const error: any = new Error('Service account token is unauthorized');
+      error.status = 403;
+      vi.mocked(testAuth).mockRejectedValueOnce(error);
+
+      render(
+        <Provider store={store}>
+          <ThemeProvider theme={theme}>
+            <QueryClientProvider client={queryClient}>
+              <MemoryRouter
+                initialEntries={[
+                  {
+                    pathname: '/auth',
+                    state: { from: { pathname: '/c/test-cluster/workloads' } },
+                  },
+                ]}
+              >
+                <Route path="/auth">
+                  <AuthChooser />
+                </Route>
+              </MemoryRouter>
+            </QueryClientProvider>
+          </ThemeProvider>
+        </Provider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/Failed to get authentication information:/i)).toBeInTheDocument();
+      });
+      expect(window.location.href).toBe('');
+      expect(sessionStorage.getItem('oidc_return_url')).toBeNull();
+    }
+  );
+
   it('redirects from the login route to the cluster root after successful authentication', async () => {
     vi.mocked(testAuth).mockResolvedValueOnce({} as any);
     vi.mocked(useClustersConf).mockReturnValue({
@@ -232,10 +280,54 @@ describe('AuthChooser component', () => {
     });
   });
 
+  it.each([false, true])(
+    'shows the service-account auth error when useToken is cached as %s',
+    async useToken => {
+      vi.mocked(useClustersConf).mockReturnValue({
+        'test-cluster': {
+          name: 'test-cluster',
+          auth_type: '',
+          useToken,
+          uses_service_account_token: true,
+        } as any,
+      });
+      const error: any = new Error('Service account token is unauthorized');
+      error.status = 403;
+      vi.mocked(testAuth).mockRejectedValue(error);
+
+      render(
+        <Provider store={store}>
+          <ThemeProvider theme={theme}>
+            <QueryClientProvider client={queryClient}>
+              <MemoryRouter
+                initialEntries={[
+                  {
+                    pathname: '/c/test-cluster/login',
+                    state: { from: { pathname: '/c/test-cluster/' } },
+                  },
+                ]}
+              >
+                <CurrentPath />
+                <Route path="/c/test-cluster/login">
+                  <AuthChooser />
+                </Route>
+              </MemoryRouter>
+            </QueryClientProvider>
+          </ThemeProvider>
+        </Provider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/Failed to get authentication information:/i)).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('current-route')).toHaveTextContent('/c/test-cluster/login');
+    }
+  );
+
   it('does NOT redirect to IdP when testAuth fails with 502 Bad Gateway and shows error UI', async () => {
     const error: any = new Error('Bad Gateway');
     error.status = 502;
-    vi.mocked(testAuth).mockRejectedValueOnce(error);
+    vi.mocked(testAuth).mockRejectedValue(error);
 
     render(
       <Provider store={store}>
@@ -273,7 +365,7 @@ describe('AuthChooser component', () => {
   it('does NOT redirect to IdP when testAuth fails with network/server error and shows error UI', async () => {
     const error: any = new Error('Network timeout');
     error.status = 504;
-    vi.mocked(testAuth).mockRejectedValueOnce(error);
+    vi.mocked(testAuth).mockRejectedValue(error);
 
     render(
       <Provider store={store}>

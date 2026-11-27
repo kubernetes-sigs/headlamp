@@ -150,10 +150,36 @@ describe('clusterRequest transports', () => {
       } as Response)
     );
 
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
     const result = clusterRequest('/config', { timeout: 100 });
-    const expectation = expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    const expectation = expect(result).rejects.toMatchObject({
+      status: 408,
+      message: expect.stringContaining('Request timed-out'),
+    });
     await vi.advanceTimersByTimeAsync(100);
 
     await expectation;
+  });
+
+  it('keeps a caller cancellation while consuming the response body as an abort', async () => {
+    const abortError = new Error('aborted');
+    abortError.name = 'AbortError';
+    const caller = new AbortController();
+    (fetch as Mock).mockImplementation((_url, init: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        headers: new Headers(),
+        json: () => {
+          const body = new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(abortError));
+          });
+          caller.abort();
+          return body;
+        },
+      } as Response)
+    );
+
+    await expect(clusterRequest('/config', { signal: caller.signal })).rejects.toBe(abortError);
   });
 });
