@@ -63,14 +63,17 @@ Reference images with **relative** paths (`![…](img/list-….png)`).
      trim metadata/Labels/Annotations/Events — it's the describe-parity yardstick.
    - **Full-page detail screenshot.** Detail pages overflow the viewport; `fullPage:true` alone clips
      because Headlamp's main area is a fixed-height stack with internal scroll. **Before the shot,
-     `evaluate_script` this to unclip the chain, then `take_screenshot` with `fullPage:true`:**
+     `evaluate_script` this function to unclip the chain, then `take_screenshot` with
+     `fullPage:true`:**
      ```js
-     let el = document.querySelector('main');
-     while (el && el !== document.documentElement) {
-       el.style.height = 'auto'; el.style.maxHeight = 'none'; el.style.overflow = 'visible';
-       el = el.parentElement;
+     () => {
+       let el = document.querySelector('main');
+       while (el && el !== document.documentElement) {
+         el.style.height = 'auto'; el.style.maxHeight = 'none'; el.style.overflow = 'visible';
+         el = el.parentElement;
+       }
+       return document.documentElement.scrollHeight;   // should now exceed the viewport
      }
-     return document.documentElement.scrollHeight;   // should now exceed the viewport
      ```
      Verify the returned height exceeds one viewport; if not, the selector missed the scroll layer —
      re-inspect and walk again. **Do not use `resize_page`** (Electron lacks the Browser CDP domain).
