@@ -36,7 +36,15 @@ export function addBackstageAuthHeaders(headers: HeadersInit = {}): HeadersInit 
     return newHeaders;
   }
 
-  // If headers is a plain object or array, spread it and add the token
+  // If headers is a [string, string][] tuple list, return a new tuple list with X-BACKSTAGE-TOKEN
+  if (Array.isArray(headers)) {
+    return [
+      ...headers.filter(([key]) => key.toLowerCase() !== 'x-backstage-token'),
+      ['X-BACKSTAGE-TOKEN', token],
+    ];
+  }
+
+  // If headers is a plain object, spread it and add the token
   if (typeof headers === 'object' && headers !== null) {
     return {
       ...headers,
