@@ -277,7 +277,7 @@
               </div>
             </div>
             <table
-              class="MuiTable-root css-7biw9r-MuiTable-root"
+              class="MuiTable-root css-1vtg77n-MuiTable-root"
             >
               <thead
                 class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -464,12 +464,12 @@
                           Pods
                         </div>
                         <span
-                          aria-label="Sort by Pods descending"
+                          aria-label="Sort by Pods ascending"
                           class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                           data-mui-internal-clone-element="true"
                         >
                           <span
-                            aria-label="Sort by Pods descending"
+                            aria-label="Sort by Pods ascending"
                             class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                             role="button"
                             tabindex="0"
@@ -968,9 +968,9 @@
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-xlf580-MuiTableCell-root"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
                   >
-                    2
+                    2/2
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1uat6tg-MuiTableCell-root"
