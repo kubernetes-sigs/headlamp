@@ -2,7 +2,13 @@
 name: document-plugin
 description: Generate docs/OVERVIEW.md for this built plugin — a CRD coverage table (List/Detail ✓), and per resource the live `kubectl get -o wide` output beside a list-view screenshot and the full `kubectl describe` output beside a detail-view screenshot, Map screenshots, and the settings page (if any) with a per-setting scope/default/effect table. Captures screenshots via the chrome-devtools MCP against the running app. Use after live verification (the final phase), while Headlamp is still up. Distills PLAN.md into the permanent record.
 allowed-tools:
-  - mcp__chrome-devtools__*
+  - mcp__chrome-devtools__list_pages
+  - mcp__chrome-devtools__select_page
+  - mcp__chrome-devtools__navigate_page
+  - mcp__chrome-devtools__take_snapshot
+  - mcp__chrome-devtools__take_screenshot
+  - mcp__chrome-devtools__resize_page
+  - mcp__chrome-devtools__click
   - Bash(kubectl get:*)
   - Bash(kubectl describe:*)
   - Write(docs/**)

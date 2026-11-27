@@ -2,13 +2,18 @@
 name: run-and-verify
 description: Bring up the live development loop and prove the plugin actually loads — the user launches Headlamp with remote debugging, you run the watch build, attach the chrome-devtools MCP, and run the non-skippable load smoke check (no Plugin execution error, contribution renders, i18n resolves, a11y tree has names/roles). Use to develop, live-verify, or re-check the plugin after any change. This is where gate-green ≠ loads is enforced.
 allowed-tools:
-  - mcp__chrome-devtools__*
+  - mcp__chrome-devtools__list_pages
+  - mcp__chrome-devtools__select_page
+  - mcp__chrome-devtools__navigate_page
+  - mcp__chrome-devtools__take_snapshot
+  - mcp__chrome-devtools__take_screenshot
+  - mcp__chrome-devtools__list_console_messages
   - Bash(npm start:*)
   - Bash(npm run tsc:*)
   - Bash(npm run lint:*)
   - Bash(npm run lint-fix:*)
   - Bash(npm run build:*)
-  - Bash(curl -s http://localhost:9222/json:*)
+  - Bash(curl -s http://localhost:9222/json)
   - Bash(kubectl get:*)
   - Write(src/**)
   - Edit(src/**)

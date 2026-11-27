@@ -4,7 +4,14 @@ description: "Day-one buildout of this Headlamp plugin into a complete UI for a 
 argument-hint: "[project] — optional; inferred from this plugin (package.json name, the CRDs in src/resources/). Pass only to override."
 allowed-tools:
   - mcp__kubernetes__*
-  - mcp__chrome-devtools__*
+  - mcp__chrome-devtools__list_pages
+  - mcp__chrome-devtools__select_page
+  - mcp__chrome-devtools__navigate_page
+  - mcp__chrome-devtools__take_snapshot
+  - mcp__chrome-devtools__take_screenshot
+  - mcp__chrome-devtools__list_console_messages
+  - mcp__chrome-devtools__resize_page
+  - mcp__chrome-devtools__click
   - Bash(kubectl get:*)
   - Bash(kubectl describe:*)
   - Bash(kubectl explain:*)
@@ -21,7 +28,7 @@ allowed-tools:
   - Bash(npm run build)
   - Bash(npm run i18n)
   - Bash(npm run package)
-  - Bash(curl -s http://localhost:9222/json:*)
+  - Bash(curl -s http://localhost:9222/json)
   - Write(src/**)
   - Edit(src/**)
   - Write(test-files/**)
