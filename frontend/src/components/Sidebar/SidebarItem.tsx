@@ -43,8 +43,8 @@ export function getFullURLOnRoute(
     }
     return createRouteURL('customresources', { crd: routeName });
   } else {
-    if (!getRoute(name)) {
-      routeName = subList.length > 0 ? subList[0].name : '';
+    if (!getRoute(name) && subList.length > 0) {
+      routeName = subList[0].name;
     }
     return createRouteURL(routeName);
   }

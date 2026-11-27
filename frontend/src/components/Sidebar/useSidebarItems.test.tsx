@@ -313,9 +313,8 @@ describe('useSidebarItems', () => {
         "subList": [
           {
             "label": "Overview",
-            "name": "custom1-overview",
+            "name": "custom1",
             "url": "/custom1",
-            "useClusterURL": undefined,
           },
           {
             "label": "Custom 2",
@@ -324,9 +323,8 @@ describe('useSidebarItems', () => {
             "subList": [
               {
                 "label": "Overview",
-                "name": "custom2-overview",
+                "name": "custom2",
                 "url": "/custom2",
-                "useClusterURL": undefined,
               },
               {
                 "label": "Custom 3",
@@ -335,9 +333,8 @@ describe('useSidebarItems', () => {
                 "subList": [
                   {
                     "label": "Overview",
-                    "name": "custom3-overview",
+                    "name": "custom3",
                     "url": "/custom3",
-                    "useClusterURL": undefined,
                   },
                   {
                     "label": "outoforder",
@@ -590,6 +587,7 @@ describe('useSidebarItems', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue(
       Object.assign(mockCRDs, {
         data: null,
+        dataUpdatedAt: 0,
         items: mockCRDs[0],
         error: null,
         errors: null,
@@ -652,7 +650,7 @@ describe('useSidebarItems', () => {
     expect(parent).toBeDefined();
     expect(parent?.subList).toHaveLength(3);
     expect(parent?.subList?.[0]).toEqual({
-      name: 'feedback2-overview',
+      name: 'feedback2',
       label: 'Overview',
       url: '/feedback2',
       useClusterURL: true,
@@ -661,7 +659,7 @@ describe('useSidebarItems', () => {
     expect(parent?.subList?.[2].name).toBe('feedback4');
   });
 
-  it('does not generate duplicate Overview child if a child already matches the parent URL', () => {
+  it('does not generate duplicate Overview child if a child already matches the parent URL and cluster setting', () => {
     const customEntries = {
       customGroup: {
         name: 'customGroup',
@@ -685,5 +683,129 @@ describe('useSidebarItems', () => {
     expect(parent).toBeDefined();
     expect(parent?.subList).toHaveLength(1);
     expect(parent?.subList?.[0].name).toBe('customGroupChild');
+  });
+
+  it('generates an Overview destination child when child URL matches parent URL but differs in useClusterURL', () => {
+    const customEntries = {
+      tools: {
+        name: 'tools',
+        label: 'Tools',
+        url: '/tools',
+        useClusterURL: true,
+      },
+      toolsGlobal: {
+        name: 'toolsGlobal',
+        label: 'Global Tools',
+        url: '/tools',
+        useClusterURL: false,
+        parent: 'tools',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const tools = result.current.find(it => it.name === 'tools');
+    expect(tools?.subList).toHaveLength(2);
+    expect(tools?.subList?.[0]).toEqual({
+      name: 'tools',
+      label: 'Overview',
+      url: '/tools',
+      useClusterURL: true,
+    });
+    expect(tools?.subList?.[1].name).toBe('toolsGlobal');
+  });
+
+  it('generates an Overview destination child for named-route built-in parents like namespaces', () => {
+    const customEntries = {
+      nsChild: {
+        name: 'nsChild',
+        label: 'NS Extension',
+        url: '/ns-extension',
+        parent: 'namespaces',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.IN_CLUSTER), {
+      wrapper: wrapper(store),
+    });
+
+    const clusterGroup = result.current.find(it => it.name === 'cluster');
+    const namespacesItem = clusterGroup?.subList?.find(it => it.name === 'namespaces');
+    expect(namespacesItem?.subList).toHaveLength(2);
+    expect(namespacesItem?.subList?.[0]).toEqual({
+      name: 'namespaces',
+      label: 'Overview',
+    });
+    expect(namespacesItem?.subList?.[1].name).toBe('nsChild');
+  });
+
+  it('restores custom parent precedence over built-in groups when attaching custom children', () => {
+    const customEntries = {
+      settings: {
+        name: 'settings',
+        label: 'Settings',
+        url: '/settings/general',
+        sidebar: DefaultSidebars.HOME,
+      },
+      settingsGeneral: {
+        name: 'settingsGeneral',
+        label: 'General',
+        url: '/settings/general',
+        parent: 'settings',
+        sidebar: DefaultSidebars.HOME,
+      },
+      plugins: {
+        name: 'plugins',
+        label: 'Plugins',
+        url: '/settings/plugins',
+        parent: 'settings',
+        sidebar: DefaultSidebars.HOME,
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+      wrapper: wrapper(store),
+    });
+
+    const customSettings = result.current.findLast(it => it.name === 'settings');
+    expect(customSettings?.subList?.map(it => it.name)).toEqual(['settingsGeneral', 'plugins']);
+  });
+
+  it('preserves last-entry precedence for built-in home leaf entries when attaching plugin children', () => {
+    const customEntries = {
+      homePlugin: {
+        name: 'homePlugin',
+        label: 'Home Plugin',
+        url: '/home-plugin',
+        parent: 'home',
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result: inClusterResult } = renderHook(
+      () => useSidebarItems(DefaultSidebars.IN_CLUSTER),
+      {
+        wrapper: wrapper(store),
+      }
+    );
+    const { result: homeResult } = renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+      wrapper: wrapper(store),
+    });
+
+    const inClusterHome = inClusterResult.current.find(it => it.name === 'home');
+    expect(inClusterHome?.subList?.some(it => it.name === 'homePlugin')).toBe(true);
+    expect(inClusterHome?.subList?.[0]).toEqual({
+      name: 'home',
+      label: 'Overview',
+      url: '/',
+    });
+
+    const homeSidebarHome = homeResult.current.find(it => it.name === 'home');
+    expect(homeSidebarHome?.subList).toBeUndefined();
   });
 });
