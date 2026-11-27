@@ -60,6 +60,25 @@ describe('clusterRequest transports', () => {
     vi.restoreAllMocks();
   });
 
+  it.each([
+    ['prod#blue', 'prod%23blue'],
+    ['prod?region=west', 'prod%3Fregion%3Dwest'],
+    ['prod%blue', 'prod%25blue'],
+    ['prod', 'prod'],
+  ])('keeps cluster name %s in a single URL path segment', async (cluster, encoded) => {
+    (fetch as Mock).mockResolvedValue(
+      new Response(JSON.stringify({ kind: 'PodList' }), { status: 200 })
+    );
+
+    await clusterRequest('/api/v1/pods', { cluster }, { limit: 10 });
+
+    const url = new URL((fetch as Mock).mock.lastCall![0]);
+    expect(url.pathname).toBe(`/clusters/${encoded}/api/v1/pods`);
+    expect(url.searchParams.get('limit')).toBe('10');
+    expect(url.hash).toBe('');
+    expect(findKubeconfigByClusterName).toHaveBeenCalledWith(cluster);
+  });
+
   it('preserves caller and stateless headers with the backend token', async () => {
     vi.mocked(findKubeconfigByClusterName).mockResolvedValue('encoded-kubeconfig');
     (fetch as Mock).mockResolvedValue(

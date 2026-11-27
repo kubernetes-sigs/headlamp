@@ -208,7 +208,7 @@ export async function clusterRequest(
       opts.headers['X-HEADLAMP-USER-ID'] = userID;
     }
 
-    fullPath = combinePath(`/${CLUSTERS_PREFIX}/${cluster}`, path);
+    fullPath = combinePath(`/${CLUSTERS_PREFIX}/${encodeURIComponent(cluster)}`, path);
   }
 
   const controller = new AbortController();
