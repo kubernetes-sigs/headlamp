@@ -24,7 +24,7 @@ import { jobExtraInfo } from './extraInfo';
 
 // Completed job from storyHelper has both startTime and completionTime, so it
 // has a real duration. The running variant drops completionTime, so
-// getDuration() returns -1 and the Duration row is hidden.
+// getDuration() returns elapsed time since startTime (fixed under UNDER_TEST).
 const completedJob = new Job(jobs[0] as any);
 const runningJob = new Job({
   ...jobs[0],
@@ -56,6 +56,6 @@ const Template: StoryFn<{ job: Job }> = args => <JobExtraInfo {...args} />;
 export const Completed = Template.bind({});
 Completed.args = { job: completedJob };
 
-// Running job: getDuration() is -1, so the Duration row is hidden.
+// Running job: elapsed duration is shown from startTime.
 export const Running = Template.bind({});
 Running.args = { job: runningJob };

@@ -91,15 +91,33 @@ class Job extends KubeObject<KubeJob> {
     return 'transitional';
   }
 
-  /** Returns the duration of the job in milliseconds. */
-  getDuration(): number {
+  /**
+   * Returns the duration of the job in milliseconds, or -1 if it has not started.
+   *
+   * @param options - Optional settings; set `useSnapshotOverride` to `false` (or stub
+   *   `UNDER_TEST=false` in tests) to compute real elapsed time from `Date.now()`.
+   */
+  getDuration(options?: { useSnapshotOverride?: boolean }): number {
     const startTime = this.status?.startTime;
-    const completionTime = this.status?.completionTime;
-    if (startTime && completionTime) {
-      const duration = new Date(completionTime).getTime() - new Date(startTime).getTime();
-      return duration;
+    if (!startTime) {
+      return -1;
     }
-    return -1;
+    const startMs = new Date(startTime).getTime();
+    if (Number.isNaN(startMs)) {
+      return -1;
+    }
+    const completionTime = this.status?.completionTime;
+    if (completionTime) {
+      return new Date(completionTime).getTime() - startMs;
+    }
+    const isSnapshotOverrideDisabled =
+      typeof process !== 'undefined' && process.env?.UNDER_TEST === 'false';
+    const useSnapshotOverride =
+      options?.useSnapshotOverride ?? (import.meta.env.UNDER_TEST && !isSnapshotOverrideDisabled);
+    // Jobs still running or failed without completionTime show elapsed time since startTime;
+    // mirror timeAgo()'s fixed 90-day offset under UNDER_TEST so snapshots remain deterministic.
+    const nowMs = useSnapshotOverride ? startMs + 90 * 24 * 3600 * 1000 : Date.now();
+    return Math.max(0, nowMs - startMs);
   }
   static getBaseObject(): KubeJob {
     const baseObject = super.getBaseObject() as KubeJob;

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { act, render } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import React from 'react';
+import Job from '../../lib/k8s/job';
 import { TestContext } from '../../test';
 import JobDetails from './Details';
 import JobSuspendButton from './JobSuspendButton';
@@ -44,9 +45,10 @@ vi.mock('../diagnostics/Diagnostics', () => ({
   WorkloadDiagnosticsSection: () => null,
 }));
 
-vi.mock('../../lib/k8s/job', () => ({
-  default: { kind: 'Job' },
-}));
+vi.mock('../../lib/k8s/job', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../lib/k8s/job')>();
+  return actual;
+});
 
 vi.mock('./List', () => ({
   makeJobStatusLabel: (job: any) => {
@@ -56,10 +58,6 @@ vi.mock('./List', () => ({
     );
     return condition ? condition.type : null;
   },
-}));
-
-vi.mock('../../lib/util', () => ({
-  formatDuration: () => '5s',
 }));
 
 const fakeJob: any = {
@@ -233,5 +231,71 @@ describe('JobDetails', () => {
 
     expect(suspendAction.action.type).toBe(JobSuspendButton);
     expect(suspendAction.action.props.item).toBe(suspendedJob);
+  });
+
+  it('refreshes Duration without resource updates for running Jobs and keeps completed Jobs fixed', () => {
+    vi.stubEnv('UNDER_TEST', 'false');
+    vi.useFakeTimers({
+      toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+    });
+    vi.setSystemTime(new Date('2026-01-01T00:00:10Z'));
+
+    try {
+      render(
+        <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
+          <JobDetails />
+        </TestContext>
+      );
+
+      const props = mockDetailsGrid.mock.calls[0][0];
+
+      const runningJob = new Job({
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: { name: 'running-job', namespace: 'default' },
+        spec: { template: { spec: { containers: [] } } },
+        status: {
+          active: 1,
+          startTime: '2026-01-01T00:00:00Z',
+        },
+      } as any);
+      const runningDurationField = props
+        .extraInfo(runningJob)
+        .find((f: any) => f.name.includes('Duration'));
+
+      const { rerender } = render(<TestContext>{runningDurationField.value}</TestContext>);
+      expect(screen.getByText('10s')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(screen.getByText('15s')).toBeInTheDocument();
+
+      const completedJob = new Job({
+        apiVersion: 'batch/v1',
+        kind: 'Job',
+        metadata: { name: 'completed-job', namespace: 'default' },
+        spec: { template: { spec: { containers: [] } } },
+        status: {
+          startTime: '2026-01-01T00:00:00Z',
+          completionTime: '2026-01-01T00:01:30Z',
+        },
+      } as any);
+      const completedDurationField = props
+        .extraInfo(completedJob)
+        .find((f: any) => f.name.includes('Duration'));
+
+      rerender(<TestContext>{completedDurationField.value}</TestContext>);
+      expect(screen.getByText('90s')).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(screen.getByText('90s')).toBeInTheDocument();
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+    }
   });
 });

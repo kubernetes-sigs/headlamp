@@ -28,66 +28,96 @@ import { StatusLabelProps } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SimpleTableProps } from '../common/SimpleTable';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import JobDuration from './JobDuration';
 import JobSuspendButton from './JobSuspendButton';
 import { jobSuspendKey } from './jobSuspendState';
 
+const JOB_STATUS_STYLES: Record<string, { status: StatusLabelProps['status']; icon: string }> = {
+  Complete: {
+    status: 'success',
+    icon: 'mdi:check-bold',
+  },
+  Failed: {
+    status: 'error',
+    icon: 'mdi:alert-outline',
+  },
+  Terminating: {
+    status: 'warning',
+    icon: 'mdi:alert-outline',
+  },
+  Suspended: {
+    status: '',
+    icon: 'mdi:pause',
+  },
+  FailureTarget: {
+    status: 'error',
+    icon: 'mdi:alert-outline',
+  },
+  SuccessCriteriaMet: {
+    status: 'success',
+    icon: 'mdi:check-bold',
+  },
+  Running: {
+    status: 'success',
+    icon: 'mdi:play-circle',
+  },
+};
+
+// Matches kubectl pkg/printers/internalversion/printers.go printJob precedence:
+// Complete > Failed > Terminating (deletionTimestamp) > Suspended > FailureTarget > SuccessCriteriaMet > Running.
+function getJobStatusType(job: Job): keyof typeof JOB_STATUS_STYLES | null {
+  const conditions = job?.status?.conditions;
+  const hasTrueCondition = (type: string) =>
+    Boolean(
+      conditions?.some(
+        ({ status, type: conditionType }: { status: string; type: string }) =>
+          conditionType === type && status === 'True'
+      )
+    );
+
+  if (hasTrueCondition('Complete')) {
+    return 'Complete';
+  }
+  if (hasTrueCondition('Failed')) {
+    return 'Failed';
+  }
+  if (job?.metadata?.deletionTimestamp) {
+    return 'Terminating';
+  }
+  if (hasTrueCondition('Suspended')) {
+    return 'Suspended';
+  }
+  if (hasTrueCondition('FailureTarget')) {
+    return 'FailureTarget';
+  }
+  if (hasTrueCondition('SuccessCriteriaMet')) {
+    return 'SuccessCriteriaMet';
+  }
+  if ((job?.status?.active ?? 0) > 0 || Boolean(job?.status?.startTime)) {
+    return 'Running';
+  }
+  return null;
+}
+
 export function makeJobStatusValue(job: Job) {
-  if (!job?.status?.conditions) {
-    return '-';
-  }
-  const conditionOptions = ['Failed', 'Complete', 'Suspended'];
-
-  const condition = job.status.conditions.find(
-    ({ status, type }: { status: string; type: string }) =>
-      conditionOptions.includes(type) && status === 'True'
-  );
-
-  if (!condition) {
-    return '-';
-  }
-
-  return condition.type;
+  return getJobStatusType(job) ?? '-';
 }
 
 export function makeJobStatusLabel(job: Job) {
-  if (!job?.status?.conditions) {
-    return null;
-  }
-
-  const conditionOptions = {
-    Failed: {
-      status: 'error',
-      icon: 'mdi:alert-outline',
-    },
-    Complete: {
-      status: 'success',
-      icon: 'mdi:check-bold',
-    },
-    Suspended: {
-      status: '',
-      icon: 'mdi:pause',
-    },
-  };
-
-  const condition = job.status.conditions.find(
-    ({ status, type }: { status: string; type: string }) =>
-      type in conditionOptions && status === 'True'
-  );
-
-  if (!condition) {
+  const statusType = getJobStatusType(job);
+  if (!statusType) {
     return null;
   }
 
   const tooltip = '';
-
-  const conditionInfo = conditionOptions[(condition.type as 'Complete' | 'Failed') || 'Suspended'];
+  const conditionInfo = JOB_STATUS_STYLES[statusType];
 
   return (
     <LightTooltip title={tooltip} interactive>
       <Box display="inline">
-        <StatusLabel status={conditionInfo.status as StatusLabelProps['status']}>
+        <StatusLabel status={conditionInfo.status}>
           <Icon aria-label="hidden" icon={conditionInfo.icon} width="1.2rem" height="1.2rem" />
-          {condition.type}
+          {statusType}
         </StatusLabel>
       </Box>
     </LightTooltip>
@@ -172,11 +202,12 @@ export function JobsListRenderer(props: JobsListRendererProps) {
           gridTemplate: 'min-content',
           getValue: job => {
             const duration = job.getDuration();
-            if (duration > 0) {
+            if (duration >= 0) {
               return formatDuration(duration, { format: 'mini' });
             }
             return '-';
           },
+          render: job => <JobDuration job={job} />,
           sort: (job1, job2) => job1.getDuration() - job2.getDuration(),
         },
         {

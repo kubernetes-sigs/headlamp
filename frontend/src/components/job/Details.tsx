@@ -18,8 +18,8 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import Job from '../../lib/k8s/job';
-import { formatDuration } from '../../lib/util';
 import { useEventCallback } from '../../redux/headlampEventSlice';
+import { ValueLabel } from '../common/Label';
 import Link from '../common/Link';
 import {
   ConditionsSection,
@@ -30,6 +30,7 @@ import {
   MetadataDictGrid,
   OwnedPodsSection,
 } from '../common/Resource';
+import JobDuration from './JobDuration';
 import JobSuspendButton from './JobSuspendButton';
 import { jobSuspendKey } from './jobSuspendState';
 import { makeJobStatusLabel } from './List';
@@ -141,8 +142,11 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
           },
           {
             name: t('translation|Duration'),
-            value:
-              item.getDuration() > 0 ? formatDuration(item.getDuration(), { format: 'mini' }) : '-',
+            value: (
+              <ValueLabel>
+                <JobDuration job={item} />
+              </ValueLabel>
+            ),
           },
           {
             name: t('translation|Suspend'),
