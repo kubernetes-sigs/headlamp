@@ -65,48 +65,48 @@ have so far:
 ### App Bar Action
 
 Show a component in the top right of the app bar with
-[registerAppBarAction](../../api/plugin/registry/functions/registerappbaraction).
+[registerAppBarAction](../../api/modules/plugin_registry.md#registerappbaraction).
 
 ![screenshot of the header showing two actions](../images/podcounter_screenshot.png)
 
 - Example plugin: [How To Register an App Bar Action](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/pod-counter)
-- API reference: [registerAppBarAction](../../api/plugin/registry/functions/registerappbaraction)
+- API reference: [registerAppBarAction](../../api/modules/plugin_registry.md#registerappbaraction)
 
 ### App Logo
 
 Change the logo in the top left with
-[registerAppLogo](../../api/plugin/registry/functions/registerapplogo).
+[registerAppLogo](../../api/modules/plugin_registry.md#registerapplogo).
 
 ![screenshot of the logo being changed](../images/change-logo.png)
 
 - Example plugin: [How To Change The Logo](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo)
-- API reference: [registerAppLogo](../../api/plugin/registry/functions/registerapplogo)
+- API reference: [registerAppLogo](../../api/modules/plugin_registry.md#registerapplogo)
 
 ### App Menus
 
 Add menus when Headlamp runs as an app with
-[Headlamp.setAppMenu](../../api/plugin/lib/classes/Headlamp#setappmenu).
+[Headlamp.setAppMenu](../../api/classes/plugin_lib.Headlamp.md#setappmenu).
 
 ![screenshot of the logo being changed](../images/app-menus.png)
 
 - Example plugin: [How To Add App Menus](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/app-menus)
-- API reference: [Headlamp.setAppMenu](../../api/plugin/lib/classes/Headlamp#setappmenu)
+- API reference: [Headlamp.setAppMenu](../../api/classes/plugin_lib.Headlamp.md#setappmenu)
 
 ### Cluster Chooser
 
 Change the Cluster Chooser button in the top right of the app bar with
-[registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser).
+[registerClusterChooser](../../api/modules/plugin_registry.md#registerclusterchooser).
 
 ![screenshot of the cluster chooser button](../images/cluster-chooser.png)
 
 - Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
-- API reference: [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser)
+- API reference: [registerClusterChooser](../../api/modules/plugin_registry.md#registerclusterchooser)
 
 ### Cluster Delete Handlers
 
 A plugin that manages a cluster's lifecycle can take over Delete in the Home
 page's cluster action menu with
-[registerClusterProviderDeleteHandler](../../api/plugin/registry/functions/registerclusterproviderdeletehandler).
+[registerClusterProviderDeleteHandler](../../api/modules/plugin_registry.md#registerclusterproviderdeletehandler).
 For each cluster the handler's `owns` function accepts, Delete opens the
 plugin's dialog named by `dialog`, registered with `registerClusterProviderDialog`,
 instead of removing the cluster from the kubeconfig. The first registered
@@ -115,50 +115,50 @@ does without a handler. A handler is ignored unless `owns` is a function and
 the dialog name is neither empty nor `deleteDynamic`, the name of Headlamp's own
 confirmation.
 
-- API reference: [registerClusterProviderDeleteHandler](../../api/plugin/registry/functions/registerclusterproviderdeletehandler)
+- API reference: [registerClusterProviderDeleteHandler](../../api/modules/plugin_registry.md#registerclusterproviderdeletehandler)
 
 ### Cluster Empty State
 
 Customize the Home page shown when no clusters are configured with
-[registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate).
+[registerClusterEmptyState](../../api/modules/plugin_registry.md#registerclusteremptystate).
 The registered component receives Headlamp's standard empty state as
 `defaultContent`. Render it to extend the default onboarding, or omit it to
 replace the empty state completely.
 
 - Example plugin: [How To Customize The Cluster Empty State](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
-- API reference: [registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate)
+- API reference: [registerClusterEmptyState](../../api/modules/plugin_registry.md#registerclusteremptystate)
 
 ### Details View Header Action
 
 Show a component in the top right of a detail view with
-[registerDetailsViewHeaderAction](../../api/plugin/registry/functions/registerdetailsviewheaderaction).
+[registerDetailsViewHeaderAction](../../api/modules/plugin_registry.md#registerdetailsviewheaderaction).
 
 ![screenshot of the header showing two actions](../images/header_actions_screenshot.png)
 
 - Example plugin: [How To set a Details View Header Action](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/details-view)
-- API reference: [registerDetailsViewHeaderAction](../../api/plugin/registry/functions/registerdetailsviewheaderaction)
+- API reference: [registerDetailsViewHeaderAction](../../api/modules/plugin_registry.md#registerdetailsviewheaderaction)
 
 ### Details View Section
 
 Change sections in a Kubernetes resource's details view with
-[registerDetailsViewSectionsProcessor](../../api/plugin/registry/functions/registerdetailsviewsectionsprocessor).
+[registerDetailsViewSectionsProcessor](../../api/modules/plugin_registry.md#registerdetailsviewsectionsprocessor).
 This lets you add, remove, update, or move sections.
 
 Or, add a component to the bottom of a details view with
-[registerDetailsViewSection](../../api/plugin/registry/functions/registerdetailsviewsection).
+[registerDetailsViewSection](../../api/modules/plugin_registry.md#registerdetailsviewsection).
 
 ![screenshot of the appended Details View Section](../images/details-view.jpeg)
 
 - Example plugin: [How To set a Details View Section](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/details-view)
-- API reference: [registerDetailsViewSection](../../api/plugin/registry/functions/registerdetailsviewsection)
+- API reference: [registerDetailsViewSection](../../api/modules/plugin_registry.md#registerdetailsviewsection)
 
 ### Dynamic Clusters
 
 Set a cluster dynamically, instead of from a configuration file, with
-[Headlamp.setCluster](../../api/plugin/lib/classes/Headlamp.md#setcluster).
+[Headlamp.setCluster](../../api/classes/plugin_lib.Headlamp.md#setcluster).
 
 - Example plugin: [How To Dynamically Set a Cluster](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/dynamic-clusters)
-- API reference: [Headlamp.setCluster](../../api/plugin/lib/classes/Headlamp.md#setcluster)
+- API reference: [Headlamp.setCluster](../../api/classes/plugin_lib.Headlamp.md#setcluster)
 
 ### Secure Storage
 
@@ -213,20 +213,20 @@ be shared with workloads or other cluster users.
 ### Route
 
 Show a component in the main area at a given URL with
-[registerRoute](../../api/plugin/registry/functions/registerroute).
+[registerRoute](../../api/modules/plugin_registry.md#registerroute).
 
 - Example plugin: [How To Register a Route](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
-- API reference: [registerRoute](../../api/plugin/registry/functions/registerroute)
-- API reference: [registerRouteFilter](../../api/plugin/registry/functions/registerroutefilter)
+- API reference: [registerRoute](../../api/modules/plugin_registry.md#registerroute)
+- API reference: [registerRouteFilter](../../api/modules/plugin_registry.md#registerroutefilter)
 
 ### Sidebar Item
 
 Add items to the left sidebar with
-[registerSidebarEntry](../../api/plugin/registry/functions/registersidebarentry).
+[registerSidebarEntry](../../api/modules/plugin_registry.md#registersidebarentry).
 Filter items with
-[registerSidebarEntryFilter](../../api/plugin/registry/functions/registersidebarentryfilter).
+[registerSidebarEntryFilter](../../api/modules/plugin_registry.md#registersidebarentryfilter).
 Filter items from the home (non-cluster) sidebar with
-[registerHomeSidebarEntryFilter](../../api/plugin/registry/functions/registerhomesidebarentryfilter).
+[registerHomeSidebarEntryFilter](../../api/modules/plugin_registry.md#registerhomesidebarentryfilter).
 Use `entryType: 'subheader'` with `registerSidebarEntry` to add a
 non-clickable section header that groups sidebar entries. Subheaders render as
 dividers when the sidebar is collapsed. Use `sx` to override the default
@@ -235,25 +235,25 @@ subheader styles.
 ![screenshot of the sidebar being changed](../images/sidebar.png)
 
 - Example plugin: [How To add items to the sidebar](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
-- API reference: [registerSidebarEntry](../../api/plugin/registry/functions/registersidebarentry)
-- API reference: [registerSidebarEntryFilter](../../api/plugin/registry/functions/registersidebarentryfilter)
-- API reference: [registerHomeSidebarEntryFilter](../../api/plugin/registry/functions/registerhomesidebarentryfilter)
+- API reference: [registerSidebarEntry](../../api/modules/plugin_registry.md#registersidebarentry)
+- API reference: [registerSidebarEntryFilter](../../api/modules/plugin_registry.md#registersidebarentryfilter)
+- API reference: [registerHomeSidebarEntryFilter](../../api/modules/plugin_registry.md#registerhomesidebarentryfilter)
 
 ### Tables
 
 Change tables in Headlamp with
-[registerResourceTableColumnsProcessor](../../api/plugin/registry/functions/registersidebarentry).
+[registerResourceTableColumnsProcessor](../../api/modules/plugin_registry.md#registerresourcetablecolumnsprocessor).
 This lets you add, remove, update, or move table columns.
 
 ![screenshot of the pods list with a context menu added by a plugin](../images/table-context-menu.png)
 
 - Example plugin: [How to add a context menu to each row in the pods list table](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/tables)
-- API reference: [registerResourceTableColumnsProcessor](../../api/plugin/registry/functions/registerresourcetablecolumnsprocessor)
+- API reference: [registerResourceTableColumnsProcessor](../../api/modules/plugin_registry.md#registerresourcetablecolumnsprocessor)
 
 ### Project Creation
 
 Add a project creation choice with
-[registerCustomCreateProject](../../api/plugin/registry/functions/registercustomcreateproject).
+[registerCustomCreateProject](../../api/modules/plugin_registry.md#registercustomcreateproject).
 To replace one of Headlamp's built-in choices in the same position, use its ID
 from `DefaultCreateProject`:
 
@@ -281,24 +281,24 @@ project creation menu.
 | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | ![Default project creation choices on a mobile viewport](../images/project-creation/default-choices-mobile.png) | ![Project creation choices replaced by a plugin on a mobile viewport](../images/project-creation/replaced-choices-mobile.png) |
 
-- API reference: [registerCustomCreateProject](../../api/plugin/registry/functions/registercustomcreateproject)
+- API reference: [registerCustomCreateProject](../../api/modules/plugin_registry.md#registercustomcreateproject)
 
 ### Headlamp Events
 
 Headlamp fires events when something important happens.
 
 React to Headlamp events with
-[registerHeadlampEventCallback](../../api/plugin/registry/functions/registerheadlampeventcallback).
+[registerHeadlampEventCallback](../../api/modules/plugin_registry.md#registerheadlampeventcallback).
 
 ![screenshot of a snackbar notification when an event occurred](../images/event-snackbar.png)
 
 - Example plugin: [How to show snackbars for Headlamp events](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/headlamp-events)
-- API reference: [registerHeadlampEventCallback](../../api/plugin/registry/functions/registerheadlampeventcallback)
+- API reference: [registerHeadlampEventCallback](../../api/modules/plugin_registry.md#registerheadlampeventcallback)
 
 ### Plugin Settings
 
 Plugins can have user settings. Create them with
-[registerPluginSettings](../../api/plugin/registry/functions/registerpluginsettings).
+[registerPluginSettings](../../api/modules/plugin_registry.md#registerpluginsettings).
 
 - Example plugin: [How to create plugin settings and use them](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/change-logo)
 
@@ -307,11 +307,11 @@ Plugins can have user settings. Create them with
 ### App Theme
 
 Add a custom Headlamp theme with
-[registerAppTheme](../../api/plugin/registry/functions/registerapptheme).
+[registerAppTheme](../../api/modules/plugin_registry.md#registerapptheme).
 The theme name must be unique. You can specify 'light' or 'dark' as a base.
 The default is 'light'.
 
-Check the [AppTheme](../../api/lib/AppTheme/interfaces/AppTheme.md)
+Check the `AppTheme`
 definition for all customizable properties.
 
 After you register your theme, it will be in the 'Theme' selection in General
@@ -355,7 +355,7 @@ for a working `registerAppTheme({ ..., terminal: { ... } })` call.
 ### UI Panels
 
 Register a side panel with
-[registerUIPanel](../../api/plugin/registry/functions/registerUIPanel).
+`registerUIPanel`.
 A side panel is a UI element on one side of the application. You can define
 more than one panel per side. Each panel needs a unique ID, a side (top, left,
 right, bottom), and a React component.
@@ -418,7 +418,7 @@ for a complete relation provider registration.
 Customize Headlamp's Projects feature with several registration functions:
 
 Group namespaces into separate project entries with
-[registerProjectGrouping](../../api/plugin/registry/functions/registerProjectGrouping).
+[registerProjectGrouping](../../api/modules/plugin_registry.md#registerprojectgrouping).
 By default, Headlamp combines namespaces with the same project ID across clusters,
 which is useful when they form one logical application. Use custom grouping when
 clusters represent distinct environments, tenants, or ownership boundaries and
@@ -428,11 +428,11 @@ opaque key. Namespaces with the same project ID and key are shown as one project
 entry. Return the project ID to preserve Headlamp's default cross-cluster grouping.
 
 Add custom tabs to the project details view with
-[registerProjectDetailsTab](../../api/plugin/registry/functions/registerProjectDetailsTab).
+`registerProjectDetailsTab`.
 Each tab needs a unique ID, a label, and a React component that receives the project as a prop.
 
 Add custom sections to the project overview page with
-[registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
+`registerProjectOverviewSection`.
 Each section needs a unique `id` and a component. The component receives the current
 `project` and its loaded `projectResources`.
 
@@ -453,7 +453,7 @@ registerProjectOverviewSection({
 ```
 
 Add action buttons to the project details header with
-[registerProjectHeaderAction](../../api/plugin/registry/functions/registerProjectHeaderAction).
+`registerProjectHeaderAction`.
 The action component receives the current project and an optional
 `setSelectedTab?: (tabId: string) => void` callback. Call it with the ID of a
 registered, enabled tab to select that tab. Unknown tabs and tabs without a
@@ -469,7 +469,7 @@ registerProjectHeaderAction({
 ```
 
 Register custom API resources (e.g. CRDs) for project resource tracking with
-[registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
+`registerProjectApiResource`.
 Once registered, the CRD resources will appear in the project's resource count,
 health status, and Resources tab. Only namespaced resources can be registered,
 since Projects are scoped to namespaces.
@@ -484,6 +484,6 @@ For example when you click on a resource (like a Pod or ReplicaSet), the details
 
 ![screenshot of an activity example](./images/activity-example.png)
 
-You can create and update Actitivities from plugins using [Activity API](../../api/components/activity/Activity/variables/Activity.md)
+You can create and update Activities from plugins using `Activity` API.
 
 Check the [example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/activity) for the full code.
