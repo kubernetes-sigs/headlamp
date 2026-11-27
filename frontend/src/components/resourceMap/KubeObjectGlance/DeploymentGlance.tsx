@@ -22,8 +22,9 @@ import { StatusLabel } from '../../common/Label';
 
 export function DeploymentGlance({ deployment }: { deployment: Deployment }) {
   const { t } = useTranslation();
-  const { replicas, availableReplicas } = deployment.status ?? {};
-  const pods = `${availableReplicas || 0}/${replicas || 0}`;
+  const { replicas } = deployment.spec ?? {};
+  const { readyReplicas } = deployment.status ?? {};
+  const pods = `${readyReplicas || 0}/${replicas || 0}`;
 
   return (
     <Box display="flex" gap={1} alignItems="center" mt={2} flexWrap="wrap" key="deployment">

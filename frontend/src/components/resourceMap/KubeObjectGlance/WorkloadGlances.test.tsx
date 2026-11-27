@@ -32,14 +32,14 @@ vi.mock('../../pod/List', () => ({
 }));
 
 describe('DeploymentGlance', () => {
-  it('renders replica availability and each condition', () => {
+  it('renders ready over desired replicas and each condition', () => {
     render(
       <DeploymentGlance
         deployment={
           {
+            spec: { replicas: 4 },
             status: {
-              replicas: 4,
-              availableReplicas: 3,
+              readyReplicas: 3,
               conditions: [{ type: 'Available' }, { type: 'Progressing' }],
             },
           } as any
@@ -50,6 +50,28 @@ describe('DeploymentGlance', () => {
     expect(screen.getByText('Pods: 3/4')).toBeInTheDocument();
     expect(screen.getByText('Available')).toBeInTheDocument();
     expect(screen.getByText('Progressing')).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: 'only some pods could be created',
+      status: { replicas: 1, readyReplicas: 1, availableReplicas: 1 },
+      pods: '1/3',
+    },
+    {
+      name: 'a rollout has a surge pod',
+      status: { replicas: 4, readyReplicas: 3, availableReplicas: 3 },
+      pods: '3/3',
+    },
+    {
+      name: 'ready pods are not yet available',
+      status: { replicas: 3, readyReplicas: 3, availableReplicas: 0 },
+      pods: '3/3',
+    },
+  ])('counts ready pods against spec.replicas when $name', ({ status, pods }) => {
+    render(<DeploymentGlance deployment={{ spec: { replicas: 3 }, status } as any} />);
+
+    expect(screen.getByText(`Pods: ${pods}`)).toBeInTheDocument();
   });
 
   it('falls back to zero for missing replica counts', () => {
