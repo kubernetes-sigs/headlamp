@@ -185,7 +185,7 @@ class Event extends KubeObject<KubeEvent> {
     ];
     let objInstance: KubeObject | null = null;
     if (!!InvolvedObjectClass) {
-      objInstance = new InvolvedObjectClass(
+      const candidate = new InvolvedObjectClass(
         {
           kind: this.involvedObject.kind,
           metadata: {
@@ -197,6 +197,13 @@ class Event extends KubeObject<KubeEvent> {
         },
         this.cluster
       );
+
+      // Plugins can modify ResourceClasses at runtime, so validate the object before
+      // exposing it as a KubeObject. An incomplete implementation would otherwise crash
+      // consumers such as the cluster overview's event links.
+      if (candidate.metadata) {
+        objInstance = candidate;
+      }
     }
 
     return objInstance;
