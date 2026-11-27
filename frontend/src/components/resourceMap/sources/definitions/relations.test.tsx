@@ -14,21 +14,36 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { renderHook } from '@testing-library/react';
+import React from 'react';
 import App from '../../../../App';
 import ClusterRole from '../../../../lib/k8s/clusterRole';
 import ClusterRoleBinding from '../../../../lib/k8s/clusterRoleBinding';
 import CompositePodGroup from '../../../../lib/k8s/compositePodGroup';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
+import CronJob from '../../../../lib/k8s/cronJob';
+import DaemonSet from '../../../../lib/k8s/daemonSet';
+import Deployment from '../../../../lib/k8s/deployment';
 import DeviceClass from '../../../../lib/k8s/deviceClass';
+import Endpoints from '../../../../lib/k8s/endpoints';
+import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
+import GatewayClass from '../../../../lib/k8s/gatewayClass';
+import HPA from '../../../../lib/k8s/hpa';
 import HTTPRoute from '../../../../lib/k8s/httpRoute';
+import Ingress from '../../../../lib/k8s/ingress';
+import Job from '../../../../lib/k8s/job';
+import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import LeaderWorkerSet, { LEADER_WORKER_SET_NAME_LABEL } from '../../../../lib/k8s/leaderWorkerSet';
+import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PodGroup from '../../../../lib/k8s/podGroup';
+import ReplicaSet from '../../../../lib/k8s/replicaSet';
 import ResourceClaim from '../../../../lib/k8s/resourceClaim';
 import ResourceClaimTemplate from '../../../../lib/k8s/resourceClaimTemplate';
 import Role from '../../../../lib/k8s/role';
@@ -40,9 +55,12 @@ import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
+import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
+import reducers from '../../../../redux/reducers/reducers';
 import { TestContext } from '../../../../test';
 import { GraphNode, Relation } from '../../graph/graphModel';
+import { addRelation } from '../../graphViewSlice';
 import { makeKubeSourceId } from './graphDefinitionUtils';
 import {
   BUILT_IN_RELATION_IDS,
@@ -213,6 +231,21 @@ describe('matchesLabelSelector', () => {
     };
     expect(matchesLabelSelector(tierNotDb, web)).toBe(true);
     expect(matchesLabelSelector(tierNotDb, db)).toBe(false);
+  });
+
+  it('rejects items whose labels differ from matchLabels, and unknown operators', () => {
+    const labelled = new KubeObject(
+      { metadata: { uid: 'labelled', labels: { app: 'web' } } } as any,
+      'cluster-a'
+    );
+
+    expect(matchesLabelSelector({ matchLabels: { app: 'api' } }, labelled)).toBe(false);
+    expect(
+      matchesLabelSelector(
+        { matchExpressions: [{ key: 'app', operator: 'Matches' as any, values: ['web'] }] },
+        labelled
+      )
+    ).toBe(false);
   });
 
   it('supports Exists, DoesNotExist and NotIn on missing labels', () => {
@@ -1070,5 +1103,341 @@ describe('DRA relations', () => {
     expect(targetsOf(templateEdges)).toEqual(expected);
     expect(claimEdges.every(edge => edge.nonGroupingSide === 'target')).toBe(true);
     expect(templateEdges.every(edge => edge.nonGroupingSide === 'both')).toBe(true);
+  });
+});
+
+describe('relation predicates', () => {
+  beforeEach(() => {
+    vi.mocked(useNamespaces).mockReturnValue(['namespace-a']);
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const named = (name: string, extra: Record<string, any> = {}) => ({
+    uid: name,
+    name,
+    namespace: 'namespace-a',
+    ...extra,
+  });
+  const make = (cls: KubeObjectClass, json: Record<string, any>) =>
+    new (cls as any)(json, 'cluster-a') as KubeObject;
+  const podTemplate = (spec: Record<string, any>) => ({
+    template: { spec: { containers: [], ...spec } },
+  });
+  const secretEnv = (name: string) => ({
+    name: 'c',
+    env: [{ name: 'TOKEN', valueFrom: { secretKeyRef: { name, key: 'token' } } }],
+  });
+  const webhooks = (service: string) => [
+    { name: 'w', clientConfig: { service: { name: service, namespace: 'namespace-a' } } },
+  ];
+
+  // [relation id, source, a target the source refers to, a target it doesn't]
+  it.each<[string, KubeObject, KubeObject, KubeObject]>([
+    [
+      'job-configmap',
+      make(Job, {
+        metadata: named('job'),
+        spec: podTemplate({ volumes: [{ name: 'v', configMap: { name: 'settings' } }] }),
+      }),
+      make(ConfigMap, { metadata: named('settings') }),
+      make(ConfigMap, { metadata: named('other') }),
+    ],
+    [
+      'job-secret',
+      make(Job, {
+        metadata: named('job'),
+        spec: podTemplate({ containers: [secretEnv('token')] }),
+      }),
+      make(Secret, { metadata: named('token') }),
+      make(Secret, { metadata: named('other') }),
+    ],
+    [
+      'hpa-deployment',
+      make(HPA, {
+        metadata: named('hpa'),
+        spec: { scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'web' } },
+      }),
+      make(Deployment, { metadata: named('web'), spec: podTemplate({}) }),
+      make(Deployment, { metadata: named('api'), spec: podTemplate({}) }),
+    ],
+    [
+      'hpa-statefulset',
+      make(HPA, {
+        metadata: named('hpa'),
+        spec: { scaleTargetRef: { apiVersion: 'apps/v1', kind: 'StatefulSet', name: 'db' } },
+      }),
+      make(StatefulSet, { metadata: named('db'), spec: podTemplate({}) }),
+      make(StatefulSet, { metadata: named('cache'), spec: podTemplate({}) }),
+    ],
+    [
+      'vwc-service',
+      make(ValidatingWebhookConfiguration, {
+        metadata: { uid: 'vwc', name: 'vwc' },
+        webhooks: webhooks('hooks'),
+      }),
+      service(named('hooks'), {}),
+      service(named('other'), {}),
+    ],
+    [
+      'mwc-service',
+      make(MutatingWebhookConfiguration, {
+        metadata: { uid: 'mwc', name: 'mwc' },
+        webhooks: webhooks('hooks'),
+      }),
+      service(named('hooks'), {}),
+      service(named('other'), {}),
+    ],
+    [
+      'endpoints-service',
+      make(Endpoints, { metadata: named('web'), subsets: [] }),
+      service(named('web'), {}),
+      service(named('api'), {}),
+    ],
+    [
+      'endpointslices-service',
+      make(EndpointSlice, {
+        metadata: named('web-abc12', { labels: { 'kubernetes.io/service-name': 'web' } }),
+        endpoints: [],
+        ports: [],
+      }),
+      service(named('web'), {}),
+      service(named('api'), {}),
+    ],
+    [
+      'ingress-service',
+      make(Ingress, {
+        metadata: named('ingress'),
+        spec: {
+          rules: [
+            { host: 'example.com' },
+            { http: { paths: [{ path: '/', backend: { service: { name: 'web' } } }] } },
+          ],
+        },
+      }),
+      service(named('web'), {}),
+      service(named('api'), {}),
+    ],
+    [
+      'ingress-secret',
+      make(Ingress, {
+        metadata: named('ingress'),
+        spec: { rules: [], tls: [{ secretName: 'tls' }] },
+      }),
+      make(Secret, { metadata: named('tls') }),
+      make(Secret, { metadata: named('other') }),
+    ],
+    [
+      'rolebinding-sa',
+      roleBinding(named('binding'), { kind: 'Role', name: 'reader' }, [
+        { kind: 'User', name: 'alice' },
+        { kind: 'ServiceAccount', name: 'bot' },
+      ]),
+      serviceAccount(named('bot')),
+      // A user subject is not a service account, even with the same name.
+      serviceAccount(named('alice')),
+    ],
+    [
+      'sa-deployment',
+      serviceAccount(named('default')),
+      // A Deployment that names no service account runs as "default".
+      make(Deployment, { metadata: named('web'), spec: podTemplate({}) }),
+      make(Deployment, {
+        metadata: named('api'),
+        spec: podTemplate({ serviceAccountName: 'builder' }),
+      }),
+    ],
+    [
+      'sa-daemonset',
+      serviceAccount(named('agent')),
+      make(DaemonSet, {
+        metadata: named('agent'),
+        spec: podTemplate({ serviceAccountName: 'agent' }),
+      }),
+      make(DaemonSet, { metadata: named('logs'), spec: podTemplate({}) }),
+    ],
+    [
+      'pvc-pod',
+      new PersistentVolumeClaim(
+        { metadata: named('data'), spec: { accessModes: ['ReadWriteOnce'] } } as any,
+        'cluster-a'
+      ),
+      pod(named('db'), { volumes: [{ name: 'd', persistentVolumeClaim: { claimName: 'data' } }] }),
+      pod(named('web')),
+    ],
+    [
+      'job-cronjob',
+      make(Job, {
+        metadata: named('job', { ownerReferences: [{ uid: 'nightly' }] }),
+        spec: podTemplate({}),
+      }),
+      make(CronJob, { metadata: named('nightly'), spec: {} }),
+      make(CronJob, { metadata: named('weekly'), spec: {} }),
+    ],
+    [
+      'job-jobset',
+      make(Job, {
+        metadata: named('job', { ownerReferences: [{ uid: 'train' }] }),
+        spec: podTemplate({}),
+      }),
+      make(JobSet, { metadata: named('train'), spec: {} }),
+      make(JobSet, { metadata: named('eval'), spec: {} }),
+    ],
+    [
+      'statefulset-leaderworkerset',
+      make(StatefulSet, {
+        metadata: named('lws-0', { labels: { [LEADER_WORKER_SET_NAME_LABEL]: 'lws' } }),
+        spec: podTemplate({}),
+      }),
+      make(LeaderWorkerSet, { metadata: named('lws'), spec: {} }),
+      make(LeaderWorkerSet, { metadata: named('other'), spec: {} }),
+    ],
+    [
+      'gateway-gatewayclass',
+      gateway(named('gateway')),
+      make(GatewayClass, { metadata: { uid: 'example', name: 'example' }, spec: {} }),
+      make(GatewayClass, { metadata: { uid: 'other', name: 'other' }, spec: {} }),
+    ],
+  ])('%s links its source only to the target it refers to', (id, source, target, other) => {
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, id);
+
+    expect(relation.predicate(node(source), node(target))).toBe(true);
+    expect(relation.predicate(node(source), node(other))).toBe(false);
+  });
+
+  it('does not link an HPA to a StatefulSet named like the Deployment it scales', () => {
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'hpa-statefulset');
+    const hpa = make(HPA, {
+      metadata: named('hpa'),
+      spec: { scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'web' } },
+    });
+
+    expect(
+      relation.predicate(node(hpa), node(make(StatefulSet, { metadata: named('web'), spec: {} })))
+    ).toBe(false);
+  });
+
+  it('builds owner edges from the index, skipping objects without a listed owner', () => {
+    const { result } = renderUseGetAllRelations();
+    const relation = relationFor(result.current, Pod);
+    const owner = make(ReplicaSet, { metadata: named('owner'), spec: podTemplate({}) });
+    const child = pod(named('child', { ownerReferences: [{ uid: 'owner' }] }));
+    const orphan = pod(named('orphan'));
+    const ownerGone = pod(named('owner-gone', { ownerReferences: [{ uid: 'deleted' }] }));
+    const nodesByUid = new Map(
+      [owner, child, orphan, ownerGone].map(object => [object.metadata.uid, node(object)])
+    );
+
+    expect(
+      relation.buildEdgesWithIndex!([node(child), node(orphan), node(ownerGone)], nodesByUid)
+    ).toEqual([{ id: 'child-owner', source: 'child', target: 'owner' }]);
+  });
+});
+
+describe('custom resource owner relations', () => {
+  beforeEach(() => {
+    vi.mocked(useNamespaces).mockReturnValue(['namespace-a']);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  class Widget extends KubeObject {
+    static kind = 'Widget';
+    static apiName = 'widgets';
+    static apiVersion = 'example.io/v1';
+    static isNamespaced = true;
+  }
+
+  const crd = (crClass: typeof Widget | null) =>
+    ({ makeCRClass: () => crClass, makeCRClassOrNull: () => crClass } as unknown as CRD);
+
+  it('matches dependents and skips owners without a uid or without dependents', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({
+      items: [crd(Widget)],
+    } as unknown as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = result.current.find(
+      relation => relation.fromSource === 'crd-example.io/Widget'
+    )!;
+    const widget = new Widget({ metadata: { uid: 'widget' } } as any, 'cluster-a');
+    const lonely = new Widget({ metadata: { uid: 'lonely' } } as any, 'cluster-a');
+    const nameless = new Widget({ metadata: {} } as any, 'cluster-a');
+    const child = new KubeObject(
+      { metadata: { uid: 'child', ownerReferences: [{ uid: 'widget' }] } } as any,
+      'cluster-a'
+    );
+    const nodesByUid = new Map(
+      [widget, lonely, child].map(object => [object.metadata.uid, node(object)])
+    );
+
+    expect(relation.predicate(node(widget), node(child))).toBe(true);
+    expect(relation.predicate(node(lonely), node(child))).toBe(false);
+    expect(relation.buildEdgesWithIndex!([node(nameless), node(lonely)], nodesByUid)).toEqual([]);
+  });
+
+  it('skips a CRD whose spec is too incomplete to make a class', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: [] } as unknown as ReturnType<
+      typeof CRD.useList
+    >);
+    const { result, rerender } = renderUseGetAllRelations();
+    const count = result.current.length;
+
+    vi.spyOn(CRD, 'useList').mockReturnValue({
+      items: [crd(null)],
+    } as unknown as ReturnType<typeof CRD.useList>);
+    rerender();
+
+    expect(result.current).toHaveLength(count);
+  });
+});
+
+describe('plugin relations', () => {
+  beforeEach(() => {
+    vi.mocked(useNamespaces).mockReturnValue(['namespace-a']);
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('drops relations without a predicate and treats a throwing predicate as no edge', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const store = configureStore({
+      reducer: reducers,
+      middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
+    });
+    store.dispatch(
+      addRelation({
+        id: 'plugin-throws',
+        fromSource: 'plugin-source',
+        predicate: () => {
+          throw new Error('plugin bug');
+        },
+      })
+    );
+    store.dispatch(
+      addRelation({
+        id: 'plugin-without-predicate',
+        fromSource: 'plugin-source',
+        predicate: 'not a function',
+      } as any)
+    );
+    const { result } = renderHook(() => useGetAllRelations(), {
+      wrapper: ({ children }: { children: React.ReactNode }) => (
+        <TestContext store={store}>{children}</TestContext>
+      ),
+    });
+    const relation = relationById(result.current, 'plugin-throws');
+
+    expect(result.current.some(relation => relation.id === 'plugin-without-predicate')).toBe(false);
+    expect(
+      relation.predicate(node(pod({ uid: 'a', name: 'a' })), node(pod({ uid: 'b', name: 'b' })))
+    ).toBe(false);
+    expect(error).toHaveBeenCalledWith(
+      'Error executing plugin relation predicate [plugin-throws]:',
+      expect.any(Error)
+    );
   });
 });
