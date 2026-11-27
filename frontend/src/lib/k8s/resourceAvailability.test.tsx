@@ -20,7 +20,9 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { useSelectedClusters } from './api/v1/hooks';
+import IPAddress from './ipAddress';
 import { isResourceServed, useClustersServing, useIsResourceServed } from './resourceAvailability';
+import ServiceCIDR from './serviceCIDR';
 
 const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
 
@@ -87,6 +89,23 @@ describe('isResourceServed', () => {
     });
     expect(mockRequest).toHaveBeenNthCalledWith(2, '/apis/scheduling.k8s.io/v1alpha3', {
       cluster: 'gang',
+    });
+  });
+
+  it.each([
+    { resourceClass: ServiceCIDR, apiName: 'servicecidrs' },
+    { resourceClass: IPAddress, apiName: 'ipaddresses' },
+  ])('falls back to v1beta1 for $apiName', async ({ resourceClass, apiName }) => {
+    mockRequest
+      .mockRejectedValueOnce(new Error('404'))
+      .mockResolvedValueOnce({ resources: [{ name: apiName }] });
+
+    await expect(resourceClass.isEnabled('legacy')).resolves.toBe(true);
+    expect(mockRequest).toHaveBeenNthCalledWith(1, '/apis/networking.k8s.io/v1', {
+      cluster: 'legacy',
+    });
+    expect(mockRequest).toHaveBeenNthCalledWith(2, '/apis/networking.k8s.io/v1beta1', {
+      cluster: 'legacy',
     });
   });
 

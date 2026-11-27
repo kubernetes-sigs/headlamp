@@ -32,7 +32,7 @@ export interface KubeIPAddress extends KubeObjectInterface {
 class IPAddress extends KubeObject<KubeIPAddress> {
   static kind = 'IPAddress';
   static apiName = 'ipaddresses';
-  static apiVersion = 'networking.k8s.io/v1';
+  static apiVersion = ['networking.k8s.io/v1', 'networking.k8s.io/v1beta1'];
   static isNamespaced = false;
 
   static isEnabled(cluster: string): Promise<boolean> {
