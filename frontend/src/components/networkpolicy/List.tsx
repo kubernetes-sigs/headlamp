@@ -66,8 +66,11 @@ export function NetworkPolicyList() {
           render: networkpolicy => {
             const podSelector = networkpolicy.jsonData.spec.podSelector || {};
             const { matchLabels, matchExpressions } = podSelector;
-            if (!matchLabels && !matchExpressions) {
-              return null;
+            if (
+              !matchLabelsSimplifier(matchLabels).length &&
+              !matchExpressionSimplifier(matchExpressions).length
+            ) {
+              return t('translation|All pods in the namespace');
             }
 
             return (
