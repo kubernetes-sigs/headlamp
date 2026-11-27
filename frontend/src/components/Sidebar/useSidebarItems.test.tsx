@@ -574,11 +574,15 @@ describe('useSidebarItems', () => {
   });
 
   describe('Devices (alpha) section', () => {
-    it('is hidden when the cluster does not serve resource.k8s.io/v1', () => {
+    it('is hidden when the cluster does not serve resource.k8s.io/v1', async () => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+      const isEnabled = vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
+
       const { result } = renderHook(() => useSidebarItems(), {
         wrapper: wrapper(mockStore({}, [])),
       });
 
+      await waitFor(() => expect(isEnabled).toHaveBeenCalled());
       expect(result.current.find(item => item.name === 'devices')).toBeUndefined();
     });
 
@@ -625,13 +629,20 @@ describe('useSidebarItems', () => {
 
     it('does not change the custom entries held in the store', () => {
       const entries = {
-        child: { name: 'child', label: 'Child', url: '/child', parent: 'network' },
+        parent: { name: 'parent', label: 'Parent', url: '/parent' },
+        child: { name: 'child', label: 'Child', url: '/child', parent: 'parent' },
       };
+      const before = JSON.parse(JSON.stringify(entries));
       const store = mockStore(entries, []);
 
-      renderHook(() => useSidebarItems(), { wrapper: wrapper(store) });
+      const { result } = renderHook(() => useSidebarItems(), { wrapper: wrapper(store) });
 
-      expect(store.getState().sidebar.entries).toEqual(entries);
+      // The child is attached under the custom parent in the returned tree...
+      const parent = result.current.find(item => item.name === 'parent');
+      expect(parent?.subList?.map(item => item.name)).toEqual(['child']);
+      // ...while the parent held in the store is left untouched (no subList added).
+      expect(store.getState().sidebar.entries).toEqual(before);
+      expect(store.getState().sidebar.entries.parent).not.toHaveProperty('subList');
     });
 
     it('falls back to the in-cluster sidebar when the sidebar name is empty', () => {
