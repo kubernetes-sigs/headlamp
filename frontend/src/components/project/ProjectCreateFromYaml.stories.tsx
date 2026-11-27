@@ -47,6 +47,7 @@ const makeStore = () => {
         defaultNodeShellImage: '',
         defaultNodeShellNamespace: '',
         oidcAutoLogin: null,
+        disableTokenLogin: false,
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',

@@ -89,6 +89,14 @@ HaveClusters.args = {
   title: 'Select a cluster to sign in',
 };
 
+export const AuthTypeoidcTokenLoginDisabled = Template.bind({});
+AuthTypeoidcTokenLoginDisabled.args = {
+  ...argFixture,
+  clusterAuthType: 'oidc',
+  disableTokenLogin: true,
+  title: 'Sign in with OpenID Connect',
+};
+
 export const AuthTypeoidcTokenRejected = Template.bind({});
 AuthTypeoidcTokenRejected.args = {
   ...argFixture,

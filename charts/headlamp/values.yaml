@@ -100,6 +100,8 @@ config:
     autoLogin: false
     # -- After a login, also set the auth cookie for other kubeconfig contexts with the same issuer URL and client ID
     useTokenBroadcast: false
+    # -- Disable token login for clusters that use OIDC (hides "Use A Token" and the backend refuses pasted tokens)
+    disableTokenLogin: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration

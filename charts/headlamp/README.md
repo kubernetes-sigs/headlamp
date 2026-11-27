@@ -169,6 +169,7 @@ volume or volume mount.
 | config.oidc.useCookie | bool | `false` | Enable using OIDC cookie for authentication outside of cluster |
 | config.oidc.autoLogin | bool | `false` | Enable automatic redirect to the OIDC provider |
 | config.oidc.useTokenBroadcast | bool | `false` | After a login, also set the auth cookie for other kubeconfig contexts with the same issuer URL and client ID. Also applies with `externalSecret` |
+| config.oidc.disableTokenLogin | bool | `false` | Disable token login for clusters that use OIDC: hides the "Use A Token" option and makes the backend refuse pasted tokens. Clusters without OIDC are not affected. Also applies with `externalSecret` |
 | config.oidc.secret.create | bool | `true` | Create OIDC secret using provided values |
 | config.oidc.secret.name | string | `"oidc"` | Name of the OIDC secret |
 | config.oidc.externalSecret.enabled | bool | `false` | Enable using external secret for OIDC |

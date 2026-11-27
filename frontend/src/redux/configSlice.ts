@@ -119,6 +119,12 @@ export interface ConfigState {
    * Comma-separated list of trusted Backstage origins from the backend server.
    */
   backstageOrigin?: string;
+  /**
+   * Whether logging in with a pasted token is disabled for clusters that use OIDC.
+   * Clusters without OIDC are not affected, since the token is their only login method.
+   * The backend marks the affected clusters with `meta_data.tokenLoginDisabled`.
+   */
+  disableTokenLogin: boolean;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
@@ -231,6 +237,7 @@ export const initialState: ConfigState = {
   defaultNodeShellImage: '',
   defaultNodeShellNamespace: '',
   oidcAutoLogin: null,
+  disableTokenLogin: false,
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions ?? builtInSettings.tableRowsPerPageOptions,
@@ -269,6 +276,7 @@ const configSlice = createSlice({
         forceTheme?: string;
         oidcAutoLogin?: boolean;
         backstageOrigin?: string;
+        disableTokenLogin?: boolean;
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -281,6 +289,9 @@ const configSlice = createSlice({
       }
       if (action.payload.backstageOrigin !== undefined) {
         state.backstageOrigin = action.payload.backstageOrigin;
+      }
+      if (action.payload.disableTokenLogin !== undefined) {
+        state.disableTokenLogin = action.payload.disableTokenLogin;
       }
       if (action.payload.isDynamicClusterEnabled !== undefined) {
         state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;

@@ -103,6 +103,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		EnableDynamicClusters:  conf.EnableDynamicClusters,
 		DiscoverySources:       conf.DiscoverySources,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
+		DisableTokenLogin:      conf.DisableTokenLogin,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,

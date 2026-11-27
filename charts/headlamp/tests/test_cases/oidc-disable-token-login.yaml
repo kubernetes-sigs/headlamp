@@ -1,0 +1,12 @@
+# This is a test case for disabling token login when OIDC is configured.
+# The oidc.disableTokenLogin field hides the token login option and makes the
+# backend refuse pasted tokens for clusters that use OIDC.
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "testClientId"
+    clientSecret: "testClientSecret"
+    issuerURL: "testIssuerURL"
+    scopes: "testScope"
+    disableTokenLogin: true
