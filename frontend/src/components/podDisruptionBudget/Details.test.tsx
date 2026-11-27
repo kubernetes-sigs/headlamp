@@ -104,6 +104,18 @@ describe('PDBDetails', () => {
     expect(noSelectorContainer.textContent).toBe('');
   });
 
+  it('handles undefined spec and status without throwing', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
+        <PDBDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const unpopulated = { selectors: [] } as any;
+    expect(() => props.extraInfo(unpopulated)).not.toThrow();
+  });
+
   it('returns nothing from extraInfo when there is no item', () => {
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
