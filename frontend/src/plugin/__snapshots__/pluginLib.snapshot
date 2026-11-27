@@ -492,6 +492,7 @@
     "TERMINAL": "headlamp.terminal",
   },
   "DetailsViewDefaultHeaderActions": {
+    "ADD_TO_VIEW": "ADD_TO_VIEW",
     "DELETE": "DELETE",
     "DOWNLOAD": "DOWNLOAD",
     "EDIT": "EDIT",
@@ -882,6 +883,7 @@
   "registerClusterProviderMenuItem": [Function],
   "registerClusterStatus": [Function],
   "registerCustomCreateProject": [Function],
+  "registerCustomViewWidget": [Function],
   "registerDetailsViewHeaderAction": [Function],
   "registerDetailsViewHeaderActionsProcessor": [Function],
   "registerDetailsViewSection": [Function],

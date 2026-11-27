@@ -25,6 +25,7 @@ import actionButtons from '../actionButtonsSlice';
 import clusterAction from '../clusterActionSlice';
 import clusterProviderReducer from '../clusterProviderSlice';
 import configReducer from '../configSlice';
+import customViewsReducer from '../customViewsSlice';
 import drawerModeSlice from '../drawerModeSlice';
 import filterReducer from '../filterSlice';
 import eventCallbackReducer from '../headlampEventSlice';
@@ -62,6 +63,7 @@ const reducers = combineReducers({
   activity: activityReducer,
   projects: projectsReducer,
   shortcuts: shortcutsReducer,
+  customViews: customViewsReducer,
 });
 
 export type RootState = ReturnType<typeof reducers>;

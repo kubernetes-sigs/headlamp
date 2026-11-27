@@ -24,6 +24,7 @@ import {
   HeaderActionType,
 } from '../../../../redux/actionButtonsSlice';
 import { useTypedSelector } from '../../../../redux/hooks';
+import { AddToViewButton } from '../../../customViews/AddToViewButton';
 import ErrorBoundary from '../../ErrorBoundary';
 import SectionHeader, { HeaderStyle } from '../../SectionHeader';
 import CopyButton from '../CopyButton';
@@ -61,6 +62,9 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
         case DefaultHeaderAction.RESTART:
           Action = RestartButton;
           break;
+        case DefaultHeaderAction.ADD_TO_VIEW:
+          Action = AddToViewButton;
+          break;
         case DefaultHeaderAction.SCALE:
           Action = ScaleButton;
           break;
@@ -93,6 +97,9 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
   }
 
   const defaultActions = [
+    {
+      id: DefaultHeaderAction.ADD_TO_VIEW,
+    },
     {
       id: DefaultHeaderAction.RESTART,
     },
