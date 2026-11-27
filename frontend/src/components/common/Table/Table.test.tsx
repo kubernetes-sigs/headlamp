@@ -48,7 +48,13 @@ vi.mock('../../../lib/useShortcut', () => ({ useShortcut: vi.fn() }));
 vi.mock('../../../lib/util', () => ({
   useURLState: (_key: string, options: { defaultValue: number }) => [
     options.defaultValue,
-    tableMocks.setURLState,
+    (valueOrUpdater: any) => {
+      const nextValue =
+        typeof valueOrUpdater === 'function'
+          ? valueOrUpdater(options.defaultValue)
+          : valueOrUpdater;
+      tableMocks.setURLState(nextValue);
+    },
   ],
 }));
 vi.mock('../../../helpers/tablesRowsPerPage', () => ({
@@ -808,7 +814,7 @@ describe('Table states and options', () => {
       tableMocks.options.onPaginationChange(() => ({ pageIndex: 2, pageSize: 25 }));
     });
 
-    await waitFor(() => expect(tableMocks.setURLState).toHaveBeenCalledWith(4));
+    await waitFor(() => expect(tableMocks.setURLState).toHaveBeenCalledWith(3));
     expect(tableMocks.setURLState).toHaveBeenCalledWith(25);
     expect(tableMocks.setTablesRowsPerPage).toHaveBeenCalledWith(25);
   });

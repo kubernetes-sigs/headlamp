@@ -16,7 +16,7 @@
 
 import merge from 'lodash/merge';
 import React from 'react';
-import { useHistory } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
 import { useTypedSelector } from '../redux/hooks';
 import store from '../redux/stores/store';
@@ -425,6 +425,14 @@ type URLStateParams<T> = {
 };
 export function useURLState(
   key: string,
+  defaultValue: string
+): [string, React.Dispatch<React.SetStateAction<string>>];
+export function useURLState(
+  key: string,
+  valueOrParams: string | URLStateParams<string>
+): [string, React.Dispatch<React.SetStateAction<string>>];
+export function useURLState(
+  key: string,
   defaultValue: number
 ): [number, React.Dispatch<React.SetStateAction<number>>];
 export function useURLState(
@@ -446,16 +454,17 @@ export function useURLState<T extends string | number | undefined = string>(
     typeof paramsOrDefault === 'object' ? paramsOrDefault : { defaultValue: paramsOrDefault };
   const { defaultValue, hideDefault = true, prefix = '' } = params;
   const history = useHistory();
+  const location = useLocation();
   // Don't even use the prefix if the key is empty
   const fullKey = !key ? '' : !!prefix ? prefix + '.' + key : key;
 
-  function getURLValue() {
+  function getURLValue(search: string = location.search) {
     // An empty key means that we don't want to use the state from the URL.
     if (fullKey === '') {
       return null;
     }
 
-    const urlParams = new URLSearchParams(history.location.search);
+    const urlParams = new URLSearchParams(search);
     const urlValue = urlParams.get(fullKey);
     if (urlValue === null) {
       return null;
@@ -471,63 +480,66 @@ export function useURLState<T extends string | number | undefined = string>(
     return newValue;
   }
 
+  const urlValue = getURLValue(location.search);
+
   const initialValue = React.useMemo(() => {
-    const newValue = getURLValue();
-    if (newValue === null) {
+    if (urlValue === null) {
       return defaultValue;
     }
-    return newValue;
+    return urlValue;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [value, setValue] = React.useState<T>(initialValue as T);
+  const prevUrlValueRef = React.useRef(urlValue);
 
   React.useEffect(
     () => {
-      const newValue = getURLValue();
-      if (newValue === null) {
-        if (defaultValue !== undefined && defaultValue !== value) {
-          setValue(defaultValue);
-        }
-      } else if (newValue !== value) {
-        setValue(newValue as T);
+      if (fullKey === '') {
+        return;
       }
-    },
-    // eslint-disable-next-line
-    [history]
-  );
 
-  React.useEffect(() => {
-    // An empty key means that we don't want to use the state from the URL.
-    if (fullKey === '') {
-      return;
-    }
+      if (urlValue !== prevUrlValueRef.current) {
+        prevUrlValueRef.current = urlValue;
+        setValue(prev => {
+          if (urlValue === null) {
+            return defaultValue !== undefined ? defaultValue : prev;
+          }
+          return (urlValue !== prev ? urlValue : prev) as T;
+        });
+        return;
+      }
 
-    const urlCurrentValue = getURLValue();
+      const urlCurrentValue = getURLValue(history.location.search);
 
-    if (urlCurrentValue === value) {
-      return;
-    }
+      if (
+        urlCurrentValue === value ||
+        (urlCurrentValue === null && value === defaultValue && hideDefault)
+      ) {
+        return;
+      }
 
-    const urlParams = new URLSearchParams(history.location.search);
-    let shouldUpdateURL = false;
+      const urlParams = new URLSearchParams(history.location.search);
+      let shouldUpdateURL = false;
 
-    if ((value === null || value === defaultValue) && hideDefault) {
-      if (urlParams.has(fullKey)) {
-        urlParams.delete(fullKey);
+      if ((value === null || value === defaultValue) && hideDefault) {
+        if (urlParams.has(fullKey)) {
+          urlParams.delete(fullKey);
+          shouldUpdateURL = true;
+        }
+      } else if (value !== undefined) {
+        const nextUrlValue = value as NonNullable<T>;
+
+        urlParams.set(fullKey, nextUrlValue.toString());
         shouldUpdateURL = true;
       }
-    } else if (value !== undefined) {
-      const urlValue = value as NonNullable<T>;
 
-      urlParams.set(fullKey, urlValue.toString());
-      shouldUpdateURL = true;
-    }
-
-    if (shouldUpdateURL) {
-      history.replace({ search: urlParams.toString() });
-    }
+      if (shouldUpdateURL) {
+        history.replace({ search: urlParams.toString() });
+      }
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+    [urlValue, value, fullKey, defaultValue, hideDefault]
+  );
 
   return [value, setValue] as [T, React.Dispatch<React.SetStateAction<T>>];
 }
