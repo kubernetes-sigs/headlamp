@@ -53,13 +53,10 @@ export function getUsageRatio(name: string, used: string, hard: string): number 
       hardNum = parseRam(hard);
       break;
     default:
-      if (resourceType.startsWith('hugepages-')) {
-        usedNum = parseRam(used);
-        hardNum = parseRam(hard);
-      } else {
-        usedNum = parseInt(used, 10) || 0;
-        hardNum = parseInt(hard, 10) || 0;
-      }
+      // Hugepages and object counts are quantities too, and the API server
+      // returns a count of 1000 as "1k", so parseInt would read it as 1.
+      usedNum = parseRam(used) || 0;
+      hardNum = parseRam(hard) || 0;
       break;
   }
 

@@ -68,6 +68,15 @@ describe('getUsageRatio', () => {
     expect(getUsageRatio('count/deployments.apps', '3', '10')).toBeCloseTo(0.3);
   });
 
+  // The API server returns counts in canonical form, so 5000 comes back as "5k"
+  it('computes ratio for counts when hard has a k suffix', () => {
+    expect(getUsageRatio('count/jobs.batch', '2500', '5k')).toBeCloseTo(0.5);
+  });
+
+  it('computes ratio for counts when used has a k suffix', () => {
+    expect(getUsageRatio('pods', '1k', '1500')).toBeCloseTo(0.667);
+  });
+
   // Edge cases
   it('returns 0 when hard is 0', () => {
     expect(getUsageRatio('pods', '5', '0')).toBe(0);
