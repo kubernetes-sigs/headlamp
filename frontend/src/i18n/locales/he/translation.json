@@ -951,6 +951,7 @@
   "Current Namespace": "Current Namespace",
   "Set namespace: {{namespace}}": "Set namespace: {{namespace}}",
   "Page": "Page",
+  "Search \"{{query}}\" with Advanced Search": "",
   "Configure Keyboard Shortcuts": "Configure Keyboard Shortcuts",
   "Reference": "Reference",
   "Metrics": "Metrics",

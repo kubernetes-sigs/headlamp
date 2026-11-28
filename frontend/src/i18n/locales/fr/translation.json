@@ -951,6 +951,7 @@
   "Current Namespace": "Espace de noms actuel",
   "Set namespace: {{namespace}}": "Définir l'espace de noms : {{namespace}}",
   "Page": "Page",
+  "Search \"{{query}}\" with Advanced Search": "",
   "Configure Keyboard Shortcuts": "Configurer les raccourcis clavier",
   "Reference": "Référence",
   "Metrics": "Métriques",

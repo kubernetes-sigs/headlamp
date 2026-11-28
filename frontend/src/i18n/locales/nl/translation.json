@@ -944,6 +944,7 @@
   "Current Namespace": "Huidige naamruimte",
   "Set namespace: {{namespace}}": "Naamruimte instellen: {{namespace}}",
   "Page": "Pagina",
+  "Search \"{{query}}\" with Advanced Search": "",
   "Configure Keyboard Shortcuts": "Sneltoetsen configureren",
   "Reference": "Referentie",
   "Metrics": "Metrieken",

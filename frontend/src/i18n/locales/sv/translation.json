@@ -944,6 +944,7 @@
   "Current Namespace": "Aktuell namnrymd",
   "Set namespace: {{namespace}}": "Ange namnrymd: {{namespace}}",
   "Page": "Sida",
+  "Search \"{{query}}\" with Advanced Search": "",
   "Configure Keyboard Shortcuts": "Konfigurera kortkommandon",
   "Reference": "Referens",
   "Metrics": "Mått",

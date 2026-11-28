@@ -937,6 +937,7 @@
   "Current Namespace": "当前命名空间",
   "Set namespace: {{namespace}}": "设置命名空间：{{namespace}}",
   "Page": "页面",
+  "Search \"{{query}}\" with Advanced Search": "",
   "Configure Keyboard Shortcuts": "",
   "Reference": "参考",
   "Metrics": "指标",

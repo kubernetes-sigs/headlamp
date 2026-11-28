@@ -944,6 +944,7 @@
   "Current Namespace": "Aktuális névtér",
   "Set namespace: {{namespace}}": "Névtér beállítása: {{namespace}}",
   "Page": "Lap",
+  "Search \"{{query}}\" with Advanced Search": "",
   "Configure Keyboard Shortcuts": "Billentyűparancsok konfigurálása",
   "Reference": "Referencia",
   "Metrics": "metrikák",
