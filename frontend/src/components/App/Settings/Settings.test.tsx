@@ -21,7 +21,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ComponentProps, ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import App from '../../../App';
 import { createMuiTheme } from '../../../lib/themes';
 import { setAppSettings, setConfig } from '../../../redux/configSlice';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
@@ -34,10 +33,6 @@ import ThemeToggleButton from '../../Sidebar/ThemeToggleButton/ThemeToggleButton
 import { applyBackendThemeConfig, setTheme } from '../themeSlice';
 import Settings from './Settings';
 import SettingsCluster from './SettingsCluster';
-
-// cyclic imports fix
-// eslint-disable-next-line no-unused-vars
-const _dont_delete_me = App;
 
 const theme = createMuiTheme({ name: 'Light', base: 'light' });
 const originalDesktopApi = window.desktopApi;
