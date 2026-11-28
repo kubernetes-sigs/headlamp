@@ -466,6 +466,103 @@ describe('PluginSettingsPure', () => {
     expect(screen.getByText('MalformedBothVendor')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'MalformedBothVendor' })).not.toBeInTheDocument();
   });
+
+  it('renders status chips, scoped names, clashing versions, and toggles/saves plugin state', async () => {
+    const onSave = vi.fn();
+    const plugins: PluginInfo[] = [
+      {
+        name: '@scope/my-plugin',
+        description: 'Dev version',
+        homepage: '',
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: true,
+        type: 'development',
+      },
+      {
+        name: '@scope/my-plugin',
+        description: 'User version',
+        homepage: '',
+        isEnabled: false,
+        isCompatible: true,
+        isLoaded: true,
+        type: 'user',
+      },
+      {
+        name: 'blocked-dev-plugin',
+        description: 'Blocked dev',
+        homepage: '',
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: false,
+        isDevelopmentModeBlocked: true,
+        type: 'development',
+      },
+      {
+        name: 'incompatible-plugin',
+        description: 'Incompatible plugin desc',
+        homepage: '',
+        isEnabled: true,
+        isCompatible: false,
+        isLoaded: false,
+        type: 'user',
+      },
+      {
+        name: 'overridden-plugin',
+        description: 'Overridden',
+        homepage: '',
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: false,
+        overriddenBy: 'development',
+        type: 'shipped',
+      },
+    ];
+
+    const { container } = renderPluginSettings({
+      plugins,
+      onSave,
+      showDevelopmentPluginsSetting: true,
+    });
+
+    expect(screen.getAllByText('my-plugin').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Multiple versions').length).toBe(2);
+    expect(screen.getAllByText('scope')).toHaveLength(2);
+    expect(screen.getAllByText('Unknown')).toHaveLength(3);
+    expect(screen.getByText('Incompatible')).toBeInTheDocument();
+    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    expect(screen.getByText('Loaded')).toBeInTheDocument();
+
+    // Clicking "Not Loaded" chip for a dev-blocked plugin expands the Advanced accordion
+    const notLoadedBtn = screen.getByRole('button', { name: /Not Loaded/ });
+    await userEvent.click(notLoadedBtn);
+    expect(screen.getByRole('button', { name: /^Advanced/ })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    expect(screen.getByRole('checkbox', { name: 'Load development plugins' })).toBeInTheDocument();
+
+    // Toggling the user version of @scope/my-plugin enables it and shows Save & Apply
+    const switches = container.querySelectorAll('input[name="@scope/my-plugin"]');
+    expect(switches).toHaveLength(2);
+    await userEvent.click(switches[1]);
+    const saveButton = await screen.findByRole('button', { name: 'Save & Apply' });
+    await userEvent.click(saveButton);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.find((p: any) => p.type === 'user').isEnabled).toBe(true);
+    expect(saved.find((p: any) => p.type === 'development').isEnabled).toBe(false);
+  });
+
+  it('does not delete plugin when confirmation is cancelled', async () => {
+    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const onDelete = vi.fn();
+    renderPluginSettings({ plugins: createPlugins(1), onDelete });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Plugin' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Delete Plugin' })).toBeInTheDocument();
+  });
 });
 
 describe('PluginSettings events', () => {
