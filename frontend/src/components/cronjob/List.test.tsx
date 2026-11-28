@@ -17,7 +17,13 @@
 import cronstrue from 'cronstrue/i18n';
 import { describe, expect, it, vi } from 'vitest';
 import { supportedLanguages } from '../../i18n/config';
-import { getCronstrueLocale } from './List';
+import CronJob, { type KubeCronJob } from '../../lib/k8s/cronJob';
+import { getCronstrueLocale, getLastScheduleTime, getSchedule } from './List';
+
+vi.mock('react-i18next', async importOriginal => ({
+  ...(await importOriginal<typeof import('react-i18next')>()),
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+}));
 
 describe('getCronstrueLocale', () => {
   it.each([
@@ -41,5 +47,68 @@ describe('getCronstrueLocale', () => {
     }
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+function makeCronJob(json: Partial<KubeCronJob>): CronJob {
+  return new CronJob({
+    apiVersion: 'batch/v1',
+    kind: 'CronJob',
+    metadata: {
+      name: 'test-cronjob',
+      namespace: 'default',
+      uid: 'test-uid',
+      creationTimestamp: '2026-01-01T00:00:00Z',
+      resourceVersion: '1',
+    },
+    ...json,
+  } as KubeCronJob);
+}
+
+describe('CronJob list helpers with missing spec/status', () => {
+  it('getSchedule does not crash when spec is undefined', () => {
+    const cronJob = makeCronJob({});
+    const element = getSchedule(cronJob, 'en');
+    expect(element.props.label).toBe('');
+  });
+
+  it('getSchedule returns the schedule when spec is present', () => {
+    const cronJob = makeCronJob({
+      spec: {
+        suspend: false,
+        schedule: '*/5 * * * *',
+        concurrencyPolicy: 'Allow',
+        jobTemplate: {
+          spec: {
+            template: {
+              spec: {
+                containers: [{ name: '', image: '' }],
+              },
+            },
+          },
+        },
+      } as KubeCronJob['spec'],
+    });
+    const element = getSchedule(cronJob, 'en');
+    expect(element.props.label).toBe('*/5 * * * *');
+  });
+
+  it('getLastScheduleTime returns empty string when status is undefined', () => {
+    const cronJob = makeCronJob({});
+    expect(getLastScheduleTime(cronJob)).toBe('');
+  });
+
+  it('getLastScheduleTime returns a label when lastScheduleTime is set', () => {
+    const cronJob = makeCronJob({
+      status: { lastScheduleTime: '2026-11-14T10:00:00Z' },
+    });
+    const element = getLastScheduleTime(cronJob);
+    expect(typeof element).toBe('object');
+    expect((element as { props: { date: string } }).props.date).toBe('2026-11-14T10:00:00Z');
+  });
+
+  it('getContainers returns an empty list when spec is undefined', () => {
+    const cronJob = makeCronJob({});
+    expect(cronJob.getContainers()).toEqual([]);
   });
 });
