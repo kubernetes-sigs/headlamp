@@ -16,6 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { baseMocks } from '../../../.storybook/baseMocks';
 import { API_BASE, TestContext } from '../../test';
 import ListView from './List';
 import { BASE_EMPTY_SECRET, BASE_SECRET } from './storyHelper';
@@ -51,6 +52,35 @@ Items.parameters = {
             metadata: {},
           })
         ),
+      ],
+    },
+  },
+};
+
+export const RecoveryError = Template.bind({});
+RecoveryError.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      base: [
+        http.get(
+          `${API_BASE}/api/v1/secrets`,
+          () =>
+            HttpResponse.json({
+              kind: 'SecretList',
+              apiVersion: 'v1',
+              metadata: { resourceVersion: '1234' },
+              items: [BASE_SECRET],
+            }),
+          { once: true }
+        ),
+        http.get(`${API_BASE}/api/v1/secrets`, () =>
+          HttpResponse.json({ message: 'Cannot refresh the cached secrets' }, { status: 403 })
+        ),
+        http.get(`${API_BASE}/api/v1/namespaces/default/secrets/my-pvc`, () =>
+          HttpResponse.json(BASE_SECRET)
+        ),
+        ...baseMocks,
       ],
     },
   },

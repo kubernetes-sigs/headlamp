@@ -29,17 +29,24 @@ export interface ClusterGroupErrorMessageProps {
    * Array of errors
    */
   errors?: ApiError[] | null;
+  /** Failures to watch resources after loading the list. */
+  watchErrors?: ApiError[];
 }
 
-export function ClusterGroupErrorMessage({ errors }: ClusterGroupErrorMessageProps) {
-  if (!errors || errors?.length === 0) {
-    return null;
-  }
+export function ClusterGroupErrorMessage({ errors, watchErrors }: ClusterGroupErrorMessageProps) {
+  const fetchErrors = new Set(errors);
+  const messages = [...new Set([...fetchErrors, ...(watchErrors ?? [])])];
 
-  return errors.map((error, i) => <ErrorMessage error={error} key={error.stack ?? i} />);
+  return messages.map((error, i) => (
+    <ErrorMessage
+      error={error}
+      watch={!fetchErrors.has(error)}
+      key={`${error.stack ?? error.message}:${i}`}
+    />
+  ));
 }
 
-function ErrorMessage({ error }: { error: ApiError }) {
+function ErrorMessage({ error, watch }: { error: ApiError; watch: boolean }) {
   const theme = useTheme();
   const { t } = useTranslation();
   const showClusterName = useSelectedClusters().length > 1;
@@ -56,6 +63,15 @@ function ErrorMessage({ error }: { error: ApiError }) {
     title = notFoundTitile;
   } else if (isForbidden) {
     title = forbiddenTitle;
+  }
+
+  if (watch) {
+    return (
+      <Alert severity="warning" sx={{ mb: 1 }}>
+        {showClusterName && error.cluster ? `${error.cluster} · ` : ''}
+        {error.message}
+      </Alert>
+    );
   }
 
   const severity = isForbidden ? 'info' : 'warning';

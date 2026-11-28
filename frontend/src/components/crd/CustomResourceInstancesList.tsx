@@ -21,8 +21,10 @@ import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { useNamespaces } from '../../redux/filterSlice';
+import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import { EmptyContent as Empty, Link, Loader, ResourceListView, ShowHideLabel } from '../common/';
 import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
+import { hasListSnapshot } from '../common/Resource/hasListSnapshot';
 import { fingerprint, sortKey } from './crInstancesKey';
 
 interface ClassifiedCrd {
@@ -47,10 +49,16 @@ function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
 
   const crds = classified.map(it => it.crd);
   const queries = dataClassCrds.map(it => it.data);
+  const errors = queries.flatMap(query => query.errors ?? []);
+  const watchErrors = queries.flatMap(query => query.watchErrors ?? []);
 
   const [isWarningClosed, setIsWarningClosed] = useState(false);
 
-  const isLoading = queries.some(it => it.isLoading || it.isFetching);
+  const hasSnapshot = queries.some(hasListSnapshot);
+  const crInstancesList = queries.flatMap(it => it.items ?? []);
+  const isLoading =
+    crInstancesList.length === 0 &&
+    queries.some(query => query.isLoading || (!hasListSnapshot(query) && query.isFetching));
 
   // Collect the names of CRDs that failed to load lists
   const crdsFailedToLoad: string[] = [];
@@ -59,7 +67,7 @@ function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
       crdsFailedToLoad.push(crds[i].metadata.name);
     }
   });
-  const allFailed = crdsFailedToLoad.length === queries.length;
+  const allFailed = queries.length > 0 && crdsFailedToLoad.length === queries.length;
 
   // Create a map to be able to link to CRD by CR kind
   const crKindToCRDMap = queries.reduce((acc, { items }, index) => {
@@ -70,23 +78,33 @@ function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
   }, {} as Record<string, CRD>);
   const getCRDForCR = (cr: KubeObject) => crKindToCRDMap[cr.kind];
 
-  const crInstancesList = queries.flatMap(it => it.items ?? []);
-
   if (isLoading) {
     return <Loader title={t('translation|Loading custom resource instances')} />;
   }
 
+  if (allFailed && !hasSnapshot) {
+    return (
+      <>
+        <ClusterGroupErrorMessage errors={errors} watchErrors={watchErrors} />
+        <Empty color="error">{t('translation|Failed to load custom resource instances')}</Empty>
+      </>
+    );
+  }
+
   if (crInstancesList.length === 0) {
     return (
-      <Empty actions={<EmptyStateActions />}>
-        {t('translation|No custom resources instances found.')}
-      </Empty>
+      <>
+        <ClusterGroupErrorMessage errors={errors} watchErrors={watchErrors} />
+        <Empty actions={<EmptyStateActions />}>
+          {t('translation|No custom resources instances found.')}
+        </Empty>
+      </>
     );
   }
 
   return (
     <>
-      {crdsFailedToLoad.length > 0 && !allFailed && !isWarningClosed && (
+      {crdsFailedToLoad.length > 0 && !isWarningClosed && (
         <Alert
           severity="warning"
           variant="outlined"
@@ -102,10 +120,9 @@ function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
         headerProps={{
           noNamespaceFilter: false,
         }}
-        errorMessage={
-          allFailed ? t('translation|Failed to load custom resource instances') : undefined
-        }
         data={crInstancesList}
+        errors={errors}
+        watchErrors={watchErrors}
         columns={[
           {
             label: t('translation|Instance name'),
@@ -165,11 +182,13 @@ function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
 
 export function CrInstanceList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  const crdQuery = CRD.useList({ namespace: useNamespaces() });
   const {
     items: crds,
     error: crdsError,
-    isLoading: isLoadingCRDs,
-  } = CRD.useList({ namespace: useNamespaces() });
+    errors: crdErrors,
+    watchErrors: crdWatchErrors,
+  } = crdQuery;
 
   // The child calls `useList` per entry, so iteration order must be stable
   // across fetches, otherwise hook state shuffles. Sort by cluster-qualified
@@ -188,7 +207,7 @@ export function CrInstanceList() {
 
   const remountKey = useMemo(() => fingerprint(classified.map(it => it.crdSortKey)), [classified]);
 
-  if (crdsError) {
+  if (crdsError && !hasListSnapshot(crdQuery)) {
     return (
       <Empty color="error">
         {t('translation|Error getting custom resource definitions: {{ errorMessage }}', {
@@ -198,19 +217,18 @@ export function CrInstanceList() {
     );
   }
 
-  if (isLoadingCRDs || !crds) {
+  if (!crds || crdQuery.isLoading || (!hasListSnapshot(crdQuery) && crdQuery.isFetching)) {
     return <Loader title={t('translation|Loading custom resource definitions')} />;
   }
 
-  // The CRD list request finished (above branches handle the loading/error
-  // cases). If every CRD is unusable, that's a persistent state, not an
-  // in-flight one, so show a non-loading empty message instead of an
-  // indefinite spinner.
-  if (crds.length > 0 && classified.length === 0) {
-    return (
-      <Empty>{t('translation|No CustomResourceDefinitions with usable specs were found.')}</Empty>
-    );
-  }
-
-  return <CrInstancesView key={remountKey} classified={classified} />;
+  return (
+    <>
+      <ClusterGroupErrorMessage errors={crdErrors} watchErrors={crdWatchErrors} />
+      {crds.length > 0 && classified.length === 0 ? (
+        <Empty>{t('translation|No CustomResourceDefinitions with usable specs were found.')}</Empty>
+      ) : (
+        <CrInstancesView key={remountKey} classified={classified} />
+      )}
+    </>
+  );
 }

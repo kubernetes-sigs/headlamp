@@ -29,9 +29,9 @@ const avoidCheck = [
   'fetchLatestKubeObject',
   'logSeverityFilter',
   'CopyableCell',
-  // Internal helper exported only so `ResourceTable` and its co-located
-  // tests can import it; deliberately kept out of the barrel.
+  // Internal helpers shared by list/table consumers, deliberately kept out of the plugin API.
   'getResourceRowId',
+  'hasListSnapshot',
 ];
 
 const checkExports = [

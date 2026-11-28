@@ -2613,6 +2613,8 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrain))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/drain-node-status",
 		c.authenticatedHandler(http.HandlerFunc(c.handleNodeDrainStatus))).Methods("GET")
+	router.Handle("/clusters/{clusterName}/multiplexer-auth",
+		c.authenticatedHandler(http.HandlerFunc(c.handleMultiplexerAuth))).Methods("POST")
 	router.Handle("/encoded-clusters/{encodedClusterName}/clear-token",
 		c.authenticatedHandler(http.HandlerFunc(c.handleClearToken))).Methods("POST")
 	router.Handle("/clusters/{clusterName}/set-token",
@@ -4248,7 +4250,44 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		nil, "handleNodeDrainStatus completed")
 }
 
-// handlerSetToken sets the authentication token in a cookie.
+func (c *HeadlampConfig) handleMultiplexerAuth(w http.ResponseWriter, r *http.Request) {
+	cluster := mux.Vars(r)["clusterName"]
+	_, token := auth.ParseClusterAndTokenWithBaseURL(r, c.BaseURL)
+
+	if cluster == "" {
+		http.Error(w, "Authentication token is required", http.StatusUnauthorized)
+		return
+	}
+
+	if token == "" {
+		contextKey, err := c.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, "Authentication token is required", http.StatusUnauthorized)
+			return
+		}
+
+		kContext, err := c.KubeConfigStore.GetContext(contextKey)
+		if err != nil || kContext.RequiresUserAuthentication() {
+			http.Error(w, "Authentication token is required", http.StatusUnauthorized)
+			return
+		}
+
+		w.Header().Set("X-Headlamp-Multiplexer-Auth", "backend")
+		w.WriteHeader(http.StatusNoContent)
+
+		return
+	}
+
+	if err := auth.SetMultiplexerTokenCookie(w, r, cluster, token, c.BaseURL, c.SessionTTL); err != nil {
+		http.Error(w, "Authentication token exceeds cookie storage limit", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	w.Header().Set("X-Headlamp-Multiplexer-Auth", "cookie")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleSetToken sets the authentication token in a cookie.
 // If the token is an empty string, the cookie is cleared.
 func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) {
 	cluster := mux.Vars(r)["clusterName"]

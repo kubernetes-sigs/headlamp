@@ -16,6 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import Editor from '@monaco-editor/react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
@@ -297,6 +298,12 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
           }
     );
   } else {
+    if (error) {
+      sections.push({
+        id: DefaultDetailsViewSection.ERROR,
+        section: <Alert severity="warning">{error.toString()}</Alert>,
+      });
+    }
     const mainInfoHeader =
       typeof headerSection === 'function' ? headerSection(item) : headerSection;
     sections.push({
@@ -851,10 +858,7 @@ function SecretFetcher(props: {
   const [secret, error] = Secret.useGet(name, namespace);
 
   React.useEffect(() => {
-    // Only call onResult when we have a definitive result (either data or error)
-    if (secret || error) {
-      onResult(name, secret, error);
-    }
+    onResult(name, secret, error);
   }, [secret, error, name, onResult]);
 
   return null;
@@ -873,9 +877,7 @@ function ConfigMapFetcher(props: {
   const [configMap, error] = ConfigMap.useGet(name, namespace);
 
   React.useEffect(() => {
-    if (configMap || error) {
-      onResult(name, configMap, error);
-    }
+    onResult(name, configMap, error);
   }, [configMap, error, name, onResult]);
 
   return null;
@@ -918,7 +920,7 @@ export function buildEnvironmentVariables(
         if (!fetched) break; // Still loading
 
         const { resource: secret, error } = fetched;
-        if (error) {
+        if (error && !secret) {
           if (error.status === 404 && ref.optional) break;
           variables.set(ref.name, {
             value: error.message,
@@ -946,7 +948,7 @@ export function buildEnvironmentVariables(
         if (!fetched) break;
 
         const { resource: configMap, error } = fetched;
-        if (error) {
+        if (error && !configMap) {
           if (error.status === 404 && ref.optional) break;
           variables.set(ref.name, {
             value: error.message,
@@ -974,7 +976,7 @@ export function buildEnvironmentVariables(
 
         const { resource: secret, error } = fetched;
         const prefix = ref.prefix || '';
-        if (error) {
+        if (error && !secret) {
           if (error.status === 404 && ref.optional) break;
           variables.set(`${prefix}${ref.resourceName}`, {
             value: error.message,
@@ -1005,7 +1007,7 @@ export function buildEnvironmentVariables(
 
         const { resource: configMap, error } = fetched;
         const prefix = ref.prefix || '';
-        if (error) {
+        if (error && !configMap) {
           if (error.status === 404 && ref.optional) break;
           variables.set(`${prefix}${ref.resourceName}`, {
             value: error.message,
@@ -1235,6 +1237,10 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
     container,
     containerStartTimestamp
   );
+  const warnings = [
+    ...secretsToFetch.map(name => fetchedSecrets.get(name)),
+    ...configMapsToFetch.map(name => fetchedConfigMaps.get(name)),
+  ].flatMap(fetched => (fetched?.resource && fetched.error ? [fetched.error] : []));
 
   // Define columns for the table
   const columns = [
@@ -1360,6 +1366,11 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
           namespace={namespace}
           onResult={handleConfigMapFetched}
         />
+      ))}
+      {warnings.map((error, index) => (
+        <Alert key={index} severity="warning">
+          {error.toString()}
+        </Alert>
       ))}
       <InnerTable columns={columns} data={variables} />
     </>
@@ -1820,7 +1831,7 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     fieldSelector: undefined,
   };
 
-  const { items: pods, errors } = Pod.useList(queryData);
+  const { items: pods, errors, watchErrors } = Pod.useList(queryData);
   const { items: podMetrics } = PodMetrics.useList({
     ...podMetricsQueryData,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
@@ -1850,6 +1861,7 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
       hideColumns={hideColumns || onlyOneNamespace ? ['namespace'] : undefined}
       pods={pods}
       errors={errors}
+      watchErrors={watchErrors}
       metrics={podMetrics}
       noNamespaceFilter={hideNamespaceFilter}
       hideCreateButton
@@ -1876,7 +1888,7 @@ export interface TargetedPodsSectionProps {
 export function TargetedPodsSection(props: TargetedPodsSectionProps) {
   const { namespace, labelSelector, cluster } = props;
   const queryData = { namespace, labelSelector, cluster };
-  const { items: pods, errors } = Pod.useList(queryData);
+  const { items: pods, errors, watchErrors } = Pod.useList(queryData);
   const { items: podMetrics } = PodMetrics.useList({
     ...queryData,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
@@ -1887,6 +1899,7 @@ export function TargetedPodsSection(props: TargetedPodsSectionProps) {
       hideColumns={namespace ? ['namespace'] : undefined}
       pods={pods}
       errors={errors}
+      watchErrors={watchErrors}
       metrics={podMetrics}
       noNamespaceFilter={!!namespace}
       hideCreateButton
@@ -1911,7 +1924,11 @@ export function OwnedJobsSection(props: OwnedJobsSectionProps) {
 }
 
 function OwnedJobsSectionContent({ resource }: OwnedJobsSectionProps) {
-  const { items: jobs, errors } = Job.useList({
+  const {
+    items: jobs,
+    errors,
+    watchErrors,
+  } = Job.useList({
     namespace: resource.metadata.namespace,
     labelSelector: `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`,
     cluster: resource.cluster,
@@ -1921,6 +1938,7 @@ function OwnedJobsSectionContent({ resource }: OwnedJobsSectionProps) {
     <JobsListRenderer
       jobs={jobs}
       errors={errors}
+      watchErrors={watchErrors}
       hideColumns={['namespace']}
       noNamespaceFilter
       enableRowActions={false}
@@ -1945,7 +1963,11 @@ export function OwnedStatefulSetsSection(props: OwnedStatefulSetsSectionProps) {
 }
 
 function OwnedStatefulSetsSectionContent({ resource }: OwnedStatefulSetsSectionProps) {
-  const { items: statefulSets, errors } = StatefulSet.useList({
+  const {
+    items: statefulSets,
+    errors,
+    watchErrors,
+  } = StatefulSet.useList({
     namespace: resource.metadata.namespace,
     labelSelector: `${LEADER_WORKER_SET_NAME_LABEL}=${resource.metadata.name}`,
     cluster: resource.cluster,
@@ -1955,6 +1977,7 @@ function OwnedStatefulSetsSectionContent({ resource }: OwnedStatefulSetsSectionP
     <StatefulSetsListRenderer
       statefulSets={statefulSets}
       errors={errors}
+      watchErrors={watchErrors}
       hideColumns={['namespace']}
       noNamespaceFilter
       enableRowActions={false}

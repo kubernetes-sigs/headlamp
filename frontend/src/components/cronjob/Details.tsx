@@ -185,7 +185,11 @@ export default function CronJobDetails(props: {
   const dispatch: AppDispatch = useDispatch();
 
   const [cronJob] = CronJob.useGet(name, namespace, { cluster });
-  const { items: jobs, errors } = Job.useList({
+  const {
+    items: jobs,
+    errors,
+    watchErrors,
+  } = Job.useList({
     namespace,
     cluster: cluster || cronJob?.cluster,
   });
@@ -361,6 +365,7 @@ export default function CronJobDetails(props: {
           <JobsListRenderer
             jobs={ownedJobs}
             errors={errors}
+            watchErrors={watchErrors}
             hideColumns={['namespace']}
             noNamespaceFilter
           />,

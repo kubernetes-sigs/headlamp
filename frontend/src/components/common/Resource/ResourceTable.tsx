@@ -145,7 +145,7 @@ const DEFAULT_SORT_COLUMN_ID = 'age';
 const MAX_TABLE_ID_LENGTH = 50;
 
 /** What a table asked to list from no cluster shows, kept stable across renders. */
-const NOTHING_LISTED = { items: [], errors: null };
+const NOTHING_LISTED = { items: [], errors: null, watchErrors: undefined };
 
 export interface ResourceTableProps<RowItem> {
   /** The columns to be rendered, like used in Table, or by name. */
@@ -191,6 +191,8 @@ export interface ResourceTableProps<RowItem> {
   errorMessage?: string | null;
   /** Display an errors */
   errors?: ApiError[] | null;
+  /** Warnings about live updates for listed resources. */
+  watchErrors?: ApiError[];
   /** State of the Table (page, rows per page) is reflected in the url */
   reflectInURL?: string | boolean;
   /**
@@ -230,13 +232,13 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
-  const { resourceClass, id, clusters, ...otherProps } = props;
+  const { resourceClass, id, clusters, watchErrors: providedWatchErrors, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
   const listed = resourceClass.useList({
     namespace: props.namespaces ?? selectedNamespaces,
     clusters,
   });
-  const { items, errors } = clusters?.length === 0 ? NOTHING_LISTED : listed;
+  const { items, errors, watchErrors } = clusters?.length === 0 ? NOTHING_LISTED : listed;
 
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);
@@ -260,6 +262,7 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
       errors={errors}
       id={id || `headlamp-${resourceClass.pluralName}`}
       {...otherProps}
+      watchErrors={[...(watchErrors ?? []), ...(providedWatchErrors ?? [])]}
       data={throttledItems}
     />
   );
@@ -366,6 +369,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     enableRowActions = false,
     enableRowSelection = false,
     errors,
+    watchErrors,
     emptyActions,
   } = props;
   const { t } = useTranslation(['glossary', 'translation']);
@@ -766,7 +770,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   return (
     <>
-      <ClusterGroupErrorMessage errors={errors} />
+      <ClusterGroupErrorMessage errors={errors} watchErrors={watchErrors} />
       <Table<RowItem>
         enableFullScreenToggle={false}
         enableFacetedValues={enableFacetedValues}

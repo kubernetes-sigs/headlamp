@@ -15,8 +15,10 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import PodGroup from '../../lib/k8s/podGroup';
+import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import Link from '../common/Link';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -30,6 +32,8 @@ interface ChildSection<T> {
   data: T[] | null;
   /** Whether the list failed with nothing to show. */
   hasError: boolean;
+  errors?: ApiError[] | null;
+  watchErrors?: ApiError[];
 }
 
 /**
@@ -43,16 +47,29 @@ interface ChildSection<T> {
  * @returns What the section shows.
  */
 function childSection<T>(
-  list: { items: T[] | null; isLoading: boolean; isError: boolean },
+  list: {
+    items: T[] | null;
+    isLoading: boolean;
+    isError: boolean;
+    errors?: ApiError[] | null;
+    watchErrors?: ApiError[];
+  },
   isChild: (group: T) => boolean
 ): ChildSection<T> {
   const children = (list.items ?? []).filter(isChild);
   const hasError = list.isError && children.length === 0;
 
   return {
-    visible: list.isLoading || hasError || children.length > 0,
+    visible:
+      list.isLoading ||
+      hasError ||
+      children.length > 0 ||
+      !!list.errors?.length ||
+      !!list.watchErrors?.length,
     data: list.isLoading || hasError ? null : children,
     hasError,
+    errors: list.errors,
+    watchErrors: list.watchErrors,
   };
 }
 
@@ -91,6 +108,10 @@ export default function ChildGroupsSection({ parent }: { parent: CompositePodGro
     <>
       {childComposites.visible && (
         <SectionBox title={t('glossary|Composite Pod Groups')}>
+          <ClusterGroupErrorMessage
+            errors={childComposites.errors}
+            watchErrors={childComposites.watchErrors}
+          />
           <SimpleTable
             columns={[
               {
@@ -122,6 +143,10 @@ export default function ChildGroupsSection({ parent }: { parent: CompositePodGro
       )}
       {childPodGroups.visible && (
         <SectionBox title={t('glossary|Pod Groups')}>
+          <ClusterGroupErrorMessage
+            errors={childPodGroups.errors}
+            watchErrors={childPodGroups.watchErrors}
+          />
           <SimpleTable
             columns={[
               {

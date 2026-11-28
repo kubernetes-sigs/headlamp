@@ -95,13 +95,16 @@ export function makeJobStatusLabel(job: Job) {
 }
 
 export default function JobsList() {
-  const { items: jobs, errors } = Job.useList({ namespace: useNamespaces() });
-  return <JobsListRenderer jobs={jobs} errors={errors} reflectTableInURL />;
+  const { items: jobs, errors, watchErrors } = Job.useList({ namespace: useNamespaces() });
+  return (
+    <JobsListRenderer jobs={jobs} errors={errors} watchErrors={watchErrors} reflectTableInURL />
+  );
 }
 
 export interface JobsListRendererProps {
   jobs: Job[] | null;
   errors?: ApiError[] | null;
+  watchErrors?: ApiError[];
   hideColumns?: 'namespace'[];
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
@@ -114,6 +117,7 @@ export function JobsListRenderer(props: JobsListRendererProps) {
   const {
     jobs,
     errors,
+    watchErrors,
     hideColumns = [],
     reflectTableInURL = 'jobs',
     noNamespaceFilter,
@@ -146,6 +150,7 @@ export function JobsListRenderer(props: JobsListRendererProps) {
       }}
       hideColumns={hideColumns}
       errors={errors}
+      watchErrors={watchErrors}
       columns={[
         'name',
         'namespace',

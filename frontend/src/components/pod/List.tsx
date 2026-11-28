@@ -300,6 +300,7 @@ export interface PodListProps {
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
   errors?: ApiError[] | null;
+  watchErrors?: ApiError[];
   hideCreateButton?: boolean;
   enableRowActions?: boolean;
   enableRowSelection?: boolean;
@@ -331,6 +332,7 @@ export function PodListRenderer(props: PodListProps) {
     reflectTableInURL = 'pods',
     noNamespaceFilter,
     errors,
+    watchErrors,
     hideCreateButton,
     enableRowActions,
     enableRowSelection,
@@ -409,6 +411,7 @@ export function PodListRenderer(props: PodListProps) {
       }}
       hideColumns={hideColumns}
       errors={errors}
+      watchErrors={watchErrors}
       columns={[
         'name',
         'namespace',
@@ -792,7 +795,7 @@ export function PodListRenderer(props: PodListProps) {
 
 export default function PodList() {
   const namespaces = useNamespaces();
-  const { items, errors, hasMore, remainingItemCount, loadMore } = Pod.useList({
+  const { items, errors, watchErrors, hasMore, remainingItemCount, loadMore } = Pod.useList({
     namespace: namespaces,
     limit: DEFAULT_LIST_LIMIT,
   });
@@ -823,6 +826,7 @@ export default function PodList() {
     <PodListRenderer
       pods={throttledItems}
       errors={errors}
+      watchErrors={watchErrors}
       metrics={podMetrics}
       reflectTableInURL
       hasMore={hasMore}

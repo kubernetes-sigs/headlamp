@@ -38,6 +38,7 @@ import {
 import {
   buildEnvironmentVariables,
   ConditionsTable,
+  ContainerEnvironmentVariables,
   DataField,
   DetailsGrid,
   extractEnvVarReferences,
@@ -161,7 +162,141 @@ describe('ConditionsTable', () => {
   });
 });
 
+function resourceResponse<T extends KubeObject>(
+  resource: T | null,
+  error: ApiError | null = null
+): [T | null, ApiError | null] & QueryResponse<T, ApiError> {
+  const tuple: [T | null, ApiError | null] = [resource, error];
+  const response: QueryResponse<T, ApiError> = {
+    data: resource,
+    error,
+    isError: error !== null,
+    isLoading: resource === null && error === null,
+    isFetching: resource === null && error === null,
+    isSuccess: resource !== null && error === null,
+    status: error ? 'error' : resource ? 'success' : 'pending',
+  };
+  return Object.assign(tuple, response);
+}
+
 describe('environment variable resolution', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(['secret', 'configMap', 'secretRef', 'configMapRef'] as const)(
+    'retains usable %s values when a recovery error accompanies the resource',
+    type => {
+      const secret = new Secret({
+        kind: 'Secret',
+        metadata,
+        type: 'Opaque',
+        data: { value: Base64.encode('cached-value') },
+      });
+      const configMap = new ConfigMap({
+        kind: 'ConfigMap',
+        metadata,
+        data: { value: 'cached-value' },
+      });
+      const warning = new ApiError('Cannot refresh cached resource', { status: 403 });
+      const variables = build(
+        [{ name: 'VALUE', type, resourceName: 'cached', key: 'value', prefix: 'BULK_' }],
+        new Map([['cached', { resource: secret, error: warning }]]),
+        new Map([['cached', { resource: configMap, error: warning }]])
+      );
+      expect(variables).toHaveLength(1);
+      expect(variables[0]).toMatchObject({
+        value: 'cached-value',
+        isError: false,
+        isSecret: type.startsWith('secret'),
+      });
+    }
+  );
+
+  it('keeps resolved environment values with recovery warnings and clears the warnings on recovery', async () => {
+    const secret = new Secret({
+      kind: 'Secret',
+      metadata,
+      type: 'Opaque',
+      data: { token: Base64.encode('cached-secret') },
+    });
+    const configMap = new ConfigMap({ kind: 'ConfigMap', metadata, data: { mode: 'cached-mode' } });
+    const warning = new ApiError('Watch recovery failed', { status: 403 });
+    const getSecret = vi.spyOn(Secret, 'useGet').mockReturnValue(resourceResponse(secret, warning));
+    const getConfigMap = vi
+      .spyOn(ConfigMap, 'useGet')
+      .mockReturnValue(resourceResponse(configMap, warning));
+    const envContainer: KubeContainer = {
+      ...container,
+      env: [
+        { name: 'TOKEN', valueFrom: { secretKeyRef: { name: 'credentials', key: 'token' } } },
+        { name: 'MODE', valueFrom: { configMapKeyRef: { name: 'settings', key: 'mode' } } },
+      ],
+    };
+    const content = () => (
+      <TestContext>
+        <ThemedContext>
+          <ContainerEnvironmentVariables pod={pod} container={envContainer} />
+        </ThemedContext>
+      </TestContext>
+    );
+    const view = render(content());
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2));
+    expect(screen.getByText('cached-mode')).toBeVisible();
+
+    getSecret.mockReturnValue(resourceResponse(secret));
+    getConfigMap.mockReturnValue(resourceResponse(configMap));
+    view.rerender(content());
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+    expect(screen.getByText('cached-mode')).toBeVisible();
+
+    getSecret.mockReturnValue(resourceResponse<Secret>(null, warning));
+    getConfigMap.mockReturnValue(resourceResponse<ConfigMap>(null, warning));
+    view.rerender(content());
+    await waitFor(() => expect(screen.queryByText('cached-mode')).not.toBeInTheDocument());
+    expect(screen.getAllByText('Watch recovery failed')).toHaveLength(2);
+  });
+
+  it('clears resolved secret and ConfigMap values while replacement reads are pending', async () => {
+    const secret = new Secret({
+      kind: 'Secret',
+      metadata,
+      type: 'Opaque',
+      data: { token: Base64.encode('old-secret') },
+    });
+    const configMap = new ConfigMap({
+      kind: 'ConfigMap',
+      metadata,
+      data: { mode: 'old-mode' },
+    });
+    const getSecret = vi.spyOn(Secret, 'useGet').mockReturnValue(resourceResponse(secret));
+    const getConfigMap = vi.spyOn(ConfigMap, 'useGet').mockReturnValue(resourceResponse(configMap));
+    const envContainer: KubeContainer = {
+      ...container,
+      env: [
+        { name: 'TOKEN', valueFrom: { secretKeyRef: { name: 'credentials', key: 'token' } } },
+        { name: 'MODE', valueFrom: { configMapKeyRef: { name: 'settings', key: 'mode' } } },
+      ],
+    };
+    const content = () => (
+      <TestContext>
+        <ThemedContext>
+          <ContainerEnvironmentVariables pod={pod} container={envContainer} />
+        </ThemedContext>
+      </TestContext>
+    );
+    const view = render(content());
+    await waitFor(() => expect(screen.getByText('old-mode')).toBeVisible());
+    expect(screen.getByDisplayValue('••••••••')).toBeVisible();
+
+    getSecret.mockReturnValue(resourceResponse<Secret>(null));
+    getConfigMap.mockReturnValue(resourceResponse<ConfigMap>(null));
+    view.rerender(content());
+
+    await waitFor(() => {
+      expect(screen.queryByText('old-mode')).not.toBeInTheDocument();
+      expect(screen.queryByDisplayValue('••••••••')).not.toBeInTheDocument();
+    });
+  });
+
   it('extracts literal, downward API and bulk references, preserving optional flags and prefixes', () => {
     const references = extractEnvVarReferences({
       ...container,
@@ -439,23 +574,6 @@ describe('DataField', () => {
 });
 
 describe('DetailsGrid', () => {
-  function resourceResponse(
-    resource: ConfigMap | null,
-    error: ApiError | null = null
-  ): [ConfigMap | null, ApiError | null] & QueryResponse<ConfigMap, ApiError> {
-    const tuple: [ConfigMap | null, ApiError | null] = [resource, error];
-    const response: QueryResponse<ConfigMap, ApiError> = {
-      data: resource,
-      error,
-      isError: error !== null,
-      isLoading: resource === null && error === null,
-      isFetching: resource === null && error === null,
-      isSuccess: resource !== null && error === null,
-      status: error ? 'error' : resource ? 'success' : 'pending',
-    };
-    return Object.assign(tuple, response);
-  }
-
   function makeResource(version = '1') {
     return new ConfigMap(
       { kind: 'ConfigMap', metadata: { ...metadata, resourceVersion: version } },

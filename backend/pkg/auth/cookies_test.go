@@ -367,11 +367,16 @@ func TestSetTokenCookiePathIsPercentEncoded(t *testing.T) {
 		require.NoError(t, auth.SetTokenCookie(w, req, cluster, "test-token", "", 100))
 
 		for _, header := range w.Result().Header.Values("Set-Cookie") {
-			require.Contains(t, header, "; Path="+wantPath+";", "cluster %q", cluster)
+			if strings.HasPrefix(header, "headlamp-multiplexer-auth-") {
+				require.Contains(t, header, "; Path=/wsMultiplexer;", "cluster %q", cluster)
+			} else {
+				require.Contains(t, header, "; Path="+wantPath+";", "cluster %q", cluster)
+			}
 		}
 	}
 }
 
+//nolint:funlen // Verifies both cluster and multiplexer cookie issuance/readback together.
 func TestSetAndGetAuthCookie(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), "GET", localhost, nil)
 	req.Host = localhost
@@ -385,8 +390,8 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
-	if len(cookies) != 2 {
-		t.Fatalf("Expected token chunk and terminal cleanup cookie, got %d", len(cookies))
+	if len(cookies) != 4 {
+		t.Fatalf("Expected scoped and multiplexer token/cleanup cookies, got %d", len(cookies))
 	}
 
 	cookie := cookies[0]
@@ -410,6 +415,18 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 		t.Errorf("Expected MaxAge to be %d, got %d", testTTL, cookie.MaxAge)
 	}
 
+	var multiplexerCookie *http.Cookie
+
+	for _, candidate := range cookies {
+		if strings.HasPrefix(candidate.Name, "headlamp-multiplexer-auth-") &&
+			candidate.MaxAge > 0 {
+			multiplexerCookie = candidate
+		}
+	}
+
+	require.NotNil(t, multiplexerCookie)
+	require.Equal(t, "/wsMultiplexer", multiplexerCookie.Path)
+
 	// Test getting the cookie
 	req.AddCookie(cookie)
 
@@ -421,6 +438,53 @@ func TestSetAndGetAuthCookie(t *testing.T) {
 	if token != "test-token" {
 		t.Errorf("Expected token 'test-token', got %q", token)
 	}
+
+	wsRequest := httptest.NewRequestWithContext(context.Background(), "GET", "/wsMultiplexer", nil)
+	wsRequest.AddCookie(multiplexerCookie)
+	wsToken, err := auth.GetTokenFromCookie(wsRequest, "test-cluster")
+	require.NoError(t, err)
+	require.Equal(t, "test-token", wsToken)
+}
+
+func TestMultiplexerAuthCookiesDoNotCollideForSanitizedClusters(t *testing.T) {
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+	loginURL, err := url.Parse("https://headlamp.example/")
+	require.NoError(t, err)
+	wsURL, err := url.Parse("https://headlamp.example/wsMultiplexer")
+	require.NoError(t, err)
+
+	for cluster, token := range map[string]string{"team/a": "slash-token", "teama": "plain-token"} {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, loginURL.String(), nil)
+		recorder := httptest.NewRecorder()
+		require.NoError(t, auth.SetTokenCookie(recorder, req, cluster, token, "", 3600))
+		jar.SetCookies(loginURL, recorder.Result().Cookies())
+	}
+
+	wsRequest := httptest.NewRequestWithContext(context.Background(), http.MethodGet, wsURL.String(), nil)
+	for _, cookie := range jar.Cookies(wsURL) {
+		wsRequest.AddCookie(cookie)
+	}
+
+	slashToken, err := auth.GetTokenFromCookie(wsRequest, "team/a")
+	require.NoError(t, err)
+	plainToken, err := auth.GetTokenFromCookie(wsRequest, "teama")
+	require.NoError(t, err)
+	require.Equal(t, "slash-token", slashToken)
+	require.Equal(t, "plain-token", plainToken)
+
+	clearResponse := httptest.NewRecorder()
+	auth.ClearTokenCookieBounded(clearResponse, wsRequest, "team/a", "")
+	jar.SetCookies(loginURL, clearResponse.Result().Cookies())
+
+	remaining := httptest.NewRequestWithContext(context.Background(), http.MethodGet, wsURL.String(), nil)
+	for _, cookie := range jar.Cookies(wsURL) {
+		remaining.AddCookie(cookie)
+	}
+
+	plainToken, err = auth.GetTokenFromCookie(remaining, "teama")
+	require.NoError(t, err)
+	require.Equal(t, "plain-token", plainToken)
 }
 
 func TestGetAuthCookieChunked(t *testing.T) {
@@ -438,8 +502,8 @@ func TestGetAuthCookieChunked(t *testing.T) {
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
-	if len(cookies) != 3 {
-		t.Fatalf("Expected 2 token chunks and terminal cleanup cookie, got %d", len(cookies))
+	if len(cookies) != 6 {
+		t.Fatalf("Expected scoped and multiplexer chunks plus cleanup cookies, got %d", len(cookies))
 	}
 
 	// Test getting the cookie
@@ -470,8 +534,8 @@ func TestSetAuthTokenCookieEnforcesBoundedChunks(t *testing.T) {
 		}
 
 		cookies := w.Result().Cookies()
-		if len(cookies) != 32 {
-			t.Fatalf("Expected 32 token chunks, got %d", len(cookies))
+		if len(cookies) != 64 {
+			t.Fatalf("Expected 32 scoped and 32 multiplexer token chunks, got %d", len(cookies))
 		}
 
 		for _, cookie := range cookies {
@@ -490,8 +554,8 @@ func TestSetAuthTokenCookieEnforcesBoundedChunks(t *testing.T) {
 		}
 
 		cookies := w.Result().Cookies()
-		if len(cookies) != 1 {
-			t.Fatalf("Expected one terminal cleanup cookie, got %d", len(cookies))
+		if len(cookies) != 2 {
+			t.Fatalf("Expected scoped and multiplexer cleanup cookies, got %d", len(cookies))
 		}
 
 		for _, cookie := range cookies {
@@ -562,8 +626,8 @@ func TestClearAuthCookie(t *testing.T) {
 
 	// Check if cookie was set
 	cookies := w.Result().Cookies()
-	if len(cookies) != 1 {
-		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
+	if len(cookies) != 2 {
+		t.Fatalf("Expected scoped and multiplexer cleanup cookies, got %d", len(cookies))
 	}
 
 	// Test clearing the cookie
@@ -571,8 +635,8 @@ func TestClearAuthCookie(t *testing.T) {
 
 	// Check if cookie was cleared
 	clearedCookies := w.Result().Cookies()
-	if len(clearedCookies) != 1 {
-		t.Fatalf("Expected 1 cookie, got %d", len(clearedCookies))
+	if len(clearedCookies) != 2 {
+		t.Fatalf("Expected 2 cleanup cookies, got %d", len(clearedCookies))
 	}
 
 	cookie := clearedCookies[0]
@@ -939,6 +1003,7 @@ func TestClearIDTokenCookieClearsChunksAcrossGaps(t *testing.T) {
 	}
 }
 
+//nolint:funlen // Exercises both auth and ID-token resize/clear lifecycles.
 func TestLogoutInvalidationSurvivesTokenResizeAndRelogin(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -983,7 +1048,14 @@ func TestLogoutInvalidationSurvivesTokenResizeAndRelogin(t *testing.T) {
 
 				w = httptest.NewRecorder()
 				tc.clear(w, hiddenReq, "main", "")
-				require.Len(t, w.Result().Cookies(), 1, "Hidden chunks require only chunk-zero invalidation")
+
+				expectedClears := 1
+				if tc.name == "auth" {
+					expectedClears = 2
+				}
+
+				require.Len(t, w.Result().Cookies(), expectedClears,
+					"Hidden chunks require chunk-zero invalidation for each cookie scope")
 				jar.SetCookies(hiddenReq.URL, w.Result().Cookies())
 
 				req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, target.String(), nil)

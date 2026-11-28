@@ -18,6 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetAccessibleNamespaces } from '../../../lib/queryClient';
 import AuthVisible from './AuthVisible';
 
 describe('AuthVisible', () => {
@@ -206,6 +207,92 @@ describe('AuthVisible', () => {
       'dra'
     );
   });
+
+  it('clears cached authorization after the provider is unmounted', async () => {
+    const oldItem = {
+      _class: () => ({ apiName: 'pods', apiVersion: 'v1' }),
+      cluster: 'cluster-a',
+      getName: () => 'test-pod',
+      getAuthorization: vi.fn().mockResolvedValue({ status: { allowed: true } }),
+    };
+    const first = render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={oldItem as any} authVerb="get">
+          <div>Old identity content</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(screen.getByText('Old identity content')).toBeInTheDocument());
+    first.unmount();
+
+    resetAccessibleNamespaces('cluster-a');
+
+    const newItem = {
+      ...oldItem,
+      getAuthorization: vi.fn().mockResolvedValue({ status: { allowed: false } }),
+    };
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AuthVisible item={newItem as any} authVerb="get">
+          <div>New identity content</div>
+        </AuthVisible>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => expect(newItem.getAuthorization).toHaveBeenCalledOnce());
+    expect(screen.queryByText('New identity content')).toBeNull();
+  });
+
+  it.each(['pending', 'failed'])(
+    'revokes callback permissions while the replacement authorization is %s',
+    async outcome => {
+      let resolveNext!: (value: any) => void;
+      let rejectNext!: (reason: unknown) => void;
+      const nextAuthorization = new Promise((resolve, reject) => {
+        resolveNext = resolve;
+        rejectNext = reject;
+      });
+      const item = {
+        _class: () => ({ apiName: 'pods', apiVersion: 'v1' }),
+        cluster: 'cluster-a',
+        getName: () => 'test-pod',
+        getAuthorization: vi
+          .fn()
+          .mockResolvedValueOnce({ status: { allowed: true, reason: 'Allowed' } })
+          .mockReturnValueOnce(nextAuthorization),
+      };
+      const onAuthResult = vi.fn();
+      const onError = vi.fn();
+      render(
+        <QueryClientProvider client={queryClient}>
+          <AuthVisible
+            item={item as any}
+            authVerb="delete"
+            onAuthResult={onAuthResult}
+            onError={onError}
+          >
+            <div>Delete</div>
+          </AuthVisible>
+        </QueryClientProvider>
+      );
+      await waitFor(() =>
+        expect(onAuthResult).toHaveBeenLastCalledWith({ allowed: true, reason: 'Allowed' })
+      );
+
+      resetAccessibleNamespaces('cluster-a');
+
+      await waitFor(() =>
+        expect(onAuthResult).toHaveBeenLastCalledWith({ allowed: false, reason: '' })
+      );
+      expect(screen.queryByText('Delete')).toBeNull();
+      if (outcome === 'failed') {
+        rejectNext(new Error('Forbidden'));
+        await waitFor(() => expect(onError).toHaveBeenCalled());
+      } else {
+        resolveNext({ status: { allowed: false, reason: 'Denied' } });
+      }
+    }
+  );
 
   it('warns and returns null if authVerb is invalid', () => {
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

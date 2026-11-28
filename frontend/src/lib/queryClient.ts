@@ -16,6 +16,8 @@
 
 import { QueryClient } from '@tanstack/react-query';
 import { resetDiscoveredNamespaces } from '../helpers/clusterSettings';
+import store from '../redux/stores/store';
+import { setClusterSettings } from '../settings/adminSettingsSlice';
 
 /**
  * Determines whether React Query should retry a failed query.
@@ -72,12 +74,117 @@ export function invalidateClusterUserInfo() {
 
 /** Name of the channel that tells other tabs the identity may have changed. */
 export const IDENTITY_RESET_CHANNEL = 'headlamp-identity-reset';
+export const IDENTITY_RESET_EVENT = 'headlamp-identity-reset';
+
+const identityQueryPrefixes = new Set([
+  'accessibleNamespaces',
+  'api-discovery',
+  'auth',
+  'authVisible',
+  'clusterMe',
+  'cluster-defined-settings',
+  'clusterVersion',
+  'clusterWideList',
+  'clustersServing',
+  'endpoints',
+  'gateway-l4-route-availability',
+  'kubeObject',
+  'legacy-list-watch',
+  'object',
+  'object-watch',
+  'projectDelete:auth',
+  'scaleMultiple:auth',
+  'servedSchedulingVersions',
+  'version',
+]);
+
+const clusterQueryFields = new Map<string, (queryKey: readonly unknown[]) => readonly unknown[]>([
+  ['accessibleNamespaces', key => key.slice(1, 2)],
+  ['api-discovery', key => key.slice(1)],
+  ['auth', key => key.slice(1, 2)],
+  ['authVisible', key => key.slice(7, 8)],
+  ['clusterMe', key => key.slice(1, 2)],
+  [
+    'cluster-defined-settings',
+    key => (Array.isArray(key[2]) ? key.slice(2, 3).flat() : key.slice(2, 3)),
+  ],
+  ['clusterVersion', key => key.slice(1, 2)],
+  ['clusterWideList', key => key.slice(1, 2)],
+  ['clustersServing', key => key.slice(3)],
+  ['endpoints', key => key.slice(1, 2)],
+  ['gateway-l4-route-availability', key => key.slice(1)],
+  ['kubeObject', key => key.slice(4, 5)],
+  ['legacy-list-watch', key => key.slice(5, 6)],
+  ['object', key => key.slice(1, 2)],
+  ['object-watch', key => key.slice(2, 3)],
+  ['projectDelete:auth', key => key.slice(2, 3)],
+  ['scaleMultiple:auth', key => key.slice(1, 2)],
+  ['servedSchedulingVersions', key => key.slice(2)],
+  ['version', key => key.slice(1, 2)],
+]);
+
+function isIdentityQuery(queryKey: readonly unknown[], cluster?: string) {
+  const prefix = String(queryKey[0]);
+  if (!identityQueryPrefixes.has(prefix)) return false;
+  return !cluster || clusterQueryFields.get(prefix)?.(queryKey).includes(cluster) === true;
+}
+
+let allClusterIdentityGeneration = 0;
+const clusterIdentityGenerations = new Map<string, number>();
+const defaultIdentityQueryClientRef = new WeakRef(queryClient);
+const identityQueryClientRefs = new Set([defaultIdentityQueryClientRef]);
+const identityQueryClientRefByClient = new WeakMap([[queryClient, defaultIdentityQueryClientRef]]);
+
+export function getClusterIdentityGeneration(cluster: string) {
+  return `${allClusterIdentityGeneration}:${clusterIdentityGenerations.get(cluster) ?? 0}`;
+}
+
+export function registerIdentityQueryClient(client: QueryClient) {
+  if (identityQueryClientRefByClient.has(client)) return;
+
+  const clientRef = new WeakRef(client);
+  identityQueryClientRefByClient.set(client, clientRef);
+  identityQueryClientRefs.add(clientRef);
+}
 
 function resetAccessibleNamespacesLocally(cluster?: string) {
+  if (cluster) {
+    clusterIdentityGenerations.set(cluster, (clusterIdentityGenerations.get(cluster) ?? 0) + 1);
+  } else {
+    allClusterIdentityGeneration++;
+  }
   resetDiscoveredNamespaces(cluster);
-  return queryClient.removeQueries({
-    queryKey: cluster ? ['accessibleNamespaces', cluster] : ['accessibleNamespaces'],
-  });
+  const clusterSettings = store.getState().adminSettings.clusterSettings;
+  store.dispatch(
+    setClusterSettings(
+      cluster
+        ? Object.fromEntries(Object.entries(clusterSettings).filter(([name]) => name !== cluster))
+        : {}
+    )
+  );
+  const predicate = (query: { queryKey: readonly unknown[] }) =>
+    isIdentityQuery(query.queryKey, cluster);
+  for (const clientRef of identityQueryClientRefs) {
+    const client = clientRef.deref();
+    if (!client) {
+      identityQueryClientRefs.delete(clientRef);
+      continue;
+    }
+
+    void client.cancelQueries({ predicate });
+    void client.resetQueries({ predicate, type: 'active' });
+    client.removeQueries({ predicate, type: 'inactive' });
+  }
+  dispatchCredentialsChanged(cluster);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(IDENTITY_RESET_EVENT, { detail: { cluster } }));
+  }
+}
+
+function dispatchCredentialsChanged(cluster?: string) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('headlamp-credentials-changed', { detail: { cluster } }));
+  }
 }
 
 // The authentication cookie is shared by all tabs, so an identity change in one
@@ -90,8 +197,22 @@ const identityResetChannel =
 if (identityResetChannel) {
   identityResetChannel.onmessage = (event: MessageEvent) => {
     const cluster = event.data?.cluster;
-    resetAccessibleNamespacesLocally(typeof cluster === 'string' && cluster ? cluster : undefined);
+    const validCluster = typeof cluster === 'string' && cluster ? cluster : undefined;
+    if (event.data?.type === 'token-refreshed') {
+      dispatchCredentialsChanged(validCluster);
+      return;
+    }
+    resetAccessibleNamespacesLocally(validCluster);
   };
+}
+
+/**
+ * Reconnects cookie-authenticated transports after the backend refreshes an
+ * OIDC token without clearing cached data for the same identity.
+ */
+export function notifyTokenRefreshed(cluster?: string) {
+  dispatchCredentialsChanged(cluster);
+  identityResetChannel?.postMessage({ type: 'token-refreshed', cluster });
 }
 
 /**

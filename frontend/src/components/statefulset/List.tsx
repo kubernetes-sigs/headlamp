@@ -37,6 +37,7 @@ export interface StatefulSetsListRendererProps {
    */
   statefulSets?: StatefulSet[] | null;
   errors?: ApiError[] | null;
+  watchErrors?: ApiError[];
   hideColumns?: 'namespace'[];
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
@@ -49,6 +50,7 @@ export function StatefulSetsListRenderer(props: StatefulSetsListRendererProps) {
   const {
     statefulSets,
     errors,
+    watchErrors,
     hideColumns = [],
     reflectTableInURL = 'statefulsets',
     noNamespaceFilter,
@@ -150,5 +152,12 @@ export function StatefulSetsListRenderer(props: StatefulSetsListRendererProps) {
     return <ResourceListView {...commonProps} resourceClass={StatefulSet} />;
   }
 
-  return <ResourceListView {...commonProps} data={statefulSets} errors={errors} />;
+  return (
+    <ResourceListView
+      {...commonProps}
+      data={statefulSets}
+      errors={errors}
+      watchErrors={watchErrors}
+    />
+  );
 }

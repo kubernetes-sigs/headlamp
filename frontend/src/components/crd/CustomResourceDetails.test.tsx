@@ -17,6 +17,7 @@
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import CustomResourceDefinition from '../../lib/k8s/crd';
 import { TestContext } from '../../test';
 import { CustomResourceDetails } from './CustomResourceDetails';
@@ -81,7 +82,10 @@ describe('CustomResourceDetails', () => {
     vi.clearAllMocks();
   });
 
-  const setupMocks = (apiVersion: string) => {
+  const setupMocks = (
+    apiVersion: string,
+    errors: { definition?: ApiError; resource?: ApiError } = {}
+  ) => {
     const mockCrd = {
       metadata: { name: 'my-crd' },
       jsonData: {
@@ -113,14 +117,35 @@ describe('CustomResourceDetails', () => {
             getName: () => 'my-resource',
             getNamespace: () => 'default',
           },
-          null,
+          errors.resource ?? null,
         ]),
       }),
     };
 
-    (CustomResourceDefinition.useGet as any).mockReturnValue([mockCrd, null]);
+    (CustomResourceDefinition.useGet as any).mockReturnValue([mockCrd, errors.definition ?? null]);
     return mockCrd;
   };
+
+  it.each(['definition', 'resource'] as const)(
+    'retains loaded details and warns when the %s watch fails',
+    source => {
+      const error = new ApiError(`Cannot recover the ${source} watch`, { status: 403 });
+      setupMocks('v1', { [source]: error });
+      const content = () => (
+        <TestContext routerMap={{ crd: 'my-crd', namespace: 'default', crName: 'my-resource' }}>
+          <CustomResourceDetails crd="my-crd" crName="my-resource" namespace="default" />
+        </TestContext>
+      );
+      const view = render(content());
+      expect(screen.getByTestId('resource-name')).toHaveTextContent('my-resource');
+      expect(screen.getByTestId('extra-info-Status')).toHaveTextContent('Running');
+      expect(screen.getByRole('alert')).toHaveTextContent(error.message);
+      setupMocks('v1');
+      view.rerender(content());
+      expect(screen.getByTestId('resource-name')).toHaveTextContent('my-resource');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    }
+  );
 
   it('correctly handles apiVersion without a slash (e.g., "v1")', async () => {
     setupMocks('v1');

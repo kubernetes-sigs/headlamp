@@ -139,6 +139,42 @@ describe('KubeList.applyUpdate', () => {
     expect(updatedList.items).toHaveLength(0);
   });
 
+  it('advances the cursor without changing items on BOOKMARK', () => {
+    const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'BOOKMARK',
+      object: {
+        apiVersion: 'v1',
+        kind: 'MockKubeObject',
+        metadata: { resourceVersion: '9' },
+      },
+    };
+
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
+
+    expect(updatedList.items).toEqual(initialList.items);
+    expect(updatedList.metadata.resourceVersion).toBe('9');
+  });
+
+  it('advances large opaque resource versions without numeric rounding', () => {
+    const list = {
+      ...initialList,
+      metadata: { resourceVersion: '9007199254740992' },
+    };
+    const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'BOOKMARK',
+      object: {
+        apiVersion: 'v1',
+        kind: 'MockKubeObject',
+        metadata: { resourceVersion: '9007199254740993' },
+      },
+    };
+
+    const updatedList = KubeList.applyUpdate(list, updateEvent, itemClass, cluster);
+
+    expect(updatedList.items).toEqual(list.items);
+    expect(updatedList.metadata.resourceVersion).toBe('9007199254740993');
+  });
+
   it('should log an error on ERROR event', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const updateEvent: KubeListUpdateEvent<MockKubeObject> = {

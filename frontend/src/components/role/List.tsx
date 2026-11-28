@@ -28,10 +28,18 @@ import { ColumnType } from '../common/Resource/ResourceTable';
 export default function RoleList({ namespaces }: { namespaces?: string[] }) {
   const { t } = useTranslation('glossary');
   const selectedNamespaces = useNamespaces();
-  const { items: roles, errors: rolesErrors } = Role.useList({
+  const {
+    items: roles,
+    errors: rolesErrors,
+    watchErrors: roleWatchErrors,
+  } = Role.useList({
     namespace: namespaces ?? selectedNamespaces,
   });
-  const { items: clusterRoles, errors: clusterRolesErrors } = ClusterRole.useList();
+  const {
+    items: clusterRoles,
+    errors: clusterRolesErrors,
+    watchErrors: clusterRoleWatchErrors,
+  } = ClusterRole.useList();
 
   const clusters = useSelectedClusters();
   const isMultiCluster = clusters.length > 1;
@@ -57,6 +65,7 @@ export default function RoleList({ namespaces }: { namespaces?: string[] }) {
       title={t('Roles')}
       headerProps={{ noNamespaceFilter: false }}
       errors={allErrors}
+      watchErrors={[...(roleWatchErrors ?? []), ...(clusterRoleWatchErrors ?? [])]}
       emptyActions={<EmptyStateActions />}
       columns={[
         'type',

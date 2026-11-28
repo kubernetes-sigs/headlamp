@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
@@ -54,43 +54,56 @@ export type WebSocketConnectionRequest<T> = {
    */
   url: string;
 
+  /** Compute an updated URL when an established watch disconnects. */
+  reconnectUrl?: () => string;
+  /** Called when an opted-in watch opens. */
+  onReady?: () => void;
+  /** Called when an established socket closes unexpectedly. */
+  onClose?: (event?: CloseEvent) => void;
+  /** Called when a watch exhausts its retry attempts. */
+  onError?: (error: Error) => void;
+  /** Reconcile a fresh snapshot after the browser hides repeated handshake failures. */
+  onRecoveryNeeded?: () => Promise<string | void>;
+  /** Stable cache owner; isolates recovery and retains its budget across cursors. */
+  recoveryOwner?: object;
+  /** Retired snapshots cannot share a transport with a newer generation. */
+  generation?: number;
+
   /**
    * Callback function that handles incoming messages from the WebSocket.
    * @param data The message payload, typed as T (e.g., K8s Pod, Service, etc.)
    */
   onMessage: (data: T) => void;
-
-  /**
-   * Optional callback function that handles WebSocket error events.
-   */
-  onError?: (error: any) => void;
-
-  /**
-   * Optional callback function called when the WebSocket closes unexpectedly.
-   */
-  onClose?: (event?: CloseEvent) => void;
 };
 
 /**
  * Keeps track of open WebSocket connections and active listeners
  */
-const sockets = new Map<string, WebSocket | symbol>();
-const listeners = new Map<string, Array<(update: any) => void>>();
-const closeListeners = new Map<string, Array<(event?: CloseEvent) => void>>();
-const errorListeners = new Map<string, Array<(error: any) => void>>();
-const intentionalCloses = new WeakSet<WebSocket>();
-const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const handshakeFailureCounts = new Map<string, number>();
-const pendingCloseTimers = new Map<string, ReturnType<typeof setTimeout>>();
+interface LegacyConnection {
+  socket: WebSocket | symbol;
+  timer?: ReturnType<typeof setTimeout>;
+}
 
-function getConnectionKey(
-  cluster: string,
-  url: string,
-  type: 'json' | 'binary' = 'json',
-  protocols?: string | string[]
-): string {
-  const normalizedProtocols = Array.isArray(protocols) ? protocols.join(',') : protocols ?? '';
-  return `${cluster}${url}\0${type}\0${normalizedProtocols}`;
+interface RecoveryBudget {
+  id: number;
+  /** Persists across cursor/generation changes; only a successful open resets it. */
+  recoveries: number;
+  error?: Error;
+}
+
+const sockets = new Map<string, LegacyConnection>();
+const listeners = new Map<string, Set<WebSocketConnectionRequest<any>>>();
+let recoveryBudgets = new WeakMap<object, RecoveryBudget>();
+let recoverySequence = 0;
+const MAX_SNAPSHOT_RECOVERIES = 3;
+
+function recoveryBudget(owner: object): RecoveryBudget {
+  let budget = recoveryBudgets.get(owner);
+  if (!budget) {
+    budget = { id: ++recoverySequence, recoveries: 0 };
+    recoveryBudgets.set(owner, budget);
+  }
+  return budget;
 }
 
 /**
@@ -108,10 +121,10 @@ export async function openWebSocket<T>(
     type = 'binary',
     cluster = getCluster() ?? '',
     onMessage,
-    onError,
-    onClose,
     onOpen,
+    onClose,
     onHandshakeFailure,
+    listenerKey,
   }: {
     /**
      * Any additional protocols to include in WebSocket connection
@@ -129,25 +142,12 @@ export async function openWebSocket<T>(
      * Message callback
      */
     onMessage: (data: T) => void;
-    /**
-     * Error callback
-     */
-    onError?: (error: any) => void;
-    /**
-     * Close callback
-     */
-    onClose?: (event?: CloseEvent) => void;
-    /**
-     * Open callback invoked when connection successfully opens
-     */
+    listenerKey?: string;
     onOpen?: () => void;
-    /**
-     * Handshake failure callback invoked when connection closes before open event
-     */
-    onHandshakeFailure?: () => void;
+    onClose?: (event: CloseEvent) => void;
+    onHandshakeFailure?: (event: CloseEvent) => void;
   }
 ) {
-  const connectionKey = getConnectionKey(cluster, url, type, moreProtocols);
   const path = [url];
   const protocols = ['base64.binary.k8s.io', ...(moreProtocols ?? [])];
   const backendTokenProtocol = getHeadlampWebSocketProtocol();
@@ -172,14 +172,12 @@ export async function openWebSocket<T>(
 
   const socket = new WebSocket(makeUrl([getBaseWsUrl(), ...path], {}), protocols);
   socket.binaryType = 'arraybuffer';
-  let hasOpened = false;
-  socket.addEventListener('open', () => {
-    hasOpened = true;
-    onOpen?.();
-  });
   socket.addEventListener('message', (body: MessageEvent) => {
+    if (listenerKey && sockets.get(listenerKey)?.socket !== socket) return;
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
-    const callbacks = listeners.get(connectionKey) ?? [onMessage];
+    const callbacks = listenerKey
+      ? [...(listeners.get(listenerKey) ?? [])].map(listener => listener.onMessage)
+      : [onMessage];
     callbacks.forEach(callback => {
       try {
         callback(data);
@@ -190,35 +188,15 @@ export async function openWebSocket<T>(
   });
   socket.addEventListener('error', error => {
     console.error('WebSocket error:', error);
-    const callbacks = errorListeners.get(connectionKey) ?? (onError ? [onError] : []);
-    callbacks.forEach(callback => {
-      try {
-        callback(error);
-      } catch (err) {
-        console.error('WebSocket error listener error:', err);
-      }
-    });
   });
-  socket.addEventListener('close', (event: CloseEvent) => {
-    if (sockets.get(connectionKey) === socket) {
-      sockets.delete(connectionKey);
-    }
-    if (intentionalCloses.has(socket)) {
-      intentionalCloses.delete(socket);
-      return;
-    }
-    if (!hasOpened) {
-      onHandshakeFailure?.();
-      return;
-    }
-    const callbacks = closeListeners.get(connectionKey) ?? (onClose ? [onClose] : []);
-    callbacks.forEach(callback => {
-      try {
-        callback(event);
-      } catch (err) {
-        console.error('WebSocket close listener error:', err);
-      }
-    });
+  let opened = false;
+  socket.addEventListener('open', () => {
+    opened = true;
+    onOpen?.();
+  });
+  socket.addEventListener('close', event => {
+    if (opened) onClose?.(event);
+    else onHandshakeFailure?.(event);
   });
 
   return socket;
@@ -249,243 +227,319 @@ export function useWebSockets<T>({
    */
   type?: 'json' | 'binary';
 }) {
+  const activeConnections = useRef(
+    new Map<string, { observer: WebSocketConnectionRequest<T>; disconnect: () => void }>()
+  );
+  const [credentialVersion, setCredentialVersion] = useState(0);
   useEffect(() => {
-    if (!enabled) return;
+    const handleCredentialChange = (event: Event) => {
+      const cluster = (event as CustomEvent<{ cluster?: string }>).detail?.cluster;
 
-    /** Open a connection to websocket */
-    function startConnection(endpoint: WebSocketConnectionRequest<T>) {
-      const { cluster, url, onMessage, onError, onClose } = endpoint;
-      const connectionKey = getConnectionKey(cluster, url, type, protocols);
-
-      if (sockets.has(connectionKey)) {
-        return;
+      let changed = false;
+      for (const [key, connection] of activeConnections.current) {
+        if (cluster && connection.observer.cluster !== cluster) continue;
+        connection.disconnect();
+        activeConnections.current.delete(key);
+        changed = true;
       }
+      if (changed) setCredentialVersion(version => version + 1);
+    };
+    window.addEventListener('headlamp-credentials-changed', handleCredentialChange);
 
-      const existingTimer = retryTimers.get(connectionKey);
-      if (existingTimer) {
-        clearTimeout(existingTimer);
-        retryTimers.delete(connectionKey);
-      }
-
-      const pendingSocket = Symbol('pendingWebSocket');
-      sockets.set(connectionKey, pendingSocket);
-
-      const scheduleRetry = () => {
-        if (sockets.get(connectionKey) === pendingSocket) {
-          sockets.delete(connectionKey);
-        }
-        if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
-          return;
-        }
-        if (retryTimers.has(connectionKey)) {
-          return;
-        }
-        const count = (handshakeFailureCounts.get(connectionKey) ?? 0) + 1;
-        handshakeFailureCounts.set(connectionKey, count);
-
-        // If handshake fails repeatedly, notify close listeners so higher-level hooks
-        // can detect the failure and recover (e.g. relist or refresh credentials).
-        // If no close listeners exist, continue retrying with delayed attempts.
-        if (count >= 3) {
-          const callbacks = closeListeners.get(connectionKey) ?? (onClose ? [onClose] : []);
-          if (callbacks.length > 0) {
-            handshakeFailureCounts.delete(connectionKey);
-            callbacks.forEach(callback => {
-              try {
-                callback(
-                  new CloseEvent('close', { code: 1002, reason: 'Handshake failed repeatedly' })
-                );
-              } catch (err) {
-                console.error('WebSocket close listener error:', err);
-              }
-            });
-            return;
-          }
-        }
-
-        const timer = setTimeout(() => {
-          retryTimers.delete(connectionKey);
-          if ((listeners.get(connectionKey)?.length ?? 0) > 0 && !sockets.has(connectionKey)) {
-            startConnection(endpoint);
-          }
-        }, Math.min(5000 * Math.pow(2, Math.max(0, count - 3)), 30000));
-        retryTimers.set(connectionKey, timer);
-      };
-
-      openWebSocket(url, {
+    return () => window.removeEventListener('headlamp-credentials-changed', handleCredentialChange);
+  }, []);
+  useEffect(() => {
+    const active = activeConnections.current;
+    const keyFor = (request: WebSocketConnectionRequest<T>) => {
+      const owner = request.recoveryOwner ?? request.onRecoveryNeeded;
+      return JSON.stringify([
+        request.cluster,
+        request.url,
+        owner ? recoveryBudget(owner).id : null,
+        request.generation ?? 0,
         protocols,
         type,
-        cluster,
-        onMessage,
-        onError,
-        onClose,
-        onOpen: () => {
-          handshakeFailureCounts.delete(connectionKey);
-        },
-        onHandshakeFailure: () => {
-          if (sockets.get(connectionKey) === pendingSocket) {
-            sockets.delete(connectionKey);
-          }
-          scheduleRetry();
-        },
-      })
-        .then(socket => {
-          // A newer connection replaced this pending one while it was opening.
-          if (sockets.get(connectionKey) !== pendingSocket) {
-            intentionalCloses.add(socket);
-            socket.close();
-            return;
-          }
+      ]);
+    };
 
-          // The socket closed or is closing before registration completed.
-          if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-            if (sockets.get(connectionKey) === pendingSocket) {
+    /** Open a connection to websocket */
+    function connect(request: WebSocketConnectionRequest<T>) {
+      const { cluster, url, onMessage } = request;
+      const owner = request.recoveryOwner ?? request.onRecoveryNeeded;
+      const budget = owner ? recoveryBudget(owner) : undefined;
+      const connectionKey = keyFor(request);
+      const observer = { ...request };
+      const observers = listeners.get(connectionKey) ?? new Set();
+      observers.add(observer);
+      listeners.set(connectionKey, observers);
+      const existing = sockets.get(connectionKey);
+      const connection: LegacyConnection = existing ?? { socket: Symbol('pendingWebSocket') };
+      let failures = 0;
+      let onlineRetry: (() => void) | undefined;
+
+      function current(socket: WebSocket | symbol) {
+        return (
+          sockets.get(connectionKey) === connection &&
+          connection.socket === socket &&
+          !!listeners.get(connectionKey)?.size
+        );
+      }
+
+      function notifyError(error: Error) {
+        if (budget) budget.error = error;
+        for (const listener of listeners.get(connectionKey) ?? []) {
+          try {
+            listener.onError?.(error);
+          } catch (error) {
+            console.error('WebSocket error listener failed:', error);
+          }
+        }
+      }
+
+      function notifyClose(event: CloseEvent) {
+        for (const listener of listeners.get(connectionKey) ?? []) {
+          try {
+            listener.onClose?.(event);
+          } catch (error) {
+            console.error('WebSocket close listener failed:', error);
+          }
+        }
+      }
+
+      function stop(error: Error) {
+        console.error('Kubernetes watch recovery stopped:', error);
+        sockets.delete(connectionKey);
+        if (connection.timer) clearTimeout(connection.timer);
+        notifyError(error);
+      }
+
+      function retry(socket: WebSocket | symbol, error: Error) {
+        if (!current(socket)) return;
+        if ((budget?.recoveries ?? 0) >= MAX_SNAPSHOT_RECOVERIES) {
+          stop(
+            new Error(
+              `Kubernetes watch recovery exhausted after ${MAX_SNAPSHOT_RECOVERIES} snapshots: ${error.message}`
+            )
+          );
+          return;
+        }
+        if (!observer.reconnectUrl || (failures >= 3 && !observer.onRecoveryNeeded)) {
+          stop(error);
+          return;
+        }
+        if (failures >= 3 && observer.onRecoveryNeeded) {
+          const pendingRecovery = Symbol('recoveringWebSocket');
+          connection.socket = pendingRecovery;
+          if (budget) budget.recoveries++;
+          notifyError(error);
+          Promise.resolve()
+            .then(() => {
+              if (!current(pendingRecovery)) return;
+              return observer.onRecoveryNeeded?.();
+            })
+            .then(nextUrl => {
+              if (!current(pendingRecovery)) return;
+              if (nextUrl) dial(nextUrl);
+              else sockets.delete(connectionKey);
+            })
+            .catch(error => {
+              if (!current(pendingRecovery)) return;
+              console.error('Failed to recover Kubernetes watch:', error);
+              stop(error instanceof Error ? error : new Error(String(error)));
+            });
+          return;
+        }
+        const delay = 1000 * 2 ** failures;
+        failures++;
+        connection.timer = setTimeout(() => {
+          connection.timer = undefined;
+          if (current(socket) && observer.reconnectUrl) dial(observer.reconnectUrl());
+        }, delay);
+      }
+
+      function dial(dialUrl: string) {
+        const pendingSocket = Symbol('pendingWebSocket');
+        connection.socket = pendingSocket;
+        sockets.set(connectionKey, connection);
+
+        openWebSocket(dialUrl, {
+          protocols,
+          type,
+          cluster,
+          onMessage,
+          listenerKey: connectionKey,
+          onOpen: () => {
+            if (!current(connection.socket)) return;
+            failures = 0;
+            if (onlineRetry) {
+              window.removeEventListener('online', onlineRetry);
+              onlineRetry = undefined;
+            }
+            if (budget) {
+              budget.recoveries = 0;
+              budget.error = undefined;
+            }
+            for (const listener of listeners.get(connectionKey) ?? []) {
+              try {
+                listener.onReady?.();
+              } catch (error) {
+                console.error('WebSocket readiness listener failed:', error);
+              }
+            }
+          },
+          onHandshakeFailure: event => {
+            if (sockets.get(connectionKey) !== connection || !listeners.get(connectionKey)?.size)
+              return;
+            const failedSocket = Symbol('failedWebSocket');
+            connection.socket = failedSocket;
+            if (observer.reconnectUrl) {
+              retry(failedSocket, new Error('Kubernetes watch handshake failed'));
+              return;
+            }
+            failures++;
+            if (failures >= 3 && observer.onRecoveryNeeded) {
+              if ((budget?.recoveries ?? 0) >= MAX_SNAPSHOT_RECOVERIES) {
+                stop(
+                  new Error(
+                    `Kubernetes watch recovery exhausted after ${MAX_SNAPSHOT_RECOVERIES} snapshots`
+                  )
+                );
+                return;
+              }
+              const pendingRecovery = Symbol('recoveringWebSocket');
+              connection.socket = pendingRecovery;
+              if (budget) budget.recoveries++;
+              const error = new Error('Kubernetes watch handshake failed repeatedly');
+              notifyError(error);
+              Promise.resolve()
+                .then(() => {
+                  if (!current(pendingRecovery)) return;
+                  return observer.onRecoveryNeeded?.();
+                })
+                .then(nextUrl => {
+                  if (!current(pendingRecovery)) return;
+                  if (nextUrl) dial(nextUrl);
+                  else sockets.delete(connectionKey);
+                })
+                .catch(error => {
+                  if (!current(pendingRecovery)) return;
+                  stop(error instanceof Error ? error : new Error(String(error)));
+                });
+              return;
+            }
+            if (failures >= 3 && [...(listeners.get(connectionKey) ?? [])].some(it => it.onClose)) {
+              notifyClose(event);
               sockets.delete(connectionKey);
+              return;
             }
-            if (!retryTimers.has(connectionKey)) {
-              scheduleRetry();
-            }
-            return;
-          }
-
-          // All listeners unsubscribed while the socket was opening.
-          if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
-            intentionalCloses.add(socket);
-            socket.close();
-            sockets.delete(connectionKey);
-            return;
-          }
-
-          sockets.set(connectionKey, socket);
+            if (connection.timer) clearTimeout(connection.timer);
+            connection.timer = setTimeout(() => {
+              connection.timer = undefined;
+              if (current(failedSocket)) dial(observer.reconnectUrl?.() ?? url);
+            }, 5000);
+            onlineRetry = () => {
+              if (!current(failedSocket)) return;
+              if (connection.timer) clearTimeout(connection.timer);
+              connection.timer = undefined;
+              window.removeEventListener('online', onlineRetry!);
+              onlineRetry = undefined;
+              dial(observer.reconnectUrl?.() ?? url);
+            };
+            window.addEventListener('online', onlineRetry, { once: true });
+          },
+          onClose: event => {
+            notifyClose(event);
+            retry(connection.socket, new Error('Kubernetes watch disconnected'));
+          },
         })
-        .catch(err => {
-          if (sockets.get(connectionKey) === pendingSocket) {
-            sockets.delete(connectionKey);
-          }
-          console.error(err);
-          scheduleRetry();
-        });
-    }
-
-    function connect(endpoint: WebSocketConnectionRequest<T>) {
-      const { cluster, url, onMessage, onError, onClose } = endpoint;
-      const connectionKey = getConnectionKey(cluster, url, type, protocols);
-
-      const existingCloseTimer = pendingCloseTimers.get(connectionKey);
-      if (existingCloseTimer) {
-        clearTimeout(existingCloseTimer);
-        pendingCloseTimers.delete(connectionKey);
-      }
-
-      // Always register the current listener, even when reusing an existing socket.
-      listeners.set(connectionKey, [...(listeners.get(connectionKey) ?? []), onMessage]);
-      if (onError) {
-        errorListeners.set(connectionKey, [...(errorListeners.get(connectionKey) ?? []), onError]);
-      }
-      if (onClose) {
-        closeListeners.set(connectionKey, [...(closeListeners.get(connectionKey) ?? []), onClose]);
-      }
-
-      if (!sockets.has(connectionKey) && !retryTimers.has(connectionKey)) {
-        startConnection(endpoint);
-      }
-
-      return () => {
-        const connectionKey = getConnectionKey(cluster, url, type, protocols);
-
-        // Clean up the listener
-        const newListeners = listeners.get(connectionKey)?.filter(it => it !== onMessage) ?? [];
-        listeners.set(connectionKey, newListeners);
-
-        if (onError) {
-          const newErrorListeners =
-            errorListeners.get(connectionKey)?.filter(it => it !== onError) ?? [];
-          errorListeners.set(connectionKey, newErrorListeners);
-        }
-
-        if (onClose) {
-          const newCloseListeners =
-            closeListeners.get(connectionKey)?.filter(it => it !== onClose) ?? [];
-          closeListeners.set(connectionKey, newCloseListeners);
-        }
-
-        // No one is listening to the connection
-        // so we can close it
-        if (newListeners.length === 0) {
-          const existingCloseTimer = pendingCloseTimers.get(connectionKey);
-          if (existingCloseTimer) {
-            clearTimeout(existingCloseTimer);
-          }
-          const timer = setTimeout(() => {
-            pendingCloseTimers.delete(connectionKey);
-            if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
-              const retryTimer = retryTimers.get(connectionKey);
-              if (retryTimer) {
-                clearTimeout(retryTimer);
-                retryTimers.delete(connectionKey);
-              }
-              const maybeExisting = sockets.get(connectionKey);
-              if (maybeExisting) {
-                if (typeof maybeExisting !== 'symbol') {
-                  intentionalCloses.add(maybeExisting);
-                  maybeExisting.close();
-                }
-                sockets.delete(connectionKey);
-              }
-              errorListeners.delete(connectionKey);
-              closeListeners.delete(connectionKey);
-              handshakeFailureCounts.delete(connectionKey);
+          .then(socket => {
+            if (!current(pendingSocket)) {
+              socket.close();
+              return;
             }
-          }, 0);
-          pendingCloseTimers.set(connectionKey, timer);
+
+            connection.socket = socket;
+          })
+          .catch(err => {
+            retry(pendingSocket, err instanceof Error ? err : new Error(String(err)));
+            console.error(err);
+          });
+      }
+
+      if (budget?.error) {
+        try {
+          observer.onError?.(budget.error);
+        } catch (error) {
+          console.error('WebSocket error listener failed:', error);
+        }
+      }
+      if (!existing) dial(url);
+      else if (
+        typeof existing.socket !== 'symbol' &&
+        existing.socket.readyState === WebSocket.OPEN
+      ) {
+        try {
+          observer.onReady?.();
+        } catch (error) {
+          console.error('WebSocket readiness listener failed:', error);
+        }
+      }
+
+      const disconnect = () => {
+        const remaining = listeners.get(connectionKey);
+        remaining?.delete(observer);
+        if (remaining?.size === 0) {
+          listeners.delete(connectionKey);
+          const maybeExisting = sockets.get(connectionKey);
+          if (maybeExisting) {
+            sockets.delete(connectionKey);
+            if (maybeExisting.timer) clearTimeout(maybeExisting.timer);
+            if (onlineRetry) window.removeEventListener('online', onlineRetry);
+            if (typeof maybeExisting.socket !== 'symbol') maybeExisting.socket.close();
+          }
         }
       };
+      return { observer, disconnect };
     }
 
-    const handleOnline = () => {
-      connections.forEach(endpoint => {
-        const connectionKey = getConnectionKey(endpoint.cluster, endpoint.url, type, protocols);
-        if ((listeners.get(connectionKey)?.length ?? 0) > 0 && !sockets.has(connectionKey)) {
-          const timer = retryTimers.get(connectionKey);
-          if (timer) {
-            clearTimeout(timer);
-            retryTimers.delete(connectionKey);
-          }
-          startConnection(endpoint);
-        }
-      });
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('online', handleOnline);
-    }
-
-    const disconnectCallbacks = connections.map(endpoint => connect(endpoint));
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('online', handleOnline);
+    const occurrences = new Map<string, number>();
+    const requestedEntries = enabled
+      ? connections.map(request => {
+          const key = keyFor(request);
+          const occurrence = occurrences.get(key) ?? 0;
+          occurrences.set(key, occurrence + 1);
+          return { key: JSON.stringify([key, occurrence]), request };
+        })
+      : [];
+    const requested = new Set(requestedEntries.map(entry => entry.key));
+    for (const [key, connection] of active) {
+      if (!requested.has(key)) {
+        connection.disconnect();
+        active.delete(key);
       }
-      disconnectCallbacks.forEach(fn => fn());
+    }
+    for (const { key, request } of requestedEntries) {
+      const existing = active.get(key);
+      if (existing) Object.assign(existing.observer, request);
+      else active.set(key, connect(request));
+    }
+  }, [enabled, type, connections, protocols, credentialVersion]);
+  useEffect(() => {
+    const active = activeConnections.current;
+    return () => {
+      active.forEach(connection => connection.disconnect());
+      active.clear();
     };
-  }, [enabled, type, connections, protocols]);
+  }, []);
 }
 
-/**
- * Resets all internal WebSocket state. Intended for unit tests.
- */
 export function resetWebSocketsForTesting(): void {
-  for (const timer of retryTimers.values()) {
-    clearTimeout(timer);
+  for (const connection of sockets.values()) {
+    if (connection.timer) clearTimeout(connection.timer);
+    if (typeof connection.socket !== 'symbol') connection.socket.close();
   }
-  retryTimers.clear();
-  for (const timer of pendingCloseTimers.values()) {
-    clearTimeout(timer);
-  }
-  pendingCloseTimers.clear();
   sockets.clear();
   listeners.clear();
-  closeListeners.clear();
-  errorListeners.clear();
-  handshakeFailureCounts.clear();
+  recoveryBudgets = new WeakMap<object, RecoveryBudget>();
+  recoverySequence = 0;
 }

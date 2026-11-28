@@ -384,6 +384,7 @@ function ProjectAccess({ project }: { project: ProjectDefinition }) {
           columns={['type', 'name', 'age']}
           data={roles.items}
           errors={roles.errors}
+          watchErrors={roles.watchErrors}
           enableRowActions
           noNamespaceFilter
         />
@@ -393,6 +394,7 @@ function ProjectAccess({ project }: { project: ProjectDefinition }) {
           columns={['type', 'name', 'age']}
           data={roleBindings.items}
           errors={roleBindings.errors}
+          watchErrors={roleBindings.watchErrors}
           enableRowActions
           noNamespaceFilter
         />

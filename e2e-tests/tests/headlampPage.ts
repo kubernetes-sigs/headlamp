@@ -16,6 +16,7 @@
 
 /// <reference types="node" />
 import { expect, Page } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { runA11yScan } from './a11yHelper';
 
 export class HeadlampPage {
@@ -55,8 +56,13 @@ export class HeadlampPage {
    * multi-cluster login/logout tests and the Helm test, which call authenticate() directly.
    */
   async navigateToCluster(name: string, token?: string) {
-    const authHeading = this.page.getByRole('heading', { level: 1, name: 'Authentication' });
-    const overviewHeading = this.page.getByRole('heading', { name: 'Overview' });
+    const authHeading = this.page.getByRole('heading', {
+      level: 1,
+      name: 'Authentication',
+    });
+    const overviewHeading = this.page.getByRole('heading', {
+      name: 'Overview',
+    });
 
     if (!token) {
       await this.navigateTopage(`/c/${name}`);
@@ -86,10 +92,11 @@ export class HeadlampPage {
     const testURL = new URL(process.env.HEADLAMP_TEST_URL || 'http://localhost:3000');
     const basePath = testURL.pathname.replace(/\/+$/, '');
     const cookieCluster = cluster.replace(/[^a-zA-Z0-9\-_]/g, '').slice(0, 50);
+    const multiplexerCluster = createHash('sha256').update(cluster).digest('base64url');
     const chunks = token.match(/[\s\S]{1,3800}/g) ?? [];
 
-    await this.page.context().addCookies(
-      chunks.map((value, index) => ({
+    await this.page.context().addCookies([
+      ...chunks.map((value, index) => ({
         name: `headlamp-auth-${cookieCluster}.${index}`,
         value,
         domain: testURL.hostname,
@@ -97,8 +104,17 @@ export class HeadlampPage {
         httpOnly: true,
         secure: testURL.protocol === 'https:',
         sameSite: 'Strict' as const,
-      }))
-    );
+      })),
+      ...chunks.map((value, index) => ({
+        name: `headlamp-multiplexer-auth-${multiplexerCluster}.${index}`,
+        value,
+        domain: testURL.hostname,
+        path: `${basePath}/wsMultiplexer`,
+        httpOnly: true,
+        secure: testURL.protocol === 'https:',
+        sameSite: 'Strict' as const,
+      })),
+    ]);
   }
 
   async hasURLContaining(pattern: RegExp) {

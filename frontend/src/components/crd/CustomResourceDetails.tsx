@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import Alert from '@mui/material/Alert';
 import { JSONPath } from 'jsonpath-plus';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -69,12 +70,15 @@ export function CustomResourceDetails({
       <Loader title={t('translation|Loading custom resource details')} />
     )
   ) : (
-    <CustomResourceDetailsRenderer
-      crd={crd}
-      crName={crName}
-      namespace={namespace}
-      cluster={cluster}
-    />
+    <>
+      {error && <Alert severity="warning">{error.toString()}</Alert>}
+      <CustomResourceDetailsRenderer
+        crd={crd}
+        crName={crName}
+        namespace={namespace}
+        cluster={cluster}
+      />
+    </>
   );
 }
 
@@ -184,6 +188,11 @@ function CustomResourceDetailsItem(
     )
   ) : (
     <PageGrid>
+      {error && (
+        <SectionBox>
+          <Alert severity="warning">{error.toString()}</Alert>
+        </SectionBox>
+      )}
       <MainInfoSection
         resource={item}
         extraInfo={[

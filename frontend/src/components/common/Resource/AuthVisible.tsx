@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import { useQuery } from '@tanstack/react-query';
-import React, { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useEffect, useRef } from 'react';
 import { getCluster } from '../../../lib/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
+import { registerIdentityQueryClient } from '../../../lib/queryClient';
 
 /** List of valid request verbs. See https://kubernetes.io/docs/reference/access-authn-authz/authorization/#determine-the-request-verb. */
 const VALID_AUTH_VERBS = [
@@ -59,8 +60,10 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
   const { cluster: clusterProp } = props;
+  const queryClient = useQueryClient();
 
   const isAuthVerbValid = VALID_AUTH_VERBS.includes(authVerb);
+  useEffect(() => registerIdentityQueryClient(queryClient), [queryClient]);
 
   useEffect(() => {
     if (!isAuthVerbValid) {
@@ -99,12 +102,14 @@ export default function AuthVisible(props: AuthVisibleProps) {
   });
 
   const visible = data?.status?.allowed ?? false;
+  const hasReportedAuthorization = useRef(false);
 
   useEffect(() => {
-    if (data) {
+    if (data || hasReportedAuthorization.current) {
+      hasReportedAuthorization.current = true;
       onAuthResult?.({
         allowed: visible,
-        reason: data.status?.reason ?? '',
+        reason: data?.status?.reason ?? '',
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -144,6 +144,64 @@ From `e2e-tests/`, with `HEADLAMP_TEST_URL` pointing at that instance, run:
 npx playwright test tests/namespaceRestrictions.spec.ts --project=chromium --grep "legacy namespace API"
 ```
 
+### Multiplexer protocol against a real backend and cluster
+
+`backend/e2e/multiplexer_test.go` starts the actual Headlamp backend executable
+and opens independent client WebSockets through `/wsMultiplexer` to a real
+Kubernetes API server. This uses the existing Go test runner and dependencies,
+not a mocked upstream or browser fixture.
+
+With an existing disposable cluster, run from the repository root:
+
+```bash
+GOMAXPROCS=2 npm run backend:build
+cd backend
+HEADLAMP_E2E_BINARY="$PWD/headlamp-server" \
+  HEADLAMP_E2E_CONTEXT=minikube GOMAXPROCS=2 \
+  go test -p 2 -tags=e2e ./e2e -run '^TestMultiplexerLive' -count=1 -v -timeout=90s
+```
+
+Replace `minikube` with the explicit context of your test cluster. The selected identity needs permission to create/delete namespaces; create, get,
+list, update, and watch ConfigMaps; create ServiceAccounts, Roles, and
+RoleBindings in its test namespace; and create the `serviceaccounts/token`
+subresource for the test ServiceAccount. Use a context with a static bearer
+token or a client certificate and key. Contexts using an exec credential plugin
+or auth provider are rejected before the backend starts or test resources are
+created.
+The tests copy only that context into a private temporary directory outside the
+checkout, use an OS-assigned ephemeral backend port, and delete their own
+generated namespaces and process/configuration files. They do not
+change the source kubeconfig or create/delete clusters.
+
+The harness creates a namespace-scoped service account with only ConfigMap
+`get`, `list`, and `watch` permission, mints a Kubernetes token for that account,
+and sends it in Headlamp's authenticated cluster cookie during each WebSocket
+handshake. It also requires the negotiated protocol to be
+`headlamp.multiplexer.v2.k8s.io`; a legacy-only handshake fails the suite. This
+is authenticated **backend-protocol** coverage using a real Kubernetes token and
+the production cookie decoder, rather than relying on the kubeconfig's bootstrap
+credential for the client socket. The Go client intentionally adds the cookie
+directly; separate browser-cookie-path coverage is provided below by Playwright.
+For browser requests, `SetTokenCookie` also issues a distinct
+`headlamp-multiplexer-auth-<cluster-hash>.<chunk>` HttpOnly/SameSite=Strict cookie
+at the base-URL-prefixed `/wsMultiplexer` path. The ordinary cluster cookie remains restricted to
+`/clusters/<cluster>`, while `/wsMultiplexer` receives the dedicated cookie and
+`GetTokenFromCookie` selects the credential matching the request path.
+
+The isolation test gives two sockets the same routing ID, resource, and opening
+cursor, verifies both receive fresh events, then verifies one client's
+unsubscribe and disconnect leave the other receiving new resource versions.
+The cursor test explicitly replaces a watch after two real Kubernetes updates:
+its first subsequent event must be fresh, not history replayed from the original
+opening cursor. It covers both a collection cursor and an explicitly empty
+opening cursor that advances after the first event.
+Assertions synchronize on readiness, protocol statuses, close
+acknowledgement, and concrete resource versions, without sleeps.
+
+These are opt-in backend protocol E2E tests; the `e2e` build tag keeps them out
+of cluster-independent unit runs. They do not exercise React shared-observer
+hooks or a browser UI.
+
 ### Additional suites
 
 `tests/logStreaming.spec.ts` creates a temporary namespace and a logging Deployment
@@ -232,6 +290,68 @@ on `test2`:
 Both Dex users use the fixture password `headlamp-e2e-password`. The generated
 `.env` enables this spec; it is otherwise skipped unless
 `HEADLAMP_CLUSTER_INVENTORY_E2E=true`.
+
+## Compact real-cluster watch recovery
+
+`tests/watchRecovery.spec.ts` adds four browser scenarios without starting pods
+or creating clusters:
+
+- List expiry while recovery is pending/forbidden: cached rows stay usable,
+  mutations during the gap are reconciled by a fresh snapshot, and watching
+  resumes at its cursor when connectivity returns.
+- A held real detail GET cannot undo a newer deletion; recreation is observed,
+  and closing one tab leaves another tab watching the same object.
+- Legacy LIST-allowed/WATCH-denied RBAC keeps cached rows visible and exhausts
+  its snapshot budget instead of relisting forever.
+- Authenticated v2 `/wsMultiplexer` behavior: the browser token login form sets
+  a real HttpOnly, endpoint-scoped cookie, paced v2 requests carry the matching
+  credential, list and detail aliases use independent requests, closing one
+  tab cannot stop the survivor, and the survivor reconnects and receives later
+  ConfigMap creation events.
+
+HTTP responses and watch updates come from real Kubernetes through the real
+backend. Only an expiry event and a temporary recovery 403 are injected.
+Playwright's clock skips backoffs and long negative-observation windows.
+Each scenario creates and deletes its own namespace, ConfigMaps, and (for the
+RBAC case) a namespaced ServiceAccount/Role/RoleBinding.
+
+Run against a token-authenticated Headlamp and the corresponding kubectl
+context. The signed-in token needs get/list/watch ConfigMaps and namespace
+discovery; kubectl needs permission to create the isolated fixtures. Do not use
+a kubeconfig client-certificate identity that bypasses the browser's token when
+checking the denied-WATCH scenario.
+
+```bash
+cd e2e-tests
+HEADLAMP_WATCH_E2E=true \
+HEADLAMP_WATCH_E2E_CLUSTER=test \
+HEADLAMP_WATCH_E2E_CONTEXT=kind-test \
+npx playwright test tests/watchRecovery.spec.ts --project=chromium --workers=1 \
+  --grep-invert "authenticated v2 browser sessions"
+```
+
+Set `HEADLAMP_TEST_URL` and `HEADLAMP_SA_TOKEN` as for the regular browser suite.
+The authenticated v2 scenario requires `HEADLAMP_SA_TOKEN` and the default
+`REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=true` frontend build. Run it separately:
+
+```bash
+cd e2e-tests
+HEADLAMP_WATCH_E2E=true \
+HEADLAMP_WATCH_E2E_CLUSTER=test \
+HEADLAMP_WATCH_E2E_CONTEXT=kind-test \
+HEADLAMP_SA_TOKEN="$TOKEN" \
+npx playwright test tests/watchRecovery.spec.ts \
+  --project=chromium --workers=1 \
+  --grep "authenticated v2 browser sessions"
+```
+
+Run the other scenarios with a legacy frontend build
+(`REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=false npm run frontend:build`) because
+they explicitly assert direct `/clusters/...` watch URLs and opaque handshake
+recovery. Restart the backend after changing the frontend build: it loads the
+HTML entry point at startup. Real-backend v2 client isolation and cursor
+replacement are separately covered by `backend/e2e/multiplexer_test.go`.
+No CI workflow changes or additional dependencies are required.
 
 ## Run all tests
 

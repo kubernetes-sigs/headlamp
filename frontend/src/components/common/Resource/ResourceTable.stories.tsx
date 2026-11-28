@@ -20,6 +20,7 @@ import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { createStore } from 'redux';
 import { useMockListQuery } from '../../../helpers/testHelpers';
+import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import Pod, { KubePod } from '../../../lib/k8s/pod';
 import reducers from '../../../redux/reducers/reducers';
 import shortcutsReducer from '../../../redux/shortcutsSlice';
@@ -185,4 +186,40 @@ NameSearch.args = {
 export const WithHiddenCols = TemplateWithFilter.bind({});
 WithHiddenCols.args = {
   resourceTableArgs: withHiddenCols,
+};
+
+const stoppedWatch = new ApiError('Live updates have stopped. Showing the last loaded resources.', {
+  cluster: 'test',
+});
+
+export const InterruptedWatch = TemplateWithFilter.bind({});
+InterruptedWatch.args = {
+  resourceTableArgs: { ...podData, watchErrors: [stoppedWatch] },
+};
+
+class EmptyPod extends MyPod {
+  static useList = useMockListQuery.data([]);
+}
+
+export const InterruptedEmptyWatch = TemplateWithFilter.bind({});
+InterruptedEmptyWatch.args = {
+  resourceTableArgs: { ...podData, resourceClass: EmptyPod, watchErrors: [stoppedWatch] },
+};
+
+export const InitialListError = TemplateWithFilter.bind({});
+InitialListError.args = {
+  resourceTableArgs: {
+    ...podData,
+    resourceClass: EmptyPod,
+    errorMessage: Pod.getErrorMessage(new ApiError('Forbidden', { status: 403, cluster: 'test' })),
+  },
+};
+
+export const EmptySnapshotRefreshError = TemplateWithFilter.bind({});
+EmptySnapshotRefreshError.args = {
+  resourceTableArgs: {
+    ...podData,
+    resourceClass: EmptyPod,
+    errors: [new ApiError('Snapshot recovery request failed', { status: 500, cluster: 'test' })],
+  },
 };

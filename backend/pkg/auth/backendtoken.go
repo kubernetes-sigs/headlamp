@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
@@ -29,6 +30,15 @@ const (
 	backendTokenHeader         = "X-HEADLAMP_BACKEND-TOKEN"                         // #nosec G101
 	backendTokenProtocolPrefix = "base64url.headlamp.backend.authorization.k8s.io." // #nosec G101
 )
+
+type backendTokenProtocolContextKey struct{}
+
+// IsBackendTokenProtocolAuthenticated reports whether the desktop backend token
+// in the WebSocket subprotocol was verified by NewBackendTokenMiddleware.
+func IsBackendTokenProtocolAuthenticated(r *http.Request) bool {
+	authenticated, _ := r.Context().Value(backendTokenProtocolContextKey{}).(bool)
+	return authenticated
+}
 
 // CheckBackendToken verifies that a request carries the token configured by the desktop app.
 func CheckBackendToken(useInCluster bool, w http.ResponseWriter, r *http.Request) error {
@@ -65,6 +75,7 @@ func NewBackendTokenMiddleware(useInCluster bool) func(http.Handler) http.Handle
 				return
 			}
 
+			usedProtocol := hasBackendTokenProtocol(r)
 			if err := consumeBackendTokenProtocol(r); err != nil {
 				http.Error(w, "access denied", http.StatusForbidden)
 				return
@@ -75,9 +86,25 @@ func NewBackendTokenMiddleware(useInCluster bool) func(http.Handler) http.Handle
 			}
 
 			r.Header.Del(backendTokenHeader)
+
+			if usedProtocol {
+				r = r.WithContext(context.WithValue(
+					r.Context(), backendTokenProtocolContextKey{}, true))
+			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func hasBackendTokenProtocol(r *http.Request) bool {
+	for _, protocol := range strings.Split(strings.Join(r.Header.Values("Sec-WebSocket-Protocol"), ","), ",") {
+		if strings.HasPrefix(strings.TrimSpace(protocol), backendTokenProtocolPrefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // consumeBackendTokenProtocol extracts one base64url-encoded backend token from

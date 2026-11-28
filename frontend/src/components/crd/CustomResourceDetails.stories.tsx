@@ -16,6 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { baseMocks } from '../../../.storybook/baseMocks';
 import { API_BASE, TestContext } from '../../test';
 import { CustomResourceDetails, CustomResourceDetailsProps } from './CustomResourceDetails';
 import { mockCRD, mockCRList } from './storyHelper';
@@ -119,3 +120,44 @@ ErrorGettingCR.args = {
   crd: 'mydefinition.phonyresources.io',
   namespace: '-',
 };
+
+function recoveryParameters(source: 'definition' | 'resource') {
+  const collection =
+    source === 'definition'
+      ? 'apis/apiextensions.k8s.io/v1/customresourcedefinitions'
+      : 'apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources';
+  return {
+    storyshots: { disable: true },
+    msw: {
+      handlers: {
+        base: [
+          http.get(`${API_BASE}/${collection}`, () =>
+            HttpResponse.json({ message: `Cannot refresh the cached ${source}` }, { status: 403 })
+          ),
+          ...baseMocks,
+        ],
+        storyBase: [
+          http.get(
+            `${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions/mydefinition.phonyresources.io`,
+            () => HttpResponse.json(mockCRD)
+          ),
+          http.get(
+            `${API_BASE}/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources/mycustomresource`,
+            () => HttpResponse.json(mockCRList[0])
+          ),
+          http.get(`${API_BASE}/api/v1/namespaces/mynamespace/events`, () =>
+            HttpResponse.json({ kind: 'EventList', items: [], metadata: { resourceVersion: '1' } })
+          ),
+        ],
+      },
+    },
+  };
+}
+
+export const DefinitionRecoveryError = Template.bind({});
+DefinitionRecoveryError.args = NoError.args;
+DefinitionRecoveryError.parameters = recoveryParameters('definition');
+
+export const ResourceRecoveryError = Template.bind({});
+ResourceRecoveryError.args = NoError.args;
+ResourceRecoveryError.parameters = recoveryParameters('resource');

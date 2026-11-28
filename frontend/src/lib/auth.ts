@@ -136,7 +136,6 @@ export function setToken(cluster: string, token: string | null) {
     } else {
       queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
     }
-
     return result;
   });
 }
