@@ -182,3 +182,34 @@ Error.parameters = {
     },
   },
 };
+
+const mockRolloutHPA = {
+  ...mockHPA,
+  metadata: {
+    ...mockHPA.metadata,
+    annotations: {},
+    name: 'checkout',
+  },
+  spec: {
+    ...mockHPA.spec,
+    scaleTargetRef: {
+      apiVersion: 'argoproj.io/v1alpha1',
+      kind: 'Rollout',
+      name: 'checkout',
+    },
+  },
+};
+
+export const CustomTarget = Template.bind({});
+CustomTarget.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/autoscaling/v2/namespaces/my-namespace/horizontalpodautoscalers/my-endpoint`,
+          () => HttpResponse.json(mockRolloutHPA)
+        ),
+      ],
+    },
+  },
+};

@@ -153,3 +153,74 @@ const Template: StoryFn = () => {
 };
 
 export const Items = Template.bind({});
+
+const customTargetList = [
+  ...list,
+  {
+    apiVersion: 'autoscaling/v2',
+    kind: 'HorizontalPodAutoscaler',
+    metadata: {
+      creationTimestamp: '2022-10-20T11:10:58Z',
+      name: 'checkout',
+      namespace: 'default',
+      resourceVersion: '6462097',
+      uid: '73ad9a26-7cbd-431b-801a-614c9cbbd286',
+    },
+    spec: {
+      maxReplicas: 10,
+      metrics: [
+        {
+          resource: {
+            name: 'cpu',
+            target: {
+              averageUtilization: 50,
+              type: 'Utilization',
+            },
+          },
+          type: 'Resource',
+        },
+      ],
+      minReplicas: 1,
+      scaleTargetRef: {
+        apiVersion: 'argoproj.io/v1alpha1',
+        kind: 'Rollout',
+        name: 'checkout',
+      },
+    },
+    status: {
+      conditions: [],
+      currentMetrics: [
+        {
+          resource: {
+            current: {
+              averageUtilization: 25,
+              averageValue: '250m',
+            },
+            name: 'cpu',
+          },
+          type: 'Resource',
+        },
+      ],
+      currentReplicas: 2,
+      desiredReplicas: 2,
+      lastScaleTime: '2022-10-21T11:15:12Z',
+    },
+  },
+];
+
+export const CustomTarget = Template.bind({});
+CustomTarget.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/autoscaling/v2/horizontalpodautoscalers`, () =>
+          HttpResponse.json({
+            kind: 'HpaList',
+            metadata: {},
+            items: customTargetList,
+          })
+        ),
+      ],
+    },
+  },
+};
