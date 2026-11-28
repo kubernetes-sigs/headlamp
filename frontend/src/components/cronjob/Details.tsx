@@ -61,9 +61,12 @@ function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: ()
 
   const suffix = `-manual-spawn-${uniqueString()}`;
 
-  const [jobName, setJobName] = useState(
-    () => `${cronJob?.metadata?.name.substring(0, maxNameLength - suffix.length)}${suffix}`
-  );
+  const [jobName, setJobName] = useState(() => {
+    const prefix = (cronJob?.metadata?.name ?? '')
+      .substring(0, maxNameLength - suffix.length)
+      .replace(/[-.]+$/, '');
+    return `${prefix}${suffix}`;
+  });
 
   const isValidJobName = jobName.length <= maxNameLength && jobNameRegex.test(jobName);
   const showJobNameError = !isValidJobName && jobName.length > 0;

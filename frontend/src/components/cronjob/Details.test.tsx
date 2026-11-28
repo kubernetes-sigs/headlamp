@@ -77,12 +77,12 @@ vi.mock('./List', () => ({
   getLastScheduleTime: () => '',
 }));
 
-function makeCronJob(cluster = OWNER_CLUSTER) {
+function makeCronJob(cluster = OWNER_CLUSTER, name = 'test-cronjob') {
   const jsonData = {
     kind: 'CronJob',
     apiVersion: 'batch/v1',
     metadata: {
-      name: 'test-cronjob',
+      name,
       namespace: 'default',
       uid: 'cronjob-uid-1',
     },
@@ -280,5 +280,34 @@ describe('CronJobDetails: Spawn Job', () => {
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(capturedAction.current).toBeNull();
     expect(mockApply).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a dot', 'my-very-long-cronjob-batch-service.daily-job'],
+    ['a hyphen', 'my-very-long-cronjob-batch-service-daily-job'],
+  ])('strips trailing dots and hyphens when truncated at %s', (_case, cronJobName) => {
+    const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
+
+    try {
+      mockUseGet.mockReturnValue([makeCronJob(OWNER_CLUSTER, cronJobName), null]);
+
+      render(
+        <TestContext>
+          <CronJobDetails name={cronJobName} namespace="default" cluster={OWNER_CLUSTER} />
+        </TestContext>
+      );
+
+      fireEvent.click(screen.getByLabelText('translation|Spawn Job'));
+      const spawn = screen.getByRole('button', { name: 'translation|Spawn' });
+      const input = screen.getByLabelText('translation|Job Name') as HTMLInputElement;
+
+      expect(spawn).toBeEnabled();
+      expect(screen.queryByText(formatMessage)).not.toBeInTheDocument();
+      expect(input.value).toMatch(/^my-very-long-cronjob-batch-service-manual-spawn-/);
+    } finally {
+      dateSpy.mockRestore();
+      randomSpy.mockRestore();
+    }
   });
 });
