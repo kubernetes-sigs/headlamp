@@ -39,7 +39,6 @@ import Pod from '../../lib/k8s/pod';
 import { Dialog } from './Dialog';
 import { getXtermTheme } from './xtermTheme';
 
-const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
 
 enum Channel {
@@ -76,6 +75,8 @@ export default function Terminal(props: TerminalProps) {
   const execOrAttachRef = React.useRef<execReturn | null>(null);
   const fitAddonRef = React.useRef<FitAddon | null>(null);
   const xtermRef = React.useRef<XTerminalConnected | null>(null);
+  // One streaming decoder per channel of the current connection.
+  const decodersRef = React.useRef<Partial<Record<Channel, TextDecoder>>>({});
   const [shells, setShells] = React.useState({
     available: getAvailableShells(),
     currentIdx: 0,
@@ -191,7 +192,9 @@ export default function Terminal(props: TerminalProps) {
     // The first byte is discarded because it just identifies whether
     // this data is from stderr, stdout, or stdin.
     const data = bytes.slice(1);
-    let text = decoder.decode(data);
+    // Decode as a stream: a multibyte character can be split across two messages.
+    const decoder = (decodersRef.current[channel] ??= new TextDecoder('utf-8'));
+    let text = decoder.decode(data, { stream: true });
 
     // to check if we are connecting to the socket for the first time
     let firstConnect = false;
@@ -307,6 +310,7 @@ export default function Terminal(props: TerminalProps) {
       }
 
       const isWindows = ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
+      decodersRef.current = {};
       xtermRef.current = {
         xterm: new XTerminal({
           cursorBlink: true,

@@ -361,6 +361,40 @@ describe('Terminal', () => {
       expect(writeSpy).toHaveBeenCalledWith('line1\r\nline2\r\n');
     });
 
+    it('decodes a multibyte character split across two messages', async () => {
+      let capturedOnData!: (d: ArrayBuffer) => void;
+      const writeSpy = vi.spyOn(XTerminal.prototype, 'write').mockImplementation(() => {});
+      vi.spyOn(XTerminal.prototype, 'clear').mockImplementation(() => {});
+      const execSpy = vi.fn(async () => ({ cancel: () => {}, getSocket: () => null }));
+      const attachSpy = vi.fn(async (_c: string, onData: (d: ArrayBuffer) => void) => {
+        capturedOnData = onData;
+        return { cancel: () => {}, getSocket: () => ({ readyState: 1, send: () => {} }) };
+      });
+      const pod = createMockPod(execSpy, attachSpy);
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open noDialog isAttach onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      act(() => {
+        capturedOnData(buildMessage(1, 'ready'));
+      });
+      writeSpy.mockClear();
+
+      // "€" is E2 82 AC in UTF-8; the stdout stream splits it after the second byte.
+      act(() => {
+        capturedOnData(new Uint8Array([1, 0xe2, 0x82]).buffer);
+        capturedOnData(new Uint8Array([1, 0xac]).buffer);
+      });
+
+      const written = writeSpy.mock.calls.map(call => call[0]).join('');
+      expect(written).toBe('€');
+    });
+
     it('closes and cancels on successful exit error, and falls back through shells on failure', async () => {
       const onClose = vi.fn();
       const cancel = vi.fn();
