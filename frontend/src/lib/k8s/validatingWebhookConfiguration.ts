@@ -20,6 +20,7 @@ import { KubeObject } from './KubeObject';
 import type {
   KubeRuleWithOperations,
   KubeWebhookClientConfig,
+  KubeWebhookMatchCondition,
 } from './mutatingWebhookConfiguration';
 
 export interface KubeValidatingWebhookConfiguration extends KubeObjectInterface {
@@ -27,6 +28,7 @@ export interface KubeValidatingWebhookConfiguration extends KubeObjectInterface 
     admissionReviewVersions: string[];
     clientConfig: KubeWebhookClientConfig;
     failurePolicy?: string;
+    matchConditions?: KubeWebhookMatchCondition[];
     matchPolicy?: string;
     name: string;
     namespaceSelector?: {
