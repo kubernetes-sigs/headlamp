@@ -17,6 +17,7 @@
 import '@xterm/xterm/css/xterm.css';
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import { DialogProps } from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import FormControl from '@mui/material/FormControl';
@@ -80,6 +81,49 @@ export default function Terminal(props: TerminalProps) {
     available: getAvailableShells(),
     currentIdx: 0,
   });
+  const [reconnectCount, setReconnectCount] = useState(0);
+  const [isDisconnected, setIsDisconnected] = useState(false);
+  const hasConnectedEverRef = React.useRef(false);
+  const hasSeenOutputRef = React.useRef(false);
+  const lastSuccessfulShellIdxRef = React.useRef<number | null>(null);
+  const shouldClearOnConnectRef = React.useRef(true);
+
+  function handleReconnect() {
+    setIsDisconnected(false);
+    hasSeenOutputRef.current = false;
+    if (xtermRef.current) {
+      xtermRef.current.reconnectOnEnter = false;
+      xtermRef.current.xterm.focus();
+      if (!isAttach) {
+        // Restore normal buffer only if currently in alternate buffer, and ensure cursor
+        // is visible and mouse-tracking modes are disabled in case a previous program
+        // (e.g. vim) exited abruptly on connection drop.
+        xtermRef.current.xterm.write(
+          (xtermRef.current.xterm.buffer.active.type === 'alternate' ? '\x1b[?1049l' : '') +
+            '\x1b[?25h\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l'
+        );
+      }
+    }
+    // When reconnecting after a mid-session disconnect, restore the shell
+    // that was successfully negotiated. Only reset the shell index to 0 when
+    // initial negotiation exhausted all shells without ever connecting.
+    shouldClearOnConnectRef.current =
+      shouldClearOnConnectRef.current && !hasConnectedEverRef.current;
+    if (
+      lastSuccessfulShellIdxRef.current !== null &&
+      lastSuccessfulShellIdxRef.current < shells.available.length
+    ) {
+      setShells(shells => ({
+        ...shells,
+        currentIdx: lastSuccessfulShellIdxRef.current!,
+      }));
+    } else if (!hasConnectedEverRef.current && !xtermRef.current?.connected) {
+      setShells(shells =>
+        shells.currentIdx === shells.available.length - 1 ? { ...shells, currentIdx: 0 } : shells
+      );
+    }
+    setReconnectCount(count => count + 1);
+  }
   const [contextMenu, setContextMenu] = React.useState<{
     mouseX: number;
     mouseY: number;
@@ -146,11 +190,8 @@ export default function Terminal(props: TerminalProps) {
 
       if (!isAttach && arg.type === 'keydown' && arg.code === 'Enter') {
         if (xtermRef.current?.reconnectOnEnter) {
-          setShells(shells => ({
-            ...shells,
-            currentIdx: 0,
-          }));
-          xtermRef.current!.reconnectOnEnter = false;
+          xtermRef.current.reconnectOnEnter = false;
+          handleReconnect();
           return false;
         }
       }
@@ -179,8 +220,14 @@ export default function Terminal(props: TerminalProps) {
     socket.send(buffer);
   }
 
-  function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
-    if (!execOrAttachRef.current) return;
+  function onData(
+    xtermc: XTerminalConnected | null,
+    bytes: ArrayBuffer,
+    shellIdx: number | null = null,
+    onFail?: (isShellNotFound?: boolean) => void,
+    onExit?: () => void
+  ) {
+    if (!xtermc || !execOrAttachRef.current) return;
     const xterm = xtermc.xterm;
     // Only show data from stdout, stderr and server error channel.
     const channel: Channel = new Int8Array(bytes.slice(0, 1))[0];
@@ -197,19 +244,44 @@ export default function Terminal(props: TerminalProps) {
     let firstConnect = false;
     // Send resize command to server once connection is established.
     if (!xtermc.connected) {
-      xterm.clear();
+      if (shouldClearOnConnectRef.current && !hasConnectedEverRef.current) {
+        xterm.clear();
+      }
       (async function () {
         send(4, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
       })();
+
+      // Check for shell-not-found before marking as connected.
+      // Windows shell-not-found errors arrive on StdOut (channel 1), not ServerError,
+      // so they must be handled before setting connected = true.
+      if (isShellNotFoundError(channel, text)) {
+        const isMissingShell =
+          lastSuccessfulShellIdxRef.current === null ||
+          hasMissingExecutableDiagnostic(channel, text);
+        if (onFail) {
+          onFail(isMissingShell);
+        } else {
+          shellConnectFailed(xtermc, isMissingShell);
+        }
+        return;
+      }
+
       // On server error, don't set it as connected
       if (channel !== Channel.ServerError) {
         xtermc.connected = true;
         firstConnect = true;
+        hasConnectedEverRef.current = true;
+        if (!isAttach && shellIdx !== null) {
+          lastSuccessfulShellIdxRef.current = shellIdx;
+        }
+        setIsDisconnected(false);
         console.debug('Terminal is now connected');
       }
     }
 
     if (isSuccessfulExitError(channel, text)) {
+      setIsDisconnected(true);
+      onExit?.();
       if (!!onClose) {
         onClose();
       }
@@ -221,9 +293,35 @@ export default function Terminal(props: TerminalProps) {
       return;
     }
 
-    if (isShellNotFoundError(channel, text)) {
-      shellConnectFailed(xtermc);
+    if (
+      isShellNotFoundError(channel, text) &&
+      (channel === Channel.ServerError || !hasSeenOutputRef.current)
+    ) {
+      // If the session was already established, only treat as a shell negotiation failure
+      // if there is a genuine missing-executable diagnostic from the container runtime.
+      // Generic 500/InternalError server errors on an established session are transport/runtime
+      // drops and must preserve the established shell selection.
+      if (xtermc.connected && !hasMissingExecutableDiagnostic(channel, text)) {
+        if (onFail) {
+          onFail(false);
+        } else {
+          shellConnectFailed(xtermc, false);
+        }
+        return;
+      }
+
+      const isInitialNotFound = !hasSeenOutputRef.current;
+      if (onFail) {
+        onFail(isInitialNotFound);
+      } else {
+        shellConnectFailed(xtermc, isInitialNotFound);
+      }
       return;
+    }
+    if (channel === Channel.StdOut || channel === Channel.StdErr) {
+      if (text.length > 0) {
+        hasSeenOutputRef.current = true;
+      }
     }
     if (isAttach) {
       // in case of attach if we didn't receive any data from the process we should notify the user that if any data comes
@@ -256,20 +354,49 @@ export default function Terminal(props: TerminalProps) {
     return shells.available[shells.currentIdx];
   }
 
-  function shellConnectFailed(xtermc: XTerminalConnected) {
+  function shellConnectFailed(xtermc: XTerminalConnected | null, isShellNotFound = false) {
+    if (!xtermc) {
+      return;
+    }
     const xterm = xtermc.xterm;
     const command = getCurrentShellCommand();
-    if (isLastShell()) {
-      if (xtermc.connected) {
-        xterm.write(t('Failed to run "{{command}}"…', { command }) + '\r\n');
-      } else {
-        xterm.clear();
-        xterm.write(t('Failed to connect…') + '\r\n');
-      }
 
-      xterm.write('\r\n' + t('Press the enter key to reconnect.') + '\r\n');
-      if (xtermRef.current) {
-        xtermRef.current.reconnectOnEnter = true;
+    if (isShellNotFound) {
+      hasConnectedEverRef.current = false;
+      hasSeenOutputRef.current = false;
+      lastSuccessfulShellIdxRef.current = null;
+    }
+
+    if (xtermc.connected && !isShellNotFound) {
+      xtermc.connected = false;
+      setIsDisconnected(true);
+      xterm.write('\r\n' + t('translation|Connection closed.') + '\r\n');
+      if (!isAttach) {
+        xterm.write(t('translation|Press the enter key to reconnect.') + '\r\n');
+        if (xtermRef.current) {
+          xtermRef.current.reconnectOnEnter = true;
+        }
+      }
+      return;
+    }
+
+    xtermc.connected = false;
+
+    if (
+      isAttach ||
+      isLastShell() ||
+      (!isShellNotFound && lastSuccessfulShellIdxRef.current !== null)
+    ) {
+      setIsDisconnected(true);
+      if (shouldClearOnConnectRef.current && !hasConnectedEverRef.current) {
+        xterm.clear();
+      }
+      xterm.write(t('Failed to connect…') + '\r\n');
+      if (!isAttach) {
+        xterm.write('\r\n' + t('Press the enter key to reconnect.') + '\r\n');
+        if (xtermRef.current) {
+          xtermRef.current.reconnectOnEnter = true;
+        }
       }
     } else {
       xterm.write(t('Failed to run "{{ command }}"', { command }) + '\r\n');
@@ -283,28 +410,23 @@ export default function Terminal(props: TerminalProps) {
     }
   }, [xtermTheme]);
 
+  // Effect 1: Terminal lifecycle — creates and disposes the xterm instance.
+  // Runs when the container, DOM element, or dialog state changes, but NOT on reconnect,
+  // so scrollback history is preserved across reconnections.
   React.useEffect(
     () => {
-      // We need a valid container ref for the terminal to add itself to it.
-      if (terminalContainerRef === null) {
-        return;
-      }
-
-      // Don't do anything until the pod's container is assigned. We used the pod's late
-      // assignment to prevent calling exec before the dialog is opened.
-      if (container === null) {
-        return;
-      }
-
-      // Don't do anything if the dialog is not open.
-      if (!props.open) {
+      if (terminalContainerRef === null || container === null || !props.open) {
         return;
       }
 
       if (xtermRef.current) {
         xtermRef.current.xterm.dispose();
-        execOrAttachRef.current?.cancel();
       }
+
+      hasConnectedEverRef.current = false;
+      hasSeenOutputRef.current = false;
+      lastSuccessfulShellIdxRef.current = null;
+      shouldClearOnConnectRef.current = true;
 
       const isWindows = ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
       xtermRef.current = {
@@ -323,47 +445,111 @@ export default function Terminal(props: TerminalProps) {
 
       fitAddonRef.current = new FitAddon();
       xtermRef.current.xterm.loadAddon(fitAddonRef.current);
-
-      (async function () {
-        if (isAttach) {
-          xtermRef?.current?.xterm.writeln(
-            t('Trying to attach to the container {{ container }}…', { container }) + '\n'
-          );
-
-          execOrAttachRef.current = await item.attach(
-            container,
-            items => onData(xtermRef.current!, items),
-            { failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
-        } else {
-          const command = getCurrentShellCommand();
-
-          xtermRef?.current?.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
-
-          execOrAttachRef.current = await item.exec(
-            container,
-            items => onData(xtermRef.current!, items),
-            { command: [command], failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
-        }
-        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
-      })();
+      setupTerminal(terminalContainerRef, xtermRef.current.xterm, fitAddonRef.current);
 
       const handler = () => {
         fitAddonRef.current!.fit();
       };
-
       window.addEventListener('resize', handler);
 
       return function cleanup() {
         xtermRef.current?.xterm.dispose();
-        execOrAttachRef.current?.cancel();
-        execOrAttachRef.current = null;
+        xtermRef.current = null;
         window.removeEventListener('resize', handler);
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, terminalContainerRef, shells, props.open]
+    [container, terminalContainerRef, props.open]
+  );
+
+  // Effect 2: Connection lifecycle — creates and cancels the exec/attach stream.
+  // Runs on shell changes and reconnect, reusing the existing terminal to preserve scrollback.
+  React.useEffect(
+    () => {
+      if (!xtermRef.current || container === null || !props.open) {
+        return;
+      }
+
+      let isCancelled = false;
+      let hasFailed = false;
+      const xtermc = xtermRef.current;
+      const currentShellIdx = shells.currentIdx;
+      xtermc.connected = false;
+      xtermc.reconnectOnEnter = false;
+      setIsDisconnected(false);
+      hasSeenOutputRef.current = false;
+
+      const handleStreamFail = (isShellNotFound = false) => {
+        if (isCancelled || hasFailed) {
+          return;
+        }
+        hasFailed = true;
+        shellConnectFailed(xtermc, isShellNotFound);
+      };
+
+      const handleStreamExit = () => {
+        hasFailed = true;
+      };
+
+      execOrAttachRef.current?.cancel();
+
+      (async function () {
+        if (isAttach) {
+          xtermc.xterm.writeln(
+            t('Trying to attach to the container {{ container }}…', { container }) + '\n'
+          );
+
+          const result = await item.attach(
+            container,
+            items => {
+              if (!isCancelled) {
+                onData(xtermc, items, null, handleStreamFail, handleStreamExit);
+              }
+            },
+            {
+              failCb: handleStreamFail,
+            }
+          );
+
+          if (isCancelled) {
+            result?.cancel();
+          } else {
+            execOrAttachRef.current = result;
+          }
+        } else {
+          const command = getCurrentShellCommand();
+
+          xtermc.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
+
+          const result = await item.exec(
+            container,
+            items => {
+              if (!isCancelled) {
+                onData(xtermc, items, currentShellIdx, handleStreamFail, handleStreamExit);
+              }
+            },
+            {
+              command: [command],
+              failCb: handleStreamFail,
+            }
+          );
+
+          if (isCancelled) {
+            result?.cancel();
+          } else {
+            execOrAttachRef.current = result;
+          }
+        }
+      })();
+
+      return function cleanup() {
+        isCancelled = true;
+        execOrAttachRef.current?.cancel();
+        execOrAttachRef.current = null;
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [container, terminalContainerRef, shells, reconnectCount, props.open]
   );
 
   React.useEffect(
@@ -398,6 +584,7 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function handleContainerChange(event: any) {
+    setIsDisconnected(false);
     setContainer(event.target.value);
   }
 
@@ -467,6 +654,25 @@ export default function Terminal(props: TerminalProps) {
     return false;
   }
 
+  function hasMissingExecutableDiagnostic(channel: number, text: string): boolean {
+    if (channel === Channel.ServerError) {
+      try {
+        const error = JSON.parse(text);
+        const message = (error.message || '').toLowerCase();
+        return (
+          message.includes('executable file not found') ||
+          message.includes('no such file or directory')
+        );
+      } catch {
+        return false;
+      }
+    }
+    if (channel === Channel.StdOut) {
+      return text.includes('The system cannot find the file specified');
+    }
+    return false;
+  }
+
   function isShellNotFoundError(channel: number, text: string): boolean {
     // Linux container Error
     if (channel === 3) {
@@ -516,7 +722,16 @@ export default function Terminal(props: TerminalProps) {
         },
       })}
     >
-      <Box sx={isMobile ? { px: 1, pt: 1 } : undefined}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1,
+          ...(isMobile && { px: 1, pt: 1 }),
+        }}
+      >
         <FormControl sx={{ minWidth: '11rem' }}>
           <InputLabel shrink id="container-name-chooser-label">
             {t('glossary|Container')}
@@ -559,6 +774,16 @@ export default function Terminal(props: TerminalProps) {
             ))}
           </Select>
         </FormControl>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<Icon icon="mdi:refresh" />}
+          onClick={handleReconnect}
+          disabled={!isDisconnected}
+          aria-label={t('translation|Reconnect')}
+        >
+          {t('translation|Reconnect')}
+        </Button>
       </Box>
       <Box
         sx={theme => ({
