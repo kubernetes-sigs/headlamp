@@ -719,6 +719,8 @@ function SystemInfoSection(props: SystemInfoSectionProps) {
           {
             name: t('Kube Proxy Version'),
             value: node.status.nodeInfo.kubeProxyVersion,
+            // The field is deprecated and newer kubelets leave it empty.
+            hide: !node.status.nodeInfo.kubeProxyVersion,
           },
           {
             name: t('Kubelet Version'),
