@@ -4031,42 +4031,50 @@ func TestUpdateStatusIfNotClosed_DeterministicOrderings(t *testing.T) {
 
 func TestUpdateStatusIfNotClosed_ConcurrentWithClose(t *testing.T) {
 	for i := 0; i < 50; i++ {
-		clientConn, clientServer := createTestWebSocketConnection()
+		func() {
+			clientConn, clientServer := createTestWebSocketConnection()
+			if clientServer != nil {
+				defer clientServer.Close()
+			}
 
-		conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+			if clientConn != nil {
+				defer func() { _ = clientConn.Close() }()
+			}
 
-		start := make(chan struct{})
+			conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
 
-		var wg sync.WaitGroup
+			start := make(chan struct{})
 
-		wg.Add(2)
+			var wg sync.WaitGroup
 
-		go func() {
-			defer wg.Done()
+			wg.Add(2)
 
-			<-start
+			go func() {
+				defer wg.Done()
 
-			conn.updateStatus(StateClosed, nil)
-			conn.safeClose()
+				<-start
+
+				conn.updateStatus(StateClosed, nil)
+				conn.safeClose()
+			}()
+
+			go func() {
+				defer wg.Done()
+
+				<-start
+
+				_ = conn.updateStatusIfNotClosed(StateError, nil)
+			}()
+
+			close(start)
+			wg.Wait()
+
+			conn.mu.RLock()
+			finalState := conn.Status.State
+			conn.mu.RUnlock()
+
+			assert.Equal(t, StateClosed, finalState, "StateClosed must never be overwritten by StateError")
 		}()
-
-		go func() {
-			defer wg.Done()
-
-			<-start
-
-			_ = conn.updateStatusIfNotClosed(StateError, nil)
-		}()
-
-		close(start)
-		wg.Wait()
-
-		conn.mu.RLock()
-		finalState := conn.Status.State
-		conn.mu.RUnlock()
-
-		assert.Equal(t, StateClosed, finalState, "StateClosed must never be overwritten by StateError")
-		clientServer.Close()
 	}
 }
 
