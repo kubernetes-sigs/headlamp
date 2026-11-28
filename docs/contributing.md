@@ -209,6 +209,38 @@ npm run backend:test
 
 Tests will run as part of the CI after a Pull Request is open.
 
+### Choosing which test to add
+
+Pick the smallest test that would fail if the change were wrong:
+
+- **A component's markup:** add or update its Storybook story. The snapshot
+  test in `frontend/src/storybook.test.tsx` renders every enabled story and
+  compares the DOM, so a separate test that only checks that the component
+  renders the same markup adds nothing. Stories whose title ends in `DontTest`
+  or that set `parameters.storyshots.disable` are skipped, so they get no
+  snapshot coverage. When you change markup, update the affected snapshots.
+  The snapshots compare DOM, not how the page looks in a browser, so check
+  visual changes by hand and include screenshots in the PR.
+- **Logic in a helper, hook or store:** add a Vitest test next to the code
+  (`*.test.ts` or `*.test.tsx`). Test the behavior, such as the returned value
+  or the state change, not how it is implemented.
+- **A user interaction:** add a Vitest test that drives the component, for
+  example a click, and checks the result.
+- **Backend code:** add a Go test (`*_test.go`) next to the code. Prefer
+  `httptest` and real files over mocks, and mock only what you cannot run, such
+  as an external API.
+- **A flow across the frontend and the backend:** use the Playwright tests in
+  `e2e-tests/`. They are slow, so keep them for flows that the other tests
+  cannot cover.
+- **A bug fix:** add a test that fails without the fix and passes with it.
+
+Tests that tend to be sent back in review:
+
+- A test that repeats what an enabled story snapshot or an existing test
+  already checks.
+- Several near-identical tests where one table-driven test would do.
+- A test with no assertion that would fail if the behavior broke.
+
 ## Code review standards
 
 Pull requests are merged through Prow/Tide only after receiving both `lgtm`
