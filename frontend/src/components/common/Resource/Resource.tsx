@@ -1455,18 +1455,20 @@ export interface ContainerInfoLegacyProps {
   container: KubeContainer;
   resource: KubeObjectInterface | null;
   status?: Omit<KubePod['status']['KubeContainerStatus'], 'name'>;
+  isEphemeral?: boolean;
 }
 
 export interface ContainerInfoKubeObjectProps {
   container: KubeContainer;
   resource: KubeObject | null;
   status?: Omit<KubePod['status']['KubeContainerStatus'], 'name'>;
+  isEphemeral?: boolean;
 }
 
 export type ContainerInfoProps = ContainerInfoKubeObjectProps | ContainerInfoLegacyProps;
 
 export function ContainerInfo(props: ContainerInfoProps) {
-  const { container, status, resource } = props;
+  const { container, status, resource, isEphemeral } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   const [startedDate, finishDate, lastStateStartedDate, lastStateFinishDate] = React.useMemo(() => {
@@ -1602,6 +1604,11 @@ export function ContainerInfo(props: ContainerInfoProps) {
         name: t('translation|Status'),
         value: <ContainerStatusLabel state={status?.state} container={container} />,
         hide: !status,
+      },
+      {
+        name: t('translation|Ready'),
+        value: status?.ready ? t('translation|Yes') : t('translation|No'),
+        hide: isEphemeral || status?.ready === undefined,
       },
       {
         name: t('translation|Exit Code'),
@@ -2052,6 +2059,7 @@ export function ContainersSection(props: { resource: KubeObjectInterface | null 
               resource={resource}
               container={ephemContainer}
               status={ephemStatuses[ephemContainer.name]}
+              isEphemeral
             />
           ))}
         </SectionBox>
