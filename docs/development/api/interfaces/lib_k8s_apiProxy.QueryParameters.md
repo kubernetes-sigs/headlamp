@@ -4,7 +4,7 @@
 
 [lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md).QueryParameters
 
-QueryParamaters is a map of query parameters for the Kubernetes API.
+QueryParameters is a map of query parameters for the Kubernetes API.
 
 ## Hierarchy
 

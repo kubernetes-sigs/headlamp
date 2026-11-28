@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-// @todo: QueryParamaters should be specific to different resources.
-//        Because some only support some paramaters.
+// @todo: QueryParameters should be specific to different resources.
+//        Because some only support some parameters.
 
 /**
- * QueryParamaters is a map of query parameters for the Kubernetes API.
+ * QueryParameters is a map of query parameters for the Kubernetes API.
  */
 export interface QueryParameters {
   /**
