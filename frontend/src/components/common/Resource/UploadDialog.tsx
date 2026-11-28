@@ -181,6 +181,11 @@ const UploadFromUrl = ({
   const { t } = useTranslation();
   const [url, setUrl] = React.useState('');
   const [error, setError] = React.useState('');
+  const loadControllerRef = React.useRef<AbortController | null>(null);
+
+  // Closing the dialog unmounts this tab. Stop a load that is still running so that it can't
+  // replace the editor content afterwards.
+  React.useEffect(() => () => loadControllerRef.current?.abort(), []);
 
   const parseUrl = (raw: string) => {
     try {
@@ -192,6 +197,8 @@ const UploadFromUrl = ({
   };
 
   const loadFromUrl = async () => {
+    // Only the last Load may fill the editor, so stop the one still running.
+    loadControllerRef.current?.abort();
     setError('');
     const u = parseUrl(url);
     if (!u) {
@@ -199,8 +206,13 @@ const UploadFromUrl = ({
       return;
     }
 
+    loadControllerRef.current = new AbortController();
+    const { signal } = loadControllerRef.current;
     try {
-      const res = await fetch(u.toString());
+      const res = await fetch(u.toString(), { signal });
+      if (signal.aborted) {
+        return;
+      }
       if (!res.ok) {
         setError(
           t('translation|Failed to fetch file: {{statusText}}', { statusText: res.statusText })
@@ -208,8 +220,14 @@ const UploadFromUrl = ({
         return;
       }
       const text = await res.text();
+      if (signal.aborted) {
+        return;
+      }
       onLoaded(text);
     } catch (e) {
+      if (signal.aborted) {
+        return;
+      }
       setError((e as Error).message || t('translation|Unexpected error while fetching the file.'));
     }
   };

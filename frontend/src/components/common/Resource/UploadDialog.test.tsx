@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../../test';
 import { UploadDialog } from './UploadDialog';
@@ -128,6 +128,69 @@ describe('UploadDialog', () => {
       await waitFor(() => {
         expect(setCode).toHaveBeenCalledWith({ format: 'yaml', code: yamlContent });
       });
+    });
+
+    const loadUrl = (url: string) => {
+      fireEvent.change(screen.getByLabelText(/enter url/i), { target: { value: url } });
+      fireEvent.click(screen.getByRole('button', { name: /load/i }));
+    };
+
+    it('does not replace the editor code when the dialog closes before the URL loads', async () => {
+      // This response still arrives after the dialog closed, as if the request was not stopped.
+      let respond: (response: object) => void = () => {};
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          () =>
+            new Promise(resolve => {
+              respond = resolve;
+            })
+        )
+      );
+      const setCode = vi.fn();
+      const setUploadFiles = vi.fn();
+      const { unmount } = renderComponent(setCode, setUploadFiles);
+
+      fireEvent.click(screen.getByRole('tab', { name: /load from url/i }));
+      loadUrl('https://example.com/slow.yaml');
+      // EditorDialog unmounts this dialog when Back, Esc or a backdrop click closes it.
+      unmount();
+      await act(async () => {
+        respond({ ok: true, text: () => Promise.resolve('apiVersion: v1\nkind: Pod') });
+      });
+
+      expect(setCode).not.toHaveBeenCalled();
+      expect(setUploadFiles).not.toHaveBeenCalled();
+    });
+
+    it('ignores an earlier URL load that finishes after a newer one', async () => {
+      // Each request waits until the test answers it and, like fetch, fails once it is aborted.
+      const answers: Record<string, (text: string) => void> = {};
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (url: string, init?: RequestInit) =>
+            new Promise((resolve, reject) => {
+              answers[url] = text => resolve({ ok: true, text: () => Promise.resolve(text) });
+              init?.signal?.addEventListener('abort', () =>
+                reject(new DOMException('Aborted', 'AbortError'))
+              );
+            })
+        )
+      );
+      const setCode = vi.fn();
+      renderComponent(setCode);
+
+      fireEvent.click(screen.getByRole('tab', { name: /load from url/i }));
+      loadUrl('https://example.com/wrong.yaml');
+      loadUrl('https://example.com/right.yaml');
+      await act(async () => answers['https://example.com/right.yaml']('kind: Right'));
+      await act(async () => answers['https://example.com/wrong.yaml']('kind: Wrong'));
+
+      expect(setCode).toHaveBeenCalledTimes(1);
+      expect(setCode).toHaveBeenCalledWith({ format: 'yaml', code: 'kind: Right' });
+      // Stopping the first request is not an error the user needs to see.
+      expect(screen.queryByText('Aborted')).not.toBeInTheDocument();
     });
   });
 });
