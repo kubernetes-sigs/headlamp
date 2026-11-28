@@ -8,38 +8,35 @@
       >
         Showing documentation for: Pod
       </p>
-      <ul
-        aria-multiselectable="false"
-        class="MuiTreeView-root css-16c5dhn-MuiTreeView-root"
-        id=":mock-test-id:"
-        role="tree"
-        tabindex="0"
+      <div
+        class="MuiBox-root css-17somc1"
       >
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   apiVersion
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   string
@@ -48,32 +45,33 @@
               </div>
             </div>
           </div>
-        </li>
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        </div>
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   kind
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   string
@@ -82,32 +80,33 @@
               </div>
             </div>
           </div>
-        </li>
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        </div>
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   metadata
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   object
@@ -116,32 +115,33 @@
               </div>
             </div>
           </div>
-        </li>
-        <li
-          aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
-          id=":mock-test-id:"
-          role="treeitem"
-          tabindex="-1"
+        </div>
+        <div
+          class="MuiBox-root css-1fhgjcy"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiBox-root css-1yp4ln"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiBox-root css-qylq8y"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiBox-root css-1hmp91p"
             >
-              <div>
+              <div
+                aria-expanded="false"
+                class="MuiBox-root css-127t9hs"
+                role="button"
+                tabindex="0"
+              >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-10mivbh-MuiTypography-root"
                 >
                   spec
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-caption css-aku7jp-MuiTypography-root"
                 >
                   (
                   object
@@ -150,8 +150,8 @@
               </div>
             </div>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
     </div>
   </div>
 </body>
