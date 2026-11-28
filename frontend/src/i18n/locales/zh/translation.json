@@ -912,6 +912,7 @@
   "Retry Budget": "重试预算",
   "Not specified": "未指定",
   "Min Retry Rate": "最小重试率",
+  "Supported Features": "",
   "No addresses data to be shown.": "暂无地址数据。",
   "Listeners": "监听器",
   "Matches": "符合",

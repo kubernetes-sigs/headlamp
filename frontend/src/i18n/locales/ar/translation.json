@@ -947,6 +947,7 @@
   "Retry Budget": "ميزانية إعادة المحاولة",
   "Not specified": "غير محدد",
   "Min Retry Rate": "الحد الأدنى لمعدل إعادة المحاولة",
+  "Supported Features": "",
   "No addresses data to be shown.": "لا توجد بيانات عناوين للعرض",
   "Listeners": "المستمعون",
   "Matches": "المطابقات",

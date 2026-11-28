@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { formatGatewayClassParametersRef } from './gatewayClass';
+import GatewayClass, { formatGatewayClassParametersRef, KubeGatewayClass } from './gatewayClass';
 
 describe('formatGatewayClassParametersRef', () => {
   it('shows the kind with its group, the name and the namespace', () => {
@@ -33,5 +33,28 @@ describe('formatGatewayClassParametersRef', () => {
     expect(
       formatGatewayClassParametersRef({ group: '', kind: 'ConfigMap', name: 'gw-config' })
     ).toBe('ConfigMap/gw-config');
+  });
+});
+
+describe('GatewayClass.supportedFeatures', () => {
+  const gatewayClass = (status: KubeGatewayClass['status']) =>
+    new GatewayClass({
+      apiVersion: 'gateway.networking.k8s.io/v1',
+      kind: 'GatewayClass',
+      metadata: { name: 'example', uid: 'uid', creationTimestamp: '2023-07-19T09:48:42Z' },
+      spec: { controllerName: 'example.com/gateway-controller' },
+      status,
+    });
+
+  it('returns the names of the supported features', () => {
+    expect(
+      gatewayClass({
+        supportedFeatures: [{ name: 'Gateway' }, { name: 'HTTPRouteQueryParamMatching' }],
+      }).supportedFeatures
+    ).toEqual(['Gateway', 'HTTPRouteQueryParamMatching']);
+  });
+
+  it('is empty when the controller does not report supported features', () => {
+    expect(gatewayClass({}).supportedFeatures).toEqual([]);
   });
 });

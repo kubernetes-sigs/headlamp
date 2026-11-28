@@ -43,6 +43,8 @@ export interface KubeGatewayClass extends KubeObjectInterface {
   };
   status: {
     conditions?: KubeCondition[];
+    /** Features the controller supports for this class, sorted by name. */
+    supportedFeatures?: { name: string }[];
     [otherProps: string]: any;
   };
 }
@@ -73,6 +75,11 @@ class GatewayClass extends KubeObject<KubeGatewayClass> {
 
   get controllerName() {
     return this.spec!.controllerName;
+  }
+
+  /** Names of the features the controller reports as supported for this class. */
+  get supportedFeatures(): string[] {
+    return (this.status?.supportedFeatures ?? []).map(feature => feature.name);
   }
 
   static get listRoute() {
