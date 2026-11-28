@@ -128,6 +128,10 @@ export default function CustomResourceDefinitionDetails(props: {
                       label: t('Storage'),
                       getter: version => version.storage.toString(),
                     },
+                    {
+                      label: t('Subresources'),
+                      getter: version => Object.keys(version.subresources ?? {}).join(' & ') || '-',
+                    },
                   ]}
                   reflectInURL="versions"
                 />
