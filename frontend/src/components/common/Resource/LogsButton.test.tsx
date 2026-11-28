@@ -846,6 +846,50 @@ describe('LogsButton', () => {
     vi.useRealTimers();
   });
 
+  it("keeps entries without a timestamp after their pod's entry before them", async () => {
+    vi.useFakeTimers();
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({
+        items: [
+          { ...mockPodData, metadata: { name: 'pod-1', uid: 'u1' } },
+          { ...mockPodData, metadata: { name: 'pod-2', uid: 'u2' } },
+        ],
+      }),
+    });
+
+    const callbacks: Record<string, any> = {};
+    Pod.prototype.getLogs = vi.fn(function (this: any, ...args: any[]) {
+      callbacks[this.getName()] = args.find(arg => typeof arg === 'function');
+      return () => {};
+    }) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('Show logs'));
+    render(<TestContext>{mockActivityLaunch.mock.calls[0][0].content}</TestContext>);
+    await waitFor(() => expect(callbacks['pod-2']).toBeDefined());
+
+    act(() => {
+      callbacks['pod-1']({
+        logs: ['2023-01-01T00:00:01Z first\n', '[Reconnected!]\n', '2023-01-01T00:00:03Z third\n'],
+      });
+      callbacks['pod-2']({ logs: ['2023-01-01T00:00:02Z second\n'] });
+    });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+
+    const written: string = mockXTermWrite.mock.calls[0][0];
+    const order = ['first', 'Reconnected!', 'second', 'third'].map(text => written.indexOf(text));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order).not.toContain(-1);
+
+    vi.useRealTimers();
+  });
+
   it('cancels timer on unmount', async () => {
     vi.useFakeTimers();
     const spy = vi.spyOn(global, 'clearTimeout');

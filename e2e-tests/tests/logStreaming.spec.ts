@@ -129,9 +129,16 @@ for (const viewer of ['pod', 'workload (all pods)', 'workload (selected pod)']) 
       url: URL;
       closed: boolean;
     }> = [];
+    // While set, new log streams fail as if the network dropped them.
+    let refuseStreams = false;
+    let refused = 0;
     await page.routeWebSocket(
       url => url.pathname === `${namespacePath}/pods/${podName}/log`,
       client => {
+        if (refuseStreams) {
+          refused++;
+          return client.close({ code: 1011, reason: 'E2E connection refused' });
+        }
         // Forward real Kubernetes log traffic, intercepting only connection closure.
         const server = client.connectToServer();
         const stream = { client, server, url: new URL(client.url()), closed: false };
@@ -190,13 +197,36 @@ for (const viewer of ['pod', 'workload (all pods)', 'workload (selected pod)']) 
       await expectStreaming(terminal);
     }
 
-    const disconnected = streams[streams.length - 1];
-    await disconnected.client.close({ code: 1011, reason: 'E2E connection interruption' });
-    await disconnected.server.close();
-    disconnected.closed = true;
+    async function interrupt() {
+      const disconnected = streams[streams.length - 1];
+      await disconnected.client.close({ code: 1011, reason: 'E2E connection interruption' });
+      await disconnected.server.close();
+      disconnected.closed = true;
+    }
+
+    // A dropped stream resumes by itself from the last record shown, keeping the output.
     const reconnect = page.getByRole('button', { name: 'Reconnect', exact: true });
+    let count = streams.length;
+    await interrupt();
+    await expect(terminal).toContainText('Connection lost. Reconnecting');
+    await expect.poll(() => streams.length, { timeout: 15_000 }).toBe(count + 1);
+    const resumed = streams[streams.length - 1].url.searchParams;
+    expect(resumed.get('sinceTime')).toBeTruthy();
+    expect(resumed.has('sinceSeconds')).toBe(false);
+    await expectStreaming(terminal);
+    await expect(terminal).toContainText('Reconnected!');
+    await expect(terminal).toContainText('Connection lost. Reconnecting');
+    await expect(reconnect).toBeHidden();
+    await page.screenshot({ path: testInfo.outputPath('streaming-resumed.png') });
+
+    // Once its retries are used up, it stops and offers to reconnect.
+    refuseStreams = true;
+    await interrupt();
+    await expect(terminal).toContainText('Reconnection limit reached', { timeout: 30_000 });
+    expect(refused).toBe(5);
     await expect(reconnect).toBeVisible();
-    const count = streams.length;
+    refuseStreams = false;
+    count = streams.length;
     await reconnect.focus();
     await reconnect.press('Enter');
     await expect.poll(() => streams.length).toBe(count + 1);

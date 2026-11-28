@@ -131,7 +131,8 @@ describe('PodDebugTerminal', () => {
   });
 
   it('returns null stream when no cluster is selected or pod debug is disabled', async () => {
-    const pod = makePod();
+    // The pod's own cluster comes first, so only a pod without one falls back to the page's.
+    const pod = makePod({ cluster: '' });
     render(
       <TestContext>
         <PodDebugTerminal item={pod} />
@@ -172,7 +173,7 @@ describe('PodDebugTerminal', () => {
     const onData = vi.fn();
     const res = await terminalHookArgsRef.current.connectStream(onData);
     expect(pod.addEphemeralContainer).not.toHaveBeenCalled();
-    expect(pod.attach).toHaveBeenCalledWith('headlamp-debug', onData, {});
+    expect(pod.attach).toHaveBeenCalledWith('headlamp-debug', onData, { multiplexed: true });
     expect(mockWriteln).toHaveBeenCalledWith('Attaching to existing debug container...');
     expect(res.stream).toBe(pod.attach.mock.results[0].value);
   });
@@ -222,7 +223,7 @@ describe('PodDebugTerminal', () => {
       'app'
     );
     const createdContainerName = pod.addEphemeralContainer.mock.calls[0][0];
-    expect(pod.attach).toHaveBeenCalledWith(createdContainerName, onData, {});
+    expect(pod.attach).toHaveBeenCalledWith(createdContainerName, onData, { multiplexed: true });
     expect(res.stream).toBe(pod.attach.mock.results[0].value);
   });
 

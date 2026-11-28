@@ -261,7 +261,7 @@ class Pod extends KubeObject<KubePod> {
       });
     }
 
-    let isReconnecting = true; // Flag to track reconnection attempts
+    const self = this;
     const [container, onLogs, logsOptions] = args as Parameters<newGetLogs>;
     const {
       tailLines = 100,
@@ -274,21 +274,34 @@ class Pod extends KubeObject<KubePod> {
       onReconnectStop,
     } = logsOptions;
 
-    let logs: string[] = [];
+    const logs: string[] = [];
     let hasJsonLogs = false;
-    let pending = '';
+    let lastTimestamp = '';
+    let isCancelled = false;
+    let activeCancel: (() => void) | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let partialLineBuffer = '';
+    // The backend base64-encodes each message on its own, so a multibyte character can be
+    // split across two of them. Decode as a stream, from a new decoder for each connection.
     let decoder = new TextDecoder();
-    let url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${showTimestamps}&follow=${follow}`;
-
-    // Negative tailLines parameter fetches all logs. If it's non negative it fetches
-    // the tailLines number of logs.
-    if (tailLines !== -1) {
-      url += `&tailLines=${tailLines}`;
-    }
-
-    if (sinceSeconds !== undefined && sinceSeconds > 0) {
-      url += `&sinceSeconds=${sinceSeconds}`;
-    }
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    const stableConnectionMs = 10_000;
+    // Raw records rendered at lastTimestamp, and the latest ones a reconnect replayed there.
+    let shownAtResumePoint: string[] = [];
+    let replayedAtResumePoint: string[] = [];
+    // Set once the replay has sent shownAtResumePoint again, so later records are new.
+    let replayedShownRecords = false;
+    // True after a reconnect until the records replayed from sinceTime have been skipped.
+    let isReplaying = false;
+    // When the first request was made, so a reconnect before any record has arrived resumes
+    // from there, rather than requesting the tail again and leaving out the records produced
+    // during the outage. Rounded down to seconds, the precision of sinceTime.
+    let startTime = '';
+    // Kubernetes only prefixes records with a timestamp when it was requested.
+    const hasTimestampPrefix = follow || showTimestamps;
+    const timestampPrefix =
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})) /;
 
     function unescapeStringLiterals(str: string): string {
       return str
@@ -320,82 +333,240 @@ class Pod extends KubeObject<KubePod> {
 
         if (showTimestamps) {
           const timestamp = logLine.slice(0, jsonMatch.index).trim();
-          return timestamp ? `${timestamp}\n${terminalReadyJson}\n` : `${terminalReadyJson}\n`;
+          return timestamp ? `${timestamp}\n${terminalReadyJson}` : `${terminalReadyJson}`;
         } else {
-          return `${terminalReadyJson}\n`;
+          return `${terminalReadyJson}`;
         }
       } catch {
         return logLine; // Return original log line if parsing fails
       }
     }
 
-    function pushLine(line: string) {
-      const jsonMatch = line.trim().match(/(\{.*\})/);
-      if (jsonMatch) hasJsonLogs = true;
-      logs.push(hasJsonLogs && prettifyLogs ? prettifyLogLine(line) : line);
+    function splitTimestamp(line: string): [timestamp: string, text: string] {
+      const match = hasTimestampPrefix ? line.match(timestampPrefix) : null;
+      return match ? [match[1], line.slice(match[0].length)] : ['', line];
     }
 
-    function flushPending() {
-      pending += decoder.decode();
+    function displayLine(line: string): string {
+      let processed = showTimestamps ? line : splitTimestamp(line)[1];
 
-      if (pending === '') return;
+      // Check if this line contains JSON
+      if (processed.trim().match(/(\{.*\})/)) {
+        hasJsonLogs = true;
+        if (prettifyLogs) {
+          processed = prettifyLogLine(processed);
+        }
+      }
+      return processed;
+    }
 
-      pushLine(pending);
-      pending = '';
-      onLogs({ logs, hasJsonLogs });
+    /** Splits an RFC 3339 timestamp so it can be ordered at nanosecond precision. */
+    function timestampKey(timestamp: string): [seconds: number, fraction: string] {
+      const [, seconds, fraction = '', zone] =
+        timestamp.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/) || [];
+      return [Date.parse(seconds + zone), fraction.padEnd(9, '0')];
+    }
+
+    function isAfterResumePoint(timestamp: string): boolean {
+      const [seconds, fraction] = timestampKey(timestamp);
+      const [lastSeconds, lastFraction] = timestampKey(lastTimestamp);
+      return seconds !== lastSeconds ? seconds > lastSeconds : fraction > lastFraction;
+    }
+
+    function isAtResumePoint(timestamp: string): boolean {
+      const [seconds, fraction] = timestampKey(timestamp);
+      const [lastSeconds, lastFraction] = timestampKey(lastTimestamp);
+      return seconds === lastSeconds && fraction === lastFraction;
+    }
+
+    /**
+     * Reports whether a record is part of the replay a reconnect receives. sinceTime is
+     * sent to the kubelet with second precision, so the replay can start with records
+     * from earlier in that second and may span several callbacks. Records at the resume
+     * timestamp are skipped until the ones already shown there have been replayed, in
+     * order, so a new one after them is shown. Earlier ones the initial tail left out are
+     * skipped with them. If identical records precede that run, the earliest match is
+     * taken, so one of them may be shown again.
+     */
+    function isReplayed(line: string): boolean {
+      if (!isReplaying) return false;
+      const [timestamp] = splitTimestamp(line);
+      if (timestamp && !isAfterResumePoint(timestamp)) {
+        if (!isAtResumePoint(timestamp)) return true;
+        if (!replayedShownRecords) {
+          replayedAtResumePoint = [...replayedAtResumePoint, line].slice(
+            -shownAtResumePoint.length
+          );
+          replayedShownRecords =
+            replayedAtResumePoint.length === shownAtResumePoint.length &&
+            replayedAtResumePoint.every((r, i) => r === shownAtResumePoint[i]);
+          return true;
+        }
+      }
+      isReplaying = false;
+      return false;
     }
 
     function onResults(item: string) {
       if (!item) return;
 
-      // Decode as a stream: the backend base64-encodes each message on its own, so a
-      // multibyte character can be split across two of them.
       const decodedLog = decoder.decode(Base64.toUint8Array(item), { stream: true });
       if (!decodedLog) return;
 
-      const chunks = decodedLog.split('\n');
-      const unfinishedLine = chunks.pop() ?? '';
+      const linesList = (partialLineBuffer + decodedLog).split('\n');
 
-      if (chunks.length > 0) {
-        chunks[0] = pending + chunks[0];
-        pending = '';
-        chunks.forEach(chunk => pushLine(`${chunk}\n`));
+      // The last element is either empty (if it ended with \n) or the partial line, which is
+      // held back until its newline, so every entry is a whole record.
+      partialLineBuffer = linesList.pop() || '';
+
+      const newLines = linesList.filter(line => !isReplayed(line));
+      const rendered: string[] = [];
+
+      for (const line of newLines) {
+        rendered.push(displayLine(line) + '\n');
+
+        const [timestamp] = splitTimestamp(line);
+        if (timestamp && lastTimestamp && isAtResumePoint(timestamp)) {
+          shownAtResumePoint.push(line);
+        } else if (timestamp) {
+          lastTimestamp = timestamp;
+          shownAtResumePoint = [line];
+        }
       }
 
-      pending += unfinishedLine;
+      if (newLines.length > 0) {
+        // Only records that survive replay suppression count as progress.
+        reconnectAttempts = 0;
+      }
+
+      logs.push(...rendered);
       onLogs({ logs, hasJsonLogs });
     }
 
-    const { cancel } = stream(url, onResults, {
-      cluster: this.cluster,
-      isJson: false,
-      connectCb: () => {
-        logs = [];
-        hasJsonLogs = false;
-        pending = '';
-        decoder = new TextDecoder();
-      },
-      /**
-       * This callback is called when the connection is closed. It then check
-       * if the connection was closed due to an error or not. If it was closed
-       * due to an error, it stops further reconnection attempts.
-       */
-      failCb: () => {
-        flushPending();
+    function connect() {
+      if (isCancelled) return;
 
-        // If it's a reconnection attempt, stop further reconnection attempts
-        if (follow && isReconnecting) {
-          isReconnecting = false;
+      decoder = new TextDecoder();
 
-          // If the onReconnectStop callback is provided, call it
-          if (onReconnectStop) {
-            onReconnectStop();
-          }
+      // Always request timestamps when following so we can extract the last timestamp for reconnection.
+      // For one-shot (non-follow) log fetches, respect showTimestamps to avoid extra payload/processing.
+      const timestampsParam = follow ? 'true' : String(showTimestamps);
+      let currentUrl = `/api/v1/namespaces/${self.getNamespace()}/pods/${self.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${timestampsParam}&follow=${follow}`;
+      if (lastTimestamp) {
+        currentUrl += `&sinceTime=${encodeURIComponent(lastTimestamp)}`;
+      } else if (startTime) {
+        currentUrl += `&sinceTime=${encodeURIComponent(startTime)}`;
+      } else {
+        // The API rejects sinceSeconds with sinceTime, so only the first request uses it.
+        const hasSinceSeconds = sinceSeconds !== undefined && sinceSeconds > 0;
+        if (hasSinceSeconds) {
+          currentUrl += `&sinceSeconds=${sinceSeconds}`;
         }
-      },
-    });
+        if (tailLines !== -1) {
+          currentUrl += `&tailLines=${tailLines}`;
+        }
+        if (hasSinceSeconds || tailLines !== -1) {
+          startTime = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+        }
+      }
 
-    return cancel;
+      const isReconnectAttempt = reconnectAttempts > 0;
+      isReplaying = Boolean(lastTimestamp);
+      replayedAtResumePoint = [];
+      replayedShownRecords = shownAtResumePoint.length === 0;
+      let reconnectBannerShown = false;
+      // When this connection's socket opened, to tell one that worked from one that failed.
+      let openedAt = 0;
+
+      const { cancel } = stream(
+        currentUrl,
+        (item: string) => {
+          if (!reconnectBannerShown && isReconnectAttempt) {
+            reconnectBannerShown = true;
+            logs.push('\n\x1b[32m[Reconnected!]\x1b[0m\n');
+            onLogs({ logs, hasJsonLogs });
+          }
+          onResults(item);
+        },
+        {
+          cluster: self.cluster,
+          isJson: false,
+          reconnectOnFailure: false, // Handle reconnection ourselves
+          openCb: () => {
+            openedAt = Date.now();
+          },
+          failCb: (event?: CloseEvent) => {
+            if (isCancelled) return;
+            // The server closing the socket after sending the requested logs is expected when
+            // not following, and when the API server ends a followed stream with a normal close,
+            // e.g. for previous logs or a container that exited. Only other closes reconnect.
+            if (!follow || event?.code === 1000) {
+              // Flush a final log line that arrived without a trailing newline.
+              partialLineBuffer += decoder.decode();
+              if (partialLineBuffer && !isReplayed(partialLineBuffer)) {
+                logs.push(displayLine(partialLineBuffer) + '\n');
+                onLogs({ logs, hasJsonLogs });
+              }
+              partialLineBuffer = '';
+              if (follow && onReconnectStop) {
+                onReconnectStop();
+              }
+              return;
+            }
+            // The reconnect replays this record in full. If no record was complete yet, resume
+            // from this one, as from when the stream started would leave out the first tail.
+            if (!lastTimestamp) {
+              const [timestamp] = splitTimestamp(partialLineBuffer);
+              if (timestamp) {
+                lastTimestamp = timestamp;
+                shownAtResumePoint = [];
+              }
+            }
+            partialLineBuffer = '';
+            // A connection that stayed open for a while used none of the budget, even when it
+            // only replayed records already shown or sent none, e.g. a quiet stream an idle
+            // timeout keeps closing.
+            if (openedAt && Date.now() - openedAt >= stableConnectionMs) {
+              reconnectAttempts = 0;
+            }
+
+            if (reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++;
+              logs.push(
+                `\n\x1b[33m[Connection lost. Reconnecting... (attempt ${reconnectAttempts}/${maxReconnectAttempts})]\x1b[0m\n`
+              );
+              onLogs({ logs, hasJsonLogs });
+              if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+              }
+              reconnectTimeout = setTimeout(connect, 3000);
+            } else {
+              logs.push(
+                '\n\x1b[31m[Connection lost. Reconnection limit reached. Reconnect stopped.]\x1b[0m\n'
+              );
+              onLogs({ logs, hasJsonLogs });
+              if (onReconnectStop) {
+                onReconnectStop();
+              }
+            }
+          },
+        }
+      );
+
+      activeCancel = cancel;
+    }
+
+    connect();
+
+    return () => {
+      isCancelled = true;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (activeCancel) {
+        activeCancel();
+      }
+    };
   }
 
   attach(container: string, onAttach: StreamResultsCb, options: StreamArgs = {}) {

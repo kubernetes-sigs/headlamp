@@ -19,7 +19,7 @@ import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPI
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getBaseWsUrl } from './webSocket';
 
-const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
+export const MULTIPLEXER_PROTOCOL = 'headlamp.multiplexer.k8s.io';
 const DECIMAL_INTEGER_PATTERN = /^\d+$/;
 
 function getQueryResourceVersion(query: string): string {

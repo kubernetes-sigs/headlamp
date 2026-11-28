@@ -23,7 +23,7 @@ import { NodeShellTerminal } from './NodeShellTerminal';
 const {
   mockEnqueueSnackbar,
   mockGetCluster,
-  mockApply,
+  mockPost,
   mockStream,
   mockSend,
   mockCancel,
@@ -35,7 +35,7 @@ const {
 } = vi.hoisted(() => ({
   mockEnqueueSnackbar: vi.fn(),
   mockGetCluster: vi.fn(),
-  mockApply: vi.fn(),
+  mockPost: vi.fn(),
   mockStream: vi.fn(),
   mockSend: vi.fn(),
   mockCancel: vi.fn(),
@@ -62,9 +62,13 @@ vi.mock('../../lib/cluster', async importOriginal => {
   };
 });
 
-vi.mock('../../lib/k8s/api/v1/apply', () => ({
-  apply: (...args: any[]) => mockApply(...args),
-}));
+vi.mock('../../lib/k8s/api/v1/clusterRequests', async importOriginal => {
+  const actual = (await importOriginal()) as Record<string, any>;
+  return {
+    ...actual,
+    post: (...args: any[]) => mockPost(...args),
+  };
+});
 
 vi.mock('../../lib/k8s/api/v1/streamingApi', () => ({
   stream: (...args: any[]) => mockStream(...args),
@@ -108,7 +112,7 @@ describe('NodeShellTerminal', () => {
     terminalHookArgsRef.current = null;
     mockSocketRef.current = null;
     mockGetCluster.mockReturnValue('test-cluster');
-    mockApply.mockResolvedValue({});
+    mockPost.mockResolvedValue({});
     mockStream.mockReturnValue({ getSocket: () => mockSocketRef.current, cancel: mockCancel });
   });
 
@@ -143,12 +147,14 @@ describe('NodeShellTerminal', () => {
     const res = await terminalHookArgsRef.current.connectStream(onData);
 
     expect(mockWriteln).toHaveBeenCalledWith('Trying to open a shell');
-    expect(mockApply).toHaveBeenCalledWith(
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringMatching(/^\/api\/v1\/namespaces\/.*\/pods$/),
       expect.objectContaining({
         kind: 'Pod',
         spec: expect.objectContaining({ nodeName: 'worker-1' }),
       }),
-      'test-cluster'
+      true,
+      { cluster: 'test-cluster' }
     );
     expect(mockStream).toHaveBeenCalledWith(
       expect.stringMatching(/\/api\/v1\/namespaces\/.*\/pods\/node-debugger-worker-1-.*\/attach/),
@@ -167,14 +173,14 @@ describe('NodeShellTerminal', () => {
       </TestContext>
     );
 
-    mockApply.mockRejectedValueOnce(new Error('RBAC denied'));
+    mockPost.mockRejectedValueOnce(new Error('RBAC denied'));
     await terminalHookArgsRef.current.connectStream(vi.fn());
     expect(mockEnqueueSnackbar).toHaveBeenCalledWith(expect.stringContaining('RBAC denied'), {
       variant: 'error',
     });
     expect(mockWriteln).toHaveBeenCalledWith(expect.stringContaining('RBAC denied'));
 
-    mockApply.mockRejectedValueOnce('unknown-failure');
+    mockPost.mockRejectedValueOnce('unknown-failure');
     await terminalHookArgsRef.current.connectStream(vi.fn());
     expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
       expect.stringContaining('Failed to create node shell pod'),

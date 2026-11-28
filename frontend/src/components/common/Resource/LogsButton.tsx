@@ -300,19 +300,20 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
   // Function to process and display all logs
   const processAllLogs = React.useCallback(
     (logsData: { [podName: string]: string[] }) => {
-      const allLogs: string[] = [];
+      const entries: Array<{ timestamp: string; log: string }> = [];
       Object.entries(logsData).forEach(([podName, podLogs]) => {
+        // An entry without a timestamp, such as a reconnect banner, stays after the pod's
+        // entry before it.
+        let timestamp = '';
         podLogs.forEach(log => {
-          allLogs.push(`[${podName}] ${log}`);
+          timestamp = log.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || timestamp;
+          entries.push({ timestamp, log: `[${podName}] ${log}` });
         });
       });
 
-      // Sort logs by timestamp
-      allLogs.sort((a, b) => {
-        const timestampA = a.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
-        const timestampB = b.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)?.[0] || '';
-        return timestampA.localeCompare(timestampB);
-      });
+      // Sort logs by timestamp. The sort is stable, so each pod's entries keep their order.
+      entries.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+      const allLogs = entries.map(entry => entry.log);
 
       // Apply severity filter before rendering
       const filteredLogs = filterLogsBySeverity(allLogs, selectedSeverities);

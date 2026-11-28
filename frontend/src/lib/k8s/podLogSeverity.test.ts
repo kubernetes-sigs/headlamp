@@ -50,11 +50,11 @@ describe('pod log severity filtering', () => {
     complete = false
   ): string[] {
     let onResults: (item: string) => void = () => {};
-    let failCb: () => void = () => {};
+    let failCb: (event?: CloseEvent) => void = () => {};
     vi.mocked(stream).mockImplementation(((
       _url: string,
       cb: (item: string) => void,
-      options: { failCb?: () => void }
+      options: { failCb?: (event?: CloseEvent) => void }
     ) => {
       onResults = cb;
       failCb = options?.failCb ?? (() => {});
@@ -78,7 +78,8 @@ describe('pod log severity filtering', () => {
       onResults(typeof chunk === 'string' ? Base64.encode(chunk) : Base64.fromUint8Array(chunk))
     );
     if (complete) {
-      failCb();
+      // A followed stream that closes otherwise is reconnected rather than ended.
+      failCb({ code: 1000 } as CloseEvent);
     }
 
     return received;
@@ -187,11 +188,11 @@ describe('pod log severity filtering', () => {
   describe('when the stream ends', () => {
     it('flushes a last line that never got a newline', () => {
       const logs = streamLogs(['test0\n', 'no newline'], {}, true);
-      expect(logs.join('')).toBe('test0\nno newline');
+      expect(logs.join('')).toBe('test0\nno newline\n');
     });
 
     it('flushes a last line of only whitespace', () => {
-      expect(streamLogs(['test0\n', '  '], {}, true).join('')).toBe('test0\n  ');
+      expect(streamLogs(['test0\n', '  '], {}, true).join('')).toBe('test0\n  \n');
     });
   });
 });

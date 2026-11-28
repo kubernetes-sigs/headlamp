@@ -1062,6 +1062,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.portForwardRequestHandler)),
 	).Methods("GET")
 
+	// The multiplexer under a cluster's path, where the browser sends the cluster's
+	// auth cookie, which the multiplexer reads for that cluster's streams. It is
+	// registered before the cluster proxy, which would otherwise handle the path.
+	if config.Multiplexer != nil {
+		r.Handle("/clusters/{clusterName}/wsMultiplexer", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+			http.HandlerFunc(config.Multiplexer.HandleClientWebSocket),
+		))
+	}
+
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
 	r.Handle("/clusters/{clusterName}/me", config.authenticatedHandler(
 		auth.HandleMe(auth.MeHandlerOptions{
