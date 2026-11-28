@@ -596,16 +596,16 @@ func tryDeletePlugin(dir string, filename string) (bool, error) {
 	}
 
 	absPath := filepath.Join(absDir, filename)
+	if !isSubdirectory(absDir, absPath) {
+		return false, fmt.Errorf("plugin path '%s' is not a subdirectory of '%s'", absPath, absDir)
+	}
+
 	if _, err := os.Stat(absPath); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
 
 		return false, err
-	}
-
-	if !isSubdirectory(absDir, absPath) {
-		return false, fmt.Errorf("plugin path '%s' is not a subdirectory of '%s'", absPath, absDir)
 	}
 
 	if err := os.RemoveAll(absPath); err != nil && !os.IsNotExist(err) {

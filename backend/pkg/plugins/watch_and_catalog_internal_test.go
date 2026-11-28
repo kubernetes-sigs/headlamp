@@ -102,7 +102,7 @@ func TestHandlePluginEventsAndReload(t *testing.T) {
 
 	t.Run("Delete rejects traversal and missing plugin", func(t *testing.T) {
 		userDir := t.TempDir()
-		require.Error(t, Delete(userDir, "", "../escape", ""))
+		require.ErrorContains(t, Delete(userDir, "", "../escape", ""), "is not a subdirectory of")
 		require.Error(t, Delete(userDir, "", "nonexistent", ""))
 
 		pDir := filepath.Join(userDir, "deletable")
