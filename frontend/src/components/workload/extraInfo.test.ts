@@ -17,7 +17,8 @@
 import type { TFunction } from 'i18next';
 import { describe, expect, it } from 'vitest';
 import type Job from '../../lib/k8s/job';
-import { jobExtraInfo } from './extraInfo';
+import type StatefulSet from '../../lib/k8s/statefulSet';
+import { jobExtraInfo, statefulSetExtraInfo } from './extraInfo';
 
 // Passthrough translator: returns the key so rows can be matched by name.
 const t = ((key: string) => key) as TFunction;
@@ -42,5 +43,42 @@ describe('jobExtraInfo duration', () => {
       expect(row?.hide).toBeFalsy();
       expect(row?.value).toBeTruthy();
     }
+  });
+});
+
+describe('statefulSetExtraInfo rollout and retention rows', () => {
+  function rows(spec: object) {
+    const item = {
+      metadata: { name: 'web', namespace: 'default' },
+      spec,
+    } as unknown as StatefulSet;
+    const all = statefulSetExtraInfo(item, t);
+    return (name: string) => all.find(row => row && row.name === `glossary|${name}`);
+  }
+
+  it('hides the rows when the spec does not set them', () => {
+    const row = rows({ updateStrategy: { type: 'OnDelete' } });
+    for (const name of [
+      'Partition',
+      'Min Ready Seconds',
+      'Start Ordinal',
+      'PVC Retention Policy',
+    ]) {
+      expect(row(name)?.hide).toBe(true);
+    }
+  });
+
+  it('shows the rows when the spec sets them', () => {
+    const row = rows({
+      updateStrategy: { type: 'RollingUpdate', rollingUpdate: { partition: 0 } },
+      minReadySeconds: 10,
+      ordinals: { start: 1 },
+      persistentVolumeClaimRetentionPolicy: { whenDeleted: 'Delete' },
+    });
+    // A partition of 0 updates every pod, and it is still shown.
+    expect(row('Partition')).toMatchObject({ value: 0, hide: false });
+    expect(row('Min Ready Seconds')).toMatchObject({ value: '10s', hide: false });
+    expect(row('Start Ordinal')).toMatchObject({ value: 1, hide: false });
+    expect(row('PVC Retention Policy')?.hide).toBe(false);
   });
 });

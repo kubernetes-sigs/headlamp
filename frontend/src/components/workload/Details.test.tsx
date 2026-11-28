@@ -260,3 +260,44 @@ describe('WorkloadDetails Deployment replicas', () => {
     });
   });
 });
+
+describe('WorkloadDetails StatefulSet rows', () => {
+  beforeEach(() => {
+    mockDetailsGrid.mockReset();
+  });
+
+  // StatefulSet routes render WorkloadDetails, so its rows must come from statefulSetExtraInfo.
+  it('shows the partition, min ready seconds, start ordinal and PVC retention policy', () => {
+    render(
+      <TestContext>
+        <WorkloadDetails
+          workloadKind={{ kind: 'StatefulSet' } as any}
+          name="web"
+          namespace="default"
+        />
+      </TestContext>
+    );
+
+    const extraInfo = mockDetailsGrid.mock.calls[0][0].extraInfo({
+      kind: 'StatefulSet',
+      metadata: { name: 'web', namespace: 'default' },
+      spec: {
+        updateStrategy: { type: 'RollingUpdate', rollingUpdate: { partition: 2 } },
+        minReadySeconds: 10,
+        ordinals: { start: 1 },
+        persistentVolumeClaimRetentionPolicy: { whenDeleted: 'Delete' },
+        template: { spec: {} },
+      },
+      status: {},
+    });
+    const row = (name: string) => extraInfo.find((item: any) => item?.name === name);
+
+    expect(row('Partition')).toMatchObject({ value: 2, hide: false });
+    expect(row('Min Ready Seconds')).toMatchObject({ value: '10s', hide: false });
+    expect(row('Start Ordinal')).toMatchObject({ value: 1, hide: false });
+    expect(row('PVC Retention Policy')).toMatchObject({
+      value: 'When deleted: Delete, when scaled: Retain',
+      hide: false,
+    });
+  });
+});

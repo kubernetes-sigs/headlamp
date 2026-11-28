@@ -79,6 +79,31 @@ export function statefulSetExtraInfo(item: StatefulSet, t: TFunction): NameValue
       value: spec.podManagementPolicy,
       hide: !spec.podManagementPolicy,
     },
+    {
+      // Pods with an ordinal below the partition are not updated by a rolling update.
+      name: t('glossary|Partition'),
+      value: spec.updateStrategy?.rollingUpdate?.partition,
+      hide: spec.updateStrategy?.rollingUpdate?.partition === undefined,
+    },
+    {
+      name: t('glossary|Min Ready Seconds'),
+      value: spec.minReadySeconds !== undefined ? `${spec.minReadySeconds}s` : '',
+      hide: spec.minReadySeconds === undefined,
+    },
+    {
+      name: t('glossary|Start Ordinal'),
+      value: spec.ordinals?.start,
+      hide: spec.ordinals?.start === undefined,
+    },
+    {
+      // Unset fields default to Retain in the API.
+      name: t('glossary|PVC Retention Policy'),
+      value: t('glossary|When deleted: {{whenDeleted}}, when scaled: {{whenScaled}}', {
+        whenDeleted: spec.persistentVolumeClaimRetentionPolicy?.whenDeleted ?? 'Retain',
+        whenScaled: spec.persistentVolumeClaimRetentionPolicy?.whenScaled ?? 'Retain',
+      }),
+      hide: !spec.persistentVolumeClaimRetentionPolicy,
+    },
   ];
 }
 
