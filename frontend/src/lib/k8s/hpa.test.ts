@@ -100,11 +100,14 @@ describe('HPA class', () => {
   it('returns base object and status getter', () => {
     const base = HPA.getBaseObject();
     expect(base.spec).toEqual({
-      maxReplicas: 0,
-      minReplicas: 0,
+      maxReplicas: 10,
+      minReplicas: 1,
       scaleTargetRef: { apiVersion: '', kind: '', name: '' },
       metrics: [],
     });
+    // What the API server accepts: 1 <= minReplicas <= maxReplicas.
+    expect(base.spec.minReplicas).toBeGreaterThanOrEqual(1);
+    expect(base.spec.maxReplicas).toBeGreaterThanOrEqual(base.spec.minReplicas);
 
     const hpa = new HPA(JSON.parse(JSON.stringify(mockHpaData)));
     expect(hpa.status.currentReplicas).toBe(1);
