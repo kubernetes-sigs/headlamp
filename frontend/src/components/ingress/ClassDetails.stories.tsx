@@ -18,7 +18,11 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './ClassDetails';
-import { RESOURCE_DEFAULT_INGRESS_CLASS, RESOURCE_INGRESS_CLASS } from './storyHelper';
+import {
+  RESOURCE_DEFAULT_INGRESS_CLASS,
+  RESOURCE_INGRESS_CLASS,
+  RESOURCE_INGRESS_CLASS_WITH_PARAMETERS,
+} from './storyHelper';
 
 export default {
   title: 'IngressClass/DetailsView',
@@ -80,6 +84,19 @@ WithDefault.parameters = {
       story: [
         http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingressclasses/my-ic`, () =>
           HttpResponse.json(RESOURCE_DEFAULT_INGRESS_CLASS)
+        ),
+      ],
+    },
+  },
+};
+
+export const WithParameters = Template.bind({});
+WithParameters.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingressclasses/my-ic`, () =>
+          HttpResponse.json(RESOURCE_INGRESS_CLASS_WITH_PARAMETERS)
         ),
       ],
     },

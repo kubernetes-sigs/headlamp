@@ -622,6 +622,7 @@
     },
     "ingressClass": {
       "default": [Function],
+      "formatIngressClassParameters": [Function],
     },
     "job": {
       "default": [Function],
