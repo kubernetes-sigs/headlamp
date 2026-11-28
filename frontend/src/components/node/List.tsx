@@ -15,8 +15,9 @@
  */
 
 import Box from '@mui/material/Box';
-import { useMemo } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { KubeMetrics } from '../../lib/k8s/cluster';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
 import { HoverInfoLabel, StatusLabel } from '../common/Label';
@@ -47,12 +48,36 @@ export function filterNode(node: Node, search: string) {
   return undefined;
 }
 
+/**
+ * The table keeps its cells while their value and row are unchanged, so a cell cannot get new
+ * metrics from the column definition. It reads them from this context instead, which reaches it
+ * whenever they change.
+ */
+const NodeMetricsContext = createContext<{
+  nodeMetrics: KubeMetrics[] | null;
+  noMetrics: boolean;
+}>({ nodeMetrics: null, noMetrics: false });
+
+function NodeUsageBar({ node, resourceType }: { node: Node; resourceType: 'cpu' | 'memory' }) {
+  const { nodeMetrics, noMetrics } = useContext(NodeMetricsContext);
+
+  return (
+    <UsageBarChart
+      node={node}
+      nodeMetrics={nodeMetrics}
+      resourceType={resourceType}
+      noMetrics={noMetrics}
+    />
+  );
+}
+
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const { items } = Node.useList();
   const { t } = useTranslation(['glossary', 'translation']);
 
   const noMetrics = metricsError?.status === 404;
+  const metricsContext = useMemo(() => ({ nodeMetrics, noMetrics }), [nodeMetrics, noMetrics]);
 
   const hasNodePools = useMemo(() => {
     if (!items || items.length === 0) return false;
@@ -60,7 +85,7 @@ export default function NodeList() {
   }, [items]);
 
   return (
-    <>
+    <NodeMetricsContext.Provider value={metricsContext}>
       <ResourceListView
         title={t('Nodes')}
         resourceClass={Node}
@@ -81,14 +106,7 @@ export default function NodeList() {
               const [used] = getResourceMetrics(node, nodeMetrics || [], 'cpu');
               return used;
             },
-            render: node => (
-              <UsageBarChart
-                node={node}
-                nodeMetrics={nodeMetrics}
-                resourceType="cpu"
-                noMetrics={noMetrics}
-              />
-            ),
+            render: node => <NodeUsageBar node={node} resourceType="cpu" />,
           },
           {
             id: 'memory',
@@ -98,14 +116,7 @@ export default function NodeList() {
               const [used] = getResourceMetrics(node, nodeMetrics || [], 'memory');
               return used;
             },
-            render: node => (
-              <UsageBarChart
-                node={node}
-                nodeMetrics={nodeMetrics}
-                resourceType="memory"
-                noMetrics={noMetrics}
-              />
-            ),
+            render: node => <NodeUsageBar node={node} resourceType="memory" />,
           },
           {
             id: 'ready',
@@ -225,6 +236,6 @@ export default function NodeList() {
         ]}
       />
       <UpgradeVisualizationPanel />
-    </>
+    </NodeMetricsContext.Provider>
   );
 }
