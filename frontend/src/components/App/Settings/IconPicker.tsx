@@ -63,6 +63,12 @@ export default function IconPicker({ open, currentIcon, onClose, onSelectIcon }:
   const [customIconInput, setCustomIconInput] = React.useState('');
   const [useCustomIcon, setUseCustomIcon] = React.useState(false);
 
+  // The picker stays mounted while closed, so drop an unapplied custom icon each time it opens.
+  const handleEnter = () => {
+    setUseCustomIcon(false);
+    setCustomIconInput('');
+  };
+
   const handlePresetIconClick = (icon: string) => {
     setUseCustomIcon(false);
     onSelectIcon(icon);
@@ -75,7 +81,7 @@ export default function IconPicker({ open, currentIcon, onClose, onSelectIcon }:
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm">
+    <Dialog open={open} onClose={onClose} maxWidth="sm" TransitionProps={{ onEnter: handleEnter }}>
       <DialogTitle>{t('translation|Choose Cluster Icon')}</DialogTitle>
       <DialogContent>
         <Box sx={{ pt: 1 }}>

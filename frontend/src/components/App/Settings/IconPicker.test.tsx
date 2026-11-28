@@ -15,6 +15,7 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
+import React from 'react';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import IconPicker, { PRESET_ICONS } from './IconPicker';
 
@@ -137,5 +138,44 @@ describe('IconPicker Component', () => {
     );
 
     expect(screen.queryByText('Choose Cluster Icon')).not.toBeInTheDocument();
+  });
+
+  it('drops the custom icon draft when opened again after Cancel', () => {
+    // Like SettingsCluster, keep the picker mounted and only toggle open.
+    function PickerWithOpenButton() {
+      const [open, setOpen] = React.useState(true);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>Open picker</button>
+          <IconPicker
+            open={open}
+            currentIcon={PRESET_ICONS[0].value}
+            onClose={() => setOpen(false)}
+            onSelectIcon={onSelectIcon}
+          />
+        </>
+      );
+    }
+
+    render(<PickerWithOpenButton />);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Use custom icon' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Custom icon (Iconify)' }), {
+      target: { value: 'mdi:rocket-launch-outline' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByText('Open picker'));
+
+    expect(screen.getByRole('checkbox', { name: 'Use custom icon' })).not.toBeChecked();
+    expect(
+      screen.queryByRole('textbox', { name: 'Custom icon (Iconify)' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: PRESET_ICONS[0].name })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('button', { name: PRESET_ICONS[1].name })).toBeEnabled();
+
+    // The textbox is only shown while the box is ticked, so tick it again to check the text is gone.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Use custom icon' }));
+    expect(screen.getByRole('textbox', { name: 'Custom icon (Iconify)' })).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
   });
 });
