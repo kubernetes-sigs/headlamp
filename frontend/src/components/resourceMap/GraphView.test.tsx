@@ -235,11 +235,14 @@ describe('GraphView', () => {
     expect(selectedNodeParam()).toBeNull();
   });
 
-  it('shows only resources with errors or warnings while the status filter is on', () => {
-    const { source } = makeSource([
-      { id: 'healthy', label: 'Healthy' },
-      { id: 'failing', label: 'Failing', status: 'error' },
-    ]);
+  const statusNodes = (): GraphNode[] => [
+    { id: 'healthy', label: 'Healthy' },
+    { id: 'failing', label: 'Failing', status: 'error' },
+    { id: 'degraded', label: 'Degraded', status: 'warning' },
+  ];
+
+  it('hides resources without errors or warnings while the status filter is on', () => {
+    const { source } = makeSource(statusNodes());
     renderGraphView({ defaultSources: [source], defaultNodeSelection: 'healthy' });
     flushSourceUpdates();
     expect(within(screen.getByRole('navigation')).getByText('Healthy')).toBeInTheDocument();
@@ -251,6 +254,19 @@ describe('GraphView', () => {
     fireEvent.click(chip('Status: Error or Warning'));
     expectActive('Status: Error or Warning', false);
     expect(within(screen.getByRole('navigation')).getByText('Healthy')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['failing', 'Failing'],
+    ['degraded', 'Degraded'],
+  ])('keeps the %s resource while the status filter is on', (id, label) => {
+    const { source } = makeSource(statusNodes());
+    renderGraphView({ defaultSources: [source], defaultNodeSelection: id });
+    flushSourceUpdates();
+
+    fireEvent.click(chip('Status: Error or Warning'));
+    expectActive('Status: Error or Warning', true);
+    expect(within(screen.getByRole('navigation')).getByText(label)).toBeInTheDocument();
   });
 
   it('remembers the zoom mode chosen with the viewport buttons', () => {
