@@ -65,6 +65,8 @@ export interface DeviceRequestAllocationResult {
   driver: string;
   pool: string;
   device: string;
+  /** Set when the device is shared, to tell its allocations apart. */
+  shareID?: string;
 }
 
 /** One requirement on a node's labels or fields. */
@@ -98,10 +100,46 @@ export interface ResourceClaimConsumerReference {
   uid: string;
 }
 
+/** A condition of an allocated device, in the standard `metav1.Condition` format. */
+export interface AllocatedDeviceCondition {
+  type: string;
+  status: 'True' | 'False' | 'Unknown' | string;
+  reason?: string;
+  message?: string;
+  lastTransitionTime?: string;
+  observedGeneration?: number;
+}
+
+/** Network details a driver reports for an allocated device, such as a network card. */
+export interface NetworkDeviceData {
+  /** The name of the network interface in the Pod, for example `eth1`. */
+  interfaceName?: string;
+  /** The IP addresses of the interface, in CIDR notation. */
+  ips?: string[];
+  /** The MAC address of the interface. */
+  hardwareAddress?: string;
+}
+
+/** The status the driver reports for one allocated device, in `status.devices`. */
+export interface AllocatedDeviceStatus {
+  driver: string;
+  pool: string;
+  device: string;
+  /** Set when the device is shared by several allocations. */
+  shareID?: string;
+  /** Conditions the driver reports for the device, such as `Ready`. */
+  conditions?: AllocatedDeviceCondition[];
+  /** Driver specific data, in a format defined by the driver. */
+  data?: unknown;
+  networkData?: NetworkDeviceData;
+}
+
 export interface ResourceClaimStatus {
   /** Stays unset until the scheduler has allocated the claim. */
   allocation?: AllocationResult;
   reservedFor?: ResourceClaimConsumerReference[];
+  /** The status drivers report for the allocated devices. */
+  devices?: AllocatedDeviceStatus[];
 }
 
 export interface KubeResourceClaim extends KubeObjectInterface {
@@ -199,6 +237,22 @@ class ResourceClaim extends KubeObject<KubeResourceClaim> {
   /** The devices the scheduler granted, empty while the claim is pending. */
   get allocatedDevices(): DeviceRequestAllocationResult[] {
     return this.status?.allocation?.devices?.results ?? [];
+  }
+
+  /**
+   * The status the driver reported for an allocated device, if any. A shared device has one
+   * status per share, so the share ID has to match too.
+   * @param result - The allocated device.
+   * @returns The matching entry of `status.devices`.
+   */
+  deviceStatus(result: DeviceRequestAllocationResult): AllocatedDeviceStatus | undefined {
+    return this.status?.devices?.find(
+      status =>
+        status.driver === result.driver &&
+        status.pool === result.pool &&
+        status.device === result.device &&
+        status.shareID === result.shareID
+    );
   }
 
   /** The workloads allowed to use this claim. A back reference, not an owner. */
