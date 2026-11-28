@@ -22,17 +22,22 @@ import { StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 function renderEndpoints(endpointSlice: EndpointSlice) {
-  const endpoints = endpointSlice.spec.endpoints;
+  const endpoints = endpointSlice.spec?.endpoints;
   if (!endpoints) {
     return null;
   }
 
-  return endpoints.map((endpoint: any) => {
+  return endpoints.map((endpoint: any, index: number) => {
     const { addresses, conditions } = endpoint;
+    const addressStr = addresses?.join(',');
+    if (!addressStr) {
+      return null;
+    }
+
     return (
-      <Box display="inline-block">
+      <Box key={index} display="inline-block">
         <StatusLabel status={conditions?.ready !== false ? 'success' : 'error'}>
-          {addresses.join(',')}
+          {addressStr}
         </StatusLabel>
       </Box>
     );
