@@ -151,7 +151,11 @@ class Event extends KubeObject<KubeEvent> {
       'involvedObject.name': name,
     };
 
-    if (object.metadata.uid) {
+    // The kubelet records events about its Node with the node's name as the UID (up to
+    // Kubernetes 1.34) or with no UID (1.35 on), never the Node's real UID, so a UID field
+    // selector would drop them. See kubernetes/kubernetes#138524.
+    const isNode = objectKind === 'Node';
+    if (object.metadata.uid && !isNode) {
       fieldSelector['involvedObject.uid'] = object.metadata.uid;
     }
 
@@ -170,6 +174,14 @@ class Event extends KubeObject<KubeEvent> {
     };
 
     const response = await request(path, { cluster }, true, true, queryParams);
+
+    if (isNode && object.metadata.uid) {
+      // Still leave out events that name an earlier Node of the same name by its UID.
+      return response.items.filter((event: KubeEvent) => {
+        const uid = event.involvedObject?.uid;
+        return !uid || uid === name || uid === object.metadata.uid;
+      });
+    }
 
     return response.items;
   }

@@ -23,10 +23,14 @@ vi.mock('.', () => ({ ResourceClasses: {} }));
 vi.mock('./KubeObject', () => ({ KubeObject: class {} }));
 vi.mock('./api/v1/clusterRequests', () => ({ request: vi.fn() }));
 
-function object(uid?: string, namespace: string | undefined = 'default'): KubeObject {
+function object(
+  uid?: string,
+  namespace: string | undefined = 'default',
+  kind = namespace ? 'Pod' : 'Node'
+): KubeObject {
   return {
     metadata: { name: 'same-name', namespace, uid },
-    kind: namespace ? 'Pod' : 'Node',
+    kind,
     cluster: 'test-cluster',
   } as KubeObject;
 }
@@ -62,16 +66,51 @@ describe('Event.objectEvents resource identity', () => {
   });
 
   it('also scopes cluster-level resource events by UID', async () => {
-    await Event.objectEvents(object('node-uid', ''));
+    await Event.objectEvents(object('pv-uid', '', 'PersistentVolume'));
     expect(request).toHaveBeenCalledWith(
       '/api/v1/events',
       { cluster: 'test-cluster' },
       true,
       true,
       expect.objectContaining({
-        fieldSelector: expect.stringContaining('involvedObject.uid=node-uid'),
+        fieldSelector: expect.stringContaining('involvedObject.uid=pv-uid'),
       })
     );
+  });
+
+  it('does not select Node events by UID, because the kubelet does not set the real one', async () => {
+    await Event.objectEvents(object('node-uid', ''));
+    expect(request).toHaveBeenCalledWith(
+      '/api/v1/events',
+      { cluster: 'test-cluster' },
+      true,
+      true,
+      {
+        fieldSelector: 'involvedObject.kind=Node,involvedObject.name=same-name',
+        limit: Event.maxLimit,
+      }
+    );
+  });
+
+  it('keeps kubelet Node events and leaves out those of an earlier Node', async () => {
+    // Up to Kubernetes 1.34 the kubelet sets the node name as the UID, from 1.35 no UID.
+    const kubeletEvent = { involvedObject: { uid: 'same-name' } };
+    const kubeletEventWithoutUid = { involvedObject: { uid: undefined } };
+    const controllerEvent = { involvedObject: { uid: 'node-uid' } };
+    const oldNodeEvent = { involvedObject: { uid: 'old-uid' } };
+    vi.mocked(request).mockImplementation(async (_path, _params, _logout, _cluster, query) => ({
+      items: [kubeletEvent, kubeletEventWithoutUid, controllerEvent, oldNodeEvent].filter(
+        event =>
+          !query?.fieldSelector?.includes('involvedObject.uid=') ||
+          query.fieldSelector.includes(`involvedObject.uid=${event.involvedObject.uid}`)
+      ),
+    }));
+
+    await expect(Event.objectEvents(object('node-uid', ''))).resolves.toEqual([
+      kubeletEvent,
+      kubeletEventWithoutUid,
+      controllerEvent,
+    ]);
   });
 
   it('keeps name-based lookup for incomplete references without a UID', async () => {
