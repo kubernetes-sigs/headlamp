@@ -463,4 +463,283 @@ describe('useSidebarItems', () => {
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
   });
+
+  describe('Custom Resources entries', () => {
+    const makeCRD = (name: string, group?: string, kind?: string) =>
+      ({
+        jsonData: {
+          metadata: { name },
+          spec: { group, names: kind ? { kind } : undefined },
+        },
+      } as unknown as CRD);
+
+    const mockCRDs = (crds: CRD[] | null, error: unknown = null) => {
+      const result: [CRD[] | null, unknown] = [crds, error];
+      vi.spyOn(CRD, 'useList').mockReturnValue(
+        Object.assign(result, {
+          data: null,
+          dataUpdatedAt: 0,
+          items: crds,
+          error,
+          errors: null,
+          isError: error !== null,
+          isLoading: false,
+          isFetching: false,
+          isSuccess: error === null,
+          status: 'success' as const,
+        }) as unknown as ReturnType<typeof CRD.useList>
+      );
+    };
+
+    const crdsItem = (items: ReturnType<typeof useSidebarItems>) =>
+      items.find(item => item.name === 'crds');
+
+    it('groups CRDs by API group, sorts them and lists each kind once', () => {
+      mockCRDs([
+        makeCRD('widgets.zeta.io', 'zeta.io', 'Widget'),
+        makeCRD('gadgets.alpha.io', 'alpha.io', 'Gadget'),
+        makeCRD('gizmos.alpha.io', 'alpha.io', 'Gizmo'),
+        // Same CRD seen twice must not be listed twice.
+        makeCRD('gadgets.alpha.io', 'alpha.io', 'Gadget'),
+      ]);
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      const subList = crdsItem(result.current)?.subList ?? [];
+      expect(subList.map(item => item.name)).toEqual(['crs', 'group-alpha.io', 'group-zeta.io']);
+      expect(subList[0].divider).toBe(true);
+      const alpha = subList.find(item => item.name === 'group-alpha.io');
+      expect(alpha?.isCR).toBe(true);
+      expect(alpha?.subList?.map(item => item.name)).toEqual([
+        'gadgets.alpha.io',
+        'gizmos.alpha.io',
+      ]);
+      expect(alpha?.subList?.map(item => item.label)).toEqual(['Gadget', 'Gizmo']);
+    });
+
+    it('skips CRDs whose spec is only partially populated', () => {
+      mockCRDs([
+        makeCRD('nokind.example.io', 'example.io', undefined),
+        makeCRD('nogroup', undefined, 'NoGroup'),
+        makeCRD('good.example.io', 'example.io', 'Good'),
+      ]);
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      const group = crdsItem(result.current)?.subList?.find(
+        item => item.name === 'group-example.io'
+      );
+      expect(group?.subList?.map(item => item.name)).toEqual(['good.example.io']);
+      expect(crdsItem(result.current)?.subList?.some(item => item.name === 'group-undefined')).toBe(
+        false
+      );
+    });
+
+    it('only lists the Instances entry while the CRDs are still loading', () => {
+      mockCRDs(null);
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      expect(crdsItem(result.current)?.subList?.map(item => item.name)).toEqual(['crs']);
+    });
+
+    it('logs the error and keeps the sidebar working when CRDs fail to load', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const error = new Error('boom');
+      mockCRDs(null, error);
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      expect(consoleError).toHaveBeenCalledWith('Failed to fetch CRDs:', error);
+      expect(crdsItem(result.current)?.subList?.map(item => item.name)).toEqual(['crs']);
+    });
+
+    it('does not add CRD entries to a sidebar other than the in-cluster one', () => {
+      mockCRDs([makeCRD('widgets.zeta.io', 'zeta.io', 'Widget')]);
+
+      const { result } = renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      expect(crdsItem(result.current)).toBeUndefined();
+    });
+  });
+
+  describe('Devices (alpha) section', () => {
+    it('is hidden when the cluster does not serve resource.k8s.io/v1', async () => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+      const isEnabled = vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
+
+      const { result, rerender } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      // Wait for the discovery query to settle with its "not served" result, so the
+      // assertion below checks the resolved state and not the pending one.
+      const queryKey = [
+        'clustersServing',
+        DeviceClass.apiVersion,
+        DeviceClass.apiName,
+        'test-cluster',
+      ];
+      await waitFor(() => expect(queryClient.getQueryData(queryKey)).toEqual([]));
+      expect(isEnabled).toHaveBeenCalledWith('test-cluster');
+      rerender();
+      expect(result.current.find(item => item.name === 'devices')).toBeUndefined();
+    });
+
+    it('lists the device resources once the cluster serves them', async () => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+      vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(true);
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() =>
+        expect(
+          result.current.find(item => item.name === 'devices')?.subList?.map(item => item.name)
+        ).toEqual(['deviceClasses', 'resourceClaims', 'resourceClaimTemplates', 'resourceSlices'])
+      );
+    });
+  });
+
+  describe('custom entries and sidebars', () => {
+    it('creates a new sidebar for a custom entry that names one that does not exist', () => {
+      const store = mockStore(
+        { mine: { name: 'mine', label: 'Mine', url: '/mine', sidebar: 'my-sidebar' } },
+        []
+      );
+
+      const { result } = renderHook(() => useSidebarItems('my-sidebar'), {
+        wrapper: wrapper(store),
+      });
+
+      expect(result.current.map(item => item.name)).toEqual(['mine']);
+    });
+
+    it('ignores a custom entry whose parent does not exist', () => {
+      const store = mockStore(
+        { orphan: { name: 'orphan', label: 'Orphan', url: '/orphan', parent: 'nope' } },
+        []
+      );
+
+      const { result } = renderHook(() => useSidebarItems(), { wrapper: wrapper(store) });
+
+      expect(JSON.stringify(result.current)).not.toContain('orphan');
+    });
+
+    it('does not change the custom entries held in the store', () => {
+      const entries = {
+        parent: { name: 'parent', label: 'Parent', url: '/parent' },
+        child: { name: 'child', label: 'Child', url: '/child', parent: 'parent' },
+      };
+      const before = JSON.parse(JSON.stringify(entries));
+      const store = mockStore(entries, []);
+
+      const { result } = renderHook(() => useSidebarItems(), { wrapper: wrapper(store) });
+
+      // The child is attached under the custom parent in the returned tree...
+      const parent = result.current.find(item => item.name === 'parent');
+      expect(parent?.subList?.map(item => item.name)).toEqual(['child']);
+      // ...while the parent held in the store is left untouched (no subList added).
+      expect(store.getState().sidebar.entries).toEqual(before);
+      expect(store.getState().sidebar.entries.parent).not.toHaveProperty('subList');
+    });
+
+    it('falls back to the in-cluster sidebar when the sidebar name is empty', () => {
+      const { result } = renderHook(() => useSidebarItems(''), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      expect(result.current.some(item => item.name === 'workloads')).toBe(true);
+    });
+
+    it('returns an empty list for a sidebar that does not exist', () => {
+      const { result } = renderHook(() => useSidebarItems('missing'), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      expect(result.current).toEqual([]);
+    });
+
+    it('applies every custom filter in order and filters nested entries', () => {
+      const filters = [
+        (entry: SidebarEntry) => (entry.name === 'storage' ? null : entry),
+        // Relabels Services, so the next filter only removes it if this one ran first.
+        (entry: SidebarEntry) =>
+          entry.name === 'services' ? { ...entry, label: 'Relabeled by first filter' } : entry,
+        (entry: SidebarEntry) => (entry.label === 'Relabeled by first filter' ? null : entry),
+      ];
+
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, filters)),
+      });
+
+      expect(result.current.find(item => item.name === 'storage')).toBeUndefined();
+      const network = result.current.find(item => item.name === 'network');
+      expect(network).toBeDefined();
+      expect(network?.subList?.some(item => item.name === 'services')).toBe(false);
+      expect(network?.subList?.some(item => item.name === 'endpoints')).toBe(true);
+    });
+  });
+
+  describe('sorting', () => {
+    const storeWithSorting = (sortAlphabetically: boolean) => {
+      const config = configureStore({ reducer: reducers }).getState().config;
+      return configureStore({
+        reducer: reducers,
+        preloadedState: {
+          config: { ...config, userSettings: { sidebarSortAlphabetically: sortAlphabetically } },
+          sidebar: {
+            entries: {},
+            filters: [],
+            homeFilters: [],
+            selected: { item: null, sidebar: DefaultSidebars.IN_CLUSTER },
+            isVisible: true,
+          },
+        } as any,
+      });
+    };
+
+    it('keeps the default order when alphabetical sorting is off', () => {
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(storeWithSorting(false)),
+      });
+
+      expect(result.current.map(item => item.name).slice(0, 4)).toEqual([
+        'home',
+        'cluster',
+        'map',
+        'workloads',
+      ]);
+    });
+
+    it('sorts by label with home first when alphabetical sorting is on', () => {
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(storeWithSorting(true)),
+      });
+
+      const names = result.current.map(item => item.name);
+      expect(names[0]).toBe('home');
+      const labels = result.current
+        .filter(item => item.name !== 'home')
+        .map(item => ((item.label ?? item.name) + '').toLowerCase());
+      expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
+      // Sub lists are sorted as well.
+      const network = result.current.find(item => item.name === 'network');
+      const subLabels = (network?.subList ?? []).map(item =>
+        ((item.label ?? '') + '').toLowerCase()
+      );
+      expect(subLabels).toEqual([...subLabels].sort((a, b) => a.localeCompare(b)));
+    });
+  });
 });
