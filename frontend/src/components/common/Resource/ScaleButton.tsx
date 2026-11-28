@@ -137,11 +137,8 @@ function ScaleDialog(props: ScaleDialogProps) {
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SCALE_RESOURCE);
 
   function getNumReplicas() {
-    if (!('spec' in resource)) {
-      return -1;
-    }
-
-    return parseInt(resource.spec.replicas);
+    const parsed = Number.parseInt(String(resource?.spec?.replicas), 10);
+    return Number.isNaN(parsed) ? -1 : parsed;
   }
 
   const currentNumReplicas = getNumReplicas();
