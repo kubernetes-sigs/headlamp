@@ -379,3 +379,98 @@ describe('fetchWithRetry', () => {
     expect(global.clearTimeout).toHaveBeenCalled();
   });
 });
+
+
+describe('archive structure', () => {
+  const os = require('os');
+  const tar = require('tar');
+  const crypto = require('crypto');
+  let root;
+  let destination;
+  const metadata = { name: '@example/plugin', version: '1.0.0' };
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'pluginctl-structure-'));
+    destination = path.join(root, 'installed');
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  async function archive(files) {
+    const folder = path.join(root, 'package');
+    fs.mkdirSync(folder);
+    for (const [name, contents] of Object.entries(files)) {
+      if (contents && typeof contents === 'object') {
+        fs.symlinkSync(contents.target, path.join(folder, name));
+      } else if (contents === null) fs.mkdirSync(path.join(folder, name));
+      else fs.writeFileSync(path.join(folder, name), contents);
+    }
+    const archivePath = path.join(root, 'plugin.tar.gz');
+    await tar.c({ gzip: true, cwd: root, file: archivePath }, ['package']);
+    const bytes = fs.readFileSync(archivePath);
+    jest.spyOn(os, 'tmpdir').mockReturnValue(root);
+    jest.spyOn(global, 'fetch').mockResolvedValueOnce({ ok: true, json: async () => ({
+      name: 'plugin', version: '1.0.0', repository: { name: 'example' },
+      data: {
+        'headlamp/plugin/archive-url': 'https://github.com/example/plugin/releases/download/v1/plugin.tar.gz',
+        'headlamp/plugin/archive-checksum': crypto.createHash('sha256').update(bytes).digest('hex'),
+      },
+    }) }).mockResolvedValueOnce({ ok: true, body: [bytes] });
+  }
+
+  const invalid = [
+    ...['main.js', 'package.json'].flatMap(name => [false, true].map(dangling => [
+      `${dangling ? 'dangling' : 'resolving'} symlink ${name}`,
+      {
+        'main.js': '// plugin',
+        'package.json': JSON.stringify(metadata),
+        ...(dangling ? {} : { 'target.txt': name === 'main.js' ? '// plugin' : JSON.stringify(metadata) }),
+        [name]: { target: 'target.txt' },
+      },
+      new RegExp(name.replace('.', '\\.')),
+    ])),
+    ['missing main.js', { 'package.json': JSON.stringify(metadata) }, /main\.js/],
+    ['directory main.js', { 'main.js': null, 'package.json': JSON.stringify(metadata) }, /main\.js/],
+    ['missing package.json', { 'main.js': '// plugin' }, /package\.json/],
+    ['invalid JSON', { 'main.js': '', 'package.json': '{' }, /package\.json/],
+    ...[null, [], {}, { name: 'plugin' }, { name: '', version: '1.0.0' },
+      { name: 'plugin', version: 'garbage' }].map(value => [
+      `invalid metadata ${JSON.stringify(value)}`,
+      { 'main.js': '', 'package.json': JSON.stringify(value) }, /package\.json/,
+    ]),
+  ];
+  test.each(invalid)('rejects %s without replacing installed files', async (label, files, reason) => {
+    const previous = path.join(destination, 'plugin');
+    fs.mkdirSync(previous, { recursive: true });
+    fs.writeFileSync(path.join(previous, 'main.js'), 'previous plugin');
+    await archive(files);
+    await expect(PluginManager.install(
+      'https://artifacthub.io/packages/headlamp/example/plugin', destination
+    )).rejects.toThrow(reason);
+    expect(fs.readFileSync(path.join(previous, 'main.js'), 'utf8')).toBe('previous plugin');
+    expect(fs.existsSync(path.join(previous, 'package.json'))).toBe(false);
+    expect(fs.readdirSync(root).filter(name => name.startsWith('headlamp-plugin-temp-'))).toEqual([]);
+  });
+
+  test('reports an actionable error without success or destination creation', async () => {
+    await archive({ 'package.json': JSON.stringify(metadata) });
+    const progress = jest.fn();
+    await PluginManager.install('https://artifacthub.io/packages/headlamp/example/plugin', destination, '', progress);
+    expect(progress).toHaveBeenCalledWith({ type: 'error', message: expect.stringMatching(/Invalid plugin archive.*main\.js/) });
+    expect(progress).not.toHaveBeenCalledWith({ type: 'success', message: 'Plugin Installed' });
+    expect(fs.existsSync(destination)).toBe(false);
+  });
+
+  test('installs a valid package and adds managed metadata', async () => {
+    await archive({ 'main.js': '// plugin', 'package.json': JSON.stringify(metadata) });
+    const progress = jest.fn();
+    await PluginManager.install('https://artifacthub.io/packages/headlamp/example/plugin', destination, '', progress);
+    expect(fs.readFileSync(path.join(destination, 'plugin/main.js'), 'utf8')).toBe('// plugin');
+    expect(JSON.parse(fs.readFileSync(path.join(destination, 'plugin/package.json'), 'utf8'))).toMatchObject({
+      ...metadata, isManagedByHeadlampPlugin: true, artifacthub: { name: 'plugin', version: '1.0.0' },
+    });
+    expect(progress).toHaveBeenCalledWith({ type: 'success', message: 'Plugin Installed' });
+  });
+});

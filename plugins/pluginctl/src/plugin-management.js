@@ -518,7 +518,31 @@ async function downloadExtractPlugin(
     progressCallback({ type: 'info', message: 'Plugin Extracted' });
   }
   // add artifacthub metadata to the plugin
-  const packageJSON = JSON.parse(fs.readFileSync(`${tempFolder}/package.json`, 'utf8'));
+  let packageJSON;
+  try {
+    if (!fs.lstatSync(path.join(tempFolder, 'main.js'), { throwIfNoEntry: false })?.isFile()) {
+      throw new Error('main.js must be a file');
+    }
+    const packagePath = path.join(tempFolder, 'package.json');
+    if (!fs.lstatSync(packagePath, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error('package.json must be a file');
+    }
+    try {
+      packageJSON = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    } catch {
+      throw new Error('package.json must contain valid JSON');
+    }
+    if (
+      !packageJSON || typeof packageJSON !== 'object' || Array.isArray(packageJSON) ||
+      typeof packageJSON.name !== 'string' || !packageJSON.name.trim() ||
+      typeof packageJSON.version !== 'string' || !semver.valid(packageJSON.version)
+    ) {
+      throw new Error('package.json must contain a nonempty name and a valid version');
+    }
+  } catch (error) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    throw new Error(`Invalid plugin archive: ${error.message}. Rebuild the plugin package and publish a corrected archive.`);
+  }
   packageJSON.artifacthub = {
     name: pluginName,
     title: pluginInfo.display_name,
