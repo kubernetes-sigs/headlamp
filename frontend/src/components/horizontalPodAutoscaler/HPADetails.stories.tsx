@@ -169,6 +169,40 @@ Default.parameters = {
   },
 };
 
+export const WithScalingBehavior = Template.bind({});
+WithScalingBehavior.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/autoscaling/v2/namespaces/my-namespace/horizontalpodautoscalers/my-endpoint`,
+          () =>
+            HttpResponse.json({
+              ...mockHPA,
+              spec: {
+                ...mockHPA.spec,
+                behavior: {
+                  scaleUp: {
+                    stabilizationWindowSeconds: 0,
+                    selectPolicy: 'Max',
+                    policies: [
+                      { type: 'Percent', value: 100, periodSeconds: 15 },
+                      { type: 'Pods', value: 4, periodSeconds: 15 },
+                    ],
+                  },
+                  scaleDown: {
+                    stabilizationWindowSeconds: 300,
+                    policies: [{ type: 'Percent', value: 10, periodSeconds: 60 }],
+                  },
+                },
+              },
+            })
+        ),
+      ],
+    },
+  },
+};
+
 export const Error = Template.bind({});
 Error.parameters = {
   msw: {

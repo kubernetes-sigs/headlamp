@@ -17,7 +17,7 @@
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
-import HpaDetails from './Details';
+import HpaDetails, { scalingPolicyText } from './Details';
 
 const { mockDetailsGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
@@ -32,6 +32,10 @@ vi.mock('../common/Link', () => ({
 }));
 
 vi.mock('../common/SimpleTable', () => ({
+  default: () => null,
+}));
+
+vi.mock('../common/SectionBox', () => ({
   default: () => null,
 }));
 
@@ -150,5 +154,39 @@ describe('HpaDetails', () => {
     expect(byName['Deployment pods'].value).toBe('0 current / 0 desired');
     expect(byName['Last Scale Time'].hide).toBe(true);
     expect(byName['Reference'].value).toBe('-');
+  });
+
+  it('adds the scaling behavior section only when spec.behavior has rules', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'web-hpa' }}>
+        <HpaDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const sectionIds = (item: any) => props.extraSections(item).map((s: any) => s.id);
+
+    expect(sectionIds(hpa)).not.toContain('headlamp.hpa-scaling-behavior');
+    expect(
+      sectionIds({
+        ...hpa,
+        spec: { ...hpa.spec, behavior: { scaleDown: { stabilizationWindowSeconds: 300 } } },
+      })
+    ).toContain('headlamp.hpa-scaling-behavior');
+  });
+
+  it('describes pod and percent scaling policies', () => {
+    const t = (key: string, opts: any) =>
+      key
+        .split('|')
+        .pop()!
+        .replace(/{{ (\w+) }}/g, (_m: string, name: string) => String(opts[name]));
+
+    expect(scalingPolicyText({ type: 'Pods', value: 4, periodSeconds: 60 }, t)).toBe(
+      '4 pods per 60s'
+    );
+    expect(scalingPolicyText({ type: 'Percent', value: 100, periodSeconds: 15 }, t)).toBe(
+      '100% per 15s'
+    );
   });
 });
