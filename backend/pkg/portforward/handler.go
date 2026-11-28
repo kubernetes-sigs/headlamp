@@ -1062,6 +1062,19 @@ func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
 	}
 }
 
+type portForwardPayload struct {
+	ID               string `json:"id"`
+	Pod              string `json:"pod"`
+	Service          string `json:"service"`
+	ServiceNamespace string `json:"serviceNamespace"`
+	Cluster          string `json:"cluster"`
+	Namespace        string `json:"namespace"`
+	Port             string `json:"port"`
+	TargetPort       string `json:"targetPort"`
+	Status           string `json:"status"`
+	Error            string `json:"error"`
+}
+
 // GetPortForwardByID handles get port forward by id request.
 func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 	w http.ResponseWriter, r *http.Request,
@@ -1082,6 +1095,13 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
+	if err := validatePortForwardID(id); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating portforward id")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
 	p, err := getPortForwardByID(cache, contextKey, id)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting portforward by id")
@@ -1090,20 +1110,7 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 		return
 	}
 
-	type payload struct {
-		ID               string `json:"id"`
-		Pod              string `json:"pod"`
-		Service          string `json:"service"`
-		ServiceNamespace string `json:"serviceNamespace"`
-		Cluster          string `json:"cluster"`
-		Namespace        string `json:"namespace"`
-		Port             string `json:"port"`
-		TargetPort       string `json:"targetPort"`
-		Status           string `json:"status"`
-		Error            string `json:"error"`
-	}
-
-	portForwardStruct := payload{
+	portForwardStruct := portForwardPayload{
 		ID:               p.ID,
 		Pod:              p.Pod,
 		Namespace:        p.Namespace,
