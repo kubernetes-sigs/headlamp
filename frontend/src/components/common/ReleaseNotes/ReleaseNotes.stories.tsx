@@ -34,6 +34,11 @@ export default {
   component: ReleaseNotes,
   decorators: [withEnv],
   parameters: {
+    storyshots: {
+      // ReleaseNotesModal is React.lazy-loaded; wait for it so the snapshot
+      // does not depend on which other story files this shard has loaded.
+      waitForDynamicImports: true,
+    },
     msw: {
       handlers: [
         http.get('https://api.github.com/repos/kinvolk/headlamp/releases', () =>
