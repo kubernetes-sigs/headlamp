@@ -22,8 +22,9 @@ import Checkbox from '@mui/material/Checkbox';
 import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { visuallyHidden } from '@mui/utils';
 import { uniq } from 'lodash';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -80,6 +81,10 @@ function addQuery(
   });
 }
 
+function isComposingKeyEvent(event: React.KeyboardEvent): boolean {
+  return event.nativeEvent.isComposing || event.which === 229 || event.keyCode === 229;
+}
+
 export interface PureNamespacesAutocompleteProps {
   namespaceNames: string[];
   onChange: (event: React.ChangeEvent<{}>, newValue: string[]) => void;
@@ -94,6 +99,8 @@ export function PureNamespacesAutocomplete({
   const theme = useTheme();
   const { t } = useTranslation(['glossary', 'translation']);
   const [namespaceInput, setNamespaceInput] = React.useState<string>('');
+  const [open, setOpen] = React.useState<boolean>(false);
+  const instructionsId = useId();
   const maxNamespacesChars = 12;
 
   const onInputChange = (event: object, value: string, reason: string) => {
@@ -104,10 +111,49 @@ export function PureNamespacesAutocomplete({
     }
   };
 
-  const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
+  const onChange = (
+    event: React.SyntheticEvent,
+    newValue: string[],
+    reason?: string,
+    details?: { option?: string }
+  ) => {
     // Now we reset the input so it won't show next to the selected namespaces.
     setNamespaceInput('');
-    onChangeFromProps(event, newValue);
+    if (
+      event.type === 'keydown' &&
+      (event as React.KeyboardEvent).key === 'Enter' &&
+      (reason === 'selectOption' || reason === 'removeOption') &&
+      details?.option
+    ) {
+      // Keyboard selection (Enter on highlighted option): select exclusively and close
+      onChangeFromProps(event as React.ChangeEvent<{}>, [details.option]);
+      setOpen(false);
+      return;
+    }
+    onChangeFromProps(event as React.ChangeEvent<{}>, newValue);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (isComposingKeyEvent(event)) {
+      (event as React.KeyboardEvent & { defaultMuiPrevented?: boolean }).defaultMuiPrevented = true;
+      return;
+    }
+    if (event.key === ' ') {
+      const activeDescendant = (event.target as HTMLElement).getAttribute('aria-activedescendant');
+      if (activeDescendant) {
+        const activeElement = document.getElementById(activeDescendant);
+        const option = activeElement?.getAttribute('data-option-name');
+        if (option) {
+          event.preventDefault();
+          const currentNamespaces = filter.namespaces;
+          const newSelection = currentNamespaces.has(option)
+            ? [...currentNamespaces].filter(ns => ns !== option)
+            : [...currentNamespaces, option];
+          setNamespaceInput('');
+          onChangeFromProps(event as React.ChangeEvent<{}>, newSelection);
+        }
+      }
+    }
   };
 
   return (
@@ -117,6 +163,10 @@ export function PureNamespacesAutocomplete({
       autoComplete
       openOnFocus
       disableCloseOnSelect
+      open={open}
+      onOpen={() => setOpen(true)}
+      onClose={() => setOpen(false)}
+      onKeyDown={handleKeyDown}
       options={namespaceNames}
       onChange={onChange}
       onInputChange={onInputChange}
@@ -124,19 +174,70 @@ export function PureNamespacesAutocomplete({
       // We reverse the namespaces so the last chosen appear as the first in the label. This
       // is useful since the label is ellipsized and this we get to see it change.
       value={[...filter.namespaces.values()].reverse()}
-      renderOption={(props, option, { selected }) => (
-        <li {...props} key={props.key}>
-          <Checkbox
-            icon={<Icon icon="mdi:checkbox-blank-outline" />}
-            checkedIcon={<Icon icon="mdi:check-box-outline" />}
-            style={{
-              color: selected ? theme.palette.primary.main : theme.palette.text.primary,
+      renderOption={(props, option, { selected }) => {
+        const { onClick, ...otherProps } = props;
+        void onClick;
+        return (
+          <li
+            role="option"
+            aria-selected={selected}
+            aria-label={option}
+            aria-describedby={instructionsId}
+            {...otherProps}
+            key={props.key}
+            data-option-name={option}
+            onKeyDown={event => {
+              if (isComposingKeyEvent(event)) {
+                return;
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                setNamespaceInput('');
+                onChangeFromProps(event as React.ChangeEvent<{}>, [option]);
+                setOpen(false);
+              }
             }}
-            checked={selected}
-          />
-          {option}
-        </li>
-      )}
+            onClick={event => {
+              // Click namespace name/row: replace entire selection with option alone and close dropdown
+              setNamespaceInput('');
+              onChangeFromProps(event as React.ChangeEvent<{}>, [option]);
+              setOpen(false);
+            }}
+          >
+            <Checkbox
+              icon={<Icon icon="mdi:checkbox-blank-outline" />}
+              checkedIcon={<Icon icon="mdi:check-box-outline" />}
+              style={{
+                color: selected ? theme.palette.primary.main : theme.palette.text.primary,
+              }}
+              checked={selected}
+              inputProps={{
+                'aria-label': t('translation|Toggle {{namespace}} in selection', {
+                  namespace: option,
+                }),
+              }}
+              title={t('translation|Toggle {{namespace}} in selection', { namespace: option })}
+              onClick={event => {
+                // Click checkbox: toggle namespace without changing other selections; keep dropdown open
+                event.stopPropagation();
+                const currentNamespaces = filter.namespaces;
+                const newSelection = currentNamespaces.has(option)
+                  ? [...currentNamespaces].filter(ns => ns !== option)
+                  : [...currentNamespaces, option];
+                setNamespaceInput('');
+                onChangeFromProps(event as React.ChangeEvent<{}>, newSelection);
+              }}
+            />
+            <Box
+              component="span"
+              sx={{ flexGrow: 1, cursor: 'pointer' }}
+              title={t('translation|Select only {{namespace}}', { namespace: option })}
+            >
+              {option}
+            </Box>
+          </li>
+        );
+      }}
       renderTags={(tags: string[]) => {
         if (tags.length === 0) {
           return <Typography variant="body2">{t('translation|All namespaces')}</Typography>;
@@ -183,20 +284,37 @@ export function PureNamespacesAutocomplete({
           </Typography>
         );
       }}
-      renderInput={params => (
-        <Box width="15rem">
-          <TextField
-            {...params}
-            variant="outlined"
-            size="small"
-            label={t('Namespaces')}
-            fullWidth
-            InputLabelProps={{ shrink: true }}
-            style={{ marginTop: 0 }}
-            placeholder={[...filter.namespaces.values()].length > 0 ? '' : t('Filter')}
-          />
-        </Box>
-      )}
+      renderInput={params => {
+        const describedBy = open
+          ? [params.inputProps['aria-describedby'], instructionsId].filter(Boolean).join(' ')
+          : params.inputProps['aria-describedby'];
+
+        return (
+          <Box width="15rem">
+            <TextField
+              {...params}
+              variant="outlined"
+              size="small"
+              label={t('Namespaces')}
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              inputProps={{
+                ...params.inputProps,
+                ...(describedBy ? { 'aria-describedby': describedBy } : {}),
+              }}
+              style={{ marginTop: 0 }}
+              placeholder={[...filter.namespaces.values()].length > 0 ? '' : t('Filter')}
+            />
+            {open && (
+              <Box component="span" id={instructionsId} sx={visuallyHidden}>
+                {t(
+                  'translation|Press Enter to select only the highlighted namespace, or Space to toggle it in the selection.'
+                )}
+              </Box>
+            )}
+          </Box>
+        );
+      }}
     />
   );
 }

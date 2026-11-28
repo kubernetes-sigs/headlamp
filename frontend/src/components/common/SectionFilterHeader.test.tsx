@@ -65,7 +65,8 @@ describe('SectionFilterHeader', () => {
 
     const { rerender } = render(wrap([]));
     fireEvent.mouseDown(await screen.findByRole('combobox'));
-    fireEvent.click(await screen.findByRole('option', { name: 'alpha' }));
+    const checkbox = await screen.findByRole('checkbox', { name: /alpha/i });
+    fireEvent.click(checkbox);
     expect(screen.queryByRole('listbox')).not.toBeNull();
 
     // e.g. the pod list shows a "Load more" action only when there are more pages.
