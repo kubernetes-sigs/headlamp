@@ -87,7 +87,7 @@ export const WebSocketManager = {
   failedStreams: new Set<string>(),
 
   /** Map to track aliases when subscription query updates its resourceVersion */
-  keyAliases: new Map<string, string>(),
+  keyAliases: new Map<string, Set<string>>(),
 
   /** Map to track pending unsubscribe operations for debouncing */
   pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
@@ -139,41 +139,41 @@ export const WebSocketManager = {
   },
 
   /**
-   * Resolves an incoming message or stream-close target to its canonical
-   * subscription key, falling back to exact requestQuery matching when
-   * multiple active subscriptions share a canonical key on reconnect.
+   * Resolves an incoming message or stream-close target to all matching canonical
+   * subscription keys, checking alias mappings and exact requestQuery matches.
    */
-  resolveIncomingKey(clusterId: string, path: string, query: string): string {
+  resolveIncomingKeys(clusterId: string, path: string, query: string): string[] {
     const incomingKey = this.createKey(clusterId, path, query);
-    const aliased = this.keyAliases.get(incomingKey);
-    if (aliased) {
-      return aliased;
-    }
+    const resolved = new Set<string>(this.keyAliases.get(incomingKey));
 
     if (query) {
       const incomingQuery = new URLSearchParams(query).toString();
-      const directSub = this.activeSubscriptions.get(incomingKey);
-      const directMatches =
-        directSub &&
-        (new URLSearchParams(directSub.requestQuery).toString() === incomingQuery ||
-          this.supersededQueries.get(incomingKey)?.has(incomingQuery));
-
-      if (!directMatches) {
-        for (const [candidateKey, sub] of this.activeSubscriptions.entries()) {
-          if (sub.clusterId !== clusterId || sub.path !== path) {
-            continue;
-          }
-          if (
-            new URLSearchParams(sub.requestQuery).toString() === incomingQuery ||
-            this.supersededQueries.get(candidateKey)?.has(incomingQuery)
-          ) {
-            return candidateKey;
-          }
+      for (const [candidateKey, sub] of this.activeSubscriptions.entries()) {
+        if (sub.clusterId !== clusterId || sub.path !== path) {
+          continue;
+        }
+        if (
+          new URLSearchParams(sub.requestQuery).toString() === incomingQuery ||
+          this.supersededQueries.get(candidateKey)?.has(incomingQuery)
+        ) {
+          resolved.add(candidateKey);
         }
       }
     }
 
-    return incomingKey;
+    if (resolved.size === 0) {
+      resolved.add(incomingKey);
+    }
+
+    return Array.from(resolved);
+  },
+
+  /**
+   * Resolves an incoming message or stream-close target to its primary canonical
+   * subscription key.
+   */
+  resolveIncomingKey(clusterId: string, path: string, query: string): string {
+    return this.resolveIncomingKeys(clusterId, path, query)[0];
   },
 
   /**
@@ -278,7 +278,9 @@ export const WebSocketManager = {
         !this.activeSubscriptions.has(resubKey) &&
         !this.listeners.has(resubKey)
       ) {
-        this.keyAliases.set(resubKey, canonicalKey);
+        const targets = this.keyAliases.get(resubKey) || new Set<string>();
+        targets.add(canonicalKey);
+        this.keyAliases.set(resubKey, targets);
       }
       const userId = getUserIdFromLocalStorage();
       const requestMsg: WebSocketMessage = {
@@ -312,7 +314,12 @@ export const WebSocketManager = {
     onClose?: (requiresRelist?: boolean) => void
   ): Promise<() => void> {
     const requestedKey = this.createKey(clusterId, path, query);
-    const key = this.keyAliases.get(requestedKey) || requestedKey;
+    const aliasedTargets = this.keyAliases.get(requestedKey);
+    const key =
+      (aliasedTargets &&
+        Array.from(aliasedTargets).find(target => this.activeSubscriptions.has(target))) ||
+      aliasedTargets?.values().next().value ||
+      requestedKey;
 
     // Clear any pending unsubscribe for this key
     const pendingTimeout = this.pendingUnsubscribes.get(key);
@@ -474,7 +481,14 @@ export const WebSocketManager = {
     onError?: (err: Error) => void,
     onClose?: (requiresRelist?: boolean) => void
   ): void {
-    const canonicalKey = this.keyAliases.get(key) || key;
+    const aliasedTargets = this.keyAliases.get(key);
+    const canonicalKey =
+      (aliasedTargets &&
+        Array.from(aliasedTargets).find(target => this.listeners.get(target)?.has(onMessage))) ||
+      (aliasedTargets &&
+        Array.from(aliasedTargets).find(target => this.activeSubscriptions.has(target))) ||
+      aliasedTargets?.values().next().value ||
+      key;
 
     // Clear any pending unsubscribe for this key
     const pendingTimeout = this.pendingUnsubscribes.get(canonicalKey);
@@ -509,13 +523,32 @@ export const WebSocketManager = {
             this.supersededQueries.delete(canonicalKey);
 
             // Clean up any alias mappings pointing to this subscription key
-            for (const [alias, target] of this.keyAliases.entries()) {
-              if (target === canonicalKey || alias === canonicalKey) {
+            for (const [alias, targets] of this.keyAliases.entries()) {
+              if (alias === canonicalKey) {
+                this.keyAliases.delete(alias);
+                continue;
+              }
+              targets.delete(canonicalKey);
+              if (targets.size === 0) {
                 this.keyAliases.delete(alias);
               }
             }
 
-            if (sub && this.socketMultiplexer?.readyState === WebSocket.OPEN) {
+            const hasSharedRequestQuery =
+              sub &&
+              Array.from(this.activeSubscriptions.values()).some(
+                otherSub =>
+                  otherSub.clusterId === clusterId &&
+                  otherSub.path === path &&
+                  new URLSearchParams(otherSub.requestQuery).toString() ===
+                    new URLSearchParams(closeQuery).toString()
+              );
+
+            if (
+              sub &&
+              !hasSharedRequestQuery &&
+              this.socketMultiplexer?.readyState === WebSocket.OPEN
+            ) {
               const userId = getUserIdFromLocalStorage();
               const closeMsg: WebSocketMessage = {
                 clusterId,
@@ -569,9 +602,10 @@ export const WebSocketManager = {
     const keysToClose = new Set<string>();
     if (query !== undefined && query !== '') {
       const key = this.createKey(clusterId, path, query);
-      const canonicalKey = this.resolveIncomingKey(clusterId, path, query);
       keysToClose.add(key);
-      keysToClose.add(canonicalKey);
+      for (const canonicalKey of this.resolveIncomingKeys(clusterId, path, query)) {
+        keysToClose.add(canonicalKey);
+      }
     } else {
       const prefix = `${clusterId}:${path}:`;
       for (const k of this.activeSubscriptions.keys()) {
@@ -659,27 +693,33 @@ export const WebSocketManager = {
       }
 
       const incomingKey = this.createKey(data.clusterId, data.path, data.query || '');
-      const key = this.resolveIncomingKey(data.clusterId, data.path, data.query || '');
+      const keys = this.resolveIncomingKeys(data.clusterId, data.path, data.query || '');
       const incomingQuery = new URLSearchParams(data.query || '').toString();
-      const activeSubscription = this.activeSubscriptions.get(key);
-      if (
-        data.type !== 'STATUS' &&
-        incomingQuery &&
-        this.supersededQueries.get(key)?.has(incomingQuery)
-      ) {
+      const activeKeys =
+        data.type === 'STATUS'
+          ? keys
+          : keys.filter(key => {
+              const activeSubscription = this.activeSubscriptions.get(key);
+              if (incomingQuery && this.supersededQueries.get(key)?.has(incomingQuery)) {
+                return false;
+              }
+              if (
+                activeSubscription &&
+                incomingQuery === new URLSearchParams(activeSubscription.requestQuery).toString()
+              ) {
+                this.supersededQueries.delete(key);
+              }
+              return true;
+            });
+      if (activeKeys.length === 0) {
         return;
-      }
-      if (
-        data.type !== 'STATUS' &&
-        activeSubscription &&
-        incomingQuery === new URLSearchParams(activeSubscription.requestQuery).toString()
-      ) {
-        this.supersededQueries.delete(key);
       }
 
       // Handle COMPLETE messages
       if (data.type === 'COMPLETE') {
-        this.completedPaths.add(key);
+        for (const key of activeKeys) {
+          this.completedPaths.add(key);
+        }
         return;
       }
 
@@ -695,10 +735,11 @@ export const WebSocketManager = {
 
         if (statusState === 'closed') {
           {
-            const ackKey = data.query ? key : `${data.clusterId}:${data.path}:`;
+            const ackKeys = data.query ? new Set(activeKeys) : null;
+            const ackPrefix = `${data.clusterId}:${data.path}:`;
             let acknowledgedIntentionalClose = false;
             for (const pendingKey of this.pendingCloseAcks.keys()) {
-              if (data.query ? pendingKey === ackKey : pendingKey.startsWith(ackKey)) {
+              if (ackKeys ? ackKeys.has(pendingKey) : pendingKey.startsWith(ackPrefix)) {
                 const pendingAcks = this.pendingCloseAcks.get(pendingKey) || [];
                 const ack = pendingAcks.shift();
                 if (!ack) {
@@ -729,13 +770,16 @@ export const WebSocketManager = {
               return;
             }
           }
-          const activeSubscription = this.activeSubscriptions.get(key);
-          if (
-            data.query &&
-            activeSubscription &&
-            new URLSearchParams(data.query).toString() !==
-              new URLSearchParams(activeSubscription.requestQuery).toString()
-          ) {
+          const hasMatchingActiveSub = activeKeys.some(key => {
+            const activeSubscription = this.activeSubscriptions.get(key);
+            return (
+              !data.query ||
+              !activeSubscription ||
+              new URLSearchParams(data.query).toString() ===
+                new URLSearchParams(activeSubscription.requestQuery).toString()
+            );
+          });
+          if (!hasMatchingActiveSub) {
             return;
           }
           this.handleStreamClosed(data.clusterId, data.path, data.query);
@@ -746,10 +790,7 @@ export const WebSocketManager = {
 
       // Handle ERROR messages from backend
       if (data.type === 'ERROR') {
-        this.failedStreams.add(key);
-        if (incomingKey !== key) {
-          this.failedStreams.add(incomingKey);
-        }
+        this.failedStreams.add(incomingKey);
         let errorMessage = 'Unknown error';
         try {
           const parsedData = data.data ? JSON.parse(data.data) : {};
@@ -758,41 +799,45 @@ export const WebSocketManager = {
           errorMessage = data.data || errorMessage;
         }
 
-        const errListeners = this.errorListeners.get(key);
-        if (errListeners && errListeners.size > 0) {
-          const errorObj = new Error(errorMessage);
-          for (const errListener of errListeners) {
-            try {
-              errListener(errorObj);
-            } catch (err) {
-              console.error('Failed to process WebSocket error message:', err);
-            }
-          }
-        } else {
-          // Fallback to data listeners as a safety net for legacy/direct callers
-          const update = {
-            type: 'ERROR',
-            object: {
-              kind: 'Status',
-              status: 'Failure',
-              message: errorMessage,
-              metadata: {
-                uid: `${key}:ERROR:${errorMessage}`,
-                resourceVersion: '0',
-              },
-            },
-          };
+        for (const key of activeKeys) {
+          this.failedStreams.add(key);
 
-          const listeners = this.listeners.get(key);
-          if (listeners) {
-            for (const listener of listeners) {
-              if (this.replayGatedListeners.get(key)?.has(listener)) {
-                continue;
-              }
+          const errListeners = this.errorListeners.get(key);
+          if (errListeners && errListeners.size > 0) {
+            const errorObj = new Error(errorMessage);
+            for (const errListener of errListeners) {
               try {
-                listener(update);
+                errListener(errorObj);
               } catch (err) {
                 console.error('Failed to process WebSocket error message:', err);
+              }
+            }
+          } else {
+            // Fallback to data listeners as a safety net for legacy/direct callers
+            const update = {
+              type: 'ERROR',
+              object: {
+                kind: 'Status',
+                status: 'Failure',
+                message: errorMessage,
+                metadata: {
+                  uid: `${key}:ERROR:${errorMessage}`,
+                  resourceVersion: '0',
+                },
+              },
+            };
+
+            const listeners = this.listeners.get(key);
+            if (listeners) {
+              for (const listener of listeners) {
+                if (this.replayGatedListeners.get(key)?.has(listener)) {
+                  continue;
+                }
+                try {
+                  listener(update);
+                } catch (err) {
+                  console.error('Failed to process WebSocket error message:', err);
+                }
               }
             }
           }
@@ -812,51 +857,53 @@ export const WebSocketManager = {
       const isErrorEvent = update && typeof update === 'object' && update.type === 'ERROR';
 
       if (isErrorEvent) {
-        this.failedStreams.add(key);
-        if (incomingKey !== key) {
-          this.failedStreams.add(incomingKey);
-        }
+        this.failedStreams.add(incomingKey);
       } else {
-        this.failedStreams.delete(key);
-        if (incomingKey !== key) {
-          this.failedStreams.delete(incomingKey);
-        }
+        this.failedStreams.delete(incomingKey);
       }
 
-      // Notify listeners if update is valid
-      if (update && typeof update === 'object') {
-        const listeners = this.listeners.get(key);
-        if (listeners) {
-          for (const listener of listeners) {
-            if (this.replayGatedListeners.get(key)?.has(listener)) {
-              continue;
-            }
-            try {
-              listener(update);
-            } catch (err) {
-              console.error('Failed to process WebSocket message:', err);
-            }
-          }
+      for (const key of activeKeys) {
+        if (isErrorEvent) {
+          this.failedStreams.add(key);
+        } else {
+          this.failedStreams.delete(key);
         }
 
-        // When a watch message updates resourceVersion, update activeSubscription
-        // so that if a reconnect occurs, resubscribeAll uses the latest resourceVersion.
-        const hasPendingReplay = Boolean(
-          this.pendingCloseAcks.get(key)?.some(pending => pending.replay)
-        );
-        if (
-          !hasPendingReplay &&
-          update.type !== 'ERROR' &&
-          update.object?.metadata?.resourceVersion
-        ) {
-          const newRV = update.object.metadata.resourceVersion;
-          const sub = this.activeSubscriptions.get(key);
-          if (sub && sub.query) {
-            const currentRV = getQueryResourceVersion(sub.query);
-            if (!currentRV || !isQueryResourceVersionOlder(newRV, currentRV)) {
-              const updatedQuery = this.updateQueryResourceVersion(sub.query, newRV);
-              if (updatedQuery !== sub.query) {
-                sub.query = updatedQuery;
+        // Notify listeners if update is valid
+        if (update && typeof update === 'object') {
+          const listeners = this.listeners.get(key);
+          if (listeners) {
+            for (const listener of listeners) {
+              if (this.replayGatedListeners.get(key)?.has(listener)) {
+                continue;
+              }
+              try {
+                listener(update);
+              } catch (err) {
+                console.error('Failed to process WebSocket message:', err);
+              }
+            }
+          }
+
+          // When a watch message updates resourceVersion, update activeSubscription
+          // so that if a reconnect occurs, resubscribeAll uses the latest resourceVersion.
+          const hasPendingReplay = Boolean(
+            this.pendingCloseAcks.get(key)?.some(pending => pending.replay)
+          );
+          if (
+            !hasPendingReplay &&
+            update.type !== 'ERROR' &&
+            update.object?.metadata?.resourceVersion
+          ) {
+            const newRV = update.object.metadata.resourceVersion;
+            const sub = this.activeSubscriptions.get(key);
+            if (sub && sub.query) {
+              const currentRV = getQueryResourceVersion(sub.query);
+              if (!currentRV || !isQueryResourceVersionOlder(newRV, currentRV)) {
+                const updatedQuery = this.updateQueryResourceVersion(sub.query, newRV);
+                if (updatedQuery !== sub.query) {
+                  sub.query = updatedQuery;
+                }
               }
             }
           }

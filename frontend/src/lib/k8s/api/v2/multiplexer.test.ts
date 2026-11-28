@@ -2248,7 +2248,7 @@ describe('WebSocket Multiplexer', () => {
         WebSocketManager.keyAliases.get(
           WebSocketManager.createKey(clusterName, path, 'watch=1&resourceVersion=opaque-advanced')
         )
-      ).toBe(WebSocketManager.createKey(clusterName, path, activeQuery));
+      ).toEqual(new Set([WebSocketManager.createKey(clusterName, path, activeQuery)]));
     });
 
     it('does not collide with an active numeric-cursor subscription when reconnecting an empty-cursor subscription', async () => {
@@ -2460,6 +2460,131 @@ describe('WebSocket Multiplexer', () => {
       });
 
       cleanup();
+    });
+
+    it('routes converged opaque resourceVersion updates to all subscribers after reconnect and cleans up aliases safely', async () => {
+      const path = '/api/v1/configmaps';
+      const query1 = 'watch=1&resourceVersion=opaque-a';
+      const query2 = 'watch=1&resourceVersion=opaque-b';
+      const unrelatedQuery = 'watch=1&resourceVersion=opaque-unrelated';
+      const convergedQuery = 'watch=1&resourceVersion=opaque-converged';
+
+      const onMsg1 = vi.fn();
+      const onMsg2 = vi.fn();
+      const onUnrelated = vi.fn();
+
+      const cleanup1 = await WebSocketManager.subscribe(clusterName, path, query1, onMsg1);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      const cleanup2 = await WebSocketManager.subscribe(clusterName, path, query2, onMsg2);
+      await mockServer.nextMessage;
+
+      const cleanupUnrelated = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        unrelatedQuery,
+        onUnrelated
+      );
+      await mockServer.nextMessage;
+
+      // Advance both subscriptions to the same opaque resourceVersion.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query1,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-a', resourceVersion: 'opaque-converged' } },
+          }),
+        })
+      );
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query2,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-b', resourceVersion: 'opaque-converged' } },
+          }),
+        })
+      );
+      expect(onMsg1).toHaveBeenCalledTimes(1);
+      expect(onMsg2).toHaveBeenCalledTimes(1);
+      expect(onUnrelated).not.toHaveBeenCalled();
+
+      onMsg1.mockClear();
+      onMsg2.mockClear();
+
+      // Simulate reconnect via resubscribeAll().
+      const sentMessages: string[] = [];
+      const replacementSocket = {
+        readyState: WebSocket.OPEN,
+        send: vi.fn((msg: string) => sentMessages.push(msg)),
+      } as any;
+      WebSocketManager.socketMultiplexer = replacementSocket;
+      WebSocketManager.resubscribeAll(replacementSocket);
+
+      // Send an update using the converged query.
+      WebSocketManager.handleWebSocketMessage({
+        data: JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'cm-converged', resourceVersion: 'opaque-next' } },
+          }),
+        }),
+      } as MessageEvent);
+
+      expect(onMsg1).toHaveBeenCalledTimes(1);
+      expect(onMsg2).toHaveBeenCalledTimes(1);
+      expect(onUnrelated).not.toHaveBeenCalled();
+
+      // Cleanup of first subscription must not affect the second or send CLOSE for the shared stream.
+      vi.useFakeTimers();
+      try {
+        sentMessages.length = 0;
+        cleanup1();
+        vi.advanceTimersByTime(150);
+
+        expect(sentMessages).toEqual([]);
+
+        // Second subscription still receives updates on the converged query.
+        WebSocketManager.handleWebSocketMessage({
+          data: JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query: convergedQuery,
+            data: JSON.stringify({
+              type: 'MODIFIED',
+              object: { metadata: { name: 'cm-after-cleanup1', resourceVersion: 'opaque-final' } },
+            }),
+          }),
+        } as MessageEvent);
+
+        expect(onMsg1).toHaveBeenCalledTimes(1);
+        expect(onMsg2).toHaveBeenCalledTimes(2);
+        expect(onUnrelated).not.toHaveBeenCalled();
+
+        // Cleanup of second subscription removes the converged alias and sends CLOSE.
+        cleanup2();
+        vi.advanceTimersByTime(150);
+
+        const convergedKey = WebSocketManager.createKey(clusterName, path, convergedQuery);
+        expect(WebSocketManager.keyAliases.has(convergedKey)).toBe(false);
+        expect(
+          sentMessages.map(msg => JSON.parse(msg)).filter(msg => msg.type === 'CLOSE')
+        ).toHaveLength(1);
+
+        cleanupUnrelated();
+        vi.advanceTimersByTime(150);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
