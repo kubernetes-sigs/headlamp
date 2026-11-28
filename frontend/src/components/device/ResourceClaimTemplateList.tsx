@@ -30,6 +30,9 @@ export default function ResourceClaimTemplateList() {
       resourceClass={ResourceClaimTemplate}
       clusters={servingClusters}
       headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      emptyMessage={t(
+        'translation|No resource claim templates yet. A Pod uses a template to get its own claim for devices.'
+      )}
       columns={[
         'name',
         'namespace',

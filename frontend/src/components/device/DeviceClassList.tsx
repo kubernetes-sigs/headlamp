@@ -33,6 +33,9 @@ export default function DeviceClassList() {
       resourceClass={DeviceClass}
       clusters={servingClusters}
       headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      emptyMessage={t(
+        'translation|No device classes yet. A DRA driver usually creates them when it is installed.'
+      )}
       columns={[
         'name',
         'cluster',

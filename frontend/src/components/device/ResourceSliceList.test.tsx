@@ -42,13 +42,17 @@ const [nodeSlice] = RESOURCE_SLICE_DUMMY_DATA;
 const sliceWith = (spec: Partial<(typeof nodeSlice)['spec']>) =>
   new ResourceSlice({ ...nodeSlice, spec: { ...nodeSlice.spec, nodeName: undefined, ...spec } });
 
-function nodeColumn() {
+function renderList() {
   render(
     <TestContext>
       <ResourceSliceList />
     </TestContext>
   );
-  return mockListView.mock.calls[0][0].columns.find((c: any) => c?.id === 'node');
+  return mockListView.mock.calls[0][0];
+}
+
+function nodeColumn() {
+  return renderList().columns.find((c: any) => c?.id === 'node');
 }
 
 describe('ResourceSliceList', () => {
@@ -65,5 +69,11 @@ describe('ResourceSliceList', () => {
     );
     expect(node.getValue(sliceWith({ allNodes: true }))).toBe('All nodes');
     expect(node.getValue(sliceWith({ perDeviceNodeSelection: true }))).toBe('Set per device');
+  });
+
+  it('says that a driver publishes resource slices when the list is empty', () => {
+    expect(renderList().emptyMessage).toBe(
+      'No resource slices yet. A DRA driver publishes its devices in resource slices.'
+    );
   });
 });

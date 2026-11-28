@@ -87,6 +87,12 @@ describe('DeviceClassList', () => {
     expect(renderList().headerProps).toBeUndefined();
   });
 
+  it('says that a driver creates device classes when the list is empty', () => {
+    expect(renderList().emptyMessage).toBe(
+      'No device classes yet. A DRA driver usually creates them when it is installed.'
+    );
+  });
+
   it('asks no cluster once the probe finds that none serves the API', () => {
     vi.mocked(useClustersServing).mockReturnValue([]);
 

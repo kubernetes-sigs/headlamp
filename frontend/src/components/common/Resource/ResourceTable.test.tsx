@@ -406,6 +406,39 @@ describe('ResourceTable Column Visibility', () => {
       expect(lastTablePropsHolder.current.emptyActions).toBeUndefined();
     });
   });
+
+  describe('emptyMessage', () => {
+    const columns = [{ id: 'name', label: 'Name', getValue: (item: any) => item.metadata.name }];
+
+    it('forwards emptyMessage when there is no error', () => {
+      renderTable({ columns, data: [], emptyMessage: 'Nothing here yet.' });
+      expect(lastTablePropsHolder.current.emptyMessage).toBe('Nothing here yet.');
+    });
+
+    it('drops emptyMessage when the list failed', () => {
+      renderTable({
+        columns,
+        data: [],
+        emptyMessage: 'Nothing here yet.',
+        errors: [{ cluster: 'test-cluster', error: new Error('boom') }],
+      });
+      expect(lastTablePropsHolder.current.emptyMessage).toBeUndefined();
+    });
+
+    it('drops emptyMessage when no selected cluster serves the resource', () => {
+      const useList = vi.fn(() => ({ items: null, errors: null }));
+      const resourceClass = { pluralName: 'deviceclasses', className: 'DeviceClass', useList };
+
+      renderTable({
+        resourceClass,
+        columns: ['name'],
+        clusters: [],
+        emptyMessage: 'Nothing here yet.',
+      });
+
+      expect(lastTablePropsHolder.current.emptyMessage).toBeUndefined();
+    });
+  });
 });
 
 describe('ResourceTable noNamespaceFilter row filtering', () => {

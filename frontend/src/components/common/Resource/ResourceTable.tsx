@@ -199,6 +199,12 @@ export interface ResourceTableProps<RowItem> {
    * explicitly suppress the default that `ResourceListView` provides.
    */
   emptyActions?: ReactNode;
+  /**
+   * Message to show when the table has no data, instead of the default one. Like
+   * `emptyActions`, it is left out when the list failed, since then the table is empty
+   * for another reason.
+   */
+  emptyMessage?: ReactNode;
 }
 
 export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjectClass>
@@ -260,6 +266,7 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
       errors={errors}
       id={id || `headlamp-${resourceClass.pluralName}`}
       {...otherProps}
+      emptyMessage={clusters?.length === 0 ? undefined : otherProps.emptyMessage}
       data={throttledItems}
     />
   );
@@ -367,7 +374,9 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     enableRowSelection = false,
     errors,
     emptyActions,
+    emptyMessage,
   } = props;
+  const hasErrors = !!errorMessage || !!errors?.length;
   const { t } = useTranslation(['glossary', 'translation']);
   const theme = useTheme();
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
@@ -801,7 +810,8 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         globalFilterFn="kubeObjectSearch"
         filterFunction={filterFunc}
         getRowId={getResourceRowId}
-        emptyActions={errorMessage || (errors && errors.length) ? undefined : emptyActions}
+        emptyActions={hasErrors ? undefined : emptyActions}
+        emptyMessage={hasErrors ? undefined : emptyMessage}
       />
     </>
   );
