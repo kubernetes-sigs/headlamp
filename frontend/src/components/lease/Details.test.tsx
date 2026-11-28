@@ -101,5 +101,39 @@ describe('LeaseDetails', () => {
     expect(byName['Holder Identity']).toBe('-');
     expect(byName['Lease Duration Seconds']).toBe('-');
     expect(byName['Renew Time']).toBe('-');
+    expect(byName['Acquire Time']).toBe('-');
+    expect(byName['Lease Transitions']).toBe('-');
+    const hidden = Object.fromEntries(extraInfo.map((f: any) => [f.name, f.hide]));
+    expect(hidden['Strategy']).toBe(true);
+    expect(hidden['Preferred Holder']).toBe(true);
+  });
+
+  it('shows the acquire time, transitions and coordinated leader election fields', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'lease' }}>
+        <LeaseDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const extraInfo = props.extraInfo({
+      ...lease,
+      spec: {
+        ...lease.spec,
+        leaseTransitions: 0,
+        strategy: 'OldestEmulationVersion',
+        preferredHolder: 'kube-controller-manager-b',
+      },
+    });
+    const byName = Object.fromEntries(extraInfo.map((f: any) => [f.name, f]));
+
+    expect(byName['Acquire Time'].value).toBeDefined();
+    expect(byName['Acquire Time'].value).not.toBe('-');
+    expect(byName['Lease Transitions'].value).toBe(0);
+    expect(byName['Strategy']).toMatchObject({ value: 'OldestEmulationVersion', hide: false });
+    expect(byName['Preferred Holder']).toMatchObject({
+      value: 'kube-controller-manager-b',
+      hide: false,
+    });
   });
 });

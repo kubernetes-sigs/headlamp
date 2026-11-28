@@ -30,6 +30,7 @@ export const LEASE_DUMMY_DATA = [
       holderIdentity: 'holder',
       leaseDurationSeconds: 10,
       leaseTransitions: 1,
+      acquireTime: '2021-02-28T23:59:50Z',
       renewTime: '2021-03-01T00:00:00Z',
     },
   },
