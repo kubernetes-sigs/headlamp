@@ -133,7 +133,7 @@ describe('KubeObjectGlance', () => {
     mocks.objectEvents.mockResolvedValue(
       Array.from({ length: 7 }, (_, index) => ({
         message: `event-${index + 1}`,
-        lastOccurrence: `time-${index + 1}`,
+        lastOccurrence: `2026-11-28T13:0${9 - index}:00Z`,
       }))
     );
 
@@ -141,13 +141,32 @@ describe('KubeObjectGlance', () => {
 
     expect(await screen.findByText('Events')).toBeInTheDocument();
     expect(screen.getByLabelText('event-1')).toBeInTheDocument();
-    expect(screen.getByText('time-5:mini')).toBeInTheDocument();
+    expect(screen.getByText('2026-11-28T13:05:00Z:mini')).toBeInTheDocument();
     expect(screen.queryByText('event-6')).not.toBeInTheDocument();
-    expect(screen.queryByText('time-6:mini')).not.toBeInTheDocument();
+    expect(screen.queryByText('2026-11-28T13:04:00Z:mini')).not.toBeInTheDocument();
     expect(mocks.objectEvents).toHaveBeenCalledWith(resource);
 
     rerender(<KubeObjectGlance resource={{ matches: ['Pod'] } as any} />);
     expect(mocks.objectEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the five most recent events when the API lists them oldest first', async () => {
+    mocks.objectEvents.mockResolvedValue([
+      { message: 'Scheduled', lastOccurrence: '2026-11-28T13:03:42Z' },
+      { message: 'Pulled proxy', lastOccurrence: '2026-11-28T13:03:42Z' },
+      { message: 'Created proxy', lastOccurrence: '2026-11-28T13:03:43Z' },
+      { message: 'Started proxy', lastOccurrence: '2026-11-28T13:03:44Z' },
+      { message: 'Pulled app', lastOccurrence: '2026-11-28T13:04:31Z' },
+      { message: 'Created app', lastOccurrence: '2026-11-28T13:04:32Z' },
+      { message: 'Started app', lastOccurrence: '2026-11-28T13:04:33Z' },
+      { message: 'BackOff', lastOccurrence: '2026-11-28T13:05:12Z' },
+    ]);
+
+    render(<KubeObjectGlance resource={{ matches: ['Pod'] } as any} />);
+
+    expect(await screen.findByLabelText('BackOff')).toBeInTheDocument();
+    const shown = screen.getAllByLabelText(/./).map(element => element.getAttribute('aria-label'));
+    expect(shown).toEqual(['BackOff', 'Started app', 'Created app', 'Pulled app', 'Started proxy']);
   });
 
   it('renders no sections when the resource is unsupported and has no events', async () => {
