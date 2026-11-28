@@ -79,7 +79,7 @@ export default function VpaDetails(props: { name?: string; namespace?: string; c
             section: (
               <SectionBox title={t('glossary|Container Policy')}>
                 <SimpleTable
-                  data={item?.spec?.resourcePolicy?.containerPolicies}
+                  data={item?.spec?.resourcePolicy?.containerPolicies ?? []}
                   columns={[
                     {
                       label: t('glossary|Container'),
@@ -87,7 +87,7 @@ export default function VpaDetails(props: { name?: string; namespace?: string; c
                     },
                     {
                       label: t('translation|Controlled Resources'),
-                      getter: item => item?.controlledResources.join(', '),
+                      getter: item => item?.controlledResources?.join(', '),
                     },
                     {
                       label: t('translation|Controlled Values'),
