@@ -20,6 +20,16 @@ const PluginManager = PluginManagement.PluginManager;
 const Ajv = require('ajv');
 const yaml = require('js-yaml');
 const path = require('path');
+const semver = require('semver');
+
+// Names share one grammar for plugin entries and dependency references.
+// The final assertion requires the actual end of input: JavaScript's $ also
+// matches before a trailing newline.
+const pluginNameSchema = {
+  type: 'string',
+  pattern: '^[a-z0-9](?:[a-z0-9_-]*[a-z0-9])?(?![\\s\\S])',
+  minLength: 1,
+};
 
 // Plugin configuration schema
 const pluginConfigSchema = {
@@ -32,22 +42,18 @@ const pluginConfigSchema = {
         type: 'object',
         required: ['name', 'source'],
         properties: {
-          name: {
-            type: 'string',
-            pattern: '^[a-z0-9][a-z0-9-_]*[a-z0-9-]$', // Only allow lowercase, numbers, hyphens, and underscores (not at start/end)
-            minLength: 1,
-          },
+          name: pluginNameSchema,
           source: {
             type: 'string',
             pattern: '^https://artifacthub\\.io/packages/[^\\s]+$',
           },
           version: {
             type: 'string',
-            pattern: '^\\d+\\.\\d+\\.\\d+', // Semver format
+            format: 'semver',
           },
           dependencies: {
             type: 'array',
-            items: { type: 'string', pattern: '^[a-z0-9][a-z0-9-_]*[a-z0-9-]$' },
+            items: pluginNameSchema,
             uniqueItems: true,
           },
         },
@@ -64,6 +70,11 @@ const pluginConfigSchema = {
 };
 
 const ajv = new Ajv({ allErrors: true });
+// node-semver accepts a leading "v" and surrounding whitespace; configuration
+// versions must instead be complete, unprefixed SemVer identifiers.
+ajv.addFormat('semver', version =>
+  /^\d/.test(version) && version === version.trim() && semver.valid(version) !== null
+);
 const validate = ajv.compile(pluginConfigSchema);
 
 /**

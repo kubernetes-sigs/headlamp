@@ -60,6 +60,15 @@ dependents are attempted in both sequential and parallel mode. A failed or skipp
 prerequisite causes its dependents to be skipped; independent plugins can continue.
 Parallel mode runs up to `maxConcurrent` dependency-ready plugins per batch.
 
+Plugin names and dependency names must start and end with a lowercase ASCII
+letter or digit. A single letter or digit is valid; hyphens and underscores are
+allowed internally (for example, `my-plugin` or `my_plugin`).
+
+An optional `version` must be a complete SemVer string such as `1.2.3`,
+`1.2.3-rc.1`, or `1.2.3-rc.1+build.42`. Version ranges, a leading `v`,
+leading zeros in numeric version components, whitespace, and trailing garbage
+are rejected. Omit `version` to use the installer's default version selection.
+
 ## Available Classes
 
 The package exports the following classes for programmatic use:
