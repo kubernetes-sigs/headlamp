@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ReplicaSet from '../../lib/k8s/replicaSet';
 import ReplicaSetList from './List';
@@ -32,7 +33,10 @@ vi.mock('../common/Resource/ResourceListView', () => ({
 
 vi.mock('react-i18next', async importOriginal => ({
   ...(await importOriginal<typeof import('react-i18next')>()),
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+  useTranslation: () => ({
+    t: (key: string) => (key.endsWith('more…') ? 'more…' : key),
+    i18n: { language: 'en' },
+  }),
 }));
 
 describe('ReplicaSetList column definitions and renderers', () => {
@@ -126,5 +130,84 @@ describe('ReplicaSetList column definitions and renderers', () => {
     const selectorCol = props.columns.find((c: any) => c.id === 'selector');
     expect(selectorCol.getValue(replicaSet)).toBe('app=my-app');
     expect(selectorCol.render(replicaSet)).not.toBeNull();
+  });
+
+  it('shows tooltip for truncated selector labels on hover', async () => {
+    render(<ReplicaSetList />);
+
+    const props = mockResourceListView.mock.calls[0][0];
+    const selectorColumn = props.columns.find(
+      (c: any) => typeof c === 'object' && c.id === 'selector'
+    );
+    expect(selectorColumn).toBeDefined();
+
+    const mockReplicaSet = {
+      spec: {
+        selector: {
+          matchLabels: {
+            'k8s-app': 'headlamp',
+            'pod-template-hash': 'a123456',
+            'extra-label-1': 'value1',
+            'extra-label-2': 'value2',
+            'extra-label-3': 'value3',
+          },
+        },
+      },
+    } as any;
+
+    const renderedCell = selectorColumn.render(mockReplicaSet);
+    render(renderedCell);
+
+    const moreText = await screen.findByText(/3 more/);
+    expect(moreText).toBeInTheDocument();
+
+    await userEvent.hover(moreText);
+
+    const tooltip = await screen.findByText(/pod-template-hash: a123456/i);
+    expect(tooltip).toBeVisible();
+
+    await userEvent.unhover(moreText);
+    await waitFor(() => {
+      expect(screen.queryByText(/pod-template-hash: a123456/i)).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows tooltip for truncated selector labels on keyboard focus', async () => {
+    render(<ReplicaSetList />);
+
+    const props = mockResourceListView.mock.calls[0][0];
+    const selectorColumn = props.columns.find(
+      (c: any) => typeof c === 'object' && c.id === 'selector'
+    );
+
+    const mockReplicaSet = {
+      spec: {
+        selector: {
+          matchLabels: {
+            'k8s-app': 'headlamp',
+            'pod-template-hash': 'a123456',
+            'extra-label-1': 'value1',
+            'extra-label-2': 'value2',
+            'extra-label-3': 'value3',
+          },
+        },
+      },
+    } as any;
+
+    const renderedCell = selectorColumn.render(mockReplicaSet);
+    render(renderedCell);
+
+    const moreText = await screen.findByText(/3 more/);
+    expect(moreText).toBeInTheDocument();
+
+    moreText.parentElement?.focus();
+
+    const tooltip = await screen.findByText(/pod-template-hash: a123456/i);
+    expect(tooltip).toBeVisible();
+
+    moreText.parentElement?.blur();
+    await waitFor(() => {
+      expect(screen.queryByText(/pod-template-hash: a123456/i)).not.toBeInTheDocument();
+    });
   });
 });

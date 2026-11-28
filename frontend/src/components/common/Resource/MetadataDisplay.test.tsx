@@ -16,12 +16,13 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { createMuiTheme } from '../../../lib/themes';
 import { TestContext } from '../../../test';
-import { MetadataDisplay } from './MetadataDisplay';
+import { MetadataDictGrid, MetadataDisplay } from './MetadataDisplay';
 
 // Use vi.hoisted to ensure the mock data is available before the vi.mock call
 const { mockResourceClasses } = vi.hoisted(() => {
@@ -255,5 +256,74 @@ describe('MetadataDisplay', () => {
         writable: true,
       });
     }
+  });
+});
+
+describe('MetadataDictGrid', () => {
+  const renderWithTheme = (ui: React.ReactElement) => {
+    return render(
+      <TestContext>
+        <ThemeProvider theme={theme}>{ui}</ThemeProvider>
+      </TestContext>
+    );
+  };
+
+  it('does not truncate or show an entry tooltip when full text length is 50 with default props', async () => {
+    const value = 'v'.repeat(47);
+    const fullText = `k: ${value}`;
+    expect(fullText).toHaveLength(50);
+
+    renderWithTheme(<MetadataDictGrid dict={{ k: value }} />);
+
+    const entry = screen.getByText(fullText);
+    expect(entry).toBeInTheDocument();
+
+    await userEvent.hover(entry);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('truncates and shows full text in tooltip on hover when full text length is 51 with default props', async () => {
+    const value = 'v'.repeat(48);
+    const fullText = `k: ${value}`;
+    expect(fullText).toHaveLength(51);
+    const truncatedText = `${fullText.slice(0, 50)}…`;
+
+    renderWithTheme(<MetadataDictGrid dict={{ k: value }} />);
+
+    const entry = screen.getByText(truncatedText);
+    expect(entry).toBeInTheDocument();
+    expect(screen.queryByText(fullText)).not.toBeInTheDocument();
+
+    await userEvent.hover(entry);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent(fullText);
+  });
+
+  it('does not truncate or show an entry tooltip when truncateLimit is 0', async () => {
+    const value = 'v'.repeat(60);
+    const fullText = `k: ${value}`;
+
+    renderWithTheme(<MetadataDictGrid dict={{ k: value }} truncateLimit={0} />);
+
+    const entry = screen.getByText(fullText);
+    expect(entry).toBeInTheDocument();
+
+    await userEvent.hover(entry);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('truncates without showing an entry tooltip when disableEntryTooltip is true', async () => {
+    const value = 'v'.repeat(48);
+    const fullText = `k: ${value}`;
+    const truncatedText = `${fullText.slice(0, 50)}…`;
+
+    renderWithTheme(<MetadataDictGrid dict={{ k: value }} disableEntryTooltip />);
+
+    const entry = screen.getByText(truncatedText);
+    expect(entry).toBeInTheDocument();
+
+    await userEvent.hover(entry);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(screen.queryByText(fullText)).not.toBeInTheDocument();
   });
 });
