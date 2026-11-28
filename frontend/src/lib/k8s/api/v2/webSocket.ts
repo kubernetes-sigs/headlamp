@@ -178,7 +178,13 @@ export async function openWebSocket<T>(
     onOpen?.();
   });
   socket.addEventListener('message', (body: MessageEvent) => {
-    const data = type === 'json' ? JSON.parse(body.data) : body.data;
+    let data;
+    try {
+      data = type === 'json' ? JSON.parse(body.data) : body.data;
+    } catch (error) {
+      console.error('WebSocket message parse error:', error);
+      return;
+    }
     const callbacks = listeners.get(connectionKey) ?? [onMessage];
     callbacks.forEach(callback => {
       try {
