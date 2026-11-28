@@ -15,21 +15,26 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import ResourceClaimTemplate from '../../lib/k8s/resourceClaimTemplate';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function ResourceClaimTemplateList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  // List only from clusters that serve the API, and offer Create once that is known.
-  const servingClusters = useClustersServing(ResourceClaimTemplate);
+  // List only from clusters that serve the API, and offer Create once every selected
+  // cluster has answered, as a later answer can change which cluster is the first.
+  const { clusters: servingClusters, isChecking } = useClustersServingStatus(ResourceClaimTemplate);
 
   return (
     <ResourceListView
       title={t('glossary|Resource Claim Templates')}
       resourceClass={ResourceClaimTemplate}
       clusters={servingClusters}
-      headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      headerProps={
+        servingClusters === undefined || isChecking ? { titleSideActions: [] } : undefined
+      }
+      emptyActions={servingClusters === undefined || isChecking ? <EmptyStateActions /> : undefined}
       columns={[
         'name',
         'namespace',

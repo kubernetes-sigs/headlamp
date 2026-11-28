@@ -333,6 +333,7 @@
   "Uncapped Target": "Alvo Sem Limite",
   "Vertical Pod Autoscalers": "Vertical Pod Autoscalers",
   "Checking if Vertical Pod Autoscaler is enabled…": "Verificando se o Vertical Pod Autoscaler está habilitado…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Vertical Pod Autoscaler não está habilitado. <1>Saiba mais</1>",
   "Webhooks": "Webhooks",
   "Client Config: Ca Bundle": "Config. do Cliente: Ca Bundle",

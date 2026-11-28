@@ -16,7 +16,8 @@
 
 import { useTranslation } from 'react-i18next';
 import DeviceClass from '../../lib/k8s/deviceClass';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function DeviceClassList() {
@@ -24,15 +25,19 @@ export default function DeviceClassList() {
   // Only some of the selected clusters may serve the API, and asking the others
   // would report errors for clusters that simply do not have the feature. Until
   // the probe has answered the list stays on every selected cluster, and offers no
-  // create action, since that could only target the first of them.
-  const servingClusters = useClustersServing(DeviceClass);
+  // create action, since that could only target the first of them. The same goes while
+  // another cluster may still turn out to serve it, as that changes the first one.
+  const { clusters: servingClusters, isChecking } = useClustersServingStatus(DeviceClass);
 
   return (
     <ResourceListView
       title={t('glossary|Device Classes')}
       resourceClass={DeviceClass}
       clusters={servingClusters}
-      headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      headerProps={
+        servingClusters === undefined || isChecking ? { titleSideActions: [] } : undefined
+      }
+      emptyActions={servingClusters === undefined || isChecking ? <EmptyStateActions /> : undefined}
       columns={[
         'name',
         'cluster',

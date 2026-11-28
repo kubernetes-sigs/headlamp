@@ -333,6 +333,7 @@
   "Uncapped Target": "未限制目标",
   "Vertical Pod Autoscalers": "垂直 Pod 自动扩缩",
   "Checking if Vertical Pod Autoscaler is enabled…": "正在确认垂直 Pod 自动扩缩启动中...",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "垂直 Pod 自动扩缩并未启用 <1>Learn More</1>",
   "Webhooks": "Webhooks",
   "Client Config: Ca Bundle": "客户端设置: Ca Bundle",

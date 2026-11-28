@@ -333,6 +333,7 @@
   "Uncapped Target": "제한 없는 목표",
   "Vertical Pod Autoscalers": "수직 파드 자동 확장기",
   "Checking if Vertical Pod Autoscaler is enabled…": "수직 파드 자동 확장기 활성화 여부 확인 중…",
+  "Checking the other clusters for Vertical Pod Autoscaler…": "",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "수직 파드 자동 확장기가 활성화되지 않았습니다. <1>자세히 알아보기</1>",
   "Webhooks": "웹훅",
   "Client Config: Ca Bundle": "클라이언트 구성: CA Bundle",

@@ -15,8 +15,9 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import ResourceClaim, { getAllocatedDeviceId } from '../../lib/k8s/resourceClaim';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 import ResourceClaimStatus, { getResourceClaimStatusText } from './ResourceClaimStatus';
 
@@ -25,15 +26,19 @@ export default function ResourceClaimList() {
   // Only some of the selected clusters may serve the API, and asking the others
   // would report errors for clusters that simply do not have the feature. Until
   // the probe has answered the list stays on every selected cluster, and offers no
-  // create action, since that could only target the first of them.
-  const servingClusters = useClustersServing(ResourceClaim);
+  // create action, since that could only target the first of them. The same goes while
+  // another cluster may still turn out to serve it, as that changes the first one.
+  const { clusters: servingClusters, isChecking } = useClustersServingStatus(ResourceClaim);
 
   return (
     <ResourceListView
       title={t('glossary|Resource Claims')}
       resourceClass={ResourceClaim}
       clusters={servingClusters}
-      headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      headerProps={
+        servingClusters === undefined || isChecking ? { titleSideActions: [] } : undefined
+      }
+      emptyActions={servingClusters === undefined || isChecking ? <EmptyStateActions /> : undefined}
       columns={[
         'name',
         'namespace',

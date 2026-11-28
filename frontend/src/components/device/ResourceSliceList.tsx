@@ -15,21 +15,27 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { useClustersServing } from '../../lib/k8s/resourceAvailability';
+import { useClustersServingStatus } from '../../lib/k8s/resourceAvailability';
 import ResourceSlice from '../../lib/k8s/resourceSlice';
+import { EmptyStateActions } from '../common/Resource/EmptyStateActions';
 import ResourceListView from '../common/Resource/ResourceListView';
 import ResourceSliceNode from './ResourceSliceNode';
 
 export default function ResourceSliceList() {
   const { t } = useTranslation(['glossary', 'translation']);
-  const servingClusters = useClustersServing(ResourceSlice);
+  // No create action until every selected cluster has answered, since it could only
+  // target the first cluster known so far.
+  const { clusters: servingClusters, isChecking } = useClustersServingStatus(ResourceSlice);
 
   return (
     <ResourceListView
       title={t('glossary|Resource Slices')}
       resourceClass={ResourceSlice}
       clusters={servingClusters}
-      headerProps={servingClusters === undefined ? { titleSideActions: [] } : undefined}
+      headerProps={
+        servingClusters === undefined || isChecking ? { titleSideActions: [] } : undefined
+      }
+      emptyActions={servingClusters === undefined || isChecking ? <EmptyStateActions /> : undefined}
       columns={[
         'name',
         'cluster',
