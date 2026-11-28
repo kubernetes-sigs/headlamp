@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { localeDate } from '../../lib/util';
-import { getPrinterColumnValue } from './printerColumnValue';
+import { getPrinterColumnTime, getPrinterColumnValue } from './printerColumnValue';
 
 describe('getPrinterColumnValue', () => {
   const dateCol = { name: 'Finished', type: 'date', jsonPath: '.status.completionTime' };
@@ -44,5 +44,16 @@ describe('getPrinterColumnValue', () => {
       'Running'
     );
     expect(getPrinterColumnValue(item, { type: 'integer', jsonPath: '.status.missing' })).toBe('');
+  });
+});
+
+describe('getPrinterColumnTime', () => {
+  const dateCol = { jsonPath: '.status.completionTime' };
+
+  it('returns the time in milliseconds, and 0 when the field is missing', () => {
+    const item = { jsonData: { status: { completionTime: '2026-01-02T09:00:00Z' } } };
+
+    expect(getPrinterColumnTime(item, dateCol)).toBe(Date.UTC(2026, 0, 2, 9));
+    expect(getPrinterColumnTime({ jsonData: {} }, dateCol)).toBe(0);
   });
 });

@@ -26,7 +26,7 @@ import {
   ResourceTableColumn,
   ResourceTableProps,
 } from '../common/Resource/ResourceTable';
-import { getPrinterColumnValue } from './printerColumnValue';
+import { getPrinterColumnTime, getPrinterColumnValue } from './printerColumnValue';
 
 export default function CustomResourceList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -158,6 +158,10 @@ function CustomResourceTableInner(
       cols.push({
         label: colSpec.name,
         getValue: resource => getPrinterColumnValue(resource, colSpec),
+        ...(colSpec.type === 'date' && {
+          sort: (a: KubeObject<KubeCRD>, b: KubeObject<KubeCRD>) =>
+            getPrinterColumnTime(a, colSpec) - getPrinterColumnTime(b, colSpec),
+        }),
       });
     }
     return cols;
