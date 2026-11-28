@@ -22,9 +22,13 @@ import LabelListItem from '../common/LabelListItem';
 import { DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 
-export default function BackendTLSPolicyDetails(props: { name?: string; namespace?: string }) {
+export default function BackendTLSPolicyDetails(props: {
+  name?: string;
+  namespace?: string;
+  cluster?: string;
+}) {
   const params = useParams<{ namespace: string; name: string }>();
-  const { name = params.name, namespace = params.namespace } = props;
+  const { name = params.name, namespace = params.namespace, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
@@ -32,6 +36,7 @@ export default function BackendTLSPolicyDetails(props: { name?: string; namespac
       resourceType={BackendTLSPolicy}
       name={name}
       namespace={namespace}
+      cluster={cluster}
       withEvents
       extraSections={(item: BackendTLSPolicy) =>
         item && [

@@ -23,15 +23,16 @@ import GatewayClass, {
 import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 
-export default function GatewayClassDetails(props: { name?: string }) {
+export default function GatewayClassDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
-  const { name = params.name } = props;
+  const { name = params.name, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   return (
     <DetailsGrid
       resourceType={GatewayClass}
       name={name}
+      cluster={cluster}
       withEvents
       extraInfo={gatewayClass =>
         gatewayClass && [
