@@ -18,6 +18,9 @@ const tablesRowsPerPageKey = 'tables_rows_per_page';
 export const minTablesRowsPerPage = 5;
 export const maxTablesRowsPerPage = 1000;
 
+// Set when saving to local storage fails, so the choice still applies for this session.
+let sessionRowsPerPage: number | null = null;
+
 export function parseTablesRowsPerPage(value: string): number | null {
   const trimmedValue = value.trim();
   if (!trimmedValue || !/^\d+$/.test(trimmedValue)) {
@@ -44,6 +47,10 @@ export function parseTablesRowsPerPage(value: string): number | null {
  * If not set or invalid, returns the default value.
  */
 export function getTablesRowsPerPage(defaultRowsPerPage: number = minTablesRowsPerPage) {
+  if (sessionRowsPerPage !== null) {
+    return parseTablesRowsPerPage(String(sessionRowsPerPage)) ?? defaultRowsPerPage;
+  }
+
   try {
     const perPageStr = localStorage.getItem(tablesRowsPerPageKey);
     return perPageStr
@@ -64,7 +71,10 @@ export function getTablesRowsPerPage(defaultRowsPerPage: number = minTablesRowsP
 export function setTablesRowsPerPage(perPage: number) {
   try {
     localStorage.setItem(tablesRowsPerPageKey, perPage.toString());
+    sessionRowsPerPage = null;
   } catch (error) {
-    console.error(`Failed to set ${tablesRowsPerPageKey} in localStorage:`, error);
+    // Storage can be full or blocked. The setting then only lasts for this session.
+    sessionRowsPerPage = perPage;
+    console.warn(`Failed to set ${tablesRowsPerPageKey} in localStorage:`, error);
   }
 }

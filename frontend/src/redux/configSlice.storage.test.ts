@@ -98,3 +98,27 @@ describe('configSlice storage initialization', () => {
     expect(initialState.settings.timezone).toBe('UTC');
   });
 });
+
+describe('configSlice setAppSettings when localStorage cannot be written', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('still updates the state and warns when the write fails', async () => {
+    const { default: configReducer, initialState, setAppSettings } = await import('./configSlice');
+    const quotaError = new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+      throw quotaError;
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    let state = initialState;
+    expect(() => {
+      state = configReducer(initialState, setAppSettings({ timezone: 'Asia/Kolkata' }));
+    }).not.toThrow();
+
+    expect(state.settings.timezone).toBe('Asia/Kolkata');
+    expect(state.userSettings?.timezone).toBe('Asia/Kolkata');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('settings'), quotaError);
+  });
+});
