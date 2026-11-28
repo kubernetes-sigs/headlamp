@@ -18,6 +18,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const { createRequire } = require('node:module');
 const path = require('node:path');
 
 /** @param {{ dependencies?: object, devDependencies?: object }} packageJson */
@@ -26,6 +27,39 @@ function usesNativeTypeScript(packageJson) {
     Object.hasOwn(packageJson.dependencies || {}, '@typescript/native') ||
     Object.hasOwn(packageJson.devDependencies || {}, '@typescript/native')
   );
+}
+
+/**
+ * Check the compiler resolved by the parser, including nested legacy installations.
+ * @param {string} projectDirectory
+ * @returns {undefined}
+ */
+function checkLintTypeScript(projectDirectory) {
+  let parserPath;
+  try {
+    parserPath = require.resolve('@typescript-eslint/typescript-estree', {
+      paths: [projectDirectory, __dirname],
+    });
+  } catch (error) {
+    if (error.code === 'MODULE_NOT_FOUND') {
+      return undefined;
+    }
+    throw error;
+  }
+  const parserRequire = createRequire(parserPath);
+  const compiler = parserRequire('typescript');
+  if (
+    typeof compiler.createSourceFile !== 'function' ||
+    typeof compiler.transpileModule !== 'function'
+  ) {
+    throw new Error(
+      'The TypeScript compiler resolved by typescript-eslint lacks the legacy compiler API. ' +
+        'Remove the global TypeScript override and keep a compatible legacy TypeScript for linting. ' +
+        'For native type-checking, install TypeScript 7 separately as @typescript/native. ' +
+        'See the TypeScript section of the plugin getting-started guide.'
+    );
+  }
+  return undefined;
 }
 
 /**
@@ -81,4 +115,9 @@ function getUpgradeOverrides(packageJson, templateOverrides) {
   return overrides;
 }
 
-module.exports = { usesNativeTypeScript, getNativeTypeScriptCommand, getUpgradeOverrides };
+module.exports = {
+  usesNativeTypeScript,
+  checkLintTypeScript,
+  getNativeTypeScriptCommand,
+  getUpgradeOverrides,
+};
