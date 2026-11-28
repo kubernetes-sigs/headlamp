@@ -362,6 +362,35 @@ describe('NodeDetails sections and actions', () => {
     expect(screen.getByText('Yes')).toBeInTheDocument();
   });
 
+  it('shows the Kube Proxy Version only when the node reports one', () => {
+    const renderNode = (kubeProxyVersion: string) => {
+      useGet.mockReturnValue([
+        {
+          ...node,
+          status: { ...node.status, nodeInfo: { ...node.status.nodeInfo, kubeProxyVersion } },
+        },
+        null,
+      ]);
+      return render(
+        <TestContext>
+          <ThemeProvider theme={createMuiTheme({ name: 'test' })}>
+            <NodeDetails name="worker" cluster="cluster-a" />
+          </ThemeProvider>
+        </TestContext>
+      );
+    };
+
+    // Newer kubelets leave the deprecated field empty.
+    const { unmount } = renderNode('');
+    expect(screen.queryByText('Kube Proxy Version')).not.toBeInTheDocument();
+    expect(screen.getByText('Kubelet Version')).toBeInTheDocument();
+    unmount();
+
+    renderNode('v1.29.0');
+    const row = screen.getByText('Kube Proxy Version').closest('dt')?.nextElementSibling;
+    expect(row).toHaveTextContent('v1.29.0');
+  });
+
   it('renders unschedulable drained/undrained labels and Not ready state', () => {
     const cordonedNode = {
       ...node,
