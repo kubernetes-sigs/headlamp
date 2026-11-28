@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
 var (
@@ -88,8 +89,41 @@ func (r *restConfigGetter) ToRESTConfig() (*rest.Config, error) {
 	return r.clientConfig.ClientConfig()
 }
 
+// ToRawKubeConfigLoader returns the client config with the requested namespace.
+// Helm's kube client uses its Namespace() for chart objects that don't set
+// metadata.namespace, so returning the plain kubeconfig here put those objects
+// into the context namespace instead of the release namespace.
 func (r *restConfigGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
-	return r.clientConfig
+	return &namespacedClientConfig{base: r.clientConfig, namespace: r.namespace}
+}
+
+// namespacedClientConfig overrides the namespace of the wrapped client config.
+// An empty namespace keeps the wrapped config's namespace.
+type namespacedClientConfig struct {
+	base      clientcmd.ClientConfig
+	namespace string
+}
+
+var _ clientcmd.ClientConfig = &namespacedClientConfig{}
+
+func (c *namespacedClientConfig) RawConfig() (clientcmdapi.Config, error) {
+	return c.base.RawConfig()
+}
+
+func (c *namespacedClientConfig) ClientConfig() (*rest.Config, error) {
+	return c.base.ClientConfig()
+}
+
+func (c *namespacedClientConfig) Namespace() (string, bool, error) {
+	if c.namespace != "" {
+		return c.namespace, true, nil
+	}
+
+	return c.base.Namespace()
+}
+
+func (c *namespacedClientConfig) ConfigAccess() clientcmd.ConfigAccess {
+	return c.base.ConfigAccess()
 }
 
 func (r *restConfigGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {

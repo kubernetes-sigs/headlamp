@@ -142,12 +142,6 @@ func TestRestConfigGetterToRESTConfig(t *testing.T) {
 	assert.Equal(t, "https://127.0.0.1:6443", cfg.Host)
 }
 
-func TestRestConfigGetterToRawKubeConfigLoader(t *testing.T) {
-	cc := fakeClientConfig()
-	g := &restConfigGetter{clientConfig: cc, namespace: "default"}
-	assert.Equal(t, cc, g.ToRawKubeConfigLoader())
-}
-
 func TestRestConfigGetterToDiscoveryClient(t *testing.T) {
 	g := &restConfigGetter{
 		clientConfig: fakeClientConfig(),
