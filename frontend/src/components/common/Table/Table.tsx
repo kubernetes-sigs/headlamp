@@ -25,6 +25,7 @@ import TableHead from '@mui/material/TableHead';
 import Typography from '@mui/material/Typography';
 import { alpha, styled } from '@mui/system';
 import { visuallyHidden } from '@mui/utils';
+import { getFacetedUniqueValues } from '@tanstack/react-table';
 import {
   MRT_BottomToolbar,
   MRT_Cell,
@@ -351,10 +352,10 @@ const getDropdownFacetedUniqueValues: NonNullable<
     ) {
       return NO_FACETED_VALUES;
     }
-    // Faceting on: the column's faceted row model. Faceting off: TanStack falls back to
-    // the pre-filtered rows (post-filterFunction), so the options are a superset of what
-    // the table shows and the counts MRT renders next to them are dataset-wide. Narrowing
-    // them would need the per-column faceted row models the guard turned off.
+    // Only installed with faceting off, where TanStack falls back to the pre-filtered rows
+    // (post-filterFunction), so the options are a superset of what the table shows and the
+    // counts MRT renders next to them are dataset-wide. Narrowing them would need the
+    // per-column faceted row models the guard turned off.
     const { flatRows } = column.getFacetedRowModel();
     const cachedColumns = facetedValuesByRows.get(flatRows);
     const cached = cachedColumns?.get(columnId);
@@ -417,6 +418,47 @@ const ACTIONS_COLUMN_IDS = ['actions', MRT_ROW_ACTIONS_COLUMN_ID];
 
 /** Shared so that an absent map doesn't look like a new one on every render. */
 const NO_COLUMN_VISIBILITY: MRT_VisibilityState = {};
+
+/**
+ * TanStack's own faceting, which MRT installs for every column while faceting is on. MRT does
+ * not re-export it, hence the direct dependency, pinned to the exact version MRT pins so both
+ * resolve to one copy. The factory holds no state, each table and column gets its own memo.
+ */
+const tanStackFacetedUniqueValues = getFacetedUniqueValues<Record<string, any>>();
+
+/**
+ * With faceting on, a column's options come from the rows the global filter and the other
+ * columns' filters let through, so a selected value drops out once one of them or a refresh
+ * takes its rows away, and MRT renders its chip (multi-select) or label (select) blank.
+ * This serves TanStack's values unchanged, with only such a selection added at a count of 0,
+ * and only for the dropdowns that read their labels from these options. 0 is the true number
+ * of rows that match it now, so the dropdown lists it as "(0)".
+ */
+const getFacetedUniqueValuesKeepingSelection: NonNullable<
+  MaterialTableOptions<Record<string, any>>['getFacetedUniqueValues']
+> = (table, columnId) => {
+  const getValues = tanStackFacetedUniqueValues(table, columnId);
+  return () => {
+    const values = getValues();
+    const column = table.getColumn(columnId);
+    // TanStack types the column def without MRT's and our additions like filterVariant.
+    if (!column || !readsLabelsFromOptions(column.columnDef as TableColumn<Record<string, any>>)) {
+      return values;
+    }
+    const absent = [...selectedOptionValues(column)].filter(value => !values.has(value));
+    if (absent.length === 0) {
+      return values;
+    }
+    // Not cached: MRT rebuilds its columns on every render, so TanStack computes a new map
+    // each time anyway. Only while a column is resized or dragged does MRT reuse them, and
+    // copying the map then is cheap.
+    const view = new Map(values);
+    for (const value of absent) {
+      view.set(value, 0);
+    }
+    return view;
+  };
+};
 
 /**
  * Tracks the current width of an element using a ResizeObserver.
@@ -680,21 +722,27 @@ export default function Table<RowItem extends Record<string, any>>({
     internalActionVisibility,
   ]);
 
-  // With faceting on, MRT installs TanStack's own implementation for every column, so ours
-  // is only needed to fill the gap it leaves behind when faceting is off.
-  const ownFacetedValues = !tableProps.enableFacetedValues && !tableProps.getFacetedUniqueValues;
+  // With faceting on, MRT installs TanStack's own implementation for every column, which is
+  // only wrapped to keep a selection's label. getDropdownFacetedUniqueValues fills the gap it
+  // leaves behind when faceting is off. A caller's own implementation is left alone either way.
+  const facetingOffFallback = !tableProps.enableFacetedValues && !tableProps.getFacetedUniqueValues;
+  const facetedValuesImplementation = tableProps.getFacetedUniqueValues
+    ? undefined
+    : facetingOffFallback
+    ? getDropdownFacetedUniqueValues
+    : getFacetedUniqueValuesKeepingSelection;
 
   const table = useMaterialReactTable({
     ...tableProps,
     columns: tableColumns ?? [],
     data: tableData,
-    // The key has to be absent, not undefined: MRT applies caller options over its own
-    // wiring, so an undefined value would drop TanStack's default and its faceting contract.
-    // The implementation only reads generic column metadata, so the erased row type is safe.
-    ...(ownFacetedValues
+    // The key has to be absent, not undefined, where the caller brings its own: it is spread
+    // above, and an undefined value would override it.
+    // Both implementations only read generic column metadata, so the erased row type is safe.
+    ...(facetedValuesImplementation
       ? {
           getFacetedUniqueValues:
-            getDropdownFacetedUniqueValues as MaterialTableOptions<RowItem>['getFacetedUniqueValues'],
+            facetedValuesImplementation as MaterialTableOptions<RowItem>['getFacetedUniqueValues'],
         }
       : {}),
     // Say so when the dropdown lists only part of the values. MRT renders this text field
@@ -704,8 +752,8 @@ export default function Table<RowItem extends Record<string, any>>({
         (typeof tableProps.muiFilterTextFieldProps === 'function'
           ? tableProps.muiFilterTextFieldProps(args)
           : tableProps.muiFilterTextFieldProps) ?? {};
-      // Only the implementation above marks a map as truncated.
-      if (!ownFacetedValues || !isTruncated(args.column)) {
+      // Only getDropdownFacetedUniqueValues marks a map as truncated.
+      if (!facetingOffFallback || !isTruncated(args.column)) {
         return callerProps;
       }
       // That spot already carries MRT's filter-mode label where modes are enabled, and saying

@@ -322,6 +322,95 @@ describe('Table select filter options with real MRT', { timeout: 30_000 }, () =>
     expect(dropdownOptions()).toEqual(['Completed', 'Running']);
   });
 
+  it.each(['multi-select', 'select'] as const)(
+    'keeps showing a %s selection on a small table after a refresh took the value away',
+    filterVariant => {
+      // Small tables use TanStack's faceting, which drops the value just the same.
+      const smallData = largeData.slice(0, 50);
+      const value = filterVariant === 'select' ? 'gone-soon' : ['gone-soon'];
+      const props = {
+        enableFacetedValues: true,
+        filterVariant,
+        initialState: { columnFilters: [{ id: 'status', value }] },
+      };
+      const rendered = renderStatusTable({
+        ...props,
+        data: [...smallData, { status: 'gone-soon' }],
+      });
+      expect(statusFilterInput()).toHaveTextContent('gone-soon');
+
+      rendered.rerender(statusTable({ ...props, data: smallData }));
+
+      expect(statusFilterInput()).toHaveTextContent('gone-soon');
+    }
+  );
+
+  it('keeps showing both selections when two filters leave no rows in common', () => {
+    // With faceting on, each column's options come from the rows the other filters let
+    // through. Running rows are all gold, so filtering for silver takes Running out of the
+    // status options, and the other way round.
+    renderStatusTable({
+      enableFacetedValues: true,
+      data: largeData.slice(0, 50),
+      columns: [
+        {
+          id: 'status',
+          header: 'Status',
+          filterVariant: 'multi-select',
+          accessorFn: r => r.status,
+        },
+        { id: 'tier', header: 'Tier', filterVariant: 'select', accessorFn: r => r.tier },
+      ],
+      initialState: {
+        columnFilters: [
+          { id: 'status', value: ['Running'] },
+          { id: 'tier', value: 'silver' },
+        ],
+      },
+    });
+
+    expect(statusFilterInput(0)).toHaveTextContent('Running');
+    expect(statusFilterInput(1)).toHaveTextContent('silver');
+    openStatusFilterDropdown(0);
+    expect(dropdownOptions()).toEqual(['Completed (25)', 'Running (0)']);
+  });
+
+  it('keeps showing a selection the global filter takes all rows from', () => {
+    // TanStack's faceted rows pass the global filter too. All silver rows are Completed.
+    renderStatusTable({
+      enableFacetedValues: true,
+      data: largeData.slice(0, 50),
+      initialState: {
+        columnFilters: [{ id: 'status', value: ['Running'] }],
+        globalFilter: 'silver',
+      },
+      columns: [
+        {
+          id: 'status',
+          header: 'Status',
+          filterVariant: 'multi-select',
+          accessorFn: r => r.status,
+        },
+        { id: 'tier', header: 'Tier', accessorFn: r => r.tier },
+      ],
+    });
+
+    expect(statusFilterInput()).toHaveTextContent('Running');
+  });
+
+  it('does not turn the typed text of an autocomplete filter into an option on a small table', () => {
+    renderStatusTable({
+      enableFacetedValues: true,
+      data: largeData.slice(0, 50),
+      filterVariant: 'autocomplete',
+      initialState: { columnFilters: [{ id: 'status', value: 'Runn' }] },
+    });
+
+    fireEvent.keyDown(statusFilterInput(), { key: 'ArrowDown' });
+
+    expect(dropdownOptions()).toEqual(['Completed', 'Running']);
+  });
+
   it('keeps the full faceting contract for non-dropdown columns while faceting is on', () => {
     // Ported from #7226 by @simonepri.
     let uniqueCount = -1;

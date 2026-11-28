@@ -15,6 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
+import { getFacetedUniqueValues } from '@tanstack/react-table';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MRT_VisibilityState } from 'material-react-table';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -1506,18 +1507,70 @@ describe('Table select filter faceted values', () => {
     expect(filterTextFieldProps(rows).helperText).toBeUndefined();
   });
 
-  it.each([
-    ['faceting is on', { enableFacetedValues: true }],
-    ['the caller brings its own', { getFacetedUniqueValues: (() => () => new Map()) as any }],
-  ])('leaves getFacetedUniqueValues alone when %s', (_description, props) => {
+  it('leaves getFacetedUniqueValues alone when the caller brings its own', () => {
+    const callerImplementation = (() => () => new Map()) as any;
     renderTable({
       columns: [statusColumn('multi-select')],
       data: statusRows as any,
-      ...props,
+      getFacetedUniqueValues: callerImplementation,
     });
 
-    // MRT applies caller options over its own wiring, so ours must not be set at all here.
-    expect(tableMocks.options.getFacetedUniqueValues).toBe((props as any).getFacetedUniqueValues);
+    // MRT applies caller options over its own wiring, so ours must not be set over theirs.
+    expect(tableMocks.options.getFacetedUniqueValues).toBe(callerImplementation);
+  });
+
+  describe('with faceting on', () => {
+    /** Reads the faceted values the way TanStack's column does, for one column and filter. */
+    function facetingOnValues(columnDef: any, rows: Record<string, any>[], filterValue?: unknown) {
+      renderTable({ columns: [columnDef], data: rows as any, enableFacetedValues: true });
+      const column = {
+        ...makeFacetedColumn(tableMocks.options.columns[0], rows),
+        getFilterValue: () => filterValue,
+      };
+      const table = { getColumn: () => column, options: {} } as any;
+      return {
+        ours: tableMocks.options.getFacetedUniqueValues(table, columnDef.id),
+        tanStack: getFacetedUniqueValues()(table, columnDef.id),
+      };
+    }
+
+    it.each([
+      ['a dropdown without a selection', statusColumn('multi-select'), undefined],
+      ['a dropdown whose selection the rows carry', statusColumn('select'), 'Running'],
+      ['an autocomplete, whose filter is free text', statusColumn('autocomplete'), 'gone'],
+      [
+        'a column with its own options',
+        { ...statusColumn('multi-select'), filterSelectOptions: ['gone'] },
+        ['gone'],
+      ],
+      [
+        'a column without a dropdown',
+        { id: 'status', header: 'Status', accessorFn: (row: any) => row.status },
+        'gone',
+      ],
+    ])('serves TanStack values as they are for %s', (_description, columnDef, filterValue) => {
+      const { ours, tanStack } = facetingOnValues(columnDef, statusRows, filterValue);
+
+      const values = ours();
+      expect([...values]).toEqual([...tanStack()]);
+      // The map itself, not a copy, so MRT's memo and TanStack's own caching keep working.
+      expect(ours()).toBe(values);
+    });
+
+    it.each(['select', 'multi-select'])(
+      'adds a %s selection the rows do not carry at a count of 0',
+      filterVariant => {
+        // Another column's filter or a refresh can take every row of a selected value away.
+        const filterValue = filterVariant === 'select' ? 'gone' : ['Running', 'gone'];
+        const { ours, tanStack } = facetingOnValues(
+          statusColumn(filterVariant),
+          statusRows,
+          filterValue
+        );
+
+        expect(Object.fromEntries(ours())).toEqual({ ...Object.fromEntries(tanStack()), gone: 0 });
+      }
+    );
   });
 
   it('returns an empty map for columns without a dropdown filter', () => {
