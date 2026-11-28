@@ -26,7 +26,7 @@ import {
 import { clusterRequest } from './k8s/api/v1/clusterRequests';
 import { CLUSTERS_PREFIX } from './k8s/api/v1/constants';
 import { combinePath } from './k8s/api/v1/formatUrl';
-import { invalidateChangedConnections,invalidateSchemaCache } from './schemaCacheInvalidation';
+import { invalidateChangedConnections, invalidateSchemaCache } from './schemaCacheInvalidation';
 import {
   loadResourceSchema,
   mapApiVersionToDiscoveryKey,
