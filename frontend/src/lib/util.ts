@@ -266,7 +266,7 @@ export function localeDate(date: DateParam) {
 }
 
 export function getPercentStr(value: number, total: number) {
-  if (total === 0) {
+  if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0 || value < 0) {
     return null;
   }
   const percentage = (value / total) * 100;
