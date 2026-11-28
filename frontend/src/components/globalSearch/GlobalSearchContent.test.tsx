@@ -14,15 +14,21 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import Pod from '../../lib/k8s/pod';
 import { setConfig } from '../../redux/configSlice';
+import { initialState as configInitialState } from '../../redux/configSlice';
+import reducers from '../../redux/reducers/reducers';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
+import { generateK8sResourceList } from '../../test/mocker';
 import { setTheme } from '../App/themeSlice';
+import { podList } from '../pod/storyHelper';
 import { GlobalSearchContent } from './GlobalSearchContent';
 
 // cyclic imports fix
@@ -89,5 +95,169 @@ describe('GlobalSearchContent theme actions', () => {
       screen.findByRole('option', { name: 'Theme Lights Out' }, { timeout: 500 })
     ).rejects.toThrow();
     expect(localStorage.getItem(PREFERRED_DARK_THEME_KEY)).toBeNull();
+  });
+});
+
+describe('GlobalSearchContent cluster labels', () => {
+  it('identifies same-name Pods from different clusters', async () => {
+    const makePod = (cluster: string) => {
+      const [pod] = generateK8sResourceList(
+        {
+          ...podList[5],
+          metadata: {
+            ...podList[5].metadata,
+            name: 'duplicate-pod',
+            namespace: 'default',
+          },
+        },
+        {
+          instantiateAs: Pod,
+          numResults: 1,
+          uidPrefix: `pod-${cluster}-`,
+        }
+      );
+
+      pod.cluster = cluster;
+      return pod;
+    };
+
+    const longCluster = 'gke_my-company-project_us-central1-a_production-cluster';
+    const pods = [makePod('alpha'), makePod(longCluster)];
+
+    const alpha = { name: 'alpha', auth_type: '' };
+    const longClusterConfig = { name: longCluster, auth_type: '' };
+
+    const testStore = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        config: {
+          ...configInitialState,
+          clusters: {
+            alpha,
+            [longCluster]: longClusterConfig,
+          },
+          allClusters: {
+            alpha,
+            [longCluster]: longClusterConfig,
+          },
+        },
+      },
+    });
+
+    vi.spyOn(Pod, 'useList').mockReturnValue({
+      items: pods,
+      isFetching: false,
+    } as unknown as ReturnType<typeof Pod.useList>);
+
+    try {
+      render(
+        <TestContext
+          store={testStore}
+          routerMap={{ cluster: `alpha+${longCluster}` }}
+          urlPrefix="/c"
+        >
+          <QueryClientProvider client={new QueryClient()}>
+            <GlobalSearchContent defaultValue="duplicate-pod" maxWidth={500} onBlur={() => {}} />
+          </QueryClientProvider>
+        </TestContext>
+      );
+
+      const options = await screen.findAllByRole('option', {
+        name: /duplicate-pod/,
+      });
+
+      const podResults = options.filter(option => option.textContent?.includes('Pod'));
+
+      expect(podResults).toHaveLength(2);
+      expect(podResults[0]).toHaveTextContent('duplicate-pod');
+      expect(podResults[1]).toHaveTextContent('duplicate-pod');
+
+      expect(podResults.filter(option => option.textContent?.includes('alpha'))).toHaveLength(1);
+      expect(podResults.filter(option => option.textContent?.includes(longCluster))).toHaveLength(
+        1
+      );
+
+      const captions = podResults.map(option => option.querySelector('.MuiTypography-noWrap'));
+
+      expect(captions).toHaveLength(2);
+
+      captions.forEach(caption => {
+        expect(caption).not.toBeNull();
+        expect(caption).toHaveAttribute('title', expect.stringContaining('Pod'));
+        expect(caption).toHaveClass('MuiTypography-noWrap');
+      });
+
+      const tooltipTexts = captions.map(caption => caption?.getAttribute('title') ?? '');
+
+      expect(tooltipTexts.some(text => text.includes('alpha'))).toBe(true);
+      expect(tooltipTexts.some(text => text.includes(longCluster))).toBe(true);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('preserves the original result label for a single cluster', async () => {
+    const [pod] = generateK8sResourceList(
+      {
+        ...podList[5],
+        metadata: {
+          ...podList[5].metadata,
+          name: 'single-cluster-test-pod',
+          namespace: 'default',
+        },
+      },
+      {
+        instantiateAs: Pod,
+        numResults: 1,
+        uidPrefix: 'single-cluster-test-',
+      }
+    );
+
+    pod.cluster = 'alpha';
+
+    const alpha = { name: 'alpha', auth_type: '' };
+
+    const testStore = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        config: {
+          ...configInitialState,
+          clusters: { alpha },
+          allClusters: { alpha },
+        },
+      },
+    });
+
+    vi.spyOn(Pod, 'useList').mockReturnValue({
+      items: [pod],
+      isFetching: false,
+    } as unknown as ReturnType<typeof Pod.useList>);
+
+    try {
+      render(
+        <TestContext store={testStore} routerMap={{ cluster: 'alpha' }} urlPrefix="/c">
+          <QueryClientProvider client={new QueryClient()}>
+            <GlobalSearchContent
+              defaultValue="single-cluster-test-pod"
+              maxWidth={500}
+              onBlur={() => {}}
+            />
+          </QueryClientProvider>
+        </TestContext>
+      );
+
+      const options = await screen.findAllByRole('option', {
+        name: /single-cluster-test-pod/,
+      });
+
+      const podResults = options.filter(option => option.textContent?.includes('Pod'));
+
+      expect(podResults).toHaveLength(1);
+      expect(podResults[0].textContent).toContain('default');
+      expect(podResults[0].textContent).not.toContain('alpha');
+      expect(podResults[0].querySelector('.MuiTypography-noWrap')).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
