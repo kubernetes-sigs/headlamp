@@ -536,3 +536,44 @@ export const DEVICE_HEALTH_POD: KubePod = {
     })),
   },
 };
+
+const templatePod = (
+  name: string,
+  uid: string,
+  claim: { name: string; template: string; generated?: string }
+): KubePod => ({
+  apiVersion: 'v1',
+  kind: 'Pod',
+  metadata: { name, namespace: 'default', creationTimestamp, uid },
+  spec: {
+    nodeName: '',
+    resourceClaims: [{ name: claim.name, resourceClaimTemplateName: claim.template }],
+    containers: [
+      {
+        name: 'main',
+        image: 'ubuntu:24.04',
+        imagePullPolicy: 'IfNotPresent',
+        resources: { claims: [{ name: claim.name }] },
+      },
+    ],
+  },
+  status: {
+    phase: claim.generated ? 'Running' : 'Pending',
+    conditions: [],
+    containerStatuses: [],
+    startTime: creationTimestamp,
+    resourceClaimStatuses: claim.generated
+      ? [{ name: claim.name, resourceClaimName: claim.generated }]
+      : undefined,
+  },
+});
+
+/** Pods that get their claims from the templates above, one still waiting for its claim. */
+export const TEMPLATE_POD_DUMMY_DATA: KubePod[] = [
+  templatePod('trainer-2', 'pod-uid-4', {
+    name: 'gpus',
+    template: 'multiple-gpus',
+    generated: 'trainer-2-gpus-vfghv',
+  }),
+  templatePod('notebook-0', 'pod-uid-5', { name: 'gpu', template: 'single-gpu' }),
+];

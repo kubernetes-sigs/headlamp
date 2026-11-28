@@ -76,6 +76,7 @@
   "Device Classes": "Classes de périphériques",
   "Drivers": "Pilotes",
   "Resource Claims": "Demandes de ressources",
+  "Pod": "",
   "Resource Claim Templates": "Modèles de demande de ressources",
   "Capacity": "Capacité",
   "Resource Slices": "",
