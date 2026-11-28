@@ -929,13 +929,18 @@ func (c *Context) SourceStr() string {
 // already points at the API proxy when one is configured, so the same
 // transport serves both cases.
 func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
-	// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
-	// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
-	if c.AuthType() == "oidc" {
-		// Log at most once per proxy to avoid flooding the logs on repeated 401s.
-		var warnOnce sync.Once
+	var warnOnce sync.Once
 
-		proxy.ModifyResponse = func(resp *http.Response) error {
+	isOIDC := c.AuthType() == "oidc"
+
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		// Discard upstream Referrer-Policy to prevent an upstream header (e.g. unsafe-url)
+		// from overriding Headlamp's Referrer-Policy or resulting in duplicate headers.
+		resp.Header.Del("Referrer-Policy")
+
+		// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
+		// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
+		if isOIDC {
 			authHeader := ""
 			if resp.Request != nil {
 				authHeader = resp.Request.Header.Get("Authorization")
@@ -949,9 +954,9 @@ func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) error {
 							"and client-id as Headlamp")
 				})
 			}
-
-			return nil
 		}
+
+		return nil
 	}
 
 	restConf, err := c.RESTConfig()
