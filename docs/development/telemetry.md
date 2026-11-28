@@ -109,8 +109,6 @@ npm run backend:start
 
 Headlamp includes Makefile targets to run Jaeger and Prometheus locally via Docker.
 
-Note: the Prometheus target uses Docker host networking (`--network host`) and may require Linux/WSL2 or adjustments on macOS/Windows.
-
 ```bash
 make run-monitoring
 ```
@@ -127,6 +125,19 @@ make stop-monitoring
 ```
 
 Prometheus scrape configuration for local development is in `backend/pkg/telemetry/prometheus.yaml`.
+
+### Prometheus on macOS and Windows
+
+The Prometheus container uses Docker host networking (`--network host`) so it can reach the backend on `localhost:4466`. This works on Linux. With Docker Desktop on macOS and Windows, host networking is usually not available, so `make run-prometheus` stops with an error and removes the container instead of reporting a Prometheus that cannot scrape Headlamp.
+
+On macOS, run Prometheus natively with the same configuration instead:
+
+```bash
+brew install prometheus
+prometheus --config.file=backend/pkg/telemetry/prometheus.yaml
+```
+
+Jaeger does not need host networking, so `make run-jaeger` works as usual. With the backend running with metrics enabled, the `headlamp-server` target shows as `up` at [http://localhost:9090/targets](http://localhost:9090/targets) after the first scrape, which can take up to a minute.
 
 ## In-cluster deployment
 
