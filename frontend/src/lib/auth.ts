@@ -25,6 +25,7 @@ import { backendFetch } from './k8s/api/v2/fetch';
 import { canLogoutFromProvider } from './k8s/clusterAuthType';
 import { encodeClusterPath, redirectToOIDCLogout } from './oidcLogout';
 import { queryClient, resetAccessibleNamespaces } from './queryClient';
+import { invalidateSchemaCache } from './schemaCacheInvalidation';
 
 /**
  * Retrieves the authentication token for a given cluster.
@@ -120,25 +121,30 @@ async function setCookieToken(cluster: string, token: string | null) {
  * @throws {Error} When cluster name is invalid or backend request fails
  */
 export function setToken(cluster: string, token: string | null) {
+  invalidateSchemaCache(cluster);
   const setTokenMethodToUse = store.getState().ui.functionsToOverride.setToken;
   if (setTokenMethodToUse) {
-    return Promise.resolve(setTokenMethodToUse(cluster, token)).then(result => {
-      resetAccessibleNamespaces(cluster);
-      return result;
-    });
+    return Promise.resolve()
+      .then(() => setTokenMethodToUse(cluster, token))
+      .then(result => {
+        resetAccessibleNamespaces(cluster);
+        return result;
+      })
+      .finally(() => invalidateSchemaCache(cluster));
   }
 
-  return setCookieToken(cluster, token).then(result => {
-    // Accessible namespaces depend on the user's identity, so drop them on any token change.
-    resetAccessibleNamespaces(cluster);
-    if (token) {
-      queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
-    } else {
-      queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
-    }
+  return setCookieToken(cluster, token)
+    .finally(() => invalidateSchemaCache(cluster))
+    .then(result => {
+      resetAccessibleNamespaces(cluster);
+      if (token) {
+        queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
+      } else {
+        queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+      }
 
-    return result;
-  });
+      return result;
+    });
 }
 
 /**

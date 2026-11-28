@@ -75,6 +75,11 @@ export interface Cluster {
    * account token, in which case a user-supplied token is never applied.
    */
   uses_service_account_token?: boolean;
+  /**
+   * Opaque, non-secret digest of the backend connection's endpoint, TLS, and credential
+   * settings used to detect replacements when visible cluster metadata is unchanged.
+   */
+  connection_revision?: string;
   [propName: string]: any;
 }
 

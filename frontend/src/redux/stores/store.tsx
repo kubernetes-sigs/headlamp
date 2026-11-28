@@ -15,6 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
+import { invalidateChangedConnections } from '../../lib/schemaCacheInvalidation';
 import { initialState as CLUSTER_ACTIONS_INITIAL_STATE } from '../clusterActionSlice';
 import { initialState as CLUSTER_PROVIDER_INITIAL_STATE } from '../clusterProviderSlice';
 import { initialState as CONFIG_INITIAL_STATE } from '../configSlice';
@@ -35,6 +36,17 @@ const store = configureStore({
       serializableCheck: false,
       thunk: true,
     }).prepend(listenerMiddleware.middleware),
+});
+
+let previousConnections = store.getState().config;
+store.subscribe(() => {
+  const connections = store.getState().config;
+  if (connections !== previousConnections) {
+    const previous = previousConnections;
+    previousConnections = connections;
+    invalidateChangedConnections(previous.clusters, connections.clusters);
+    invalidateChangedConnections(previous.statelessClusters, connections.statelessClusters);
+  }
 });
 
 export default store;

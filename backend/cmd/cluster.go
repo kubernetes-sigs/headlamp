@@ -29,6 +29,9 @@ type Cluster struct {
 	// UsesServiceAccountToken reports that requests to this cluster are authenticated with
 	// the backend's own service account token, so a user-supplied token is never applied.
 	UsesServiceAccountToken bool `json:"uses_service_account_token,omitempty"`
+	// ConnectionRevision is an opaque, non-secret digest of the cluster's connection,
+	// TLS, and credential configuration so clients can detect credential/TLS-only updates.
+	ConnectionRevision string `json:"connection_revision,omitempty"`
 }
 
 type ClusterReq struct {

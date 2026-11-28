@@ -321,13 +321,7 @@ export async function clusterRequest(
         }
       }
     } catch (err) {
-      console.error(
-        'Unable to parse error json at url:',
-        url,
-        { err },
-        'with request data:',
-        requestData
-      );
+      console.error('Unable to parse API error response', { status, statusText });
     } finally {
       finishRequest();
     }
