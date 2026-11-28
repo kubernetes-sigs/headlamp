@@ -59,15 +59,15 @@ class HTTPRoute extends KubeObject<KubeHTTPRoute> {
   }
 
   get hostnames(): string[] {
-    return this.jsonData.spec.hostnames || [];
+    return this.jsonData.spec?.hostnames || [];
   }
 
   get rules(): HTTPRouteRule[] {
-    return this.jsonData.spec.rules || [];
+    return this.jsonData.spec?.rules || [];
   }
 
   get parentRefs(): GatewayParentReference[] {
-    return this.jsonData.spec.parentRefs || [];
+    return this.jsonData.spec?.parentRefs || [];
   }
 
   static get pluralName() {
