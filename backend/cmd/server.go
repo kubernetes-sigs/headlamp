@@ -367,12 +367,46 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 	}
 }
 
+// normalizeCacheRequest returns a shallow request clone with baseURL stripped from
+// URL.Path when needed for cache path matching, key generation, and invalidation.
+// It reports whether the normalized path is a cache-eligible Kubernetes API path.
+func normalizeCacheRequest(r *http.Request, baseURL string) (*http.Request, bool) {
+	cachePath := k8cache.StripBaseURL(r.URL.Path, baseURL)
+	if !k8cache.IsKubernetesAPIPath(cachePath) || k8cache.IsSelfSubjectReviewAPIPath(cachePath) {
+		return nil, false
+	}
+
+	if cachePath == r.URL.Path {
+		return r, true
+	}
+
+	u := *r.URL
+	u.Path = cachePath
+	clone := r.Clone(r.Context())
+	clone.URL = &u
+
+	return clone, true
+}
+
+func invalidateNonGETCache(
+	w http.ResponseWriter, r, cacheReq *http.Request, next http.Handler, connection string,
+) error {
+	forwardOriginal := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		next.ServeHTTP(rw, r)
+	})
+
+	return k8cache.HandleNonGETCacheInvalidation(
+		k8sResponseCache, w, cacheReq, forwardOriginal, connection,
+	)
+}
+
 func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request) {
 	if k8cache.SkipWebSocket(r, next, w) {
 		return
 	}
 
-	if !k8cache.IsKubernetesAPIPath(r.URL.Path) || k8cache.IsSelfSubjectReviewAPIPath(r.URL.Path) {
+	cacheReq, ok := normalizeCacheRequest(r, c.BaseURL)
+	if !ok {
 		next.ServeHTTP(w, r)
 		return
 	}
@@ -393,19 +427,19 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, connection); err != nil {
+	if err := invalidateNonGETCache(w, r, cacheReq, next, connection); err != nil {
 		return // The mutation was forwarded exactly once.
 	}
 
 	missingUserToken := kContext.UsesInClusterServiceAccountToken() &&
 		!c.shouldUseUnsafeServiceAccountTokenForContext(kContext) &&
 		requestBearerToken(r) == ""
-	if missingUserToken || !k8cache.CacheableRequest(r) {
+	if missingUserToken || !k8cache.CacheableRequest(cacheReq) {
 		next.ServeHTTP(w, r)
 		return
 	}
 
-	key, err := k8cache.GenerateRequestKey(r, connection)
+	key, err := k8cache.GenerateRequestKey(cacheReq, connection)
 	if err != nil {
 		next.ServeHTTP(w, r)
 		return
@@ -418,7 +452,7 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 	}
 
 	if !allowed {
-		if err := k8cache.ReturnAuthErrorResponse(w, r, contextKey); err != nil {
+		if err := k8cache.ReturnAuthErrorResponse(w, cacheReq, contextKey); err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to return authorization response")
 		}
 

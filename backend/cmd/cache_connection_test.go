@@ -368,3 +368,82 @@ func TestCacheConnectionIdentityFailureBypassesCache(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 }
+
+func TestCacheMiddlewareWithBaseURL(t *testing.T) {
+	for _, baseURL := range []string{"/headlamp", ""} {
+		name := "default-base-url"
+		if baseURL != "" {
+			name = "prefixed-base-url"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			runCacheMiddlewareBaseURLTest(t, name, baseURL)
+		})
+	}
+}
+
+func runCacheMiddlewareBaseURLTest(t *testing.T, name, baseURL string) {
+	t.Helper()
+
+	server, podRequests := newCacheConnectionServer(t, "base-url-pod", "user", nil)
+	kContext := cacheConnectionContext(t, server, kubeconfig.ClusterInventory)
+
+	resetCacheMiddlewareTestState()
+	t.Cleanup(resetCacheMiddlewareTestState)
+
+	cfg := newDrainAuthConfig(t, kContext)
+	cfg.BaseURL = baseURL
+	cfg.CacheEnabled = true
+
+	baseRoute := mux.NewRouter()
+
+	subrouter := baseRoute
+	if baseURL != "" {
+		subrouter = baseRoute.PathPrefix(baseURL).Subrouter()
+	}
+
+	handleClusterAPI(cfg, subrouter)
+
+	reqPath := baseURL + "/clusters/cache-switch/api/v1/pods"
+	doReq := func(method string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(t.Context(), method, reqPath, nil)
+		req.Header.Set("Authorization", "Bearer user")
+
+		rec := httptest.NewRecorder()
+		baseRoute.ServeHTTP(rec, req)
+
+		return rec
+	}
+
+	// Poll until the shared watch is ready and a GET is served from cache.
+	var cachedResp *httptest.ResponseRecorder
+
+	var attempts int32
+	if !assert.Eventually(t, func() bool {
+		attempts++
+		cachedResp = doReq(http.MethodGet)
+
+		return cachedResp.Code == http.StatusOK && cachedResp.Header().Get("X-HEADLAMP-CACHE") == "true"
+	}, 2*time.Second, 20*time.Millisecond) {
+		t.Fatalf(
+			"expected %s GET to be cached (attempts=%d, podRequests=%d, lastStatus=%d, lastCacheHeader=%q)",
+			name, attempts, podRequests.Load(), cachedResp.Code, cachedResp.Header().Get("X-HEADLAMP-CACHE"),
+		)
+	}
+
+	// A subsequent GET must hit the cache without calling the upstream pod handler.
+	requestsAfterSeed := podRequests.Load()
+	hit := doReq(http.MethodGet)
+	require.Equal(t, http.StatusOK, hit.Code)
+	assert.Equal(t, "true", hit.Header().Get("X-HEADLAMP-CACHE"))
+	assert.Equal(t, requestsAfterSeed, podRequests.Load())
+
+	// A mutation request must invalidate the cached GET.
+	mut := doReq(http.MethodPost)
+	require.Equal(t, http.StatusOK, mut.Code)
+
+	afterMut := doReq(http.MethodGet)
+	require.Equal(t, http.StatusOK, afterMut.Code)
+	assert.Empty(t, afterMut.Header().Get("X-HEADLAMP-CACHE"))
+	assert.Greater(t, podRequests.Load(), requestsAfterSeed)
+}

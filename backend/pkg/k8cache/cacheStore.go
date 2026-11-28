@@ -58,6 +58,26 @@ func IsKubernetesAPIPath(path string) bool {
 	return kubernetesAPIPathIndex(parts) != -1
 }
 
+// StripBaseURL removes a configured BaseURL prefix from urlPath on segment
+// boundaries, returning urlPath unchanged when baseURL is empty or does not match.
+func StripBaseURL(urlPath, baseURL string) string {
+	trimmed := strings.Trim(baseURL, "/")
+	if trimmed == "" {
+		return urlPath
+	}
+
+	base := "/" + trimmed
+	if urlPath == base {
+		return "/"
+	}
+
+	if strings.HasPrefix(urlPath, base+"/") {
+		return urlPath[len(base):]
+	}
+
+	return urlPath
+}
+
 // CachedResponseData stores information such as StatusCode, Headers, and Body.
 // It helps cache responses efficiently and serve them from the cache.
 type CachedResponseData struct {

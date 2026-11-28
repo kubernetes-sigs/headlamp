@@ -199,6 +199,64 @@ func TestIsKubernetesAPIPath(t *testing.T) {
 	}
 }
 
+func TestStripBaseURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		urlPath  string
+		baseURL  string
+		expected string
+	}{
+		{
+			name:     "empty baseURL leaves path unchanged",
+			urlPath:  "/clusters/kind-kind/api/v1/pods",
+			baseURL:  "",
+			expected: "/clusters/kind-kind/api/v1/pods",
+		},
+		{
+			name:     "root slash baseURL leaves path unchanged",
+			urlPath:  "/api/v1/pods",
+			baseURL:  "/",
+			expected: "/api/v1/pods",
+		},
+		{
+			name:     "strips baseURL from cluster API path",
+			urlPath:  "/headlamp/clusters/kind-kind/api/v1/pods",
+			baseURL:  "/headlamp",
+			expected: "/clusters/kind-kind/api/v1/pods",
+		},
+		{
+			name:     "strips baseURL with trailing slash from global API path",
+			urlPath:  "/headlamp/api/v1/pods",
+			baseURL:  "/headlamp/",
+			expected: "/api/v1/pods",
+		},
+		{
+			name:     "strips baseURL without leading slash",
+			urlPath:  "/headlamp/apis/apps/v1/deployments",
+			baseURL:  "headlamp",
+			expected: "/apis/apps/v1/deployments",
+		},
+		{
+			name:     "exact baseURL match normalizes to root",
+			urlPath:  "/headlamp",
+			baseURL:  "/headlamp",
+			expected: "/",
+		},
+		{
+			name:     "does not strip partial segment prefix match",
+			urlPath:  "/headlamp-other/clusters/kind-kind/api/v1/pods",
+			baseURL:  "/headlamp",
+			expected: "/headlamp-other/clusters/kind-kind/api/v1/pods",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, k8cache.StripBaseURL(tc.urlPath, tc.baseURL))
+		})
+	}
+}
+
 // TestGenerateKey checks that distinct resources and response variants cannot collide.
 func TestGenerateKey(t *testing.T) {
 	pairs := [][2]string{
