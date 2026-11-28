@@ -88,6 +88,28 @@ describe('parseRam', () => {
     expect(parseRam('1e6')).toBe(1000000);
   });
 
+  it('should parse an exponent written with a sign', () => {
+    // The grammar is <decimalExponent> ::= "e" <signedNumber> | "E" <signedNumber>,
+    // and the API server returns these verbatim: a limit written as 1e+9 comes
+    // back as '1e+9'. The sign used to stop the exponent from matching, so the
+    // value fell through to the suffix branch and was divided by 1000 instead:
+    // 1e+9 read as 0.001 bytes rather than a gigabyte.
+    expect(parseRam('1e+3')).toBe(1000);
+    expect(parseRam('1E+3')).toBe(1000);
+    expect(parseRam('1e+9')).toBe(1e9);
+    expect(parseRam('1e+18')).toBe(1e18);
+    expect(parseRam('2e-6')).toBeCloseTo(2e-6, 12);
+    expect(parseRam('1E-6')).toBeCloseTo(1e-6, 12);
+    // A trailing decimal point in front of the exponent is legal too, and the
+    // wider number group added for '1.Gi' makes it match: '1.e+0' takes '1.'
+    // and 'e', so without a sign in the exponent group it fell through to the
+    // same /1000 branch and read as 0.001 instead of 1.
+    expect(parseRam('1.e+0')).toBe(1);
+    expect(parseRam('1.e-0')).toBe(1);
+    expect(parseRam('1.e+3')).toBe(1000);
+    expect(parseRam('.5e+3')).toBe(500);
+  });
+
   it('should parse the lowercase decimal kilo suffix', () => {
     expect(parseRam('1k')).toBe(1000);
     expect(parseRam('64k')).toBe(64000);
@@ -105,6 +127,33 @@ describe('parseRam', () => {
     expect(parseRam('1.5Mi')).toBe(1.5 * 1024 * 1024);
     expect(parseRam('0.5Gi')).toBe(0.5 * 1024 * 1024 * 1024);
     expect(parseRam('289.9Mi')).toBeCloseTo(289.9 * 1024 * 1024, 5);
+  });
+
+  it('should parse a quantity written with a trailing decimal point', () => {
+    // '1.Gi' survives the API server verbatim, so it reaches the UI as written.
+    // The old pattern needed a digit after the '.', so the match stopped at '1'
+    // and the suffix was dropped entirely: 1.Gi was read as 1 byte.
+    expect(parseRam('1.Gi')).toBe(1024 ** 3);
+    expect(parseRam('2.Gi')).toBe(2 * 1024 ** 3);
+    expect(parseRam('1.Mi')).toBe(1024 ** 2);
+    expect(parseRam('3.G')).toBe(3000000000);
+    expect(parseRam('1.')).toBe(1);
+  });
+
+  it('should parse a quantity written with a leading decimal point', () => {
+    // Kubernetes accepts a leading '.' (resource.ParseQuantity('.5Gi') is
+    // 536870912). Without the leading digit the number used to be read as
+    // '5', making the value ten times too large. The API server normalises
+    // these to '512Mi' on write, so they mostly arrive already canonical.
+    expect(parseRam('.5Gi')).toBe(0.5 * 1024 ** 3);
+    expect(parseRam('.5Ki')).toBe(512);
+    expect(parseRam('.25Gi')).toBe(0.25 * 1024 ** 3);
+    expect(parseRam('.5k')).toBe(500);
+    expect(parseRam('.5G')).toBe(500000000);
+    expect(parseRam('.5')).toBe(0.5);
+    // The fractional suffixes already took this path and keep working.
+    expect(parseRam('.5m')).toBeCloseTo(0.0005, 10);
+    expect(parseRam('.5n')).toBeCloseTo(0.5e-9, 15);
   });
 
   it('should parse decimal values with decimal units', () => {
