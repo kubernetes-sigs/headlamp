@@ -15,8 +15,8 @@ Please refer to the [Kubernetes Community Code of Conduct](https://kubernetes.io
 
 ## Development practices
 
-The Headlamp project follows the [Kinvolk Contribution Guidelines](https://github.com/kinvolk/contribution),
-which promotes good and consistent contribution practices across Kinvolk's
+The Headlamp project follows the [Kubernetes Contribution Guidelines](https://github.com/kubernetes/community/tree/master/contributors/guide),
+which promotes good and consistent contribution practices across Kubernetes
 projects. Before starting to contribute, and in addition to this section, please
 read those guidelines.
 
@@ -115,7 +115,7 @@ Use **atomic commits** to keep each commit focused on a single change. Follow th
 - `Init feature added.`
 - `this adds new colors to the dashboard`
 
-For more detailed commit practices, see Kinvolk's [Git contribution guidelines](https://github.com/kinvolk/contribution/tree/master/topics/git.md).
+For more detailed commit practices, see the [Git contribution guidelines](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md).
 
 ---
 
@@ -183,8 +183,8 @@ dedicated [i18n docs](./development/i18n).
 ## Commit guidelines
 
 For general guidelines on making PRs/commits easier to review, please check
-out Kinvolk's
-[contribution guidelines on git](https://github.com/kinvolk/contribution/tree/master/topics/git.md).
+out the
+[contribution guidelines on git](https://github.com/kubernetes/community/blob/master/contributors/guide/github-workflow.md).
 
 ## Testing
 
