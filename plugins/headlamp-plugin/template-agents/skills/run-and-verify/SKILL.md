@@ -41,7 +41,8 @@ Electron won't initialize from a headless background shell. Ask the user to star
      backend makes it silently fall back; or
    - the installed app: `/Applications/Headlamp.app/Contents/MacOS/Headlamp --remote-debugging-port=9222 --user-data-dir=/tmp/headlamp-debug`.
      The packaged app skips plugins from its **plugins** dir (where `npm start` copies the build)
-     unless **Settings → Plugins → Plugin Development Mode** is on. Ask the user to turn it on.
+     unless **Settings → Plugins → Advanced → Load development plugins** is on. Ask the user to turn
+     it on and choose **Enable** in the "Enable Plugin Development Mode?" dialog.
 
    Cluster-scoped route URLs are `http://localhost:3000/#/c/<cluster>/<route-path>`.
 
@@ -76,7 +77,7 @@ Electron won't initialize from a headless background shell. Ask the user to star
    introduces this bug invisibly.
 
 5. **Iterate.** On the installed app, a missing contribution with no console error usually means
-   Plugin Development Mode is off (step 1); check that before the code. On an error/missing
+   **Load development plugins** is off (step 1); check that before the code. On an error/missing
    contribution/wrong render: read the message, fix `src/` (suspect a
    non-externalized value import first), let the watch build reload, re-check. **Never hand-create a
    symlink to force a not-loading plugin** — a missing contribution is a load-time crash or a wrong
