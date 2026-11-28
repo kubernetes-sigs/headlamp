@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -37,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
@@ -1726,4 +1728,138 @@ func writeTestPKIFiles(t *testing.T, caPath, certPath, keyPath, tokenPath string
 	require.NoError(t, os.WriteFile(certPath, config.AuthInfos["minikube"].ClientCertificateData, 0o600))
 	require.NoError(t, os.WriteFile(keyPath, config.AuthInfos["minikube"].ClientKeyData, 0o600))
 	require.NoError(t, os.WriteFile(tokenPath, []byte("test-token"), 0o600))
+}
+
+// TestRESTConfigWithTokenSource checks that the token source replaces the
+// context's credentials, while the rest of its user entry, such as
+// impersonation, still applies, as it does for the cluster proxy.
+func TestRESTConfigWithTokenSource(t *testing.T) {
+	type request struct{ authorization, impersonateUser string }
+
+	requests := make(chan request, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- request{r.Header.Get("Authorization"), r.Header.Get("Impersonate-User")}
+	}))
+	t.Cleanup(server.Close)
+
+	kContext := &kubeconfig.Context{
+		Name:     "test",
+		Cluster:  &api.Cluster{Server: server.URL},
+		AuthInfo: &api.AuthInfo{Token: "static-token", Impersonate: "alice"},
+	}
+
+	restConf, err := kContext.RESTConfigWithTokenSource(func(context.Context) (string, error) {
+		return "fresh-token", nil
+	})
+	require.NoError(t, err)
+
+	client, err := rest.HTTPClientFor(restConf)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, request{"Bearer fresh-token", "alice"}, <-requests)
+}
+
+// TestRESTConfigWithTokenSourceKeepsCallerRequest checks that the token is
+// set on a copy of the request, since a RoundTripper must not change the
+// caller's request.
+func TestRESTConfigWithTokenSourceKeepsCallerRequest(t *testing.T) {
+	kContext := &kubeconfig.Context{
+		Name:     "test",
+		Cluster:  &api.Cluster{Server: "https://example.invalid"},
+		AuthInfo: &api.AuthInfo{},
+	}
+
+	restConf, err := kContext.RESTConfigWithTokenSource(func(context.Context) (string, error) {
+		return "fresh-token", nil
+	})
+	require.NoError(t, err)
+
+	var sent string
+
+	roundTripper := restConf.WrapTransport(roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		sent = r.Header.Get("Authorization")
+
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	}))
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.invalid", nil)
+	require.NoError(t, err)
+
+	resp, err := roundTripper.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, "Bearer fresh-token", sent)
+	assert.Empty(t, req.Header.Get("Authorization"))
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+// TestRESTConfigWithTokenSourceUsesRequestContext checks that the token
+// source gets the request's context, so canceling a request stops waiting
+// for a slow token, such as a blocked STS exchange.
+func TestRESTConfigWithTokenSourceUsesRequestContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(server.Close)
+
+	kContext := &kubeconfig.Context{
+		Name:     "test",
+		Cluster:  &api.Cluster{Server: server.URL},
+		AuthInfo: &api.AuthInfo{},
+	}
+
+	// Released at the end so a source that never sees the cancellation
+	// doesn't outlive the test.
+	release := make(chan struct{})
+
+	t.Cleanup(func() { close(release) })
+
+	restConf, err := kContext.RESTConfigWithTokenSource(func(ctx context.Context) (string, error) {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-release:
+			return "", errors.New("token source did not get the request context")
+		}
+	})
+	require.NoError(t, err)
+
+	client, err := rest.HTTPClientFor(restConf)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+
+	errs := make(chan error, 1)
+
+	go func() {
+		resp, err := client.Do(req)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+
+		errs <- err
+	}()
+
+	cancel()
+
+	select {
+	case err := <-errs:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(5 * time.Second):
+		t.Fatal("request kept waiting for the token after it was canceled")
+	}
 }

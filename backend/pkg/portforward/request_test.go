@@ -2,7 +2,9 @@
 package portforward
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -146,6 +148,113 @@ func testPortForwardOwnerKey(t *testing.T, store kubeconfig.ContextStore,
 	require.NoError(t, err)
 
 	return portForwardOwnerKey(contextKey, kContext.Cluster, user)
+}
+
+// TestPortForwardExchangesRequestToken checks that with a token exchange, as
+// for STS, the SelfSubjectReview, and so the session owner, use the exchanged
+// token, and that a started forward gets a token source that exchanges the
+// original token again, as the exchanged one can expire while it runs.
+func TestPortForwardExchangesRequestToken(t *testing.T) { //nolint:funlen // Exchange, start and renewal.
+	upstream := newPortForwardTestAPI(t)
+	store := portForwardTestStore(t, upstream.server.URL)
+	sessions := cache.New[interface{}]()
+
+	t.Cleanup(func() { _ = sessions.Close() })
+
+	var exchanged []string
+
+	exchange := TokenExchange(func(_ context.Context, token string) (string, error) {
+		exchanged = append(exchanged, token)
+		if token != "subject" {
+			return "", errors.New("rejected")
+		}
+
+		return "alice", nil
+	})
+
+	serve := func(token string) *httptest.ResponseRecorder {
+		request := httptest.NewRequestWithContext(WithTokenExchange(t.Context(), exchange), http.MethodGet,
+			"/clusters/shared/portforward/list", nil)
+		request.Header.Set("Authorization", "Bearer "+token)
+		request = mux.SetURLVars(request, map[string]string{"clusterName": "shared"})
+		response := httptest.NewRecorder()
+
+		RequestHandler(store, sessions, false, false, "shared", response, request)
+
+		return response
+	}
+
+	// The cluster only accepts alice's exchanged token.
+	response := serve("subject")
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, []string{"subject"}, exchanged)
+
+	response = serve("rejected")
+	require.NotEqual(t, http.StatusOK, response.Code)
+	require.Contains(t, response.Body.String(), "STS token exchange failed")
+
+	// A forward's cluster requests exchange the original token again, as they
+	// can outlive the exchanged one. The test cluster stops this one before it
+	// allocates a real forward.
+	exchanged = nil
+	start := httptest.NewRequestWithContext(WithTokenExchange(t.Context(), exchange), http.MethodPost,
+		"/clusters/shared/portforward", strings.NewReader(`{"namespace":"default","pod":"web","targetPort":"80"}`))
+	start.Header.Set("Authorization", "Bearer subject")
+	start = mux.SetURLVars(start, map[string]string{"clusterName": "shared"})
+	RequestHandler(store, sessions, false, false, "shared", httptest.NewRecorder(), start)
+	require.Greater(t, len(exchanged), 1, "the forward should get a token source")
+
+	request := httptest.NewRequestWithContext(WithTokenExchange(t.Context(), exchange), http.MethodPost,
+		"/clusters/shared/portforward", nil)
+	request.Header.Set("Cookie", "headlamp-auth-shared.0=subject")
+
+	exchangedRequest, token, err := exchangeRequestToken(request, "subject")
+	require.NoError(t, err)
+	require.Equal(t, "alice", token)
+	require.Equal(t, "Bearer alice", exchangedRequest.Header.Get("Authorization"))
+	require.Empty(t, exchangedRequest.Header.Get("Cookie"))
+	require.NotEmpty(t, request.Header.Get("Cookie"), "the original request should be unchanged")
+
+	tokenSource := requestTokenSource(exchangedRequest.Context())
+	require.NotNil(t, tokenSource)
+
+	exchanged = nil
+	token, err = tokenSource(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "alice", token)
+	require.Equal(t, []string{"subject"}, exchanged)
+}
+
+// TestPortForwardDoesNotExchangeOtherAuthorizationSchemes checks that the
+// credentials of a non-Bearer scheme aren't sent to the STS, while a bare token,
+// as an auth proxy header can hold, still is.
+func TestPortForwardDoesNotExchangeOtherAuthorizationSchemes(t *testing.T) {
+	var exchanged []string
+
+	exchange := TokenExchange(func(_ context.Context, token string) (string, error) {
+		exchanged = append(exchanged, token)
+
+		return "exchanged", nil
+	})
+
+	exchangeAuthorization := func(authorization string) error {
+		request := httptest.NewRequestWithContext(WithTokenExchange(t.Context(), exchange), http.MethodGet,
+			"/clusters/shared/portforward/list", nil)
+		request.Header.Set("Authorization", authorization)
+
+		_, _, err := exchangeRequestToken(request, auth.BearerTokenValue(authorization))
+
+		return err
+	}
+
+	err := exchangeAuthorization("Basic dXNlcjpwYXNz")
+	require.Error(t, err)
+	require.Equal(t, http.StatusUnauthorized, auth.GetSTSErrorStatusCode(err))
+	require.Empty(t, exchanged)
+
+	require.NoError(t, exchangeAuthorization("bare-token"))
+	require.NoError(t, exchangeAuthorization("Bearer bearer-token"))
+	require.Equal(t, []string{"bare-token", "bearer-token"}, exchanged)
 }
 
 //nolint:funlen // Exercises real HTTP requests, upstream authentication, and session-control isolation together.

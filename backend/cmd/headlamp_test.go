@@ -68,6 +68,7 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -5894,6 +5895,91 @@ func TestClusterRequestHandler_NonBearerAuthSchemeHandling(t *testing.T) {
 	})
 }
 
+// TestClusterRequestHandlerKeepsAuthorizationProxyTokenHeader checks that a
+// proxy token header named Authorization doesn't remove the token Headlamp
+// forwards in that same header, and that a Bearer prefix on the proxy's
+// token isn't doubled.
+func TestClusterRequestHandlerKeepsAuthorizationProxyTokenHeader(t *testing.T) { //nolint:funlen // API integration.
+	const backendToken = "test-backend-token"
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", backendToken)
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "main",
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	tests := []struct {
+		name          string
+		proxyAuth     bool
+		authorization string
+		cookie        string
+		want          string
+	}{
+		{name: "cookie", cookie: "cookie-token", want: "Bearer cookie-token"},
+		{name: "proxy token", proxyAuth: true, authorization: "proxy-token", want: "Bearer proxy-token"},
+		{name: "proxy bearer token", proxyAuth: true, authorization: "Bearer proxy-token", want: "Bearer proxy-token"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeConfigStore,
+					},
+					ProxyAuthEnabled:     tc.proxyAuth,
+					ProxyAuthTokenHeader: "authorization",
+					Cache:                cache.New[interface{}](),
+					TelemetryConfig:      GetDefaultTestTelemetryConfig(),
+					TelemetryHandler:     &telemetry.RequestHandler{},
+				},
+			}
+
+			router := mux.NewRouter()
+			handleClusterAPI(c, router)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+			req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", backendToken)
+
+			if tc.authorization != "" {
+				req.Header.Set("Authorization", tc.authorization)
+			}
+
+			if tc.cookie != "" {
+				req.AddCookie(&http.Cookie{
+					Name:     "headlamp-auth-main.0",
+					Value:    tc.cookie,
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
+				})
+			}
+
+			receivedAuth = ""
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, tc.want, receivedAuth)
+		})
+	}
+}
+
 // The service proxy must also forward the token that the refresh middleware put
 // in Authorization, rather than the expired one still in the request cookie.
 func TestServiceProxyForwardsRefreshedOIDCToken(t *testing.T) { //nolint:funlen // real provider/API integration.
@@ -7331,4 +7417,1041 @@ func TestClusterMetadataSeparatesResourceAndContextNamespaces(t *testing.T) {
 	require.Equal(t, "inventory-team", presentation.Fields["namespace"])
 	require.Equal(t, "workload", presentation.DisplayName)
 	require.Equal(t, connection.Name, c.getClusters()[0].Name)
+}
+
+func TestClusterRequestHandlerOidcSts(t *testing.T) { //nolint:funlen // STS integration.
+	// The response and clientset caches are global and keyed by cluster, so use
+	// a fresh response cache and a cluster name no other test or run has used.
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+
+	t.Cleanup(func() { k8sResponseCache = oldCache })
+
+	cluster := fmt.Sprintf("sts-cluster-%d", time.Now().UnixNano())
+
+	// Mock STS/OIDC Issuer Server
+	var stsRequestCount int
+
+	stsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		if r.URL.Path == "/token" {
+			stsRequestCount++
+
+			if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			// Validate request parameters
+			err := r.ParseForm()
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			if r.Form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:token-exchange" ||
+				r.Form.Get("subject_token") != "subject-token-123" ||
+				r.Form.Get("audience") != "sts-audience-value" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			// The STS credentials must be used, never the login client's.
+			if user, pass, ok := r.BasicAuth(); !ok || user != "sts-client" || pass != "sts-secret" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token": "exchanged-sts-token-456"}`))
+
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(stsServer.Close)
+
+	// Mock Kubernetes API. With caching enabled, the cache's background
+	// watcher sends its own unauthenticated requests here, so only the test's
+	// pod list request is recorded, and atomically.
+	var (
+		receivedAuth atomic.Value
+		ssarAuth     atomic.Value
+	)
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if strings.HasSuffix(r.URL.Path, "/selfsubjectaccessreviews") {
+			ssarAuth.Store(r.Header.Get("Authorization"))
+
+			_, _ = w.Write([]byte(`{"kind":"SelfSubjectAccessReview",` +
+				`"apiVersion":"authorization.k8s.io/v1","status":{"allowed":true}}`))
+
+			return
+		}
+
+		if r.URL.Query().Get("watch") != "" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if r.URL.Path == "/api/v1/pods" && r.URL.RawQuery == "" {
+			receivedAuth.Store(r.Header.Get("Authorization"))
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:      cluster,
+		ClusterID: "kubeconfig+" + cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigStore: kubeConfigStore,
+			},
+			OidcClientID:        "login-client",
+			OidcClientSecret:    "login-secret",
+			OidcStsEnabled:      true,
+			OidcStsIssuerURL:    stsServer.URL,
+			OidcStsClientID:     "sts-client",
+			OidcStsClientSecret: "sts-secret",
+			OidcStsAudienceMap:  fmt.Sprintf("%s=sts-audience-value", cluster),
+			Cache:               cache.New[interface{}](),
+			TelemetryConfig:     GetDefaultTestTelemetryConfig(),
+			TelemetryHandler:    &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	// Test 1: Successful STS Exchange and request proxying
+	{
+		auth.ResetSTSCache()
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.AddCookie(&http.Cookie{
+			Name:     fmt.Sprintf("headlamp-auth-%s.0", cluster),
+			Value:    "subject-token-123",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
+		assert.Equal(t, 1, stsRequestCount)
+	}
+
+	// Test 2: STS Exchange failure returns 401 Unauthorized
+	{
+		auth.ResetSTSCache()
+
+		receivedAuth.Store("")
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.AddCookie(&http.Cookie{
+			Name:     fmt.Sprintf("headlamp-auth-%s.0", cluster),
+			Value:    "invalid-token",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		assert.Empty(t, receivedAuth.Load()) // Kube API shouldn't have been called
+	}
+
+	// Test 3: STS Exchange with Authorization header (regression test for Authorization header bearer token)
+	{
+		auth.ResetSTSCache()
+
+		receivedAuth.Store("")
+
+		stsRequestCount = 0
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.Header.Set("Authorization", "Bearer subject-token-123")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
+		assert.Equal(t, 1, stsRequestCount)
+	}
+
+	// Test 4: Upstream discovery/STS server failure returns 502 (not 401)
+	{
+		receivedAuth.Store("")
+
+		cBad := &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:    false,
+					KubeConfigStore: kubeConfigStore,
+				},
+				OidcStsEnabled:     true,
+				OidcStsIssuerURL:   "http://127.0.0.1:1", // unreachable
+				OidcStsAudienceMap: fmt.Sprintf("%s=sts-audience-value", cluster),
+				Cache:              cache.New[interface{}](),
+				TelemetryConfig:    GetDefaultTestTelemetryConfig(),
+				TelemetryHandler:   &telemetry.RequestHandler{},
+			},
+		}
+		routerBad := mux.NewRouter()
+		handleClusterAPI(cBad, routerBad)
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.Header.Set("Authorization", "Bearer subject-token-123")
+
+		rr := httptest.NewRecorder()
+		routerBad.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusBadGateway, rr.Code)
+		assert.Empty(t, receivedAuth.Load())
+	}
+
+	// Test 5: Authorization header (any scheme case) wins over a stale cookie
+	{
+		auth.ResetSTSCache()
+
+		receivedAuth.Store("")
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.AddCookie(&http.Cookie{
+			Name:     fmt.Sprintf("headlamp-auth-%s.0", cluster),
+			Value:    "stale-token",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+		req.Header.Set("Authorization", "bearer subject-token-123")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
+	}
+
+	// Test 6: With caching enabled, the cache's SSAR uses the exchanged token
+	{
+		auth.ResetSTSCache()
+
+		receivedAuth.Store("")
+
+		cCached := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{}}
+		*cCached.HeadlampConfig = *c.HeadlampConfig
+		cCached.HeadlampCFG = &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore, CacheEnabled: true}
+
+		routerCached := mux.NewRouter()
+		handleClusterAPI(cCached, routerCached)
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			fmt.Sprintf("/clusters/%s/api/v1/pods", cluster),
+			nil,
+		)
+		req.AddCookie(&http.Cookie{
+			Name:     fmt.Sprintf("headlamp-auth-%s.0", cluster),
+			Value:    "subject-token-123",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		rr := httptest.NewRecorder()
+		routerCached.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, "Bearer exchanged-sts-token-456", ssarAuth.Load())
+		assert.Equal(t, "Bearer exchanged-sts-token-456", receivedAuth.Load())
+	}
+}
+
+// TestExchangeSTSTokenReusesConnections checks that exchanges share one HTTP
+// client, configured once from the OIDC TLS settings, so they reuse their
+// connections to the STS.
+func TestExchangeSTSTokenReusesConnections(t *testing.T) {
+	var newConnections atomic.Int32
+
+	sts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "https://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		// Without expires_in nothing is cached, so every call exchanges.
+		_, _ = fmt.Fprint(w, `{"access_token": "exchanged-token"}`)
+	}))
+	sts.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			newConnections.Add(1)
+		}
+	}
+	sts.StartTLS()
+	t.Cleanup(sts.Close)
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:         &headlampconfig.HeadlampCFG{},
+		OidcStsEnabled:      true,
+		OidcStsIssuerURL:    sts.URL,
+		OidcStsClientID:     "sts-client",
+		OidcStsClientSecret: "sts-secret",
+		OidcStsAudienceMap:  "sts-cluster=sts-audience",
+		OidcCACert:          string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: sts.Certificate().Raw})),
+	}}
+
+	auth.ResetSTSCache()
+
+	for range 3 {
+		token, err := c.exchangeSTSToken(context.Background(), "sts-cluster", "subject-token")
+		require.NoError(t, err)
+		assert.Equal(t, "exchanged-token", token)
+	}
+
+	assert.Equal(t, int32(1), newConnections.Load(), "exchanges should reuse one connection")
+}
+
+// TestHelmReleaseRoutesRenewSTSToken checks that Helm release actions, which
+// can outlast one exchanged token, exchange the caller's token again for their
+// requests instead of keeping the token the request came in with.
+func TestHelmReleaseRoutesRenewSTSToken(t *testing.T) { //nolint:funlen // STS and API integration.
+	var exchanges atomic.Int32
+
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		if r.FormValue("subject_token") != "subject-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Without expires_in nothing is cached, so every call exchanges.
+		_, _ = fmt.Fprintf(w, `{"access_token": "exchanged-%d"}`, exchanges.Add(1))
+	}))
+	t.Cleanup(sts.Close)
+
+	requests := make(chan string, 8)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.Header.Get("Authorization")
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: "sts-helm", Source: kubeconfig.KubeConfig,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:         &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+		TelemetryHandler:    &telemetry.RequestHandler{},
+		OidcStsEnabled:      true,
+		OidcStsIssuerURL:    sts.URL,
+		OidcStsClientID:     "sts-client",
+		OidcStsClientSecret: "sts-secret",
+		OidcStsAudienceMap:  "sts-helm=sts-helm-audience",
+	}}
+
+	auth.ResetSTSCache()
+
+	handler := c.stsTokenMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.helmRouteReleaseHandler(r.Context(), trace.SpanFromContext(r.Context()), r, w,
+			"sts-helm", "/releases/install", "InstallRelease",
+			func(clientConfig clientcmd.ClientConfig, _ http.ResponseWriter, _ *http.Request) {
+				restConfig, err := clientConfig.ClientConfig()
+				require.NoError(t, err)
+
+				httpClient, err := rest.HTTPClientFor(restConfig)
+				require.NoError(t, err)
+
+				for range 2 {
+					req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, kubeAPI.URL+"/api", nil)
+					require.NoError(t, err)
+
+					resp, err := httpClient.Do(req)
+					require.NoError(t, err)
+					require.NoError(t, resp.Body.Close())
+				}
+			})
+	}))
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+		"/clusters/sts-helm/helm/release/install", nil)
+	req.Header.Set("Authorization", "Bearer subject-token")
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "sts-helm"})
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+	first, second := <-requests, <-requests
+	assert.True(t, strings.HasPrefix(first, "Bearer exchanged-"), first)
+	assert.True(t, strings.HasPrefix(second, "Bearer exchanged-"), second)
+	assert.NotEqual(t, first, second, "each request should get a newly exchanged token")
+}
+
+// TestSTSTokenSourceRenewsExchangedToken checks the token source a handler,
+// such as Helm's, gets behind stsTokenMiddleware: it exchanges the caller's
+// token again on every call, so work that outlives the request keeps working
+// after the first exchanged token expires.
+func TestSTSTokenSourceRenewsExchangedToken(t *testing.T) { //nolint:funlen // STS integration.
+	var exchanges atomic.Int32
+
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		if r.FormValue("subject_token") != "subject-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		_, _ = fmt.Fprintf(w, `{"access_token": "exchanged-%d", "expires_in": 3600}`, exchanges.Add(1))
+	}))
+	t.Cleanup(sts.Close)
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:         &headlampconfig.HeadlampCFG{},
+		OidcStsEnabled:      true,
+		OidcStsIssuerURL:    sts.URL,
+		OidcStsClientID:     "sts-client",
+		OidcStsClientSecret: "sts-secret",
+		OidcStsAudienceMap:  "sts-pf=sts-pf-audience",
+	}}
+
+	var (
+		forwarded   string
+		tokenSource func(context.Context) (string, error)
+	)
+
+	serve := func(subjectToken string) *httptest.ResponseRecorder {
+		forwarded, tokenSource = "", nil
+
+		handler := c.stsTokenMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			forwarded = r.Header.Get("Authorization")
+			tokenSource = c.requestSTSTokenSource(r)
+		}))
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+			"/clusters/sts-pf/helm/release/install", nil)
+		req.Header.Set("Authorization", "Bearer "+subjectToken)
+
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, mux.SetURLVars(req, map[string]string{"clusterName": "sts-pf"}))
+
+		return rr
+	}
+
+	auth.ResetSTSCache()
+
+	serve("subject-token")
+	assert.Equal(t, "Bearer exchanged-1", forwarded)
+	require.NotNil(t, tokenSource)
+
+	token, err := tokenSource(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "exchanged-1", token, "the middleware's exchange is cached")
+
+	// Once the exchanged token expires, the original subject token is exchanged again.
+	auth.ResetSTSCache()
+
+	token, err = tokenSource(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "exchanged-2", token)
+
+	rr := serve("rejected-token")
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Nil(t, tokenSource, "a rejected token should fail the request")
+
+	c.OidcStsEnabled = false
+
+	serve("subject-token")
+	assert.Equal(t, "Bearer subject-token", forwarded)
+	assert.Nil(t, tokenSource)
+}
+
+// TestRoutesWithOwnClientsExchangeSTSToken checks that port-forward and
+// namespace discovery requests exchange their token before using it, so a
+// token the STS rejects fails the request instead of reaching the cluster.
+func TestRoutesWithOwnClientsExchangeSTSToken(t *testing.T) {
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(sts.Close)
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name: "main", Source: kubeconfig.KubeConfig,
+		Cluster:  &api.Cluster{Server: "https://127.0.0.1:1"},
+		AuthInfo: &api.AuthInfo{},
+	})
+	cfg.OidcStsEnabled = true
+	cfg.OidcStsIssuerURL = sts.URL
+	cfg.OidcStsClientID = "sts-client"
+	cfg.OidcStsClientSecret = "sts-secret"
+	cfg.OidcStsAudienceMap = "main=main-audience"
+
+	cfg.EnableNamespaceDiscovery = true
+	handler := createHeadlampHandler(newTestHandlerCtx(t), cfg)
+
+	// These routes send the user's token to the cluster with clients of their own.
+	for _, route := range []struct{ method, path, body string }{
+		{http.MethodPost, "/clusters/main/portforward", `{"namespace":"default","pod":"web","targetPort":"80"}`},
+		{http.MethodGet, "/clusters/main/accessible-namespaces", ""},
+	} {
+		t.Run(route.path, func(t *testing.T) {
+			auth.ResetSTSCache()
+
+			req := httptest.NewRequestWithContext(context.Background(), route.method, route.path,
+				strings.NewReader(route.body))
+			req.Header.Set("Authorization", "Bearer rejected-token")
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusUnauthorized, rr.Code)
+			assert.Contains(t, rr.Body.String(), "STS token exchange failed")
+		})
+	}
+}
+
+// TestSTSWithAuthorizationProxyTokenHeader checks a proxy that passes the
+// token in Authorization, with or without a Bearer prefix: the STS gets the
+// bare token, and the cluster gets exactly the exchanged one, both from the
+// API proxy and from the service proxy behind stsTokenMiddleware.
+func TestSTSWithAuthorizationProxyTokenHeader(t *testing.T) { //nolint:funlen // STS and API integration.
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+
+	t.Cleanup(func() { k8sResponseCache = oldCache })
+
+	var subjectTokens sync.Map
+
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		subjectTokens.Store(r.FormValue("subject_token"), true)
+
+		if r.FormValue("subject_token") != "raw-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		_, _ = fmt.Fprint(w, `{"access_token": "exchanged-token"}`)
+	}))
+	t.Cleanup(sts.Close)
+
+	received := make(chan string, 16)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if strings.HasSuffix(r.URL.Path, "/selfsubjectaccessreviews") {
+			_, _ = w.Write([]byte(`{"kind":"SelfSubjectAccessReview",` +
+				`"apiVersion":"authorization.k8s.io/v1","status":{"allowed":true}}`))
+
+			return
+		}
+
+		if r.URL.RawQuery == "" &&
+			(r.URL.Path == "/api/v1/pods" || r.URL.Path == "/api/v1/namespaces/default/services/svc") {
+			received <- r.Header.Get("Authorization")
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	cluster := fmt.Sprintf("sts-authz-%d", time.Now().UnixNano())
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:     cluster,
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:          &headlampconfig.HeadlampCFG{KubeConfigStore: store},
+		ProxyAuthEnabled:     true,
+		ProxyAuthTokenHeader: "Authorization",
+		OidcStsEnabled:       true,
+		OidcStsIssuerURL:     sts.URL,
+		OidcStsClientID:      "sts-client",
+		OidcStsClientSecret:  "sts-secret",
+		OidcStsAudienceMap:   cluster + "=sts-audience",
+		Cache:                cache.New[interface{}](),
+		TelemetryConfig:      GetDefaultTestTelemetryConfig(),
+		TelemetryHandler:     &telemetry.RequestHandler{},
+	}}
+
+	router := mux.NewRouter()
+	handleClusterServiceProxy(c, router)
+	handleClusterAPI(c, router)
+
+	for _, path := range []string{"/api/v1/pods", "/serviceproxy/default/svc?request=/"} {
+		for _, authorization := range []string{"raw-token", "Bearer raw-token"} {
+			t.Run(path+" "+authorization, func(t *testing.T) {
+				auth.ResetSTSCache()
+				subjectTokens.Clear()
+
+				req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+					"/clusters/"+cluster+path, nil)
+				req.Header.Set("Authorization", authorization)
+
+				router.ServeHTTP(httptest.NewRecorder(), req)
+
+				var subjects []string
+
+				subjectTokens.Range(func(k, _ any) bool {
+					subjects = append(subjects, k.(string))
+					return true
+				})
+
+				assert.Equal(t, []string{"raw-token"}, subjects)
+
+				select {
+				case got := <-received:
+					assert.Equal(t, "Bearer exchanged-token", got)
+				default:
+					t.Fatal("the cluster got no request")
+				}
+			})
+		}
+	}
+}
+
+// otherClusterKubeconfig is a kubeconfig without the "main" cluster.
+const otherClusterKubeconfig = `apiVersion: v1
+kind: Config
+clusters:
+- name: other
+  cluster:
+    server: https://other.example
+contexts:
+- name: other
+  context:
+    cluster: other
+    user: other
+users:
+- name: other
+  user: {}
+`
+
+// TestSTSExchangesTokenOfUnresolvedContexts checks that the token of a request
+// whose context can't be resolved is exchanged too. The service proxy looks up
+// the route's cluster itself, so it reaches the cluster either way.
+func TestSTSExchangesTokenOfUnresolvedContexts(t *testing.T) { //nolint:funlen // STS and API integration.
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		if r.FormValue("subject_token") != "subject-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		_, _ = fmt.Fprint(w, `{"access_token": "exchanged-token"}`)
+	}))
+	t.Cleanup(sts.Close)
+
+	received := make(chan string, 16)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.Header.Get("Authorization")
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     "main",
+		Cluster:  &api.Cluster{Server: kubeAPI.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache:               cache.New[interface{}](),
+			OidcStsEnabled:      true,
+			OidcStsIssuerURL:    sts.URL,
+			OidcStsClientID:     "sts-client",
+			OidcStsClientSecret: "sts-secret",
+			OidcStsAudienceMap:  "main=sts-audience",
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterServiceProxy(c, router)
+
+	otherCluster := base64.StdEncoding.EncodeToString([]byte(otherClusterKubeconfig))
+
+	for name, kubeConfig := range map[string]string{
+		"malformed KUBECONFIG header":           "not-a-kubeconfig",
+		"KUBECONFIG header without the cluster": otherCluster,
+	} {
+		t.Run(name, func(t *testing.T) {
+			auth.ResetSTSCache()
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+				"/clusters/main/serviceproxy/default/web?request=/", nil)
+			req.Header.Set("KUBECONFIG", kubeConfig)
+			req.Header.Set("Authorization", "Bearer subject-token")
+
+			router.ServeHTTP(httptest.NewRecorder(), req)
+
+			select {
+			case got := <-received:
+				assert.Equal(t, "Bearer exchanged-token", got)
+			default:
+				t.Fatal("the cluster got no request")
+			}
+		})
+	}
+}
+
+// TestSTSExchangesWebSocketProtocolToken checks that a token sent in the
+// WebSocket bearer subprotocol never reaches the cluster unexchanged, as the
+// cluster proxy forwards it on any request, with or without an Upgrade header,
+// and that a WebSocket request with the user ID subprotocol still reaches the
+// user's stateless cluster.
+func TestSTSExchangesWebSocketProtocolToken(t *testing.T) { //nolint:funlen // STS and API integration.
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			_, _ = fmt.Fprintf(w, `{"token_endpoint": "http://%s/token"}`, r.Host) //nolint:gosec // The test server's own host.
+
+			return
+		}
+
+		if r.FormValue("subject_token") != "protocol-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		_, _ = fmt.Fprint(w, `{"access_token": "exchanged-token"}`)
+	}))
+	t.Cleanup(sts.Close)
+
+	received := make(chan string, 16)
+	newCluster := func(name string) *httptest.Server {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			received <- name + ": " + r.Header.Get("Authorization")
+
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		t.Cleanup(server.Close)
+
+		return server
+	}
+
+	shared, stateless := newCluster("shared"), newCluster("stateless")
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name:     "main",
+		Cluster:  &api.Cluster{Server: shared.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	}))
+	require.NoError(t, store.AddContextWithKeyAndTTL(&kubeconfig.Context{
+		Name:     "main",
+		Cluster:  &api.Cluster{Server: stateless.URL, InsecureSkipTLSVerify: true},
+		AuthInfo: &api.AuthInfo{},
+	}, statelessContextKey("main", "user-1"), time.Minute))
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:         &headlampconfig.HeadlampCFG{KubeConfigStore: store, EnableDynamicClusters: true},
+		OidcStsEnabled:      true,
+		OidcStsIssuerURL:    sts.URL,
+		OidcStsClientID:     "sts-client",
+		OidcStsClientSecret: "sts-secret",
+		OidcStsAudienceMap:  "main=sts-audience",
+		Cache:               cache.New[interface{}](),
+		TelemetryConfig:     GetDefaultTestTelemetryConfig(),
+		TelemetryHandler:    &telemetry.RequestHandler{},
+	}}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	protocolToken := "base64url.bearer.authorization.k8s.io." +
+		base64.RawURLEncoding.EncodeToString([]byte("protocol-token"))
+
+	tests := []struct {
+		name, authorization, protocols string
+		upgrade                        bool
+		want                           string
+	}{
+		{name: "without Upgrade", protocols: protocolToken, want: "shared: Bearer exchanged-token"},
+		{
+			// The protocol token is only used without an Authorization header,
+			// and STS drops the Basic one, so no credential is forwarded.
+			name: "without Upgrade, with Basic Authorization", authorization: "Basic dXNlcjpwYXNz",
+			protocols: protocolToken, want: "shared: ",
+		},
+		{
+			name: "WebSocket to a stateless cluster", upgrade: true,
+			protocols: protocolToken + ", base64url.headlamp.authorization.k8s.io.user-1",
+			want:      "stateless: Bearer exchanged-token",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			auth.ResetSTSCache()
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+			req.Header.Set("Sec-WebSocket-Protocol", tc.protocols)
+
+			if tc.authorization != "" {
+				req.Header.Set("Authorization", tc.authorization)
+			}
+
+			if tc.upgrade {
+				req.Header.Set("Connection", "Upgrade")
+				req.Header.Set("Upgrade", "websocket")
+			}
+
+			router.ServeHTTP(httptest.NewRecorder(), req)
+
+			select {
+			case got := <-received:
+				assert.Equal(t, tc.want, got)
+			default:
+				t.Fatal("the cluster got no request")
+			}
+		})
+	}
+}
+
+// TestClusterRequestTokenIgnoresNonBearerAuthorization checks that only a
+// Bearer Authorization header takes precedence over the cluster cookie in the
+// token STS exchanges. Other schemes, such as Basic from an authenticating
+// proxy, are not the user's Kubernetes token and must not be sent as one.
+func TestClusterRequestTokenIgnoresNonBearerAuthorization(t *testing.T) {
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{HeadlampCFG: &headlampconfig.HeadlampCFG{}}}
+
+	newRequest := func(authorization string) *http.Request {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+		req.Header.Set("Authorization", authorization)
+		req.AddCookie(&http.Cookie{
+			Name:     "headlamp-auth-main.0",
+			Value:    "cookie-token",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		return req
+	}
+
+	assert.Equal(t, "cookie-token", c.clusterRequestToken(newRequest("Basic dXNlcjpwYXNz"), "main", nil))
+	assert.Equal(t, "cookie-token", c.clusterRequestToken(newRequest("raw-token"), "main", nil))
+	assert.Equal(t, "header-token", c.clusterRequestToken(newRequest("Bearer header-token"), "main", nil))
+}
+
+// TestSTSOptionsUsesPrimaryIssuerForBlankOverride checks that a blank STS
+// issuer, which validation accepts when the primary issuer is set, falls back
+// to the primary issuer instead of breaking every exchange.
+func TestSTSOptionsUsesPrimaryIssuerForBlankOverride(t *testing.T) {
+	cfg := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:        &headlampconfig.HeadlampCFG{},
+		OidcStsIssuerURL:   "  ",
+		OidcIdpIssuerURL:   "https://idp.example",
+		OidcStsAudienceMap: "main=main-audience",
+	}}
+
+	opts := cfg.stsOptions()
+	assert.Equal(t, "https://idp.example", opts.IssuerURL)
+	assert.Equal(t, map[string]string{"main": "main-audience"}, opts.AudienceMap)
+}
+
+// TestExchangeSTSTokenHidesErrorDetails checks that STS failures reach clients
+// as a generic message with the error's status. The details, such as the STS
+// URL, are only logged.
+func TestExchangeSTSTokenHidesErrorDetails(t *testing.T) {
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/.well-known/openid-configuration" {
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{"token_endpoint": "http://" + r.Host + "/token"}))
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_target","error_description":"secret-detail"}`))
+	}))
+	t.Cleanup(sts.Close)
+
+	cfg := newDrainAuthConfig(t, &kubeconfig.Context{
+		Name:     "main",
+		Cluster:  &api.Cluster{Server: "https://main.example"},
+		AuthInfo: &api.AuthInfo{},
+	})
+	cfg.UseInCluster = false
+	cfg.OidcStsEnabled = true
+	cfg.OidcStsIssuerURL = sts.URL
+	cfg.OidcStsClientID = "sts-client"
+	cfg.OidcStsClientSecret = "sts-secret"
+	cfg.OidcStsAudienceMap = "main=main-audience"
+
+	auth.ResetSTSCache()
+
+	router := mux.NewRouter()
+	handleClusterAPI(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
+		"/clusters/main/drain-node", strings.NewReader(`{"cluster":"main","nodeName":"test-node"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer user-token")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadGateway, rr.Code)
+	assert.Equal(t, "STS token exchange failed\n", rr.Body.String())
+
+	_, err := cfg.exchangeSTSToken(context.Background(), "main", "user-token")
+	require.Error(t, err)
+	assert.Equal(t, "STS token exchange failed", err.Error())
+	assert.Equal(t, http.StatusBadGateway, auth.GetSTSErrorStatusCode(err))
+}
+
+// TestExchangeSTSTokenReturnsCallerCancellation checks that a caller whose own
+// context ends gets that error back, not the generic STS error, so it can tell
+// it apart, as node drains do.
+func TestExchangeSTSTokenReturnsCallerCancellation(t *testing.T) {
+	release := make(chan struct{})
+	sts := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-release
+	}))
+
+	t.Cleanup(func() {
+		close(release)
+		sts.Close()
+	})
+
+	c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+		HeadlampCFG:        &headlampconfig.HeadlampCFG{},
+		OidcStsEnabled:     true,
+		OidcStsIssuerURL:   sts.URL,
+		OidcStsClientID:    "sts-client",
+		OidcStsAudienceMap: "main=main-audience",
+	}}
+
+	auth.ResetSTSCache()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := c.exchangeSTSToken(ctx, "main", "user-token")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+// TestSTSDropsUnselectedAuthorization checks that, with STS enabled, an
+// Authorization header that isn't a token to exchange, such as Basic from an
+// authenticating proxy, doesn't stay on the request. Helm, the service proxy
+// and the API proxy would otherwise send it to the cluster unexchanged, as
+// "Bearer Basic ...". Without STS the header is left as it is.
+func TestSTSDropsUnselectedAuthorization(t *testing.T) {
+	for _, authorization := range []string{"Basic dXNlcjpwYXNz", "raw-token"} {
+		for _, stsEnabled := range []bool{true, false} {
+			c := &HeadlampConfig{HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG:    &headlampconfig.HeadlampCFG{},
+				OidcStsEnabled: stsEnabled,
+			}}
+
+			var forwarded string
+
+			handler := c.stsTokenMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				forwarded = r.Header.Get("Authorization")
+			}))
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+				"/clusters/main/serviceproxy/default/web?request=/", nil)
+			req.Header.Set("Authorization", authorization)
+
+			handler.ServeHTTP(httptest.NewRecorder(), mux.SetURLVars(req, map[string]string{"clusterName": "main"}))
+
+			if stsEnabled {
+				assert.Empty(t, forwarded, "with STS: "+authorization)
+			} else {
+				assert.Equal(t, authorization, forwarded, "without STS: "+authorization)
+			}
+		}
+	}
 }

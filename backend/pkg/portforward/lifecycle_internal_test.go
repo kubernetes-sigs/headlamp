@@ -384,7 +384,7 @@ func TestStartPortForwardAndRequestHandlerErrors(t *testing.T) {
 			Pod:        "pod1",
 			Port:       "8080",
 			TargetPort: "80",
-		}, "", "c1", "c1")
+		}, "", nil, "c1", "c1")
 		require.Error(t, err)
 	})
 
