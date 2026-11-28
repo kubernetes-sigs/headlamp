@@ -27,7 +27,7 @@ import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import type { QueryListResponse } from './hooks';
-import { useEndpoints } from './hooks';
+import { useClusterEndpoints } from './hooks';
 import type { KubeListUpdateEvent } from './KubeList';
 import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
@@ -562,8 +562,16 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   watchQueryParams?: QueryParameters;
   /** Kube resource API endpoint information */
   endpoint?: KubeObjectEndpoint | null;
-  /** Which clusters and namespaces to watch */
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  /**
+   * Which clusters and namespaces to watch. A list's own endpoint, if given, is used
+   * instead of `endpoint`, for clusters that serve a different version of the resource.
+   */
+  lists: Array<{
+    cluster: string;
+    namespace?: string;
+    resourceVersion: string;
+    endpoint?: KubeObjectEndpoint;
+  }>;
   /** Callback invoked when an active watch connection disconnects and needs to reconnect */
   onReconnect?: (
     cluster: string,
@@ -618,7 +626,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 }: {
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   endpoint?: KubeObjectEndpoint | null;
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  lists: Array<{
+    cluster: string;
+    namespace?: string;
+    resourceVersion: string;
+    endpoint?: KubeObjectEndpoint;
+  }>;
   queryParams?: QueryParameters;
   watchQueryParams?: QueryParameters;
   enabled?: boolean;
@@ -689,7 +702,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
         // Construct WebSocket URL with current parameters
         return {
-          url: makeUrl([KubeObjectEndpoint.toUrl(endpoint, list.namespace)], {
+          url: makeUrl([KubeObjectEndpoint.toUrl(list.endpoint ?? endpoint, list.namespace)], {
             ...stableWatchQueryParams,
             watch: 1,
             resourceVersion: latestResourceVersions.current[key] || list.resourceVersion || '',
@@ -1101,7 +1114,12 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   /** Kube resource API endpoint information */
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  lists: Array<{
+    cluster: string;
+    namespace?: string;
+    resourceVersion: string;
+    endpoint?: KubeObjectEndpoint;
+  }>;
   enabled?: boolean;
   onReconnect?: (
     cluster: string,
@@ -1156,7 +1174,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
     if (!enabled || !endpoint) return [];
 
     return lists
-      .map(({ cluster, namespace, resourceVersion }) => {
+      .map(({ cluster, namespace, resourceVersion, endpoint: listEndpoint }) => {
         const watchKey = `${cluster}:${endpointKey}:${namespace || ''}:${watchQueryKey}`;
         if (retryTimersRef.current[watchKey]) {
           return null;
@@ -1169,7 +1187,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
           latestResourceVersions.current[watchKey] = resourceVersion;
         }
 
-        const url = makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
+        const url = makeUrl([KubeObjectEndpoint.toUrl(listEndpoint ?? endpoint!, namespace)], {
           ...stableWatchQueryParams,
           watch: 1,
           resourceVersion: onReconnect
@@ -1556,25 +1574,31 @@ export function useKubeObjectList<K extends KubeObject>({
     /** Oldest successful query update in the combined list, or zero while unresolved. */
     dataUpdatedAt: number;
   } {
-  const candidateNamespaces = useMemo(
-    () => [
-      ...new Set(
-        requests
-          .filter(it => it.cluster === requests[0]?.cluster)
-          .flatMap(it => it.namespaces ?? [])
-      ),
-    ],
-    [requests]
-  );
+  const namespacesByCluster = useMemo(() => {
+    const namespaces: Record<string, string[]> = {};
+    requests.forEach(request => {
+      namespaces[request.cluster] = [
+        ...new Set([...(namespaces[request.cluster] ?? []), ...(request.namespaces ?? [])]),
+      ];
+    });
+    return namespaces;
+  }, [requests]);
   const queryClient = useQueryClient();
 
-  // Get working endpoint from the first cluster
-  // Now if clusters have different apiVersions for the same resource for example, this will not work
-  const { endpoint, error: endpointError } = useEndpoints(
+  // Clusters may serve different versions of the same resource, so each cluster is listed
+  // and watched with its own working endpoint.
+  const { endpoints: clusterEndpoints, errors: endpointErrorsByCluster } = useClusterEndpoints(
     requests.length === 0 ? [] : kubeObjectClass.apiEndpoint.apiInfo,
-    requests[0]?.cluster,
-    candidateNamespaces
+    namespacesByCluster
   );
+  const endpointErrors = Object.values(endpointErrorsByCluster);
+  const noClusterHasEndpoint =
+    endpointErrors.length > 0 && endpointErrors.length === Object.keys(namespacesByCluster).length;
+  // The watch and pagination bookkeeping below is shared by all clusters, so it identifies
+  // the resource by its first declared endpoint. Taking it from whichever cluster finished
+  // probing first would change it as other probes resolve, and reset that bookkeeping.
+  const hasWorkingEndpoint = Object.values(clusterEndpoints).some(Boolean);
+  const endpoint = hasWorkingEndpoint ? kubeObjectClass.apiEndpoint.apiInfo[0] : undefined;
 
   const endpointKey = getResourceIdentity(endpoint, kubeObjectClass);
   const queryParamsKey = JSON.stringify(
@@ -1612,23 +1636,35 @@ export function useKubeObjectList<K extends KubeObject>({
     [cleanedUpQueryParams, requests]
   );
 
+  // Requests for clusters whose endpoint is still being probed, or failed to probe, are left
+  // out. Results line up with this list by index.
+  const queriedListRequests = useMemo(
+    () => activeListRequests.filter(({ cluster }) => clusterEndpoints[cluster]),
+    [activeListRequests, clusterEndpoints]
+  );
+
   const queries = useMemo(
     () =>
-      endpoint
-        ? activeListRequests.map(({ cluster, namespace }) =>
-            kubeObjectListQuery<K>(
-              kubeObjectClass,
-              endpoint,
-              namespace,
-              cluster,
-              perRequestQueryParams,
-              refetchInterval,
-              asTable
-            )
-          )
-        : [],
+      queriedListRequests.map(({ cluster, namespace }) =>
+        kubeObjectListQuery<K>(
+          kubeObjectClass,
+          clusterEndpoints[cluster]!,
+          namespace,
+          cluster,
+          perRequestQueryParams,
+          refetchInterval,
+          asTable
+        )
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeListRequests, kubeObjectClass, endpoint, perRequestQueryParams, refetchInterval, asTable]
+    [
+      queriedListRequests,
+      kubeObjectClass,
+      clusterEndpoints,
+      perRequestQueryParams,
+      refetchInterval,
+      asTable,
+    ]
   );
 
   const query = useQueries({
@@ -1649,7 +1685,7 @@ export function useKubeObjectList<K extends KubeObject>({
       // marks it as loading.
       const resultsByCluster: Record<string, typeof results> = {};
       results.forEach((result, index) => {
-        const cluster = activeListRequests[index]?.cluster;
+        const cluster = queriedListRequests[index]?.cluster;
         if (cluster) {
           (resultsByCluster[cluster] ??= []).push(result);
         }
@@ -1943,7 +1979,7 @@ export function useKubeObjectList<K extends KubeObject>({
   ]);
 
   useEffect(() => {
-    activeListRequests.forEach(({ cluster, namespace }, index) => {
+    queriedListRequests.forEach(({ cluster, namespace }, index) => {
       if (!endpoint || query.queryStatuses?.[index] !== 'error') {
         return;
       }
@@ -1967,7 +2003,7 @@ export function useKubeObjectList<K extends KubeObject>({
       }, Math.min(1000 * Math.pow(2, retryCount), 30000));
     });
   }, [
-    activeListRequests,
+    queriedListRequests,
     endpoint,
     endpointKey,
     perRequestQueryParams,
@@ -2005,8 +2041,13 @@ export function useKubeObjectList<K extends KubeObject>({
     [handleWatchReconnect, currentEndpointKey]
   );
 
+  const listsToWatchWithEndpoints = useMemo(
+    () => listsToWatch.map(list => ({ ...list, endpoint: clusterEndpoints[list.cluster] })),
+    [listsToWatch, clusterEndpoints]
+  );
+
   useWatchKubeObjectLists({
-    lists: shouldWatch ? listsToWatch : [],
+    lists: shouldWatch ? listsToWatchWithEndpoints : [],
     endpoint,
     kubeObjectClass,
     queryParams: perRequestQueryParams,
@@ -2020,9 +2061,13 @@ export function useKubeObjectList<K extends KubeObject>({
     setPaginationError(null);
   }, [paginationInputKey]);
 
-  const errors = [...query.errors.filter(it => it !== null), paginationError].filter(
-    it => it !== null
-  );
+  const errors = [
+    ...endpointErrors,
+    ...query.errors.filter(it => it !== null),
+    paginationError,
+  ].filter(it => it !== null);
+  const firstError =
+    endpointErrors[0] ?? paginationError ?? query.errors.find(it => it !== null) ?? null;
 
   const loadMorePromiseRef = useRef<Promise<void> | null>(null);
 
@@ -2041,11 +2086,13 @@ export function useKubeObjectList<K extends KubeObject>({
           listRequests.length,
           activeListRequestCount + (limit ?? listRequests.length)
         );
-        const nextListRequests = listRequests.slice(activeListRequestCount, nextListRequestCount);
+        const nextListRequests = listRequests
+          .slice(activeListRequestCount, nextListRequestCount)
+          .filter(({ cluster }) => clusterEndpoints[cluster]);
         const nextQueries = nextListRequests.map(({ cluster, namespace }) =>
           kubeObjectListQuery<K>(
             kubeObjectClass,
-            endpoint,
+            clusterEndpoints[cluster]!,
             namespace,
             cluster,
             perRequestQueryParams,
@@ -2084,6 +2131,8 @@ export function useKubeObjectList<K extends KubeObject>({
         pageRequests.map(async ({ query: q, cached }) => {
           const continueToken = cached?.list?.metadata?.continue;
           if (!continueToken || !cached) return;
+          const clusterEndpoint = clusterEndpoints[cached.cluster];
+          if (!clusterEndpoint) return;
 
           const fetchParams: QueryParameters = {
             ...perRequestQueryParams,
@@ -2094,7 +2143,7 @@ export function useKubeObjectList<K extends KubeObject>({
             // Reuse the first-page query's Table conversion for paginated Secret lists.
             const pageQueryFn = kubeObjectListQuery<K>(
               kubeObjectClass,
-              endpoint,
+              clusterEndpoint,
               cached.namespace,
               cached.cluster,
               fetchParams,
@@ -2158,6 +2207,7 @@ export function useKubeObjectList<K extends KubeObject>({
     }
   }, [
     endpoint,
+    clusterEndpoints,
     activeListRequestCount,
     hasPendingListRequests,
     limit,
@@ -2172,10 +2222,11 @@ export function useKubeObjectList<K extends KubeObject>({
 
   // @ts-ignore - TS compiler gets confused with iterators
   return {
-    items: endpointError ? [] : query.items,
+    // A cluster that failed to probe only hides its own items.
+    items: noClusterHasEndpoint ? [] : query.items,
     dataUpdatedAt: query.dataUpdatedAt,
-    errors: endpointError ? [endpointError] : errors.length > 0 ? errors : null,
-    error: endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null,
+    errors: errors.length > 0 ? errors : null,
+    error: firstError,
     clusterResults: query.clusterResults,
     isError: query.isError || !!paginationError,
     isLoading: query.isLoading,
@@ -2186,7 +2237,7 @@ export function useKubeObjectList<K extends KubeObject>({
     loadMore: query.hasMore ? loadMore : undefined,
     *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
       yield query.items;
-      yield endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null;
+      yield firstError;
     },
   };
 }

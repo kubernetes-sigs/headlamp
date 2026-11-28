@@ -20,7 +20,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
-import { kubeObjectQueryKey, useEndpoints, useKubeObject } from './hooks';
+import { kubeObjectQueryKey, useClusterEndpoints, useEndpoints, useKubeObject } from './hooks';
 import type { KubeObjectEndpoint } from './KubeObjectEndpoint';
 
 vi.mock('./fetch', () => ({
@@ -384,6 +384,91 @@ describe('useEndpoints', () => {
     await waitFor(() => {
       expect(result.current.endpoint).toEqual(endpoints[1]);
     });
+  });
+});
+
+describe('useClusterEndpoints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const endpoints: KubeObjectEndpoint[] = [
+    { group: 'gateway.networking.k8s.io', version: 'v1', resource: 'httproutes' },
+    { group: 'gateway.networking.k8s.io', version: 'v1beta1', resource: 'httproutes' },
+  ];
+
+  it('gives every cluster the single endpoint without probing', () => {
+    const { result } = renderHook(
+      () => useClusterEndpoints([endpoints[0]], { 'cluster-a': [], 'cluster-b': ['default'] }),
+      { wrapper: createWrapper() }
+    );
+
+    expect(result.current.endpoints).toEqual({
+      'cluster-a': endpoints[0],
+      'cluster-b': endpoints[0],
+    });
+    expect(result.current.errors).toEqual({});
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
+  it('probes each cluster on its own', async () => {
+    const notFound = new ApiError('Not Found', { status: 404 });
+    mockClusterFetch.mockImplementation((url, init) => {
+      const served: Record<string, string> = {
+        'cluster-a': 'apis/gateway.networking.k8s.io/v1/namespaces/default/httproutes',
+        'cluster-b': 'apis/gateway.networking.k8s.io/v1beta1/httproutes',
+      };
+      return served[init.cluster] === url
+        ? Promise.resolve(mockJsonResponse({}))
+        : Promise.reject(notFound);
+    });
+
+    const { result } = renderHook(
+      () =>
+        useClusterEndpoints(endpoints, {
+          'cluster-a': ['default'],
+          'cluster-b': [],
+          'cluster-c': [],
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.endpoints).toEqual({
+        'cluster-a': endpoints[0],
+        'cluster-b': endpoints[1],
+        'cluster-c': undefined,
+      });
+      expect(result.current.errors).toEqual({ 'cluster-c': notFound });
+    });
+  });
+
+  it('drops the endpoint of a cluster whose probe fails on refetch', async () => {
+    const notFound = new ApiError('Not Found', { status: 404 });
+    mockClusterFetch.mockImplementation(url =>
+      url === 'apis/gateway.networking.k8s.io/v1/httproutes'
+        ? Promise.resolve(mockJsonResponse({}))
+        : Promise.reject(notFound)
+    );
+    const queryClient = new QueryClient();
+
+    const { result } = renderHook(
+      () => useClusterEndpoints(endpoints, { 'cluster-a': [], 'cluster-b': [] }),
+      { wrapper: createWrapper(queryClient) }
+    );
+    await waitFor(() => {
+      expect(result.current.endpoints['cluster-a']).toEqual(endpoints[0]);
+    });
+
+    // The resource is removed from the cluster after it was first probed.
+    mockClusterFetch.mockRejectedValue(notFound);
+    await queryClient.refetchQueries({ queryKey: ['endpoints', 'cluster-a'] });
+
+    await waitFor(() => {
+      expect(result.current.endpoints['cluster-a']).toBeUndefined();
+      expect(result.current.errors).toEqual({ 'cluster-a': notFound });
+    });
+    expect(result.current.endpoints['cluster-b']).toEqual(endpoints[0]);
   });
 });
 

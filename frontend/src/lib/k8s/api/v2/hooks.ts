@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
@@ -349,4 +349,58 @@ export const useEndpoints = (
   if (endpoints.length === 1) return { endpoint: endpoints[0], error: null };
 
   return { endpoint, error };
+};
+
+/**
+ * Returns a working endpoint for each of the given clusters.
+ *
+ * Clusters don't always serve the same versions of a resource, e.g. one cluster may only
+ * have gateway.networking.k8s.io/v1 and another only v1beta1, so each cluster is probed
+ * on its own. Probes share their cache with {@link useEndpoints}.
+ *
+ * @param endpoints - List of possible endpoints
+ * @param namespacesByCluster - Clusters to probe, each with its candidate namespaces
+ * @returns The working endpoint of each cluster, and the probe error of each cluster
+ * where no endpoint worked
+ */
+export const useClusterEndpoints = (
+  endpoints: KubeObjectEndpoint[],
+  namespacesByCluster: Record<string, string[]>
+) => {
+  const endpointsKey = useMemo(
+    () => endpoints.map(ep => `${ep.group ?? ''}/${ep.version}/${ep.resource}`),
+    [endpoints]
+  );
+  const clusters = Object.keys(namespacesByCluster);
+  const needsProbing = endpoints.length > 1;
+
+  return useQueries({
+    queries: needsProbing
+      ? clusters.map(cluster => ({
+          retry: false,
+          queryKey: ['endpoints', cluster, namespacesByCluster[cluster], '', endpointsKey],
+          queryFn: () => getWorkingEndpoint(endpoints, cluster, namespacesByCluster[cluster]),
+        }))
+      : [],
+    combine: results => {
+      const endpointByCluster: Record<string, KubeObjectEndpoint | undefined> = {};
+      const errorByCluster: Record<string, ApiError> = {};
+
+      clusters.forEach((cluster, index) => {
+        if (!needsProbing) {
+          endpointByCluster[cluster] = endpoints[0];
+          return;
+        }
+        // A failed refetch keeps the last probed endpoint as data, but it no longer works.
+        const error = results[index]?.error as ApiError | null | undefined;
+        if (error) {
+          errorByCluster[cluster] = error;
+        } else {
+          endpointByCluster[cluster] = results[index]?.data;
+        }
+      });
+
+      return { endpoints: endpointByCluster, errors: errorByCluster };
+    },
+  });
 };
