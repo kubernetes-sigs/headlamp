@@ -17,126 +17,100 @@ limitations under the License.
 package k8cache
 
 import (
-	"container/list"
+	"context"
+	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 )
 
-// ResetClientsetCache clears the clientset cache for test isolation.
-func ResetClientsetCache() {
-	mu.Lock()
-	defer mu.Unlock()
+var defaultClientsetCache = NewClientsetCache()
 
-	clientsetCache = make(map[string]*list.Element)
-	clientsetLRUList = list.New()
-	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
-	maxClientsets = defaultMaxClientsets
-	maxClientsetsExplicit = false
-}
-
-// SeedClientsetCache populates the clientset cache with dummy entries for testing.
-func SeedClientsetCache(key string, lastUsed time.Time) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if oldElem, exists := clientsetCache[key]; exists {
-		clientsetLRUList.Remove(oldElem)
+func ExpireSSARForTesting() {
+	defaultClientsetCache.ssarMu.Lock()
+	for _, entry := range defaultClientsetCache.ssarCache {
+		entry.expiresAt = time.Now().Add(-ssarTTL)
 	}
-
-	cachedCS := &CachedClientSet{
-		clientset: &kubernetes.Clientset{},
-		lastUsed:  lastUsed,
-	}
-	entry := &lruEntry{
-		key: key,
-		cs:  cachedCS,
-	}
-	elem := clientsetLRUList.PushFront(entry)
-	clientsetCache[key] = elem
+	defaultClientsetCache.ssarMu.Unlock()
 }
 
-// ManualEvictExpiredClientsets triggers the eviction logic immediately for testing.
-func ManualEvictExpiredClientsets() {
-	evictExpiredClientsets()
+func GetClientSetForTesting(
+	headlampContextKey string,
+	k *kubeconfig.Context,
+	token string,
+) (*kubernetes.Clientset, error) {
+	return defaultClientsetCache.GetClientSet(headlampContextKey, k, token)
 }
 
-// SeedBlockedClientsetPrefix marks a prefix as blocked at the given time for testing.
-func SeedBlockedClientsetPrefix(prefix string, blockedAt time.Time) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	blockedClientsetPrefixes[prefix] = blockedPrefixEntry{blockedAt: blockedAt}
+func IsAllowedForTesting(headlampContextKey string, k *kubeconfig.Context, r *http.Request) (bool, error) {
+	return defaultClientsetCache.IsAllowed(headlampContextKey, k, r)
 }
 
-// ClientsetCacheLen returns the current number of entries in the
-// clientset cache. It is intended for use in tests.
-func ClientsetCacheLen() int {
-	mu.Lock()
-	defer mu.Unlock()
-
-	return len(clientsetCache)
+func requestSSAR(
+	ctx context.Context,
+	key string,
+	k *kubeconfig.Context,
+	token string,
+	attrs *authorizationv1.ResourceAttributes,
+) (bool, error) {
+	return defaultClientsetCache.requestSSAR(ctx, key, k, token, attrs)
 }
 
-// ClientsetLRULen returns the number of entries in the clientset LRU list,
-// which should match ClientsetCacheLen. It is intended for use in tests.
-func ClientsetLRULen() int {
-	mu.Lock()
-	defer mu.Unlock()
-
-	return clientsetLRUList.Len()
+func acquireSSARRequest(key string) (bool, bool, *ssarInFlightEntry, bool) {
+	return defaultClientsetCache.acquireSSARRequest(key)
 }
 
-// ResetInFlight clears the inFlight map for test isolation.
-func ResetInFlight() {
-	mu.Lock()
-	defer mu.Unlock()
+func startSSARRequest(
+	parent context.Context,
+	key string,
+	entry *ssarInFlightEntry,
+	timeout time.Duration,
+	request func(context.Context) (bool, error),
+) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), timeout)
+		defer cancel()
 
-	inFlight = make(map[string]*inFlightEntry)
+		requestDone := make(chan struct{})
+
+		go func() {
+			allowed, err := request(ctx)
+			defaultClientsetCache.finishSSARRequest(key, entry, allowed, err)
+			close(requestDone)
+		}()
+
+		select {
+		case <-requestDone:
+		case <-ctx.Done():
+			defaultClientsetCache.timeoutSSARRequest(entry, ctx.Err())
+		}
+	}()
 }
 
-// SeedInFlightClientsetKey registers an in-flight clientset creation for testing.
-func SeedInFlightClientsetKey(cacheKey string) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	inFlight[cacheKey] = &inFlightEntry{
-		waitCh: make(chan struct{}),
-	}
+func finishSSARRequest(key string, entry *ssarInFlightEntry, allowed bool, err error) {
+	defaultClientsetCache.finishSSARRequest(key, entry, allowed, err)
 }
 
-// SetClientsetCreator sets a custom clientset creator function for testing.
-// It returns a function to restore the original creator.
-func SetClientsetCreator(fn func(*kubeconfig.Context, string) (*kubernetes.Clientset, error)) func() {
-	hookMu.Lock()
-	original := clientsetCreator
-	clientsetCreator = fn
-	hookMu.Unlock()
-
-	return func() {
-		hookMu.Lock()
-		clientsetCreator = original
-		hookMu.Unlock()
-	}
+func getSSARCacheResult(key string) (bool, bool) {
+	return defaultClientsetCache.getSSARCacheResult(key)
 }
 
-// SetTestingInFlightWait sets a custom wait hook for testing.
-// It returns a function to restore the original hook.
-func SetTestingInFlightWait(fn func()) func() {
-	hookMu.Lock()
-	original := testingInFlightWait
-	testingInFlightWait = fn
-	hookMu.Unlock()
+func storeSSARCacheResult(key string, allowed bool) {
+	defaultClientsetCache.storeSSARCacheResult(key, allowed)
+}
 
-	return func() {
-		hookMu.Lock()
-		testingInFlightWait = original
-		hookMu.Unlock()
-	}
+func evictSSARCacheForPrefix(prefix string) {
+	defaultClientsetCache.evictSSARCacheForPrefix(prefix)
+}
+
+func evictExpiredSSARResults(now time.Time) {
+	defaultClientsetCache.evictExpiredSSARResults(now)
 }
 
 // ExportedRedactContextKey exposes redactContextKey for testing.
@@ -168,124 +142,306 @@ func ExportedCacheKeyBelongsToContext(key, contextKey string) bool {
 	return cacheKeyBelongsToContext(key, contextKey)
 }
 
-// ExportedClientsetPrefixBlocked reports whether clientset caching is blocked for a prefix.
-func ExportedClientsetPrefixBlocked(prefix string) bool {
-	mu.Lock()
-	defer mu.Unlock()
-
-	_, blocked := blockedClientsetPrefixes[prefix]
-
-	return blocked
+// WithInFlightWaitHook sets a wait hook invoked when a waiter begins blocking on in-flight creation for testing.
+func WithInFlightWaitHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.inFlightWaitHook = hook
+	}
 }
 
-// SetMaxClientsetsForTesting sets maxClientsets and returns a restore function.
+// WithJanitorLoopHook sets an unexported testing hook invoked on each janitor tick for testing.
+func WithJanitorLoopHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.janitorLoopHook = hook
+	}
+}
+
+func WithPruneShardHook(hook func(int)) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.pruneShardHook = hook
+	}
+}
+
+func WithRegistrationHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.registrationHook = hook
+	}
+}
+
+// WithJanitorStopHook sets an unexported testing hook invoked inside Stop() while holding janitorMu.
+func WithJanitorStopHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.janitorStopHook = hook
+	}
+}
+
+// SetJanitorStopHook allows setting or overriding the janitor stop hook for testing.
+func (c *ClientsetCache) SetJanitorStopHook(hook func()) {
+	if c == nil {
+		return
+	}
+
+	c.janitorMu.Lock()
+	defer c.janitorMu.Unlock()
+
+	c.janitorStopHook = hook
+}
+
+// WithJanitorStartHook sets an unexported testing hook invoked inside Start() before acquiring janitorMu.
+func WithJanitorStartHook(hook func()) ClientsetCacheOption {
+	return func(c *ClientsetCache) {
+		c.janitorStartHook = hook
+	}
+}
+
+// SetJanitorStartHook allows setting or overriding the janitor start hook for testing.
+func (c *ClientsetCache) SetJanitorStartHook(hook func()) {
+	if c == nil {
+		return
+	}
+
+	c.janitorMu.Lock()
+	defer c.janitorMu.Unlock()
+
+	c.janitorStartHook = hook
+}
+
+// JanitorDone returns the done channel of the current janitor goroutine for testing.
+func (c *ClientsetCache) JanitorDone() <-chan struct{} {
+	if c == nil {
+		return nil
+	}
+
+	c.janitorMu.Lock()
+	defer c.janitorMu.Unlock()
+
+	return c.janitorDone
+}
+
+// SetClientsetCreator allows setting or overriding the clientset creator on an existing cache instance for testing.
+func (c *ClientsetCache) SetClientsetCreator(creator ClientsetCreatorFunc) {
+	if c == nil {
+		return
+	}
+
+	c.creator = creator
+}
+
+// SetInFlightWaitHook allows setting or overriding the in-flight wait hook on an existing cache instance for testing.
+func (c *ClientsetCache) SetInFlightWaitHook(hook func()) {
+	if c == nil {
+		return
+	}
+
+	c.inFlightWaitHook = hook
+}
+
+func (c *ClientsetCache) ShardForPrefixForTesting(prefix string) int {
+	return int(hashPrefix(prefix) % numShards)
+}
+
+func (c *ClientsetCache) ShardCountForTesting() int {
+	return numShards
+}
+
+func (c *ClientsetCache) LockShardForTesting(index int) {
+	c.shards[index].mu.Lock()
+}
+
+func (c *ClientsetCache) UnlockShardForTesting(index int) {
+	c.shards[index].mu.Unlock()
+}
+
+// SeedClientset inserts a clientset directly into the appropriate shard for testing.
+func (c *ClientsetCache) SeedClientset(key string, lastUsed time.Time, cs ...*kubernetes.Clientset) {
+	prefix := clientsetCachePrefixFromCacheKey(key)
+	shard := c.shardForPrefix(prefix)
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	var client *kubernetes.Clientset
+	if len(cs) > 0 && cs[0] != nil {
+		client = cs[0]
+	} else {
+		client = &kubernetes.Clientset{}
+	}
+
+	_, existed := shard.clientsets[key]
+	shard.clientsets[key] = &CachedClientSet{
+		clientset:      client,
+		lastUsed:       lastUsed,
+		accessSequence: c.accessSequence.Add(1),
+	}
+
+	if !existed {
+		c.cachedCount.Add(1)
+	}
+}
+
+// SeedBlockedPrefix marks a prefix as blocked at blockedAt for testing.
+func (c *ClientsetCache) SeedBlockedPrefix(prefix string, blockedAt time.Time) {
+	c.blockedMu.Lock()
+	defer c.blockedMu.Unlock()
+
+	c.blockedClientsetPrefixes[prefix] = blockedPrefixEntry{blockedAt: blockedAt}
+}
+
+// SeedInFlight registers an in-flight entry for testing.
+func (c *ClientsetCache) SeedInFlight(cacheKey string) chan struct{} {
+	prefix := clientsetCachePrefixFromCacheKey(cacheKey)
+	shard := c.shardForPrefix(prefix)
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	waitCh := make(chan struct{})
+	shard.inFlight[cacheKey] = &inFlightEntry{
+		waitCh: waitCh,
+	}
+
+	return waitCh
+}
+
+func (c *ClientsetCache) StoreSSARForTesting(key string, allowed bool) {
+	c.storeSSARCacheResult(key, allowed)
+}
+
+func (c *ClientsetCache) GetSSARForTesting(key string) (bool, bool) {
+	return c.getSSARCacheResult(key)
+}
+
 func SetMaxClientsetsForTesting(limit int) func() {
-	mu.Lock()
-	old := maxClientsets
-	oldExplicit := maxClientsetsExplicit
-	maxClientsets = limit
-	maxClientsetsExplicit = true
-	mu.Unlock()
+	previous := defaultMaxClientsets.Load()
+	explicit := maxClientsetsExplicit.Load()
+
+	defaultMaxClientsets.Store(int64(limit))
+	maxClientsetsExplicit.Store(true)
+	defaultClientsetCache.SetMaxClientsets(limit)
 
 	return func() {
-		mu.Lock()
-		maxClientsets = old
-		maxClientsetsExplicit = oldExplicit
-		mu.Unlock()
+		defaultMaxClientsets.Store(previous)
+		maxClientsetsExplicit.Store(explicit)
+		defaultClientsetCache.maxClientsets.Store(previous)
 	}
 }
 
-// HasCachedClientset reports whether a key is currently in clientsetCache.
-func HasCachedClientset(headlampContextKey, token string) bool {
-	mu.Lock()
-	defer mu.Unlock()
-
-	exactKey := headlampContextKey + "\x00" + token
-	if _, found := clientsetCache[exactKey]; found {
-		return true
+func SetMaxClientsetsForTestingGlobal(limit int) error {
+	if limit <= 0 {
+		return fmt.Errorf("max clientsets must be greater than 0")
 	}
 
-	prefix := headlampContextKey + "\x00"
-	suffix := "\x00" + token
+	defaultMaxClientsets.Store(int64(limit))
+	maxClientsetsExplicit.Store(true)
+	defaultClientsetCache.SetMaxClientsets(limit)
 
-	for key := range clientsetCache {
-		if strings.HasPrefix(key, prefix) && strings.HasSuffix(key, suffix) {
-			return true
-		}
-	}
-
-	return false
+	return nil
 }
 
-// ExportedEvictClientsetIfMatch exposes evictClientsetIfMatch for testing.
-func ExportedEvictClientsetIfMatch(headlampContextKey, token string, cs *kubernetes.Clientset) {
-	evictClientsetIfMatch(headlampContextKey, token, cs)
+func MaxClientsetsForTesting() int {
+	return getMaxClientsetsLimit()
 }
 
-// SeedClientsetCacheWithClientset populates the cache with a specific clientset for testing.
+func ResetInFlight() {
+	defaultClientsetCache = NewClientsetCache()
+}
+
+func ResetClientsetCache() {
+	defaultClientsetCache = NewClientsetCache()
+
+	defaultMaxClientsets.Store(0)
+	maxClientsetsExplicit.Store(false)
+}
+
+func ClientsetCacheLen() int {
+	return defaultClientsetCache.Len()
+}
+
 func SeedClientsetCacheWithClientset(key string, cs *kubernetes.Clientset, lastUsed time.Time) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if oldElem, exists := clientsetCache[key]; exists {
-		clientsetLRUList.Remove(oldElem)
-	}
-
-	cachedCS := &CachedClientSet{
-		clientset: cs,
-		lastUsed:  lastUsed,
-	}
-	entry := &lruEntry{
-		key: key,
-		cs:  cachedCS,
-	}
-	elem := clientsetLRUList.PushFront(entry)
-	clientsetCache[key] = elem
+	defaultClientsetCache.SeedClientset(key, lastUsed, cs)
 }
 
-// GetCachedClientsetForTesting returns the clientset pointer stored in clientsetCache, or nil.
+func SeedClientsetCache(key string, lastUsed time.Time) {
+	defaultClientsetCache.SeedClientset(key, lastUsed)
+}
+
+func SeedInFlightClientsetKey(cacheKey string) {
+	defaultClientsetCache.SeedInFlight(cacheKey)
+}
+
+func FinishInFlightClientsetForTesting(
+	cacheKey string,
+	cs *kubernetes.Clientset,
+	err error,
+) {
+	prefix := clientsetCachePrefixFromCacheKey(cacheKey)
+	shard := defaultClientsetCache.shardForPrefix(prefix)
+	shard.mu.Lock()
+	entry := shard.inFlight[cacheKey]
+	shard.mu.Unlock()
+
+	_, _ = defaultClientsetCache.finishInFlight(shard, cacheKey, prefix, entry, cs, err, clientsetTTL)
+}
+
 func GetCachedClientsetForTesting(headlampContextKey, token string) *kubernetes.Clientset {
-	mu.Lock()
-	defer mu.Unlock()
-
-	exactKey := headlampContextKey + "\x00" + token
-	if elem, found := clientsetCache[exactKey]; found {
-		return elem.Value.(*lruEntry).cs.clientset
-	}
-
-	prefix := headlampContextKey + "\x00"
 	suffix := "\x00" + token
+	prefix := headlampContextKey + "\x00"
 
-	for key, elem := range clientsetCache {
-		if strings.HasPrefix(key, prefix) && strings.HasSuffix(key, suffix) {
-			return elem.Value.(*lruEntry).cs.clientset
+	for i := range defaultClientsetCache.shards {
+		shard := &defaultClientsetCache.shards[i]
+		shard.mu.Lock()
+		for key, cached := range shard.clientsets {
+			if strings.HasPrefix(key, prefix) && strings.HasSuffix(key, suffix) {
+				shard.mu.Unlock()
+				return cached.clientset
+			}
 		}
+		shard.mu.Unlock()
 	}
 
 	return nil
 }
 
-// SetTestingBeforeFinishInFlight sets a hook called before finishInFlightClientset and returns a restore function.
-func SetTestingBeforeFinishInFlight(fn func(cacheKey string)) func() {
-	hookMu.Lock()
-	original := testingBeforeFinishInFlight
-	testingBeforeFinishInFlight = fn
-	hookMu.Unlock()
+func SetClientsetCreator(creator ClientsetCreatorFunc) func() {
+	previous := defaultClientsetCache.creator
+	defaultClientsetCache.creator = creator
 
 	return func() {
-		hookMu.Lock()
-		testingBeforeFinishInFlight = original
-		hookMu.Unlock()
+		defaultClientsetCache.creator = previous
 	}
 }
 
-// FinishInFlightClientsetForTesting completes an in-flight entry registered via SeedInFlightClientsetKey.
-func FinishInFlightClientsetForTesting(cacheKey string, cs *kubernetes.Clientset, err error) {
-	mu.Lock()
-	entry, ok := inFlight[cacheKey]
-	mu.Unlock()
+func SetTestingBeforeFinishInFlight(hook func(string)) func() {
+	previous := defaultClientsetCache.beforeFinishHook
+	defaultClientsetCache.beforeFinishHook = hook
 
-	if ok {
-		finishInFlightClientset(cacheKey, entry, cs, err)
+	return func() {
+		defaultClientsetCache.beforeFinishHook = previous
 	}
+}
+
+func HasCachedClientset(headlampContextKey, token string) bool {
+	return defaultClientsetCache.hasCachedClientset(headlampContextKey, token)
+}
+
+func (c *ClientsetCache) hasCachedClientset(headlampContextKey, token string) bool {
+	suffix := "\x00" + token
+	prefix := headlampContextKey + "\x00"
+
+	for i := range c.shards {
+		shard := &c.shards[i]
+		shard.mu.Lock()
+
+		for key := range shard.clientsets {
+			if strings.HasPrefix(key, prefix) && strings.HasSuffix(key, suffix) {
+				shard.mu.Unlock()
+
+				return true
+			}
+		}
+
+		shard.mu.Unlock()
+	}
+
+	return false
 }

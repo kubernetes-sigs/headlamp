@@ -156,7 +156,7 @@ func buildTelemetryConfig(conf *config.Config) config.Config {
 
 // setupKubeConfigStoreWatcher sets up a listener on the kubeConfigStore to sync watchers
 // when kubeconfig contexts change.
-func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
+func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore, authCache *k8cache.ClientsetCache) {
 	var (
 		syncTimer  *time.Timer
 		syncMu     sync.Mutex
@@ -196,7 +196,7 @@ func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
 				}
 			}
 
-			k8cache.SyncWatchers(k8sResponseCache, active)
+			k8cache.SyncWatchers(k8sResponseCache, authCache, active)
 		})
 	})
 }
@@ -232,8 +232,9 @@ func splitOIDCScopes(scopes string) []string {
 //nolint:funlen // Function initializes server dependencies, proxy settings, and cache limits.
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
+	authCache := k8cache.NewClientsetCache()
 	kubeConfigStore := kubeconfig.NewContextStore()
-	setupKubeConfigStoreWatcher(kubeConfigStore)
+	setupKubeConfigStoreWatcher(kubeConfigStore, authCache)
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
@@ -258,6 +259,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		MeGroupsPaths:             conf.MeGroupsPath,
 		MeUserInfoURL:             conf.MeUserInfoURL,
 		Cache:                     cache,
+		ClientsetCache:            authCache,
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
@@ -288,6 +290,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 			logger.Log(logger.LevelError, nil, err, "failed to configure authorization clientset cache capacity")
 			os.Exit(1)
 		}
+
+		cfg.ClientsetCache.SetMaxClientsets(conf.CacheMaxClientsets)
 	}
 
 	return &HeadlampConfig{
@@ -356,6 +360,10 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 // CacheMiddleWare is middleware for caching purposes. It generates a key for each request,
 // authorizes the user, stores resource data in cache, and returns cached data when available.
 func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
+	if c.ClientsetCache == nil {
+		c.ClientsetCache = k8cache.NewClientsetCache()
+	}
+
 	return func(next http.Handler) http.Handler {
 		if !c.CacheEnabled {
 			return next
@@ -411,7 +419,7 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	allowed, err := k8cache.IsAllowed(contextKey, kContext, r)
+	allowed, err := k8cache.IsAllowed(c.ClientsetCache, contextKey, kContext, r)
 	if err != nil {
 		next.ServeHTTP(w, r)
 		return
@@ -434,7 +442,13 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 func serveCachedResource(c *HeadlampConfig, next http.Handler, w http.ResponseWriter,
 	r *http.Request, span trace.Span, key string, kContext *kubeconfig.Context,
 ) {
-	read := k8cache.BeginCacheRead(k8sResponseCache, key, kContext, auth.BearerTokenValue(r.Header.Get("Authorization")))
+	read := k8cache.BeginCacheRead(
+		k8sResponseCache,
+		key,
+		kContext,
+		auth.BearerTokenValue(r.Header.Get("Authorization")),
+		c.ClientsetCache,
+	)
 
 	if !read.Ready() {
 		next.ServeHTTP(w, r)

@@ -118,7 +118,13 @@ func scopeForKey(key string) (resourceScope, bool) {
 // BeginCacheRead shares a watch by resource scope, never by requesting user.
 // The registered credential watches where possible; credential-free contexts
 // borrow the requesting token without copying it into the context store.
-func BeginCacheRead(c cache.Cache[string], key string, k *kubeconfig.Context, token string) *CacheRead {
+func BeginCacheRead(
+	c cache.Cache[string],
+	key string,
+	k *kubeconfig.Context,
+	token string,
+	authCaches ...*ClientsetCache,
+) *CacheRead {
 	scope, ok := scopeForKey(key)
 	if !ok {
 		return nil
@@ -134,11 +140,7 @@ func BeginCacheRead(c cache.Cache[string], key string, k *kubeconfig.Context, to
 	watcherMu.Lock()
 	defer watcherMu.Unlock()
 
-	mu.Lock()
-	blocked := isClientsetPrefixBlockedLocked(scope.Context)
-	mu.Unlock()
-
-	if blocked {
+	if len(authCaches) > 0 && authCaches[0] != nil && authCaches[0].IsPrefixBlocked(scope.Context) {
 		return nil
 	}
 
@@ -486,18 +488,18 @@ func invalidateCacheKeysForResourceEvent(
 }
 
 // SyncWatchers removes every scope and authorization client for obsolete connections.
-func SyncWatchers(c cache.Cache[string], activeContexts []string) {
+func SyncWatchers(c cache.Cache[string], authCache *ClientsetCache, activeContexts []string) {
 	watcherMu.Lock()
 	defer watcherMu.Unlock()
 
-	clearBlockedClientsetPrefixesForActiveContexts(activeContexts)
+	authCache.ClearBlockedClientsetPrefixesForActiveContexts(activeContexts)
 
 	active := make(map[string]bool, len(activeContexts))
 	for _, key := range activeContexts {
 		active[key] = true
 	}
 
-	obsolete := collectCachedContextKeys(c)
+	obsolete := collectCachedContextKeys(c, authCache)
 
 	for scope, w := range resourceWatchers {
 		if !active[scope.Context] {
@@ -509,7 +511,7 @@ func SyncWatchers(c cache.Cache[string], activeContexts []string) {
 
 	for key := range obsolete {
 		if !active[key] {
-			cleanupRemovedContext(c, key)
+			cleanupRemovedContext(c, authCache, key)
 		}
 	}
 }

@@ -172,7 +172,7 @@ func TestCacheConnectionReplacement(t *testing.T) {
 			newServer, newRequests := newCacheConnectionServer(t, "new-pod", "new-user", nil)
 			oldContext := cacheConnectionContext(t, oldServer, source)
 			cfg, router := cacheConnectionRouter(t, oldContext)
-			setupKubeConfigStoreWatcher(cfg.KubeConfigStore)
+			setupKubeConfigStoreWatcher(cfg.KubeConfigStore, cfg.ClientsetCache)
 
 			require.Equal(t, http.StatusOK, cacheConnectionRequest(t, router, http.MethodGet, "old-user").Code)
 			requireCachedResource(t, router, "/api/v1/pods", "old-user", "")

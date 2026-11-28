@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -181,7 +180,7 @@ func TestSharedCacheChecksExactResourceForEachUser(t *testing.T) {
 	for _, source := range []int{kubeconfig.KubeConfig, kubeconfig.ClusterInventory, kubeconfig.DiscoveredCluster} {
 		t.Run(fmt.Sprint(source), func(t *testing.T) {
 			a := newCacheAuthorizationAPI(t)
-			_, router := cacheConnectionRouter(t, cacheConnectionContext(t, a.server, source))
+			cfg, router := cacheConnectionRouter(t, cacheConnectionContext(t, a.server, source))
 			sensitivePath := "/api/v1/namespaces/team/secrets/shared"
 			pod := "/api/v1/namespaces/team/pods/shared"
 
@@ -205,7 +204,7 @@ func TestSharedCacheChecksExactResourceForEachUser(t *testing.T) {
 			a.revoked.Store(true)
 			beforeGets, beforeReviews, beforeWatches := gets, a.reviews.Load(), watches
 
-			k8cache.ExpireSSARForTesting()
+			cfg.ClientsetCache.ExpireSSARForTesting()
 
 			denied = cacheResourceRequest(t, router, pod, "reader", "", "")
 			require.Equal(t, http.StatusForbidden, denied.Code)
@@ -307,7 +306,7 @@ func TestCacheFallsBackWhenAuthorizationOrWatchIsUnavailable(t *testing.T) {
 	a.watchDenied.Store(false)
 	requireCachedResource(t, router, path, "admin", "")
 	a.reviewError.Store(true)
-	k8cache.ExpireSSARForTesting()
+	cfg.ClientsetCache.ExpireSSARForTesting()
 
 	before := a.gets.Load()
 	response := cacheResourceRequest(t, router, path, "reader", "", "")
