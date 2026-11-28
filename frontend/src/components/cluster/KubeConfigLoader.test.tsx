@@ -40,6 +40,27 @@ function file(name: string, value: unknown) {
   return new File([yaml.dump(value)], name, { type: 'application/yaml' });
 }
 
+function encodeUTF16File(name: string, text: string, littleEndian: boolean, withBOM: boolean) {
+  const bomOffset = withBOM ? 2 : 0;
+  const bytes = new Uint8Array(bomOffset + text.length * 2);
+  if (withBOM) {
+    bytes[0] = littleEndian ? 0xff : 0xfe;
+    bytes[1] = littleEndian ? 0xfe : 0xff;
+  }
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    const pos = bomOffset + i * 2;
+    if (littleEndian) {
+      bytes[pos] = code & 0xff;
+      bytes[pos + 1] = code >> 8;
+    } else {
+      bytes[pos] = code >> 8;
+      bytes[pos + 1] = code & 0xff;
+    }
+  }
+  return new File([bytes], name, { type: 'application/yaml' });
+}
+
 function renderLoader() {
   const result = render(
     <TestContext>
@@ -421,5 +442,42 @@ describe('KubeConfigLoader', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('No kubeconfig files selected');
     });
     expect(screen.getByText('No kubeconfig files selected')).not.toHaveClass('MuiAlertTitle-root');
+  });
+
+  it.each([
+    { label: 'UTF-16 LE with BOM', littleEndian: true, withBOM: true },
+    { label: 'UTF-16 BE with BOM', littleEndian: false, withBOM: true },
+    { label: 'UTF-16 LE without BOM', littleEndian: true, withBOM: false },
+    { label: 'UTF-16 BE without BOM', littleEndian: false, withBOM: false },
+  ])('loads kubeconfig files encoded in $label', async ({ littleEndian, withBOM }) => {
+    const { input } = renderLoader();
+    const clusterName = 'powershell-日本語';
+    const expected = config(clusterName);
+    const utf16File = encodeUTF16File('config', yaml.dump(expected), littleEndian, withBOM);
+
+    await importFiles(input, [utf16File]);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: clusterName })).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Clusters successfully set up!');
+    expect(submittedConfig()).toMatchObject(expected);
+  });
+
+  it('loads kubeconfig files encoded in UTF-8 with BOM', async () => {
+    const { input } = renderLoader();
+    const expected = config('utf8-bom-cluster');
+    const utf8Bytes = new TextEncoder().encode(yaml.dump(expected));
+    const bomBytes = new Uint8Array(3 + utf8Bytes.length);
+    bomBytes.set([0xef, 0xbb, 0xbf], 0);
+    bomBytes.set(utf8Bytes, 3);
+
+    await importFiles(input, [new File([bomBytes], 'config', { type: 'application/yaml' })]);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'utf8-bom-cluster' })).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Clusters successfully set up!');
+    expect(submittedConfig()).toMatchObject(expected);
   });
 });

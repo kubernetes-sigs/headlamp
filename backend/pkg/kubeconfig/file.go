@@ -17,6 +17,7 @@ limitations under the License.
 package kubeconfig
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -110,7 +111,7 @@ func modifyConfigFile(
 		return fmt.Errorf("locking kubeconfig file %q: %w", path, err)
 	}
 
-	config, err := clientcmd.LoadFromFile(path)
+	config, err := LoadFromFile(path)
 	if err != nil {
 		return err
 	}
@@ -208,11 +209,18 @@ func mergeWithExisting(config clientcmdapi.Config, dir, configFile string) (*cli
 		return nil, fmt.Errorf("failed to close temp kubeconfig file: %w", err)
 	}
 
+	existingPath, cleanupExisting, err := normalizedMergeConfigPath(dir, configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	defer cleanupExisting()
+
 	// The incoming config comes first so that it wins over the existing file:
 	// clientcmd resolves conflicts in favour of the first entry. Entries that
 	// only exist in the file on disk are still preserved by the merge.
 	load := clientcmd.ClientConfigLoadingRules{
-		Precedence: []string{tmpPath, configFile},
+		Precedence: []string{tmpPath, existingPath},
 	}
 
 	merged, err := load.Load()
@@ -221,6 +229,51 @@ func mergeWithExisting(config clientcmdapi.Config, dir, configFile string) (*cli
 	}
 
 	return merged, nil
+}
+
+// normalizedMergeConfigPath returns configFile directly when it is already
+// plain UTF-8, or writes a decoded UTF-8 temporary copy when configFile uses
+// UTF-16 or a BOM so clientcmd.ClientConfigLoadingRules can merge it.
+func normalizedMergeConfigPath(dir, configFile string) (string, func(), error) {
+	noop := func() {}
+
+	raw, err := os.ReadFile(configFile) //nolint:gosec // Kubeconfig path is managed by the persistence store.
+	if err != nil {
+		return "", noop, fmt.Errorf("failed to read existing kubeconfig: %w", err)
+	}
+
+	decoded, err := DecodeKubeConfigData(raw)
+	if err != nil {
+		return "", noop, fmt.Errorf("failed to decode existing kubeconfig: %w", err)
+	}
+
+	if bytes.Equal(decoded, raw) {
+		return configFile, noop, nil
+	}
+
+	tmpExisting, err := os.CreateTemp(dir, "existing_*.yaml")
+	if err != nil {
+		return "", noop, fmt.Errorf("failed to create temp kubeconfig file: %w", err)
+	}
+
+	tmpExistingPath := tmpExisting.Name()
+	cleanup := func() { _ = os.Remove(tmpExistingPath) }
+
+	if _, err := tmpExisting.Write(decoded); err != nil {
+		_ = tmpExisting.Close()
+
+		cleanup()
+
+		return "", noop, fmt.Errorf("failed to write decoded temp kubeconfig file: %w", err)
+	}
+
+	if err := tmpExisting.Close(); err != nil {
+		cleanup()
+
+		return "", noop, fmt.Errorf("failed to close decoded temp kubeconfig file: %w", err)
+	}
+
+	return tmpExistingPath, cleanup, nil
 }
 
 // RemoveContextFromFile removes the given context and its related
@@ -254,7 +307,7 @@ func RemoveContextFromFile(contextName string, path string) error {
 		return fmt.Errorf("stat kubeconfig file %q: %w", path, err)
 	}
 
-	config, err := clientcmd.LoadFromFile(path)
+	config, err := LoadFromFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to load kubeconfig file: %w", err)
 	}

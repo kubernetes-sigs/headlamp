@@ -112,6 +112,25 @@ function isKubeconfig(
   );
 }
 
+function decodeTextBuffer(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder('utf-16le', { fatal: true }).decode(bytes);
+  }
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder('utf-16be', { fatal: true }).decode(bytes);
+  }
+  if (bytes.length >= 4 && bytes.length % 2 === 0) {
+    if (bytes[0] !== 0 && bytes[1] === 0 && bytes[2] !== 0 && bytes[3] === 0) {
+      return new TextDecoder('utf-16le', { fatal: true }).decode(bytes);
+    }
+    if (bytes[0] === 0 && bytes[1] !== 0 && bytes[2] === 0 && bytes[3] !== 0) {
+      return new TextDecoder('utf-16be', { fatal: true }).decode(bytes);
+    }
+  }
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
 function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -122,7 +141,11 @@ function readFileAsText(file: File): Promise<string> {
         reject(new Error('Expected file contents as an ArrayBuffer'));
         return;
       }
-      resolve(new TextDecoder().decode(reader.result));
+      try {
+        resolve(decodeTextBuffer(reader.result));
+      } catch (err) {
+        reject(err);
+      }
     };
     reader.readAsArrayBuffer(file);
   });
