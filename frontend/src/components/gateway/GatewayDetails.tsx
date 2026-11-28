@@ -31,7 +31,7 @@ import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../common/SimpleTable';
 
-function GatewayListenerTable(props: {
+export function GatewayListenerTable(props: {
   listener: GatewayListener;
   status: GatewayListenerStatus | null;
 }) {
@@ -40,12 +40,24 @@ function GatewayListenerTable(props: {
 
   function makeStatusLabel(condition: KubeCondition) {
     let status: StatusLabelProps['status'] = '';
-    if (condition.type === 'Available') {
-      status = condition.status === 'True' ? 'success' : 'error';
+    const type = condition.type?.toLowerCase();
+
+    // In Gateway API, Conflicted is a negative condition: True indicates a conflict error.
+    if (type === 'conflicted') {
+      status =
+        condition.status === 'False' ? 'success' : condition.status === 'True' ? 'error' : '';
+    } else if (condition.status === 'True') {
+      status = 'success';
+    } else if (condition.status === 'False') {
+      status = 'error';
     }
 
     return (
-      <Box display="inline-block" sx={theme => ({ paddingRight: theme.spacing(1) })}>
+      <Box
+        key={condition.type}
+        display="inline-block"
+        sx={theme => ({ paddingRight: theme.spacing(1) })}
+      >
         <StatusLabel status={status}>{condition.type}</StatusLabel>
       </Box>
     );
@@ -137,6 +149,7 @@ export default function GatewayDetails(props: { name?: string; namespace?: strin
                     .getListeners()
                     .map((listener: GatewayListener) => (
                       <GatewayListenerTable
+                        key={listener.name}
                         listener={listener}
                         status={item.getListenerStatusByName(listener.name)}
                       />
