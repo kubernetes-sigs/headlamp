@@ -108,7 +108,9 @@ export default function MutatingAdmissionPolicyDetails(props: { name?: string; c
                     },
                     {
                       label: t('API Groups'),
-                      getter: rule => rule.apiGroups?.join(', '),
+                      // "" is the core API group, which the resource map also calls core.
+                      getter: rule =>
+                        rule.apiGroups?.map((group: string) => group || 'core').join(', '),
                     },
                     {
                       label: t('API Versions'),

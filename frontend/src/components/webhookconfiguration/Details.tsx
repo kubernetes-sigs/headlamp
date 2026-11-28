@@ -164,7 +164,11 @@ export default function WebhookConfigurationDetails(props: WebhookConfigurationD
                               columns={[
                                 {
                                   label: t('API Groups'),
-                                  getter: rule => rule.apiGroups?.join(', '),
+                                  // "" is the core API group, which the resource map also calls core.
+                                  getter: rule =>
+                                    rule.apiGroups
+                                      ?.map((group: string) => group || 'core')
+                                      .join(', '),
                                 },
                                 {
                                   label: t('API Versions'),
