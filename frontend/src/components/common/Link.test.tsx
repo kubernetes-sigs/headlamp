@@ -18,19 +18,24 @@ import { QueryClient, QueryClientProvider, QueryObserver } from '@tanstack/react
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { kubeObjectQueryKey } from '../../lib/k8s/api/v2/hooks';
 import ConfigMap from '../../lib/k8s/configMap';
 import Secret from '../../lib/k8s/secret';
+import { getDefaultRoutes, setDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import Link from './Link';
 
 vi.mock('../../redux/hooks', () => ({
   useTypedSelector: () => false,
 }));
-vi.mock('../../lib/k8s/api/v2/hooks', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../lib/k8s/api/v2/hooks')>()),
-  useEndpoints: () => ({ endpoint: { version: 'v1', resource: 'secrets' } }),
-}));
+
+vi.mock('../../lib/k8s/api/v2/hooks', async importOriginal => {
+  const actual = (await importOriginal()) as typeof import('../../lib/k8s/api/v2/hooks');
+  return {
+    ...actual,
+    useEndpoints: () => ({ endpoint: { version: 'v1', resource: 'secrets' } }),
+  };
+});
 
 const clients: QueryClient[] = [];
 afterEach(() => clients.splice(0).forEach(client => client.clear()));
@@ -91,6 +96,42 @@ function renderSecretLink(dataCount?: number, cached = false, missingKind = fals
   );
   fireEvent.click(screen.getByRole('link', { name: 'example' }));
   return { client, key, full, fetch, unsubscribe };
+}
+
+function createMockPod(name = 'my-test-pod', namespace = 'default') {
+  const cm = new ConfigMap(
+    {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: {
+        name,
+        namespace,
+        uid: '12345',
+        creationTimestamp: '2025-01-01T00:00:00Z',
+      },
+      data: {},
+    },
+    'test'
+  );
+  vi.spyOn(cm, 'getDetailsLink').mockReturnValue(`/pod/${name}`);
+  return cm;
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+  clients.push(queryClient);
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>
+  );
 }
 
 describe('Secret detail cache when following a resource link', () => {
@@ -162,5 +203,134 @@ describe('Secret detail cache when following a resource link', () => {
     const { client, key, full } = renderSecretLink();
     expect(client.getQueryData(key)).toBe(full);
     expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  });
+});
+
+describe('Link', () => {
+  let originalRoutes: ReturnType<typeof getDefaultRoutes>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    originalRoutes = { ...getDefaultRoutes() };
+    setDefaultRoutes({
+      ...originalRoutes,
+      pods: {
+        path: '/pods',
+        name: 'pods',
+        sidebar: 'pods',
+        component: () => null,
+        useClusterURL: true,
+      },
+    });
+  });
+
+  afterEach(() => {
+    setDefaultRoutes(originalRoutes);
+  });
+
+  it('renders a route-based link with text children', () => {
+    renderWithProviders(
+      <Link routeName="pods" params={{ cluster: 'minikube' }}>
+        View Pods
+      </Link>
+    );
+
+    const linkElement = screen.getByRole('link', { name: 'View Pods' });
+    expect(linkElement).toBeInTheDocument();
+    expect(linkElement).toHaveAttribute('href', '/c/minikube/pods');
+  });
+
+  it('renders a kubeObject-based link with the kubeObject name by default', () => {
+    const pod = createMockPod('nginx-pod');
+    renderWithProviders(<Link kubeObject={pod} />);
+
+    const linkElement = screen.getByRole('link', { name: 'nginx-pod' });
+    expect(linkElement).toBeInTheDocument();
+  });
+
+  it('renders a kubeObject-based link with custom children when provided', () => {
+    const pod = createMockPod('nginx-pod');
+    renderWithProviders(<Link kubeObject={pod}>Custom Pod Label</Link>);
+
+    const linkElement = screen.getByRole('link', { name: 'Custom Pod Label' });
+    expect(linkElement).toBeInTheDocument();
+  });
+
+  it('renders tooltip when tooltip is provided as a string', () => {
+    renderWithProviders(
+      <Link routeName="pods" tooltip="Custom Pods Tooltip">
+        Pods
+      </Link>
+    );
+
+    const linkElement = screen.getByRole('link');
+    expect(linkElement).toHaveTextContent('Pods');
+    expect(linkElement).toHaveAttribute('aria-label', 'Custom Pods Tooltip');
+  });
+
+  it('renders tooltip with string children when tooltip is boolean true', () => {
+    renderWithProviders(
+      <Link routeName="pods" tooltip>
+        My Pods Header
+      </Link>
+    );
+
+    const linkElement = screen.getByRole('link');
+    expect(linkElement).toHaveTextContent('My Pods Header');
+    expect(linkElement).toHaveAttribute('aria-label', 'My Pods Header');
+  });
+
+  it('renders tooltip with kubeObject name when tooltip is boolean true without throwing TypeError', () => {
+    const pod = createMockPod('special-worker-pod');
+
+    // This specifically tests the fix for the bug where (props as LinkObjectProps).getName()
+    // was mistakenly called instead of props.kubeObject.getName()
+    expect(() => {
+      renderWithProviders(<Link kubeObject={pod} tooltip />);
+    }).not.toThrow();
+
+    const linkElement = screen.getByRole('link');
+    expect(linkElement).toHaveTextContent('special-worker-pod');
+    expect(linkElement).toHaveAttribute('aria-label', 'special-worker-pod');
+  });
+
+  it('opens tooltip when hovered on route-based link', async () => {
+    renderWithProviders(
+      <Link routeName="pods" tooltip="Custom Pods Tooltip">
+        Pods
+      </Link>
+    );
+
+    const linkElement = screen.getByRole('link');
+    fireEvent.mouseOver(linkElement);
+
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent('Custom Pods Tooltip');
+  });
+
+  it('opens tooltip when hovered on kubeObject-based link', async () => {
+    const pod = createMockPod('special-worker-pod');
+    renderWithProviders(<Link kubeObject={pod} tooltip />);
+
+    const linkElement = screen.getByRole('link', { name: 'special-worker-pod' });
+    fireEvent.mouseOver(linkElement);
+
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent('special-worker-pod');
+  });
+
+  it('invokes custom onClick handler when clicked', () => {
+    const handleClick = vi.fn();
+    renderWithProviders(
+      <Link routeName="pods" onClick={handleClick}>
+        Clickable Pods
+      </Link>
+    );
+
+    const linkElement = screen.getByRole('link', { name: 'Clickable Pods' });
+    fireEvent.click(linkElement);
+    expect(handleClick).toHaveBeenCalledTimes(1);
   });
 });
