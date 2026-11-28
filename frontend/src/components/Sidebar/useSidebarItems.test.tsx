@@ -578,11 +578,21 @@ describe('useSidebarItems', () => {
       vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
       const isEnabled = vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
 
-      const { result } = renderHook(() => useSidebarItems(), {
+      const { result, rerender } = renderHook(() => useSidebarItems(), {
         wrapper: wrapper(mockStore({}, [])),
       });
 
-      await waitFor(() => expect(isEnabled).toHaveBeenCalled());
+      // Wait for the discovery query to settle with its "not served" result, so the
+      // assertion below checks the resolved state and not the pending one.
+      const queryKey = [
+        'clustersServing',
+        DeviceClass.apiVersion,
+        DeviceClass.apiName,
+        'test-cluster',
+      ];
+      await waitFor(() => expect(queryClient.getQueryData(queryKey)).toEqual([]));
+      expect(isEnabled).toHaveBeenCalledWith('test-cluster');
+      rerender();
       expect(result.current.find(item => item.name === 'devices')).toBeUndefined();
     });
 
@@ -664,7 +674,10 @@ describe('useSidebarItems', () => {
     it('applies every custom filter in order and filters nested entries', () => {
       const filters = [
         (entry: SidebarEntry) => (entry.name === 'storage' ? null : entry),
-        (entry: SidebarEntry) => (entry.name === 'services' ? null : entry),
+        // Relabels Services, so the next filter only removes it if this one ran first.
+        (entry: SidebarEntry) =>
+          entry.name === 'services' ? { ...entry, label: 'Relabeled by first filter' } : entry,
+        (entry: SidebarEntry) => (entry.label === 'Relabeled by first filter' ? null : entry),
       ];
 
       const { result } = renderHook(() => useSidebarItems(), {
