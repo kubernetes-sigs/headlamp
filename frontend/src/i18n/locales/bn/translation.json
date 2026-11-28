@@ -421,6 +421,7 @@
   "Key": "Key",
   "Tag key": "",
   "Label key": "লেবেল কী",
+  "This key is used by another row; only the first value is kept.": "",
   "Value": "মান",
   "Tag value": "",
   "Label value": "লেবেল মান",

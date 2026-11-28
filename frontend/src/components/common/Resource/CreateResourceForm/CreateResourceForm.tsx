@@ -84,6 +84,11 @@ export interface FormField {
     value: any;
     onChange: (value: any) => void;
     resource: Record<string, any>;
+    /** Report whether the custom input's current state is valid, for state the
+     *  resource alone can't show (e.g. a label editor with a duplicate key). The
+     *  last report counts toward the form's validity while the field is in the
+     *  form's sections. */
+    reportValidity?: (valid: boolean) => void;
   }) => React.ReactNode;
   multiple?: boolean;
   /** Store an empty string at `path` instead of unsetting it. For fields
@@ -108,7 +113,9 @@ export interface CreateResourceFormProps {
   resource?: Record<string, any>;
   /** Called with the updated resource object when any field changes. */
   onChange: (resource: Record<string, any>) => void;
-  /** Called when the validity of required fields changes. */
+  /** Called when the form's validity changes. That covers required fields, fields
+   *  with `validate`, and fields that report their own validity, like a label
+   *  editor with a repeated key. */
   onValidChange?: (valid: boolean) => void;
 }
 
@@ -207,13 +214,24 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
   const { sections, resource = {}, onChange, onValidChange } = props;
   const { t } = useTranslation(['translation', 'glossary']);
 
+  // Validity reported by fields themselves, e.g. label editors, which collapse
+  // duplicate keys and so can't be judged from the resource alone. Keyed by
+  // field key.
+  const [fieldValidity, setFieldValidity] = React.useState<Record<string, boolean>>({});
+  const reportFieldValidity = React.useCallback((key: string, valid: boolean) => {
+    setFieldValidity(prev => (prev[key] === valid ? prev : { ...prev, [key]: valid }));
+  }, []);
+
   // Compute validity from current resource. Optional fields only count when they supply `validate`.
   const isValid = React.useMemo(() => {
-    return sections
-      .flatMap(s => s.fields)
+    const fields = sections.flatMap(s => s.fields);
+    const fieldsValid = fields
       .filter(f => f.required || f.validate)
       .every(f => isFieldValid(f, _.get(resource, f.path), resource));
-  }, [sections, resource]);
+    // Only fields still in the form count, so a removed field can't keep it invalid.
+    const reportsValid = fields.every(f => fieldValidity[f.key] !== false);
+    return fieldsValid && reportsValid;
+  }, [sections, resource, fieldValidity]);
 
   // Report validity to parent whenever it changes.
   React.useEffect(() => {
@@ -259,6 +277,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
             value,
             onChange: v => handleFieldChange(field.path, v, field.allowEmptyString),
             resource,
+            reportValidity: valid => reportFieldValidity(field.key, valid),
           })}
         </FieldWrapper>
       );
@@ -271,6 +290,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
             <LabelTextField
               value={value ?? {}}
               onChange={labels => handleFieldChange(field.path, labels)}
+              onValidityChange={valid => reportFieldValidity(field.key, valid)}
             />
           </FieldWrapper>
         );
@@ -802,6 +822,13 @@ export interface LabelTextFieldProps {
   terminology?: 'label' | 'tag';
   /** Disable all editing controls. */
   disabled?: boolean;
+  /**
+   * Called when the editor's validity changes. When it is set, rows that share a key are
+   * marked with an error and the editor is invalid while any exist, since the serializer
+   * would keep only the first row's value. Callers that check the rows themselves through
+   * `onRowsChange` can leave it out.
+   */
+  onValidityChange?: (valid: boolean) => void;
 }
 
 export function LabelTextField(props: LabelTextFieldProps) {
@@ -814,11 +841,27 @@ export function LabelTextField(props: LabelTextFieldProps) {
     onRowsChange,
     terminology = 'label',
     disabled = false,
+    onValidityChange,
   } = props;
   const { t } = useTranslation(['translation']);
   const groupLabelId = useId('label-group-');
 
   const [rows, setRows] = React.useState<LabelRow[]>(() => buildLabelRows(value));
+
+  // Keys shared by more than one row. The serializer keeps the first, so the
+  // others would be dropped without the user noticing; flag them instead.
+  const duplicateKeys = React.useMemo(() => duplicateLabelKeys(rows.map(r => r.key)), [rows]);
+  const isMarkedDuplicate = (key: string) => !!onValidityChange && duplicateKeys.has(key);
+  // Report only when validity flips. The callback is read from a ref, so a new
+  // function on every render doesn't re-run the report.
+  const isValid = duplicateKeys.size === 0;
+  const onValidityChangeRef = React.useRef(onValidityChange);
+  React.useEffect(() => {
+    onValidityChangeRef.current = onValidityChange;
+  });
+  React.useEffect(() => {
+    onValidityChangeRef.current?.(isValid);
+  }, [isValid]);
   // Tracks the map we most recently sent to the parent so we can distinguish
   // an external value change (e.g. YAML editor) from the echo of our own
   // onChange and avoid blowing away in-progress edits.
@@ -891,6 +934,12 @@ export function LabelTextField(props: LabelTextFieldProps) {
               'aria-label':
                 terminology === 'tag' ? t('translation|Tag key') : t('translation|Label key'),
             }}
+            error={isMarkedDuplicate(r.key)}
+            helperText={
+              isMarkedDuplicate(r.key)
+                ? t('translation|This key is used by another row; only the first value is kept.')
+                : undefined
+            }
           />
           <FormTextField
             disabled={disabled}
@@ -965,6 +1014,23 @@ export function labelRowsToMap(rows: LabelRow[]): Record<string, string> {
     }
   }
   return out;
+}
+
+/** The non-empty keys that appear more than once. {@link labelRowsToMap} keeps
+ *  only the first row of each, so any extra ones silently lose their value. */
+export function duplicateLabelKeys(keys: string[]): Set<string> {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const key of keys) {
+    if (!key) {
+      continue;
+    }
+    if (seen.has(key)) {
+      duplicates.add(key);
+    }
+    seen.add(key);
+  }
+  return duplicates;
 }
 
 /** Shallow equality on labels maps (same keys, same string values). */

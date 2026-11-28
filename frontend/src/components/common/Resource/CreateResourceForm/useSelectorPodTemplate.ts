@@ -102,7 +102,7 @@ export function useSelectorPodTemplate<T extends Record<string, any>>(
   function handleMatchLabelsChange(nextMatch: Record<string, string>) {
     const extras: Record<string, string> = {};
     for (const [k, v] of Object.entries(podLabels)) {
-      if (!(k in matchLabels)) extras[k] = v;
+      if (!Object.prototype.hasOwnProperty.call(matchLabels, k)) extras[k] = v;
     }
     const nextPodLabels = { ...extras, ...nextMatch };
 

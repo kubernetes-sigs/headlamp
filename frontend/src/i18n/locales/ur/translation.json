@@ -421,6 +421,7 @@
   "Key": "کلید",
   "Tag key": "",
   "Label key": "لیبل کلید",
+  "This key is used by another row; only the first value is kept.": "",
   "Value": "ویلیو",
   "Tag value": "",
   "Label value": "لیبل ویلیو",

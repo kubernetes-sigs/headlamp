@@ -89,10 +89,11 @@ export default function CreateReplicaSetForm(props: CreateReplicaSetFormProps) {
           helperText: t(
             'translation|Selects which pods belong to this ReplicaSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.'
           ),
-          render: ({ value }) => (
+          render: ({ value, reportValidity }) => (
             <LabelTextField
               value={(value as Record<string, string>) ?? {}}
               onChange={handleMatchLabelsChange}
+              onValidityChange={reportValidity}
             />
           ),
         },
@@ -109,11 +110,12 @@ export default function CreateReplicaSetForm(props: CreateReplicaSetFormProps) {
           helperText: t(
             'translation|Selector entries appear here read-only. Use New Label to add extra pod-template-only labels.'
           ),
-          render: ({ value, onChange: onPodLabelsChange }) => (
+          render: ({ value, onChange: onPodLabelsChange, reportValidity }) => (
             <PodLabelsEditor
               value={(value as Record<string, string>) ?? {}}
               lockedLabels={matchLabels}
               onChange={onPodLabelsChange}
+              onValidityChange={reportValidity}
             />
           ),
         },

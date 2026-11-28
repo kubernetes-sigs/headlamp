@@ -427,6 +427,7 @@
   "Key": "Ключ",
   "Tag key": "",
   "Label key": "Ключ ярлыка",
+  "This key is used by another row; only the first value is kept.": "",
   "Value": "Значение",
   "Tag value": "",
   "Label value": "Значение ярлыка",
