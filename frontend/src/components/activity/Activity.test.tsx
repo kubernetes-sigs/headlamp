@@ -18,7 +18,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { ActivitiesRenderer, Activity } from './Activity';
+import { DetailsGridContext } from '../DetailsViewSection/detailsViewSectionSlice';
+import { ActivitiesRenderer, Activity, useBackToPreviousActivity } from './Activity';
 import { activitySlice, ActivityState } from './activitySlice';
 
 const { reducer, actions } = activitySlice;
@@ -117,6 +118,37 @@ describe('activitySlice', () => {
       expect(nextState.activities['2']).toBeUndefined();
       expect(nextState.history).not.toContain('2');
       expect(nextState.activities['1']).toBeDefined();
+    });
+
+    it('remembers the details panel a details panel opens on top of', () => {
+      const first: Activity = { ...newActivity, id: 'first', kind: 'details' };
+      const second: Activity = { ...newActivity, id: 'second', kind: 'details' };
+
+      let state = reducer(initialState, launchActivity(first));
+      state = reducer(state, launchActivity(second));
+
+      expect(state.activities['first'].previousId).toBeUndefined();
+      expect(state.activities['second'].previousId).toBe('first');
+    });
+
+    it('does not remember a temporary panel the launch closes', () => {
+      const first: Activity = { ...newActivity, id: 'first', kind: 'details', temporary: true };
+      const second: Activity = { ...newActivity, id: 'second', kind: 'details' };
+
+      let state = reducer(initialState, launchActivity(first));
+      state = reducer(state, launchActivity(second));
+
+      expect(state.activities['first']).toBeUndefined();
+      expect(state.activities['second'].previousId).toBeUndefined();
+    });
+
+    it('does not remember a panel for activities that are not details', () => {
+      const first: Activity = { ...newActivity, id: 'first', kind: 'details' };
+
+      let state = reducer(initialState, launchActivity(first));
+      state = reducer(state, launchActivity({ ...newActivity, id: 'other' }));
+
+      expect(state.activities['other'].previousId).toBeUndefined();
     });
 
     it('should preserve a centered window on medium screens', () => {
@@ -411,5 +443,64 @@ describe('Activity pointer-down capture', () => {
 
     expect(store.getState().activity.activities['target'].minimized).toBe(true);
     expect(store.getState().activity.history).toEqual(['other']);
+  });
+});
+
+describe('Back in a details panel', () => {
+  afterEach(() => {
+    Activity.reset();
+  });
+
+  function PanelBack() {
+    const back = useBackToPreviousActivity();
+    const { isInPanel } = React.useContext(DetailsGridContext);
+    return (
+      <>
+        {isInPanel && <span>in panel</span>}
+        {back && <button onClick={back}>Panel back</button>}
+      </>
+    );
+  }
+
+  it('closes the panel and shows the one it was opened from', () => {
+    Activity.launch({ id: 'first', kind: 'details', location: 'split-right', content: 'First' });
+    Activity.launch({
+      id: 'second',
+      kind: 'details',
+      location: 'split-right',
+      content: <PanelBack />,
+    });
+    Activity.update('first', { minimized: true });
+    render(
+      <TestContext>
+        <ActivitiesRenderer />
+      </TestContext>
+    );
+
+    expect(screen.getByText('in panel')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Panel back' }));
+
+    const { activities, history } = store.getState().activity;
+    expect(activities['second']).toBeUndefined();
+    expect(activities['first'].minimized).toBe(false);
+    expect(history[history.length - 1]).toBe('first');
+  });
+
+  it('offers no panel Back once the earlier panel is closed', () => {
+    Activity.launch({ id: 'first', kind: 'details', location: 'split-right', content: 'First' });
+    Activity.launch({
+      id: 'second',
+      kind: 'details',
+      location: 'split-right',
+      content: <PanelBack />,
+    });
+    Activity.close('first');
+    render(
+      <TestContext>
+        <ActivitiesRenderer />
+      </TestContext>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Panel back' })).not.toBeInTheDocument();
   });
 });

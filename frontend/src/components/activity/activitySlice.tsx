@@ -34,6 +34,15 @@ export const activitySlice = createSlice({
   initialState,
   reducers: {
     launchActivity(state, action: PayloadAction<Activity>) {
+      // A details panel opened on top of another remembers it, so Back in the
+      // new panel can return to it. history ends with the topmost visible one.
+      const previousId =
+        action.payload.kind === 'details' && !state.activities[action.payload.id]
+          ? [...state.history]
+              .reverse()
+              .find(id => id !== action.payload.id && state.activities[id]?.kind === 'details')
+          : undefined;
+
       // Add to history
       if (!action.payload.minimized) {
         state.history = state.history.filter(it => it !== action.payload.id);
@@ -51,6 +60,10 @@ export const activitySlice = createSlice({
       if (!state.activities[action.payload.id]) {
         // New activity, add it to the state
         state.activities[action.payload.id] = action.payload;
+        // A temporary panel was just closed above, so only keep one that is still open.
+        if (!action.payload.previousId && previousId && state.activities[previousId]) {
+          state.activities[action.payload.id].previousId = previousId;
+        }
       } else {
         // Existing activity, un-minimize it.
         state.activities[action.payload.id].minimized = false;

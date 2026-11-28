@@ -24,6 +24,8 @@ import { useHistory, useLocation } from 'react-router-dom';
 export interface BackLinkProps {
   /** The location to go back to. If not provided, the browser's history will be used. */
   to?: string | ReturnType<typeof useLocation>;
+  /** Called instead of navigating, for a Back that does not change the route. */
+  onClick?: () => void;
 }
 
 export default function BackLink(props: BackLinkProps) {
@@ -40,6 +42,11 @@ export default function BackLink(props: BackLinkProps) {
       size="small"
       sx={theme => ({ color: theme.palette.primaryColor })}
       onClick={() => {
+        if (props.onClick) {
+          props.onClick();
+          return;
+        }
+
         // If there is no back link, go back in history.
         if (!backLink) {
           history.goBack();
