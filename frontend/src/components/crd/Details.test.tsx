@@ -95,6 +95,35 @@ describe('CustomResourceDefinitionDetails', () => {
     expect(storageColumn.getter(versionB)).toBe('true');
   });
 
+  it('shows the subresources of each version, where apiextensions.k8s.io/v1 keeps them', () => {
+    render(
+      <TestContext routerMap={{ name: 'mydefinition.phonyresources.io' }}>
+        <CustomResourceDefinitionDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const versionsSection = props
+      .extraSections(mockCRD)
+      .find((section: any) => section.id === 'headlamp.crd-versions');
+    const columns = versionsSection.section.props.children.props.columns;
+    const subresourcesColumn = columns.find((c: any) => c.label === 'Subresources');
+
+    expect(subresourcesColumn).toBeDefined();
+    expect(
+      subresourcesColumn.getter({
+        name: 'v1',
+        served: true,
+        storage: true,
+        subresources: {
+          status: {},
+          scale: { specReplicasPath: '.spec.replicas', statusReplicasPath: '.status.replicas' },
+        },
+      })
+    ).toBe('status & scale');
+    expect(subresourcesColumn.getter({ name: 'v1', served: true, storage: true })).toBe('-');
+  });
+
   it('handles CRD with undefined or partial spec safely without throwing', () => {
     render(
       <TestContext routerMap={{ name: 'mydefinition.phonyresources.io' }}>

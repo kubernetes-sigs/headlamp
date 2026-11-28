@@ -373,7 +373,7 @@
                 tabindex="0"
               >
                 <table
-                  class="MuiTable-root css-14jq1ex-MuiTable-root"
+                  class="MuiTable-root css-fekg5f-MuiTable-root"
                 >
                   <thead
                     class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -399,6 +399,12 @@
                       >
                         Storage
                       </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Subresources
+                      </th>
                     </tr>
                   </thead>
                   <tbody
@@ -421,6 +427,11 @@
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         false
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        -
                       </td>
                     </tr>
                   </tbody>

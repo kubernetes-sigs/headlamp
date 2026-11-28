@@ -48,6 +48,8 @@ export interface KubeCRD extends KubeObjectInterface {
         priority?: number;
         format?: string;
       }[];
+      /** The subresources (status, scale) of this version. */
+      subresources?: { [name: string]: unknown };
     }[];
     scope: string;
     [other: string]: any;
