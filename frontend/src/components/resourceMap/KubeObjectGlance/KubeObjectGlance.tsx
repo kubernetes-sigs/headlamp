@@ -37,6 +37,15 @@ import { ReplicaSetGlance } from './ReplicaSetGlance';
 import { ServiceGlance } from './ServiceGlance';
 
 /**
+ * The API lists events roughly oldest first, so sort them newest first
+ * before the glance cuts the list down.
+ */
+function sortByLatest(events: Event[]) {
+  const time = (event: Event) => new Date(event.lastOccurrence).getTime() || 0;
+  return [...events].sort((a, b) => time(b) - time(a));
+}
+
+/**
  * Little Popup preview of a Kube object
  */
 export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) => {
@@ -44,7 +53,7 @@ export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) =>
   const [events, setEvents] = useState<Event[]>([]);
   useEffect(() => {
     Event.objectEvents(resource).then(fetchedEvents =>
-      setEvents(fetchedEvents.map((event: KubeEvent) => new Event(event)))
+      setEvents(sortByLatest(fetchedEvents.map((event: KubeEvent) => new Event(event))))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
