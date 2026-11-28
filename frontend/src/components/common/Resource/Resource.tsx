@@ -1034,12 +1034,19 @@ export function buildEnvironmentVariables(
         let value: string;
         let isError = false;
         try {
-          const result = JSONPath({ path: '$.' + ref.fieldPath, json: pod });
-          value = Array.isArray(result) ? result[0] : result;
-          if (value === undefined) {
+          // A KubeObject, like the Pod the details page passes, keeps its fields behind
+          // getters, which JSONPath doesn't read.
+          const json = pod instanceof KubeObject ? pod.jsonData : pod;
+          const result = JSONPath({ path: '$.' + ref.fieldPath, json });
+          const found = Array.isArray(result) ? result[0] : result;
+          if (found === undefined) {
             value = '';
-          } else if (typeof value !== 'string') {
-            value = JSON.stringify(value);
+          } else if (Array.isArray(found)) {
+            // status.podIPs and status.hostIPs are lists of { ip }, and the container
+            // gets the IPs joined with commas.
+            value = found.map(entry => entry?.ip).join(',');
+          } else {
+            value = typeof found === 'string' ? found : JSON.stringify(found);
           }
         } catch (err) {
           isError = true;

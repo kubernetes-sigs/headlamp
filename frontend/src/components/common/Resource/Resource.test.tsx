@@ -26,7 +26,7 @@ import { KubeCondition, KubeContainer } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
 import Event from '../../../lib/k8s/event';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubePod } from '../../../lib/k8s/pod';
+import Pod, { KubePod } from '../../../lib/k8s/pod';
 import Secret from '../../../lib/k8s/secret';
 import { createMuiTheme } from '../../../lib/themes';
 import reducers from '../../../redux/reducers/reducers';
@@ -344,6 +344,40 @@ describe('environment variable resolution', () => {
       },
       { key: 'MISSING', value: '', from: 'fieldRef: metadata.labels.absent', isError: false },
       { key: 'NAME', value: 'workload', from: 'fieldRef: metadata.name', isError: false },
+    ]);
+  });
+
+  it('resolves downward API fields of a Pod object like the details page passes', () => {
+    const podObject = new Pod({
+      ...pod,
+      metadata: { ...metadata, labels: { tier: 'backend' } },
+      status: {
+        ...pod.status,
+        podIP: '10.0.0.7',
+        podIPs: [{ ip: '10.0.0.7' }, { ip: 'fd00::7' }],
+        hostIPs: [{ ip: '192.168.49.2' }],
+      },
+    });
+    const variables = build(
+      [
+        { name: 'POD_NAME', type: 'field', fieldPath: 'metadata.name' },
+        { name: 'NODE_NAME', type: 'field', fieldPath: 'spec.nodeName' },
+        { name: 'POD_IP', type: 'field', fieldPath: 'status.podIP' },
+        { name: 'POD_IPS', type: 'field', fieldPath: 'status.podIPs' },
+        { name: 'HOST_IPS', type: 'field', fieldPath: 'status.hostIPs' },
+        { name: 'TIER', type: 'field', fieldPath: "metadata.labels['tier']" },
+      ],
+      undefined,
+      undefined,
+      podObject
+    );
+    expect(variables.map(({ key, value, isError }) => ({ key, value, isError }))).toEqual([
+      { key: 'HOST_IPS', value: '192.168.49.2', isError: false },
+      { key: 'NODE_NAME', value: 'node-1', isError: false },
+      { key: 'POD_IP', value: '10.0.0.7', isError: false },
+      { key: 'POD_IPS', value: '10.0.0.7,fd00::7', isError: false },
+      { key: 'POD_NAME', value: 'workload', isError: false },
+      { key: 'TIER', value: 'backend', isError: false },
     ]);
   });
 
