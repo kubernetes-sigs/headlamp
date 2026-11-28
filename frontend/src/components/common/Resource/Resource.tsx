@@ -1034,7 +1034,10 @@ export function buildEnvironmentVariables(
         let value: string;
         let isError = false;
         try {
-          const result = JSONPath({ path: '$.' + ref.fieldPath, json: pod });
+          const result = JSONPath({
+            path: '$.' + ref.fieldPath,
+            json: pod instanceof Pod ? pod.jsonData : pod,
+          });
           value = Array.isArray(result) ? result[0] : result;
           if (value === undefined) {
             value = '';
