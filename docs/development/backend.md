@@ -101,6 +101,20 @@ Service proxy responses set `Content-Security-Policy: sandbox` and
 origin. JSON and streaming are unchanged; interactive applications need a
 separate origin.
 
+## Service proxy port selection
+
+`GET /clusters/<cluster>/serviceproxy/<namespace>/<name>?request=<path>` reaches
+the Service port named `https` when present, otherwise the port named `http`.
+Add `port=<name>` or `port=<number>` to select another port declared in the
+Service spec. The number is the Service `port`, not its `targetPort`; a selector
+that matches no declared port returns 404. Matching ignores the port's
+`protocol`, so a UDP- or SCTP-only port does not serve HTTP. `https` and
+`http` take precedence over the number: `https` is reached over HTTPS and
+`http` is always plain HTTP, even on port 443. Any other port uses HTTPS when
+numbered 443 and HTTP otherwise.
+Encode an inner query string in `request` (for example `%26` instead of `&`) so
+that `port` is not mistaken for a parameter of the proxied request.
+
 ## Persistent cluster deletion
 
 `removeKubeConfig=true` requires `--allow-kubeconfig-changes` and a registered

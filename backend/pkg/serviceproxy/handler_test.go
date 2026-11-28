@@ -489,6 +489,9 @@ func TestGetServiceFromCluster(t *testing.T) {
 		namespace      string
 		serviceName    string
 		setupService   bool
+		ports          []corev1.ServicePort
+		portSelector   string
+		expectedPort   int32
 		mockError      error
 		expectedStatus int
 		expectError    bool
@@ -507,6 +510,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:      "default",
 			serviceName:    "test-service",
 			setupService:   true,
+			expectedPort:   443,
 			mockError:      nil,
 			expectedStatus: http.StatusOK,
 			expectError:    false,
@@ -516,15 +520,58 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:      "kube-system",
 			serviceName:    "metrics-server",
 			setupService:   true,
+			expectedPort:   443,
 			mockError:      nil,
 			expectedStatus: http.StatusOK,
 			expectError:    false,
+		},
+		{
+			name:           "port selected by name",
+			namespace:      "default",
+			serviceName:    "metrics-service",
+			setupService:   true,
+			ports:          []corev1.ServicePort{{Name: "metrics", Port: 9090}},
+			portSelector:   "metrics",
+			expectedPort:   9090,
+			expectedStatus: http.StatusOK,
+			expectError:    false,
+		},
+		{
+			name:           "port selected by number",
+			namespace:      "default",
+			serviceName:    "metrics-service",
+			setupService:   true,
+			ports:          []corev1.ServicePort{{Name: "metrics", Port: 9090}},
+			portSelector:   "9090",
+			expectedPort:   9090,
+			expectedStatus: http.StatusOK,
+			expectError:    false,
+		},
+		{
+			name:           "unknown port selector",
+			namespace:      "default",
+			serviceName:    "metrics-service",
+			setupService:   true,
+			ports:          []corev1.ServicePort{{Name: "metrics", Port: 9090}},
+			portSelector:   "web",
+			expectedStatus: http.StatusNotFound,
+			expectError:    true,
+		},
+		{
+			name:           "no default port without http or https",
+			namespace:      "default",
+			serviceName:    "metrics-service",
+			setupService:   true,
+			ports:          []corev1.ServicePort{{Name: "metrics", Port: 9090}},
+			expectedStatus: http.StatusNotFound,
+			expectError:    true,
 		},
 		{
 			name:           "unauthorized access",
 			namespace:      "default",
 			serviceName:    "restricted-service",
 			setupService:   false,
+			portSelector:   "metrics",
 			mockError:      k8serrors.NewUnauthorized("user does not have permission"),
 			expectedStatus: http.StatusUnauthorized,
 			expectError:    true,
@@ -534,6 +581,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:    "default",
 			serviceName:  "forbidden-service",
 			setupService: false,
+			portSelector: "metrics",
 			mockError: k8serrors.NewForbidden(
 				schema.GroupResource{Resource: "services"},
 				"forbidden-service",
@@ -547,6 +595,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:      "default",
 			serviceName:    "failing-service",
 			setupService:   false,
+			portSelector:   "metrics",
 			mockError:      k8serrors.NewInternalError(errors.New("etcd connection timeout")),
 			expectedStatus: http.StatusInternalServerError,
 			expectError:    true,
@@ -567,13 +616,19 @@ func TestGetServiceFromCluster(t *testing.T) {
 			case tt.setupService:
 				// Setup a mock service
 				service := createMockService(tt.namespace, tt.serviceName)
+				if tt.ports != nil {
+					service.Spec.Ports = tt.ports
+				}
+
 				cs = fake.NewClientset(service)
 			default:
 				// Empty clientset (service not found)
 				cs = fake.NewClientset()
 			}
 
-			ps, status, err := getServiceFromCluster(context.Background(), cs, tt.namespace, tt.serviceName)
+			ps, status, err := getServiceFromCluster(
+				context.Background(), cs, tt.namespace, tt.serviceName, tt.portSelector,
+			)
 
 			assert.Equal(t, tt.expectedStatus, status)
 
@@ -585,6 +640,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 				assert.NotNil(t, ps)
 				assert.Equal(t, tt.serviceName, ps.Name)
 				assert.Equal(t, tt.namespace, ps.Namespace)
+				assert.Equal(t, tt.expectedPort, ps.Port)
 			}
 		})
 	}
@@ -599,6 +655,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		expectedNamespace   string
 		expectedName        string
 		expectedRequestURI  string
+		expectedPort        string
 	}{
 		{
 			name: "standard case with all parameters",
@@ -740,16 +797,112 @@ func TestParseInfoFromRequest(t *testing.T) {
 			expectedName:        "search-service",
 			expectedRequestURI:  "/api/v2/search?q=test&limit=10&offset=0",
 		},
+		{
+			name: "port selected by name",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/metrics&port=metrics", nil)
+				req = mux.SetURLVars(req, map[string]string{
+					"clusterName": "my-cluster",
+					"namespace":   "default",
+					"name":        "my-service",
+				})
+
+				return req
+			},
+			expectedClusterName: "my-cluster",
+			expectedNamespace:   "default",
+			expectedName:        "my-service",
+			expectedRequestURI:  "/metrics",
+			expectedPort:        "metrics",
+		},
+		{
+			name: "port selected by number",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/&port=8080", nil)
+				req = mux.SetURLVars(req, map[string]string{
+					"clusterName": "my-cluster",
+					"namespace":   "default",
+					"name":        "my-service",
+				})
+
+				return req
+			},
+			expectedClusterName: "my-cluster",
+			expectedNamespace:   "default",
+			expectedName:        "my-service",
+			expectedRequestURI:  "/",
+			expectedPort:        "8080",
+		},
+		{
+			name: "port specified before request",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?port=metrics&request=/metrics", nil)
+				req = mux.SetURLVars(req, map[string]string{
+					"clusterName": "my-cluster",
+					"namespace":   "default",
+					"name":        "my-service",
+				})
+
+				return req
+			},
+			expectedClusterName: "my-cluster",
+			expectedNamespace:   "default",
+			expectedName:        "my-service",
+			expectedRequestURI:  "/metrics",
+			expectedPort:        "metrics",
+		},
+		{
+			name: "empty port parameter",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/&port=", nil)
+				req = mux.SetURLVars(req, map[string]string{
+					"clusterName": "my-cluster",
+					"namespace":   "default",
+					"name":        "my-service",
+				})
+
+				return req
+			},
+			expectedClusterName: "my-cluster",
+			expectedNamespace:   "default",
+			expectedName:        "my-service",
+			expectedRequestURI:  "/",
+			expectedPort:        "",
+		},
+		{
+			name: "encoded request query next to port",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/api?a=b%26c=d&port=metrics", nil)
+				req = mux.SetURLVars(req, map[string]string{
+					"clusterName": "my-cluster",
+					"namespace":   "default",
+					"name":        "my-service",
+				})
+
+				return req
+			},
+			expectedClusterName: "my-cluster",
+			expectedNamespace:   "default",
+			expectedName:        "my-service",
+			expectedRequestURI:  "/api?a=b&c=d",
+			expectedPort:        "metrics",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := tt.setupRequest()
-			clusterName, namespace, name, requestURI := parseInfoFromRequest(req)
+			clusterName, namespace, name, requestURI, port := parseInfoFromRequest(req)
 			assert.Equal(t, tt.expectedClusterName, clusterName)
 			assert.Equal(t, tt.expectedNamespace, namespace)
 			assert.Equal(t, tt.expectedName, name)
 			assert.Equal(t, tt.expectedRequestURI, requestURI)
+			assert.Equal(t, tt.expectedPort, port)
 		})
 	}
 }
