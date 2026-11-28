@@ -26,7 +26,7 @@ import { KubeCondition, KubeContainer } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
 import Event from '../../../lib/k8s/event';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { KubePod } from '../../../lib/k8s/pod';
+import Pod, { KubePod } from '../../../lib/k8s/pod';
 import Secret from '../../../lib/k8s/secret';
 import { createMuiTheme } from '../../../lib/themes';
 import reducers from '../../../redux/reducers/reducers';
@@ -345,6 +345,33 @@ describe('environment variable resolution', () => {
       { key: 'MISSING', value: '', from: 'fieldRef: metadata.labels.absent', isError: false },
       { key: 'NAME', value: 'workload', from: 'fieldRef: metadata.name', isError: false },
     ]);
+  });
+
+  it('resolves downward API values from KubeObject instances', () => {
+    const resource = new Pod({
+      ...pod,
+      metadata: { ...metadata, labels: { tier: 'backend' } },
+      status: { ...pod.status, podIP: '10.0.0.1' },
+    });
+    const variables = build(
+      [
+        { name: 'POD_NAME', type: 'field', fieldPath: 'metadata.name' },
+        { name: 'NODE_NAME', type: 'field', fieldPath: 'spec.nodeName' },
+        { name: 'POD_IP', type: 'field', fieldPath: 'status.podIP' },
+        { name: 'TIER', type: 'field', fieldPath: "metadata.labels['tier']" },
+      ],
+      new Map(),
+      new Map(),
+      resource
+    );
+
+    expect(Object.fromEntries(variables.map(variable => [variable.key, variable.value]))).toEqual({
+      NODE_NAME: 'node-1',
+      POD_IP: '10.0.0.1',
+      POD_NAME: 'workload',
+      TIER: 'backend',
+    });
+    expect(variables.every(variable => !variable.isError)).toBe(true);
   });
 
   it('divides resource quantities, rounds upward and treats a zero divisor as one', () => {
