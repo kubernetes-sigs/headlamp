@@ -41,6 +41,7 @@ const {
   mockGetCluster,
   mockTable,
   mockEnqueueSnackbar,
+  mockIsDockerDesktop,
 } = vi.hoisted(() => ({
   mockListPortForward: vi.fn(),
   mockStartPortForward: vi.fn(),
@@ -48,6 +49,7 @@ const {
   mockGetCluster: vi.fn((): string | null => 'test-cluster'),
   mockTable: vi.fn(),
   mockEnqueueSnackbar: vi.fn(),
+  mockIsDockerDesktop: vi.fn(() => false),
 }));
 
 vi.mock('../../lib/k8s/api/v1/portForward', () => ({
@@ -65,7 +67,7 @@ vi.mock('../../lib/util', async importOriginal => {
 });
 
 vi.mock('../../helpers/isDockerDesktop', () => ({
-  isDockerDesktop: () => false,
+  isDockerDesktop: () => mockIsDockerDesktop(),
 }));
 
 vi.mock('notistack', async importOriginal => {
@@ -145,6 +147,7 @@ describe('PortForwardingList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetCluster.mockReturnValue('test-cluster');
+    mockIsDockerDesktop.mockReturnValue(false);
     localStorage.clear();
   });
 
@@ -515,5 +518,114 @@ describe('PortForwardingList', () => {
     );
     expect(mockStopOrDeletePortForward).toHaveBeenCalledWith('test-cluster', 'pf-1', true);
     expect(mockListPortForward).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders Reconnecting status and Service row columns, and hides Start option', async () => {
+    const pf = makePortForward({
+      id: 'pf-svc',
+      pod: '',
+      service: 'my-svc',
+      serviceNamespace: 'svc-ns',
+      status: 'Reconnecting',
+    });
+    mockListPortForward.mockResolvedValue([pf]);
+
+    renderList();
+
+    await waitFor(() => {
+      expect(screen.getByText('translation|Reconnecting')).toBeInTheDocument();
+    });
+
+    // Check Name, Kind, and disabled Local Port Cell renderers
+    const columns = mockTable.mock.calls[0][0].columns;
+    const nameCol = columns.find((c: any) => c.id === 'name');
+    const kindCol = columns.find((c: any) => c.id === 'kind');
+    const localPortCol = columns.find((c: any) => c.id === 'localPort');
+    const actionsCol = columns.find((c: any) => c.id === 'actions');
+
+    expect(kindCol.accessorFn(pf)).toBe('Service');
+    expect(actionsCol.accessorFn(pf)).toBe('Reconnecting');
+    const { container } = render(
+      <TestContext>
+        {nameCol.Cell({ row: { original: pf } })}
+        {localPortCol.Cell({ row: { original: pf } })}
+      </TestContext>
+    );
+    expect(container.textContent).toContain('my-svc');
+
+    // Context menu for Reconnecting hides Start
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'translation|Start' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'translation|Stop' })).toBeInTheDocument();
+  });
+
+  it('only shows Delete in context menu when portforward has an error', async () => {
+    const errorPf = makePortForward({
+      id: 'pf-err',
+      pod: 'err-pod',
+      error: 'failed',
+      status: PORT_FORWARD_STOP_STATUS,
+    });
+    mockListPortForward.mockResolvedValue([errorPf]);
+
+    renderList();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'translation|Start' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'translation|Stop' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'translation|Delete' })).toBeInTheDocument();
+  });
+
+  it('uses 0.0.0.0 when isDockerDesktop is true', async () => {
+    mockIsDockerDesktop.mockReturnValue(true);
+    const stoppedPf = makePortForward({
+      id: 'pf-dd',
+      port: '30080',
+      status: PORT_FORWARD_STOP_STATUS,
+    });
+    mockListPortForward.mockResolvedValue([stoppedPf]);
+    mockStartPortForward.mockResolvedValue(undefined);
+
+    renderList();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Start' }));
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Start' }));
+
+    await waitFor(() => {
+      expect(mockStartPortForward).toHaveBeenCalledWith(
+        'test-cluster',
+        'default',
+        'my-pod',
+        '80',
+        '',
+        '',
+        '30080',
+        '0.0.0.0',
+        'pf-dd'
+      );
+    });
+  });
+
+  it('shows error snackbar when refresh after Stop fails (showError=true)', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const pf = makePortForward({ status: PORT_FORWARD_RUNNING_STATUS });
+    mockListPortForward
+      .mockResolvedValueOnce([pf])
+      .mockRejectedValueOnce(new Error('Refresh failed'));
+    mockStopOrDeletePortForward.mockResolvedValue(undefined);
+
+    renderList();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'translation|Stop' }));
+
+    await waitFor(() => {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        'translation|Error fetching port forwards: Refresh failed',
+        expect.objectContaining({ key: 'portforward-list-error', variant: 'error' })
+      );
+    });
+    consoleErrorSpy.mockRestore();
   });
 });

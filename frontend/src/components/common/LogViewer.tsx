@@ -199,7 +199,7 @@ export function LogViewer(props: LogViewerProps) {
       xtermRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terminalContainerRef, xtermRef.current]);
+  }, [terminalContainerRef]);
 
   React.useEffect(() => {
     if (xtermRef.current) {
