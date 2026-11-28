@@ -16,9 +16,11 @@
 
 import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
-import EndpointSlice from '../../lib/k8s/endpointSlices';
+import { useLocation, useParams } from 'react-router-dom';
+import { getResourceClass } from '../../lib/k8s';
+import EndpointSlice, { KubeEndpointSliceEndpoint } from '../../lib/k8s/endpointSlices';
 import { SectionBox, SimpleTable, StatusLabel } from '../common';
+import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 
 export default function EndpointSliceDetails(props: {
@@ -28,7 +30,38 @@ export default function EndpointSliceDetails(props: {
 }) {
   const params = useParams<{ namespace: string; name: string }>();
   const { name = params.name, namespace = params.namespace, cluster } = props;
+  const location = useLocation();
   const { t } = useTranslation(['glossary', 'translation']);
+
+  function renderTarget(endpoint: KubeEndpointSliceEndpoint, sliceCluster: string) {
+    const targetRef = endpoint.targetRef;
+    if (!targetRef?.name) {
+      return '';
+    }
+
+    const targetRefClass = targetRef.kind
+      ? getResourceClass(targetRef.kind, targetRef.apiVersion)
+      : null;
+    if (!targetRefClass) {
+      return targetRef.name;
+    }
+
+    return (
+      <Link
+        routeName={targetRefClass.detailsRoute}
+        params={{
+          name: targetRef.name,
+          namespace: targetRef.namespace,
+        }}
+        activeCluster={sliceCluster}
+        state={{
+          backLink: location,
+        }}
+      >
+        {targetRef.name}
+      </Link>
+    );
+  }
 
   return (
     <DetailsGrid
@@ -72,6 +105,10 @@ export default function EndpointSliceDetails(props: {
                     {
                       label: t('Addresses'),
                       getter: endpoint => endpoint.addresses?.join(','),
+                    },
+                    {
+                      label: t('Target'),
+                      getter: endpoint => renderTarget(endpoint, item.cluster),
                     },
                     {
                       label: t('Conditions'),
