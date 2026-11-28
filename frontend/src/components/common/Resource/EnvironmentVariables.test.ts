@@ -189,4 +189,81 @@ describe('buildEnvironmentVariables', () => {
       ['VISIBLE', 'present', 'manifest'],
     ]);
   });
+
+  it('lets env replace a variable of the same name from envFrom, as the kubelet does', () => {
+    const container: KubeContainer = {
+      ...dummyContainer,
+      env: [{ name: 'LOG_LEVEL', value: 'debug' }],
+      envFrom: [{ configMapRef: { name: 'app-config' } }],
+    };
+    const fetchedConfigMaps = new Map([
+      [
+        'app-config',
+        {
+          resource: {
+            metadata: { creationTimestamp: '2025-01-01T00:00:00Z' },
+            data: { LOG_LEVEL: 'info', PORT: '8080' },
+          } as any,
+          error: null,
+        },
+      ],
+    ]);
+
+    const variables = buildEnvironmentVariables(
+      extractEnvVarReferences(container),
+      new Map(),
+      fetchedConfigMaps,
+      dummyPod,
+      container,
+      '2025-01-01T00:00:00Z'
+    );
+
+    expect(variables.map(v => [v.key, v.value])).toEqual([
+      ['LOG_LEVEL', 'debug'],
+      ['PORT', '8080'],
+    ]);
+    expect(variables.find(v => v.key === 'LOG_LEVEL')?.from).toBe('manifest');
+  });
+
+  it.each([
+    ['secretKeyRef', 'secretRef'],
+    ['configMapKeyRef', 'configMapRef'],
+  ] as const)(
+    'keeps the envFrom value when an optional %s names a key its source lacks',
+    (keyRef, sourceRef) => {
+      const container: KubeContainer = {
+        ...dummyContainer,
+        env: ['MODE', 'EMPTY'].map(name => ({
+          name,
+          valueFrom: { [keyRef]: { name: 'extra', key: name, optional: true } } as any,
+        })),
+        envFrom: [{ [sourceRef]: { name: 'base' } } as any],
+      };
+      const isSecret = keyRef === 'secretKeyRef';
+      const encode = (value: string) => (isSecret ? Base64.encode(value) : value);
+      const source = (data: Record<string, string>) => ({
+        resource: { metadata: { creationTimestamp: '2025-01-01T00:00:00Z' }, data } as any,
+        error: null,
+      });
+      // "extra" has EMPTY set to "", which still wins, but no MODE at all.
+      const fetched = new Map([
+        ['base', source({ MODE: encode('fast'), EMPTY: encode('base-value') })],
+        ['extra', source({ EMPTY: '' })],
+      ]);
+
+      const variables = buildEnvironmentVariables(
+        extractEnvVarReferences(container),
+        isSecret ? fetched : new Map(),
+        isSecret ? new Map() : fetched,
+        dummyPod,
+        container,
+        '2025-01-01T00:00:00Z'
+      );
+
+      expect(variables.map(v => [v.key, v.value])).toEqual([
+        ['EMPTY', ''],
+        ['MODE', 'fast'],
+      ]);
+    }
+  );
 });

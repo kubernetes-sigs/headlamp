@@ -901,7 +901,13 @@ export function buildEnvironmentVariables(
     return new Date(resourceTimestamp).getTime() > new Date(containerStartTimestamp).getTime();
   };
 
-  references.forEach(ref => {
+  // Like the kubelet, set the envFrom variables first, so an env variable of the same name
+  // replaces them.
+  const isEnvFrom = (ref: EnvVarReference) =>
+    ref.type === 'secretRef' || ref.type === 'configMapRef';
+  const ordered = [...references.filter(isEnvFrom), ...references.filter(ref => !isEnvFrom(ref))];
+
+  ordered.forEach(ref => {
     switch (ref.type) {
       case 'value':
         variables.set(ref.name, {
@@ -929,6 +935,8 @@ export function buildEnvironmentVariables(
           });
         } else if (secret) {
           const secretData = (secret as any).data || {};
+          // The kubelet skips an optional key that the Secret doesn't have.
+          if (ref.optional && !Object.prototype.hasOwnProperty.call(secretData, ref.key!)) break;
           const value = secretData[ref.key!] ? Base64.decode(secretData[ref.key!]) : '';
           variables.set(ref.name, {
             value,
@@ -957,6 +965,15 @@ export function buildEnvironmentVariables(
           });
         } else if (configMap) {
           const configMapData = (configMap as any).data || {};
+          const binaryData = (configMap as any).binaryData || {};
+          // The kubelet skips an optional key that the ConfigMap doesn't have.
+          if (
+            ref.optional &&
+            !Object.prototype.hasOwnProperty.call(configMapData, ref.key!) &&
+            !Object.prototype.hasOwnProperty.call(binaryData, ref.key!)
+          ) {
+            break;
+          }
           variables.set(ref.name, {
             value: configMapData[ref.key!] || '',
             from: configMap,
