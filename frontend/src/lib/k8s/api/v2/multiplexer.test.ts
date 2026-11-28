@@ -1705,12 +1705,13 @@ describe('WebSocket Multiplexer', () => {
       expect(onMessage2).not.toHaveBeenCalled();
       expect(onMessage3).not.toHaveBeenCalled();
 
-      // The backend acknowledges the intentional query-less CLOSE.
+      // The backend acknowledges the intentional CLOSE for initialQuery.
       await new Promise(resolve => setTimeout(resolve, 1100));
       await mockServer.send(
         JSON.stringify({
           clusterId: clusterName,
           path,
+          query: initialQuery,
           type: 'STATUS',
           data: JSON.stringify({ state: 'closed', error: '' }),
         })
@@ -1808,6 +1809,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
+          query: activeQuery,
           type: 'STATUS',
           data: JSON.stringify({ state: 'closed', error: '' }),
         })
@@ -1982,6 +1984,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
+          query: activeQuery,
           type: 'STATUS',
           data: JSON.stringify({ state: 'closed', error: '' }),
         })
@@ -2004,6 +2007,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
+          query: firstQuery,
           type: 'STATUS',
           data: JSON.stringify({ state: 'closed', error: '' }),
         })
@@ -2047,6 +2051,7 @@ describe('WebSocket Multiplexer', () => {
         JSON.stringify({
           clusterId: clusterName,
           path,
+          query,
           type: 'STATUS',
           data: JSON.stringify({ state: 'closed', error: '' }),
         })
@@ -2243,12 +2248,12 @@ describe('WebSocket Multiplexer', () => {
       const queries = replacement.send.mock.calls
         .map((call: [string]) => JSON.parse(call[0]).query)
         .sort();
-      expect(queries).toEqual([activeQuery, joiningQuery].sort());
+      expect(queries).toEqual(['watch=1&resourceVersion=opaque-advanced', joiningQuery].sort());
       expect(
-        WebSocketManager.keyAliases.has(
+        WebSocketManager.keyAliases.get(
           WebSocketManager.createKey(clusterName, path, 'watch=1&resourceVersion=opaque-advanced')
         )
-      ).toBe(false);
+      ).toEqual(new Set([WebSocketManager.createKey(clusterName, path, activeQuery)]));
     });
 
     it('does not collide with an active numeric-cursor subscription when reconnecting an empty-cursor subscription', async () => {
@@ -2343,6 +2348,810 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.activeSubscriptions.has(emptyCursorKey)).toBe(true);
 
       cleanupEmpty();
+    });
+
+    it('consumes catch-up CLOSE acknowledgement after an empty-cursor stream advances to numeric RV and reconnects', async () => {
+      const path = '/api/v1/pods';
+      const emptyQuery = 'watch=1&resourceVersion=';
+      const emptyKey = WebSocketManager.createKey(clusterName, path, emptyQuery);
+      const onInitial = vi.fn();
+      const onJoining = vi.fn();
+      const onJoiningClose = vi.fn();
+
+      const cleanupInitial = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        emptyQuery,
+        onInitial
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      // Advance empty-cursor stream to numeric resourceVersion 105
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: emptyQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-1', resourceVersion: '105' } },
+          }),
+        })
+      );
+      expect(onInitial).toHaveBeenCalledTimes(1);
+
+      // Simulate transport reconnect: resubscribeAll creates alias for watch=1&resourceVersion=105 -> emptyKey
+      WebSocketManager.resubscribeAll(WebSocketManager.socketMultiplexer!);
+      const resubMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(resubMsg.query).toBe('watch=1&resourceVersion=105');
+
+      // Now a joining subscriber with older numeric RV 90 triggers catch-up
+      const joiningQuery = 'watch=1&resourceVersion=90';
+      const cleanupJoining = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        joiningQuery,
+        onJoining,
+        undefined,
+        onJoiningClose
+      );
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      const catchUpReq = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg).toMatchObject({ type: 'CLOSE', query: 'watch=1&resourceVersion=105' });
+      expect(catchUpReq).toMatchObject({ type: 'REQUEST', query: joiningQuery });
+      expect(WebSocketManager.pendingCloseAcks.has(emptyKey)).toBe(true);
+
+      // Backend acknowledges closing the numeric-alias query
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: 'watch=1&resourceVersion=105',
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed' }),
+        })
+      );
+
+      expect(WebSocketManager.pendingCloseAcks.has(emptyKey)).toBe(false);
+      expect(onJoiningClose).not.toHaveBeenCalled();
+
+      // Subsequent events on the catch-up query reach the joining listener
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: joiningQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-2', resourceVersion: '91' } },
+          }),
+        })
+      );
+      expect(onJoining).toHaveBeenCalledTimes(1);
+
+      cleanupJoining();
+      cleanupInitial();
+    });
+
+    it('advances opaque resourceVersion cursors and uses the latest opaque cursor on resubscribeAll', async () => {
+      const path = '/api/v1/configmaps';
+      const initialQuery = 'watch=1&resourceVersion=opaque-1';
+      const onMsg = vi.fn();
+
+      const cleanup = await WebSocketManager.subscribe(clusterName, path, initialQuery, onMsg);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: initialQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-1', resourceVersion: 'opaque-2' } },
+          }),
+        })
+      );
+      expect(onMsg).toHaveBeenCalledTimes(1);
+
+      const replacement = { send: vi.fn() } as any;
+      WebSocketManager.resubscribeAll(replacement);
+      expect(replacement.send).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(replacement.send.mock.calls[0][0])).toMatchObject({
+        type: 'REQUEST',
+        query: 'watch=1&resourceVersion=opaque-2',
+      });
+
+      cleanup();
+    });
+
+    it('routes converged opaque resourceVersion updates to all subscribers after reconnect and cleans up aliases safely', async () => {
+      const path = '/api/v1/configmaps';
+      const query1 = 'watch=1&resourceVersion=opaque-a';
+      const query2 = 'watch=1&resourceVersion=opaque-b';
+      const unrelatedQuery = 'watch=1&resourceVersion=opaque-unrelated';
+      const convergedQuery = 'watch=1&resourceVersion=opaque-converged';
+
+      const onMsg1 = vi.fn();
+      const onMsg2 = vi.fn();
+      const onUnrelated = vi.fn();
+
+      const cleanup1 = await WebSocketManager.subscribe(clusterName, path, query1, onMsg1);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      const cleanup2 = await WebSocketManager.subscribe(clusterName, path, query2, onMsg2);
+      await mockServer.nextMessage;
+
+      const cleanupUnrelated = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        unrelatedQuery,
+        onUnrelated
+      );
+      await mockServer.nextMessage;
+
+      // Advance both subscriptions to the same opaque resourceVersion.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query1,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-a', resourceVersion: 'opaque-converged' } },
+          }),
+        })
+      );
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query2,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-b', resourceVersion: 'opaque-converged' } },
+          }),
+        })
+      );
+      expect(onMsg1).toHaveBeenCalledTimes(1);
+      expect(onMsg2).toHaveBeenCalledTimes(1);
+      expect(onUnrelated).not.toHaveBeenCalled();
+
+      onMsg1.mockClear();
+      onMsg2.mockClear();
+
+      // Simulate reconnect via resubscribeAll().
+      const sentMessages: string[] = [];
+      const replacementSocket = {
+        readyState: WebSocket.OPEN,
+        send: vi.fn((msg: string) => sentMessages.push(msg)),
+      } as any;
+      WebSocketManager.socketMultiplexer = replacementSocket;
+      WebSocketManager.resubscribeAll(replacementSocket);
+
+      // Send an update using the converged query.
+      WebSocketManager.handleWebSocketMessage({
+        data: JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'cm-converged', resourceVersion: 'opaque-next' } },
+          }),
+        }),
+      } as MessageEvent);
+
+      expect(onMsg1).toHaveBeenCalledTimes(1);
+      expect(onMsg2).toHaveBeenCalledTimes(1);
+      expect(onUnrelated).not.toHaveBeenCalled();
+
+      // Cleanup of first subscription must not affect the second or send CLOSE for the shared stream.
+      vi.useFakeTimers();
+      try {
+        sentMessages.length = 0;
+        cleanup1();
+        vi.advanceTimersByTime(150);
+
+        expect(sentMessages).toEqual([]);
+
+        // Second subscription still receives updates on the converged query.
+        WebSocketManager.handleWebSocketMessage({
+          data: JSON.stringify({
+            clusterId: clusterName,
+            path,
+            query: convergedQuery,
+            data: JSON.stringify({
+              type: 'MODIFIED',
+              object: { metadata: { name: 'cm-after-cleanup1', resourceVersion: 'opaque-final' } },
+            }),
+          }),
+        } as MessageEvent);
+
+        expect(onMsg1).toHaveBeenCalledTimes(1);
+        expect(onMsg2).toHaveBeenCalledTimes(2);
+        expect(onUnrelated).not.toHaveBeenCalled();
+
+        // Cleanup of second subscription removes the converged alias and sends CLOSE.
+        cleanup2();
+        vi.advanceTimersByTime(150);
+
+        const convergedKey = WebSocketManager.createKey(clusterName, path, convergedQuery);
+        expect(WebSocketManager.keyAliases.has(convergedKey)).toBe(false);
+        expect(
+          sentMessages.map(msg => JSON.parse(msg)).filter(msg => msg.type === 'CLOSE')
+        ).toHaveLength(1);
+
+        cleanupUnrelated();
+        vi.advanceTimersByTime(150);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('routes events and closed STATUS only to the exact matching numeric requestQuery after opaque-cursor reconnect', async () => {
+      const path = '/api/v1/configmaps';
+      const query1 = 'watch=1&resourceVersion=opaque-a';
+      const query2 = 'watch=1&resourceVersion=opaque-b';
+
+      const onMsg1 = vi.fn();
+      const onMsg2 = vi.fn();
+      const onClose1 = vi.fn();
+      const onClose2 = vi.fn();
+
+      const cleanup1 = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        query1,
+        onMsg1,
+        undefined,
+        onClose1
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      const cleanup2 = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        query2,
+        onMsg2,
+        undefined,
+        onClose2
+      );
+      await mockServer.nextMessage;
+
+      // Advance opaque-a to numeric 105 and opaque-b to numeric 200.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query1,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-a', resourceVersion: '105' } },
+          }),
+        })
+      );
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query2,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-b', resourceVersion: '200' } },
+          }),
+        })
+      );
+      expect(onMsg1).toHaveBeenCalledTimes(1);
+      expect(onMsg2).toHaveBeenCalledTimes(1);
+      onMsg1.mockClear();
+      onMsg2.mockClear();
+
+      // Reconnect via resubscribeAll() so both numeric cursors share the same normalized alias key.
+      const replacementSocket = {
+        readyState: WebSocket.OPEN,
+        send: vi.fn(),
+      } as any;
+      WebSocketManager.socketMultiplexer = replacementSocket;
+      WebSocketManager.resubscribeAll(replacementSocket);
+
+      const query105 = 'watch=1&resourceVersion=105';
+      const query200 = 'watch=1&resourceVersion=200';
+      const normalizedKey = WebSocketManager.createKey(clusterName, path, query105);
+      expect(WebSocketManager.keyAliases.get(normalizedKey)?.size).toBe(2);
+
+      // Event for query 105 must reach only subscriber 1.
+      WebSocketManager.handleWebSocketMessage({
+        data: JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query105,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'cm-105', resourceVersion: '106' } },
+          }),
+        }),
+      } as MessageEvent);
+
+      expect(onMsg1).toHaveBeenCalledTimes(1);
+      expect(onMsg1).toHaveBeenCalledWith(
+        expect.objectContaining({
+          object: expect.objectContaining({
+            metadata: expect.objectContaining({ name: 'cm-105' }),
+          }),
+        })
+      );
+      expect(onMsg2).not.toHaveBeenCalled();
+
+      // Closed STATUS for query 105 must close only subscriber 1, not subscriber 2.
+      WebSocketManager.handleWebSocketMessage({
+        data: JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query105,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed' }),
+        }),
+      } as MessageEvent);
+
+      expect(onClose1).toHaveBeenCalledTimes(1);
+      expect(onClose2).not.toHaveBeenCalled();
+
+      const key2 = WebSocketManager.createKey(clusterName, path, query2);
+      expect(WebSocketManager.activeSubscriptions.has(key2)).toBe(true);
+
+      // Subscriber 2 still receives events for query 200.
+      WebSocketManager.handleWebSocketMessage({
+        data: JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: query200,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-200', resourceVersion: '201' } },
+          }),
+        }),
+      } as MessageEvent);
+
+      expect(onMsg2).toHaveBeenCalledTimes(1);
+
+      vi.useFakeTimers();
+      try {
+        cleanup1();
+        cleanup2();
+        vi.advanceTimersByTime(150);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('tracks final unsubscribe CLOSE acks by exact wire query so reused canonical keys do not swallow genuine close notifications', async () => {
+      const path = '/api/v1/configmaps';
+      const originalQuery = 'watch=1&resourceVersion=opaque-a';
+      const convergedQuery = 'watch=1&resourceVersion=opaque-converged';
+
+      const cleanup1 = await WebSocketManager.subscribe(clusterName, path, originalQuery, vi.fn());
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      // Advance opaque-a to opaque-converged and reconnect so it has an alias and updated requestQuery.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: originalQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'cm-a', resourceVersion: 'opaque-converged' } },
+          }),
+        })
+      );
+
+      WebSocketManager.resubscribeAll(WebSocketManager.socketMultiplexer!);
+      const resubMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(resubMsg.query).toBe(convergedQuery);
+
+      // Final unsubscribe sends CLOSE for convergedQuery and removes the alias.
+      cleanup1();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg).toEqual({
+        clusterId: clusterName,
+        path,
+        query: convergedQuery,
+        userId,
+        type: 'CLOSE',
+      });
+
+      // Re-subscribe using the original key before the CLOSE ack arrives.
+      const onCloseNew = vi.fn();
+      const cleanup2 = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        originalQuery,
+        vi.fn(),
+        undefined,
+        onCloseNew
+      );
+      const req2 = JSON.parse((await mockServer.nextMessage) as string);
+      expect(req2).toMatchObject({ type: 'REQUEST', query: originalQuery });
+
+      // Delayed CLOSE ack for convergedQuery arrives; it must be consumed without closing the new subscription.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed' }),
+        })
+      );
+      expect(onCloseNew).not.toHaveBeenCalled();
+
+      // A subsequent genuine STATUS: closed for originalQuery must NOT be swallowed.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: originalQuery,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed' }),
+        })
+      );
+      expect(onCloseNew).toHaveBeenCalledTimes(1);
+      expect(
+        WebSocketManager.activeSubscriptions.has(
+          WebSocketManager.createKey(clusterName, path, originalQuery)
+        )
+      ).toBe(false);
+
+      cleanup2();
+      await new Promise(resolve => setTimeout(resolve, 150));
+    });
+
+    it('matches empty-query STATUS: closed only to the empty-query pending ack without consuming non-empty query acks', async () => {
+      const path = '/api/v1/pods';
+      const emptyQuery = '';
+      const nonEmptyQuery = 'watch=1&resourceVersion=105';
+
+      const cleanupEmpty = await WebSocketManager.subscribe(clusterName, path, emptyQuery, vi.fn());
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      const cleanupNonEmpty = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        nonEmptyQuery,
+        vi.fn()
+      );
+      await mockServer.nextMessage;
+
+      // Unsubscribe both so both have pending CLOSE acks on the same cluster and path.
+      cleanupNonEmpty();
+      cleanupEmpty();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      await mockServer.nextMessage;
+      await mockServer.nextMessage;
+
+      const emptyWireKey = WebSocketManager.createWireKey(clusterName, path, emptyQuery);
+      const nonEmptyWireKey = WebSocketManager.createWireKey(clusterName, path, nonEmptyQuery);
+      expect(WebSocketManager.pendingCloseAcks.has(emptyWireKey)).toBe(true);
+      expect(WebSocketManager.pendingCloseAcks.has(nonEmptyWireKey)).toBe(true);
+
+      // STATUS: closed for empty query must consume only the empty-query acknowledgement.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: emptyQuery,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed', error: '' }),
+        })
+      );
+      expect(WebSocketManager.pendingCloseAcks.has(emptyWireKey)).toBe(false);
+      expect(WebSocketManager.pendingCloseAcks.has(nonEmptyWireKey)).toBe(true);
+
+      // STATUS: closed for non-empty query consumes the remaining acknowledgement.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: nonEmptyQuery,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed', error: '' }),
+        })
+      );
+      expect(WebSocketManager.pendingCloseAcks.has(nonEmptyWireKey)).toBe(false);
+    });
+
+    it('recovers all shared-stream owners when catch-up closes a converged stream at resourceVersion 105', async () => {
+      const path = '/api/v1/pods';
+      const emptyQuery = 'watch=1&resourceVersion=';
+      const numericQuery = 'watch=1&resourceVersion=100';
+      const convergedQuery = 'watch=1&resourceVersion=105';
+      const joiningQuery = 'watch=1&resourceVersion=90';
+
+      const onEmpty = vi.fn();
+      const onNumeric = vi.fn();
+      const onJoining = vi.fn();
+      const onEmptyClose = vi.fn();
+      const onNumericClose = vi.fn();
+
+      const cleanupEmpty = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        emptyQuery,
+        onEmpty,
+        undefined,
+        onEmptyClose
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      const cleanupNumeric = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        numericQuery,
+        onNumeric,
+        undefined,
+        onNumericClose
+      );
+      await mockServer.nextMessage;
+
+      // Advance both subscriptions to resourceVersion 105 and reconnect so both share wire query 105.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: emptyQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'pod-empty', resourceVersion: '105' } },
+          }),
+        })
+      );
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: numericQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'pod-numeric', resourceVersion: '105' } },
+          }),
+        })
+      );
+
+      WebSocketManager.resubscribeAll(WebSocketManager.socketMultiplexer!);
+      const resub1 = JSON.parse((await mockServer.nextMessage) as string);
+      const resub2 = JSON.parse((await mockServer.nextMessage) as string);
+      expect(resub1.query).toBe(convergedQuery);
+      expect(resub2.query).toBe(convergedQuery);
+
+      onEmpty.mockClear();
+      onNumeric.mockClear();
+      const messageCountBeforeCatchUp = mockServer.messages.length;
+
+      // Joining subscriber at RV 90 triggers catch-up: closes 105, requests 90, and recovers empty-cursor owner at 105.
+      const cleanupJoining = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        joiningQuery,
+        onJoining
+      );
+
+      const closeMsg = JSON.parse((await mockServer.nextMessage) as string);
+      const catchUpReq = JSON.parse((await mockServer.nextMessage) as string);
+      const recoveryReq = JSON.parse((await mockServer.nextMessage) as string);
+      expect(closeMsg).toMatchObject({ type: 'CLOSE', query: convergedQuery });
+      expect(catchUpReq).toMatchObject({ type: 'REQUEST', query: joiningQuery });
+      expect(recoveryReq).toMatchObject({ type: 'REQUEST', query: convergedQuery });
+      expect(
+        mockServer.messages.slice(messageCountBeforeCatchUp).map(raw => JSON.parse(raw as string))
+      ).toEqual([
+        expect.objectContaining({ type: 'CLOSE', query: convergedQuery }),
+        expect.objectContaining({ type: 'REQUEST', query: joiningQuery }),
+        expect.objectContaining({ type: 'REQUEST', query: convergedQuery }),
+      ]);
+
+      // Backend acknowledges closing the shared 105 stream.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed', error: '' }),
+        })
+      );
+      expect(onEmptyClose).not.toHaveBeenCalled();
+      expect(onNumericClose).not.toHaveBeenCalled();
+
+      // Subsequent events on 90 reach numeric + joining subscribers; events on 105 reach the recovered empty-cursor subscriber.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: joiningQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-91', resourceVersion: '91' } },
+          }),
+        })
+      );
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-106', resourceVersion: '106' } },
+          }),
+        })
+      );
+
+      expect(onNumeric).toHaveBeenCalledTimes(1);
+      expect(onJoining).toHaveBeenCalledTimes(1);
+      expect(onEmpty).toHaveBeenCalledTimes(1);
+      expect(onEmpty).toHaveBeenCalledWith(
+        expect.objectContaining({
+          object: expect.objectContaining({
+            metadata: expect.objectContaining({ name: 'pod-106' }),
+          }),
+        })
+      );
+
+      cleanupJoining();
+      cleanupNumeric();
+      cleanupEmpty();
+      await new Promise(resolve => setTimeout(resolve, 150));
+    });
+
+    it('does not close the catch-up numeric subscription when a second STATUS: closed for 105 arrives before any 90 event', async () => {
+      const path = '/api/v1/pods';
+      const emptyQuery = 'watch=1&resourceVersion=';
+      const numericQuery = 'watch=1&resourceVersion=100';
+      const convergedQuery = 'watch=1&resourceVersion=105';
+      const joiningQuery = 'watch=1&resourceVersion=90';
+
+      const onEmpty = vi.fn();
+      const onNumeric = vi.fn();
+      const onJoining = vi.fn();
+      const onEmptyClose = vi.fn();
+      const onNumericClose = vi.fn();
+
+      const cleanupEmpty = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        emptyQuery,
+        onEmpty,
+        undefined,
+        onEmptyClose
+      );
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      const cleanupNumeric = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        numericQuery,
+        onNumeric,
+        undefined,
+        onNumericClose
+      );
+      await mockServer.nextMessage;
+
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: emptyQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'pod-empty', resourceVersion: '105' } },
+          }),
+        })
+      );
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: numericQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'pod-numeric', resourceVersion: '105' } },
+          }),
+        })
+      );
+
+      WebSocketManager.resubscribeAll(WebSocketManager.socketMultiplexer!);
+      await mockServer.nextMessage;
+      await mockServer.nextMessage;
+
+      onEmpty.mockClear();
+      onNumeric.mockClear();
+
+      const cleanupJoining = await WebSocketManager.subscribe(
+        clusterName,
+        path,
+        joiningQuery,
+        onJoining
+      );
+      await mockServer.nextMessage; // CLOSE 105
+      await mockServer.nextMessage; // REQUEST 90
+      await mockServer.nextMessage; // REQUEST 105
+
+      // First STATUS: closed for 105 consumes numericKey's replay acknowledgement.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed', error: '' }),
+        })
+      );
+      expect(onEmptyClose).not.toHaveBeenCalled();
+      expect(onNumericClose).not.toHaveBeenCalled();
+
+      // A late DATA event from superseded 105 is still filtered from numeric and joining subscribers.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          data: JSON.stringify({
+            type: 'MODIFIED',
+            object: { metadata: { name: 'pod-105-late', resourceVersion: '105' } },
+          }),
+        })
+      );
+      expect(onNumeric).not.toHaveBeenCalled();
+      expect(onJoining).not.toHaveBeenCalled();
+      expect(onEmpty).toHaveBeenCalledTimes(1);
+
+      // Second STATUS: closed for 105 arrives before any 90 event: only emptyKey closes; numericKey stays active at 90.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: convergedQuery,
+          type: 'STATUS',
+          data: JSON.stringify({ state: 'closed', error: '' }),
+        })
+      );
+      expect(onEmptyClose).toHaveBeenCalledTimes(1);
+      expect(onNumericClose).not.toHaveBeenCalled();
+
+      const emptyKey = WebSocketManager.createKey(clusterName, path, emptyQuery);
+      const numericKey = WebSocketManager.createKey(clusterName, path, numericQuery);
+      expect(WebSocketManager.activeSubscriptions.has(emptyKey)).toBe(false);
+      expect(WebSocketManager.activeSubscriptions.get(numericKey)?.requestQuery).toBe(joiningQuery);
+
+      // Subsequent event on 90 still reaches numeric and joining subscribers.
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query: joiningQuery,
+          data: JSON.stringify({
+            type: 'ADDED',
+            object: { metadata: { name: 'pod-91', resourceVersion: '91' } },
+          }),
+        })
+      );
+      expect(onNumeric).toHaveBeenCalledTimes(1);
+      expect(onJoining).toHaveBeenCalledTimes(1);
+
+      cleanupJoining();
+      cleanupNumeric();
+      cleanupEmpty();
+      await new Promise(resolve => setTimeout(resolve, 150));
     });
   });
 });

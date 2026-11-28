@@ -16,7 +16,7 @@
 
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   getDiscoveredNamespaces,
   hasAllowedNamespacesRestriction,
@@ -640,6 +640,8 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
   const retryTimersRef = useRef<Record<string, NodeJS.Timeout | number>>({});
   const receivedTrafficRef = useRef<Record<string, boolean>>({});
   const [subscriptionGeneration, setSubscriptionGeneration] = useState(0);
+  const enabledRef = useRef(enabled);
+  const activeKeysRef = useRef<Set<string>>(new Set());
 
   const hasQueryParams = watchQueryParams !== undefined || queryParams !== undefined;
   const watchQueryKey = useMemo(
@@ -669,6 +671,30 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
   // Create stable connection URLs for each list
   // Updates only when endpoint, lists, or stableQueryParams change
+  const activeKeys = useMemo(() => {
+    if (!enabled || !endpoint) {
+      return new Set<string>();
+    }
+    return new Set(
+      lists.map(list => `${list.cluster}:${endpointKey}:${list.namespace || ''}:${watchQueryKey}`)
+    );
+  }, [enabled, endpoint, endpointKey, lists, watchQueryKey]);
+
+  useLayoutEffect(() => {
+    enabledRef.current = enabled;
+    activeKeysRef.current = activeKeys;
+  }, [enabled, activeKeys]);
+
+  useEffect(() => {
+    for (const [timerKey, timer] of Object.entries(retryTimersRef.current)) {
+      if (!enabled || !activeKeys.has(timerKey)) {
+        clearTimeout(timer);
+        delete retryTimersRef.current[timerKey];
+        delete retryCountsRef.current[timerKey];
+      }
+    }
+  }, [enabled, activeKeys]);
+
   const connections = useMemo(() => {
     void subscriptionGeneration;
     if (!enabled || !endpoint) {
@@ -773,7 +799,11 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           }
         } else {
           void client.invalidateQueries({ queryKey }).then(() => {
-            if (client.getQueryState(queryKey)?.status === 'success') {
+            if (
+              enabledRef.current &&
+              activeKeysRef.current.has(key) &&
+              client.getQueryState(queryKey)?.status === 'success'
+            ) {
               setSubscriptionGeneration(current => current + 1);
             }
           });
@@ -920,7 +950,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
           retryTimersRef.current[key] = setTimeout(() => {
             delete retryTimersRef.current[key];
-            if (isExpired || isForbidden) {
+            if (
+              isExpired ||
+              isForbidden ||
+              !enabledRef.current ||
+              !activeKeysRef.current.has(key)
+            ) {
               return;
             }
             delete latestResourceVersions.current[key];
@@ -940,7 +975,11 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
                 stableQueryParams ?? {}
               ).queryKey;
               void client.invalidateQueries({ queryKey }).then(() => {
-                if (client.getQueryState(queryKey)?.status === 'success') {
+                if (
+                  enabledRef.current &&
+                  activeKeysRef.current.has(key) &&
+                  client.getQueryState(queryKey)?.status === 'success'
+                ) {
                   setSubscriptionGeneration(current => current + 1);
                 }
               });
@@ -1014,7 +1053,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
             retryCountsRef.current[key] = retryCount + 1;
             retryTimersRef.current[key] = setTimeout(() => {
               delete retryTimersRef.current[key];
-              if (isExpired || isForbidden || !enabled) {
+              if (
+                isExpired ||
+                isForbidden ||
+                !enabledRef.current ||
+                !activeKeysRef.current.has(key)
+              ) {
                 return;
               }
               triggerReconnect();
@@ -1035,11 +1079,17 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         },
         error => {
           console.error('WebSocket subscription failed:', error);
+          if (disposed || !enabledRef.current || !activeKeysRef.current.has(key)) {
+            return;
+          }
           if (!isForbiddenError(error) && !retryTimersRef.current[key]) {
             const retryCount = retryCountsRef.current[key] || 0;
             retryCountsRef.current[key] = retryCount + 1;
             retryTimersRef.current[key] = setTimeout(() => {
               delete retryTimersRef.current[key];
+              if (!enabledRef.current || !activeKeysRef.current.has(key)) {
+                return;
+              }
               setSubscriptionGeneration(current => current + 1);
             }, Math.min(1000 * Math.pow(2, retryCount), 30000));
           }
@@ -1068,6 +1118,8 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
   useEffect(
     () => () => {
+      enabledRef.current = false;
+      activeKeysRef.current = new Set();
       Object.values(retryTimersRef.current).forEach(timer => clearTimeout(timer));
       retryTimersRef.current = {};
     },
