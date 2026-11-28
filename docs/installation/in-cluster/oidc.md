@@ -157,6 +157,23 @@ By default, headlamp leverages the `id_token` provided back from the OIDC Provid
 
 - `-oidc-use-access-token=true` or env var `HEADLAMP_CONFIG_OIDC_USE_ACCESS_TOKEN`
 
+### Additional Authorization Request Parameters
+
+You can pass arbitrary provider-specific query parameters (such as `prompt=select_account` for Microsoft Entra ID or `login_hint`) in the OIDC authorization request URL using either the CLI flag, environment variable, or Helm chart values:
+
+- `-oidc-authorization-params` (comma-separated `key=value` pairs or a JSON object, e.g. `-oidc-authorization-params=prompt=select_account,login_hint=user@example.com` or `-oidc-authorization-params='{"prompt":"select_account"}'`)
+- Environment variable `HEADLAMP_CONFIG_OIDC_AUTHORIZATION_PARAMS`
+- Helm `values.yaml`:
+
+```yaml
+config:
+  oidc:
+    authorizationParams:
+      prompt: select_account
+```
+
+Core protocol parameters managed by Headlamp (`client_id`, `redirect_uri`, `response_type`, `scope`, `state`, `code_challenge`, and `code_challenge_method`) cannot be overridden.
+
 ### Multi-cluster: broadcast the OIDC token across sibling clusters
 
 When a single Headlamp instance serves several Kubernetes clusters that all trust the **same** OIDC application (same issuer URL and client ID), an operator can opt in to broadcasting the auth cookie to every matching sibling cluster after a successful login. This eliminates per-cluster re-authentication for the common deployment shape where one OIDC app (Okta, Keycloak, Dex, Entra ID, etc.) is registered with every `kube-apiserver` in the fleet.
@@ -198,6 +215,7 @@ For quick reference if you are already familiar with setting up Entra ID,
 - Set `-oidc-validator-client-id` to `6dae42f8-4368-4678-94ff-3960e28e3630`
 - Set `-oidc-use-access-token=true`
 - Set `-oidc-auto-login=true` (optional to skip the "Sign in" screen)
+- Set `-oidc-authorization-params=prompt=select_account` (optional to always display the Entra ID account picker)
 
 ### Example: OIDC with Dex
 

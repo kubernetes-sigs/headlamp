@@ -251,6 +251,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcAuthorizationParams:   parseOIDCAuthorizationParams(conf.OidcAuthorizationParams),
 		OidcAPIProxy:              conf.OidcAPIProxy,
 		OidcAPIProxySkipTLSVerify: conf.OidcAPIProxySkipTLSVerify,
 		MeUsernamePaths:           conf.MeUsernamePath,
@@ -469,4 +470,15 @@ func runListPlugins() {
 	if err := plugins.ListPlugins(conf.StaticDir, conf.UserPluginsDir, conf.PluginsDir); err != nil {
 		logger.Log(logger.LevelError, nil, err, "listing plugins")
 	}
+}
+
+func parseOIDCAuthorizationParams(raw string) map[string]string {
+	params, err := config.ParseOIDCAuthorizationParams(raw)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "parsing OIDC authorization params")
+
+		return nil
+	}
+
+	return params
 }

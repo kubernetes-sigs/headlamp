@@ -17,6 +17,7 @@
 {{- $usePKCE := "" }}
 {{- $useAccessToken := "" }}
 {{- $meUserInfoURL := "" }}
+{{- $authorizationParams := "" }}
 {{- /* The backend also reads these env names directly. They only feed the
        discovery OIDC check, so no -oidc-* flag is rendered for them. */}}
 {{- $backendEnvClientID := "" }}
@@ -97,6 +98,9 @@
   {{- end }}
   {{- if eq .name "OIDC_USE_PKCE" }}
     {{- $usePKCE = .value | toString }}
+  {{- end }}
+  {{- if eq .name "OIDC_AUTHORIZATION_PARAMS" }}
+    {{- $authorizationParams = .value | toString }}
   {{- end }}
   {{- if eq .name "ME_USER_INFO_URL" }}
     {{- $meUserInfoURL = .value | toString }}
@@ -363,6 +367,13 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: usePKCE
             {{- end }}
+            {{- if $oidc.authorizationParams }}
+            - name: OIDC_AUTHORIZATION_PARAMS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: authorizationParams
+            {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
               valueFrom:
@@ -410,6 +421,10 @@ spec:
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
               value: {{ $oidc.usePKCE | quote }}
+            {{- end }}
+            {{- if $oidc.authorizationParams }}
+            - name: OIDC_AUTHORIZATION_PARAMS
+              value: {{ $oidc.authorizationParams | toJson | quote }}
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
@@ -527,6 +542,9 @@ spec:
             {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
             - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
             {{- end }}
+            {{- if or $oidc.authorizationParams (ne $authorizationParams "") }}
+            - "-oidc-authorization-params=$(OIDC_AUTHORIZATION_PARAMS)"
+            {{- end }}
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
             {{- end }}
@@ -546,6 +564,9 @@ spec:
             {{- end }}
             {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
             - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
+            {{- end }}
+            {{- if or $oidc.authorizationParams (ne $authorizationParams "") }}
+            - "-oidc-authorization-params=$(OIDC_AUTHORIZATION_PARAMS)"
             {{- end }}
             {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
             # Check if validatorClientID is non empty either from env or oidc.config

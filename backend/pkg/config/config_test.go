@@ -2024,3 +2024,95 @@ func TestParseNamespaceDiscoveryLimits(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "must be greater than zero")
 }
+
+func TestParseOIDCAuthorizationParams_Valid(t *testing.T) {
+	tests := []struct {
+		name     string
+		raw      string
+		expected map[string]string
+	}{
+		{name: "empty string returns nil", raw: "", expected: nil},
+		{name: "whitespace only returns nil", raw: "   \t\n  ", expected: nil},
+		{name: "empty json object returns nil", raw: "{}", expected: nil},
+		{
+			name:     "json object parses multiple params",
+			raw:      `{"prompt":"select_account","login_hint":"user@example.com","custom":"a=b,c"}`,
+			expected: map[string]string{"prompt": "select_account", "login_hint": "user@example.com", "custom": "a=b,c"},
+		},
+		{
+			name:     "comma-separated key value pairs",
+			raw:      "prompt=select_account, login_hint=user@example.com",
+			expected: map[string]string{"prompt": "select_account", "login_hint": "user@example.com"},
+		},
+		{
+			name:     "key value preserves equals sign inside value",
+			raw:      "resource=https://api.example.com/?a=1",
+			expected: map[string]string{"resource": "https://api.example.com/?a=1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.ParseOIDCAuthorizationParams(tt.raw)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestParseOIDCAuthorizationParams_Invalid(t *testing.T) {
+	tests := []struct {
+		name          string
+		raw           string
+		errorContains string
+	}{
+		{name: "invalid json syntax fails", raw: `{"prompt":`, errorContains: "invalid OIDC authorization parameters JSON"},
+		{name: "non-string json value fails", raw: `{"max_age":300}`, errorContains: "must have a string value"},
+		{name: "null json value fails", raw: `{"prompt":null}`, errorContains: "must have a string value"},
+		{name: "missing equals in key-value fails", raw: "prompt", errorContains: "expected key=value format"},
+		{name: "empty key fails", raw: "=select_account", errorContains: "key must not be empty"},
+		{
+			name:          "whitespace in key fails",
+			raw:           "bad key=value",
+			errorContains: "must not contain whitespace or control characters",
+		},
+		{name: "duplicate key fails", raw: "prompt=login,prompt=select_account", errorContains: "duplicate"},
+		{name: "reserved state parameter fails case-insensitively", raw: "STATE=forged", errorContains: "is reserved"},
+		{name: "reserved code_challenge in json fails", raw: `{"code_challenge":"bad"}`, errorContains: "is reserved"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := config.ParseOIDCAuthorizationParams(tt.raw)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errorContains)
+		})
+	}
+}
+
+func TestConfigParseOIDCAuthorizationParamsFlagAndEnv(t *testing.T) {
+	t.Run("flag parses authorization params", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--oidc-authorization-params=prompt=select_account,domain_hint=contoso.com",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "prompt=select_account,domain_hint=contoso.com", conf.OidcAuthorizationParams)
+	})
+
+	t.Run("env var parses authorization params JSON", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_OIDC_AUTHORIZATION_PARAMS", `{"prompt":"select_account"}`)
+
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		assert.Equal(t, `{"prompt":"select_account"}`, conf.OidcAuthorizationParams)
+	})
+
+	t.Run("invalid authorization params rejected by Parse", func(t *testing.T) {
+		_, err := config.Parse([]string{
+			"go run ./cmd",
+			"--oidc-authorization-params=redirect_uri=https://evil.example.com",
+		})
+		require.ErrorContains(t, err, "is reserved")
+	})
+}

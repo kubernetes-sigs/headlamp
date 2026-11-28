@@ -39,6 +39,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1501,14 +1502,14 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			createdAt: time.Now(),
 		}
 
-		var authURL string
+		authOpts := buildOidcAuthCodeOptions(config.OidcAuthorizationParams)
 
 		if config.OidcUsePKCE {
 			entry.CodeVerifier = oauth2.GenerateVerifier()
-			authURL = oauthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(entry.CodeVerifier))
-		} else {
-			authURL = oauthConfig.AuthCodeURL(state)
+			authOpts = append(authOpts, oauth2.S256ChallengeOption(entry.CodeVerifier))
 		}
+
+		authURL := oauthConfig.AuthCodeURL(state, authOpts...)
 
 		// Store the request config keyed by state for callback handling
 		oauthMu.Lock()
@@ -4340,4 +4341,30 @@ func startDiscoverySources(ctx context.Context, config *HeadlampConfig, defaults
 	}
 
 	return nil
+}
+
+// buildOidcAuthCodeOptions converts additional authorization parameters into
+// sorted oauth2 AuthCodeOption values, skipping reserved protocol parameters.
+func buildOidcAuthCodeOptions(params map[string]string) []oauth2.AuthCodeOption {
+	if len(params) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		if cfg.IsReservedOIDCAuthorizationParam(k) {
+			continue
+		}
+
+		keys = append(keys, k)
+	}
+
+	slices.Sort(keys)
+
+	opts := make([]oauth2.AuthCodeOption, 0, len(keys))
+	for _, k := range keys {
+		opts = append(opts, oauth2.SetAuthURLParam(k, params[k]))
+	}
+
+	return opts
 }

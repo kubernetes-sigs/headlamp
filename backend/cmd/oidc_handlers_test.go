@@ -1481,3 +1481,65 @@ func TestOIDCCallback_VerifiesAccessTokenWithValidatorOverrides(t *testing.T) {
 	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
 		"the validated access token should remain the cluster credential")
 }
+
+func withAuthorizationParams(params map[string]string) oidcTestOption {
+	return func(c *HeadlampConfig) {
+		c.OidcAuthorizationParams = params
+	}
+}
+
+func TestOIDCStart_AppendsAdditionalAuthorizationParams(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+
+	t.Run("includes configured authorization parameters in redirect URL", func(t *testing.T) {
+		params := map[string]string{
+			"prompt":      "select_account",
+			"login_hint":  "user+admin@example.com",
+			"domain_hint": "contoso.com",
+		}
+		handler, cluster := newOIDCTestHandler(t, srv, withAuthorizationParams(params))
+
+		redirectURL := driveOIDCStart(t, handler, cluster)
+		query := redirectURL.Query()
+
+		assert.Equal(t, "select_account", query.Get("prompt"))
+		assert.Equal(t, "user+admin@example.com", query.Get("login_hint"))
+		assert.Equal(t, "contoso.com", query.Get("domain_hint"))
+		assert.Equal(t, "test-client-id", query.Get("client_id"))
+		assert.NotEmpty(t, query.Get("state"))
+	})
+
+	t.Run("preserves PKCE and custom authorization parameters together", func(t *testing.T) {
+		params := map[string]string{"prompt": "select_account"}
+		handler, cluster := newOIDCTestHandler(t, srv, withPKCE(), withAuthorizationParams(params))
+
+		redirectURL := driveOIDCStart(t, handler, cluster)
+		query := redirectURL.Query()
+
+		assert.Equal(t, "select_account", query.Get("prompt"))
+		assert.Equal(t, "S256", query.Get("code_challenge_method"))
+		assert.NotEmpty(t, query.Get("code_challenge"))
+	})
+
+	t.Run("defensively ignores reserved parameters", func(t *testing.T) {
+		params := map[string]string{
+			"prompt":        "select_account",
+			"state":         "forged-state",
+			"client_id":     "forged-client",
+			"redirect_uri":  "https://evil.example.com/callback",
+			"response_type": "token",
+			"scope":         "admin",
+		}
+		handler, cluster := newOIDCTestHandler(t, srv, withAuthorizationParams(params))
+
+		redirectURL := driveOIDCStart(t, handler, cluster)
+		query := redirectURL.Query()
+
+		assert.Equal(t, "select_account", query.Get("prompt"))
+		assert.NotEqual(t, "forged-state", query.Get("state"))
+		assert.Equal(t, "test-client-id", query.Get("client_id"))
+		assert.Equal(t, "code", query.Get("response_type"))
+		assert.NotEqual(t, "https://evil.example.com/callback", query.Get("redirect_uri"))
+		assert.NotEqual(t, "admin", query.Get("scope"))
+	})
+}
