@@ -1407,6 +1407,9 @@ export function registerProjectApiResource(apiResource: ApiResource) {
  *                   to prevent silent edge loss and collision-based deduplication issues.
  *                   It is highly recommended to namespace the ID with the plugin name
  *                   (e.g., `'my-plugin.deployment-secret'`).
+ *                   Note: `fromSource` and `toSource` are source IDs. Custom resources from CRDs
+ *                   use a `crd-` prefix (e.g., `'crd-example.io/Widget'`); a relation with the
+ *                   plain `'example.io/Widget'` matches nothing and is silently ignored.
  *
  * @example
  * ```tsx
