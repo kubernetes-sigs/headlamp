@@ -203,6 +203,13 @@ export const builtInSettings: Record<string, any> = {
 };
 
 /**
+ * localStorage key set when settings are saved by this version. Settings saved
+ * with it hold only values the user chose.
+ */
+export const SETTINGS_VERSION_KEY = 'settingsVersion';
+const SETTINGS_VERSION = '2';
+
+/**
  * Drops stored values equal to the built-in default. Older versions persisted
  * every setting on opening the Settings page, so such values are not taken
  * as user choices and do not hide admin defaults.
@@ -217,7 +224,24 @@ function withoutBuiltInValues(
   );
 }
 
-const storedSettings = withoutBuiltInValues(loadStoredSettings());
+/**
+ * Loads the user's settings. Only settings saved by older versions go through
+ * withoutBuiltInValues, so a user who picks the built-in value on purpose
+ * keeps it over a different admin default after a reload.
+ */
+function loadUserSettings(): Partial<ConfigState['settings']> {
+  const settings = loadStoredSettings();
+  try {
+    if (localStorage.getItem(SETTINGS_VERSION_KEY) === SETTINGS_VERSION) {
+      return settings;
+    }
+  } catch {
+    // Fall through and treat the stored settings as legacy ones.
+  }
+  return withoutBuiltInValues(settings);
+}
+
+const storedSettings = loadUserSettings();
 
 export const initialState: ConfigState = {
   clusterSources: [],
@@ -326,6 +350,7 @@ const configSlice = createSlice({
       });
       state.userSettings = { ...state.userSettings, ...action.payload };
       localStorage.setItem('settings', JSON.stringify(state.userSettings));
+      localStorage.setItem(SETTINGS_VERSION_KEY, SETTINGS_VERSION);
     },
   },
 });
