@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
@@ -349,4 +349,73 @@ export const useEndpoints = (
   if (endpoints.length === 1) return { endpoint: endpoints[0], error: null };
 
   return { endpoint, error };
+};
+
+/** A working endpoint per cluster, with the probe error for the clusters that have none. */
+export interface ClusterEndpoints {
+  endpointByCluster: Record<string, KubeObjectEndpoint | undefined>;
+  errorByCluster: Record<string, ApiError | null>;
+}
+
+/**
+ * Returns a working endpoint for the given resource on each of the given clusters.
+ *
+ * Clusters do not have to serve the same version of a resource: one may still be on
+ * `v1beta1` while another has moved to `v1`. Each cluster is therefore probed on its
+ * own, instead of resolving once and reusing the answer, and a cluster that serves
+ * none of the versions reports its own error without hiding the others.
+ *
+ * The probes share their cache entries with {@link useEndpoints}, so a list and a
+ * details view of the same resource on the same cluster only probe once.
+ *
+ * @param endpoints - List of possible endpoints
+ * @param clusters - The clusters to resolve an endpoint for
+ * @param namespacesByCluster - Namespace candidates to probe with, per cluster
+ */
+export const useClusterEndpoints = (
+  endpoints: KubeObjectEndpoint[],
+  clusters: string[],
+  namespacesByCluster?: Record<string, string[] | undefined>
+): ClusterEndpoints => {
+  const endpointsKey = useMemo(
+    () => endpoints.map(ep => `${ep.group ?? ''}/${ep.version}/${ep.resource}`),
+    [endpoints]
+  );
+  // A single declared version is the only candidate, so it needs no probing.
+  const soleEndpoint = endpoints.length === 1 ? endpoints[0] : undefined;
+
+  const results = useQueries({
+    queries: clusters.map(cluster => ({
+      enabled: endpoints.length > 1,
+      retry: false,
+      queryKey: ['endpoints', cluster, namespacesByCluster?.[cluster], '', endpointsKey],
+      queryFn: () => getWorkingEndpoint(endpoints, cluster, namespacesByCluster?.[cluster]),
+    })),
+  });
+
+  const resolved = clusters.map((cluster, index) => ({
+    cluster,
+    endpoint: soleEndpoint ?? (results[index]?.data as KubeObjectEndpoint | undefined),
+    error: soleEndpoint ? null : (results[index]?.error as ApiError | null) ?? null,
+  }));
+  // The results array is new on every render, so the map is rebuilt only when a
+  // cluster's resolved version or error actually changes.
+  const resolvedKey = JSON.stringify(
+    resolved.map(({ cluster, endpoint, error }) => [
+      cluster,
+      endpoint ? KubeObjectEndpoint.toUrl(endpoint) : null,
+      error?.message ?? null,
+    ])
+  );
+
+  return useMemo(() => {
+    const endpointByCluster: Record<string, KubeObjectEndpoint | undefined> = {};
+    const errorByCluster: Record<string, ApiError | null> = {};
+    resolved.forEach(({ cluster, endpoint, error }) => {
+      endpointByCluster[cluster] = endpoint;
+      errorByCluster[cluster] = error;
+    });
+    return { endpointByCluster, errorByCluster };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the resolved endpoints
+  }, [resolvedKey]);
 };

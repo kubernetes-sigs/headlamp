@@ -204,6 +204,25 @@ const mockNodeClass = class {
   }
 } as any;
 
+/**
+ * The watch hooks resolve an endpoint per cluster, because clusters can serve
+ * different versions of the same resource. These tests watch a single version, so
+ * every cluster they use maps to the same one.
+ */
+const podsEndpointEverywhere = Object.fromEntries(
+  [
+    'default',
+    'cluster-1',
+    'cluster-2',
+    'cluster-a',
+    'cluster-b',
+    'my-cluster',
+    'other-cluster',
+    'restricted',
+    'unrestricted',
+  ].map(cluster => [cluster, { version: 'v1', resource: 'pods' }])
+);
+
 function makeListResponse({
   kind = 'PodList',
   items = [],
@@ -379,7 +398,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '1' }],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
         }),
       {
         wrapper: ({ children }) => (
@@ -405,7 +424,7 @@ describe('useWatchKubeObjectLists', () => {
             { cluster: 'default', resourceVersion: '1', namespace: 'a' },
             { cluster: 'default', resourceVersion: '1', namespace: 'b' },
           ],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
         }),
       {
         wrapper: ({ children }) => (
@@ -465,11 +484,19 @@ describe('useWatchKubeObjectLists', () => {
     });
 
     // When watching lists
-    renderHook(() => useWatchKubeObjectLists({ kubeObjectClass, lists, endpoint }), {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      ),
-    });
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass,
+          lists,
+          endpointByCluster: podsEndpointEverywhere,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
 
     // And receiving updates
     const connectionToNamespaceA = useWebSocketSpy.mock.calls[0][0].connections[0];
@@ -501,7 +528,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '1' }],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
         }),
       {
         wrapper: ({ children }) => (
@@ -522,7 +549,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -548,7 +575,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
         }),
       {
         wrapper: ({ children }) => (
@@ -575,7 +602,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -609,7 +636,7 @@ describe('useWatchKubeObjectLists', () => {
             { cluster: 'default', resourceVersion: '100', namespace: 'ns-a' },
             { cluster: 'default', resourceVersion: '200', namespace: 'ns-b' },
           ],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -644,7 +671,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           watchQueryParams,
           onReconnect,
         }),
@@ -705,7 +732,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '', namespace: 'ns-cached' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -740,7 +767,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -792,7 +819,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'a' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -855,7 +882,7 @@ describe('useWatchKubeObjectLists', () => {
             { cluster: 'default', resourceVersion: '100', namespace: 'ns-a' },
             { cluster: 'default', resourceVersion: '200', namespace: 'ns-b' },
           ],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -896,14 +923,13 @@ describe('useWatchKubeObjectLists', () => {
     const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
     const onReconnect = vi.fn();
     const queryClient = new QueryClient();
-    const endpoint = { version: 'v1', resource: 'pods' };
 
     renderHook(
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           watchQueryParams: {},
           onReconnect,
         }),
@@ -923,14 +949,13 @@ describe('useWatchKubeObjectLists', () => {
     const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
     const onReconnect = vi.fn();
     const queryClient = new QueryClient();
-    const endpoint = { version: 'v1', resource: 'pods' };
 
     renderHook(
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '', namespace: 'ns-empty' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -968,7 +993,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -1018,7 +1043,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -1056,14 +1081,13 @@ describe('useWatchKubeObjectLists', () => {
     const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
     const onReconnect = vi.fn();
     const queryClient = new QueryClient();
-    const endpoint = { version: 'v1', resource: 'pods' };
 
     renderHook(
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -1095,7 +1119,7 @@ describe('useWatchKubeObjectLists', () => {
           useWatchKubeObjectLists({
             kubeObjectClass: mockClass,
             lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
-            endpoint: { version: 'v1', resource: 'pods' },
+            endpointByCluster: podsEndpointEverywhere,
             onReconnect,
           }),
         {
@@ -1132,7 +1156,7 @@ describe('useWatchKubeObjectLists', () => {
           useWatchKubeObjectLists({
             kubeObjectClass: mockClass,
             lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
-            endpoint: { version: 'v1', resource: 'pods' },
+            endpointByCluster: podsEndpointEverywhere,
             onReconnect,
           }),
         {
@@ -1185,7 +1209,7 @@ describe('useWatchKubeObjectLists', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'default', resourceVersion: '100', namespace: 'default' }],
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           onReconnect,
         }),
       {
@@ -4582,7 +4606,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
         }),
       {
@@ -4612,7 +4636,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
         }),
       {
@@ -4650,7 +4674,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
         }),
       {
@@ -4678,7 +4702,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
           lists: [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }],
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
         }),
       {
         wrapper: ({ children }) => (
@@ -4704,7 +4728,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           lists: [{ cluster: 'default', namespace: 'a', resourceVersion: '1' }],
         }),
       { wrapper: queryClientWrapper(queryClient) }
@@ -4839,7 +4863,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
         }),
       {
@@ -4864,7 +4888,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
           onReconnect,
         }),
@@ -4906,7 +4930,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
           watchQueryParams: {},
           onReconnect,
@@ -4962,7 +4986,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           lists,
           onReconnect,
         }),
@@ -5031,7 +5055,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       ({ listsProp }) =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint,
+          endpointByCluster: podsEndpointEverywhere,
           lists: listsProp,
           onReconnect,
         }),
@@ -5113,7 +5137,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       ({ listsProp }) =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists: listsProp,
         }),
       {
@@ -5167,7 +5191,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
           onReconnect,
         }),
@@ -5222,7 +5246,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         () =>
           useWatchKubeObjectLists({
             kubeObjectClass: mockClass,
-            endpoint: { version: 'v1', resource: 'pods' },
+            endpointByCluster: podsEndpointEverywhere,
             lists,
             onReconnect,
           }),
@@ -5265,7 +5289,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         () =>
           useWatchKubeObjectLists({
             kubeObjectClass: mockClass,
-            endpoint: { version: 'v1', resource: 'pods' },
+            endpointByCluster: podsEndpointEverywhere,
             lists: [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '100' }],
             onReconnect,
           }),
@@ -5474,7 +5498,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
           onReconnect,
         }),
@@ -5586,7 +5610,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
         }),
       {
@@ -5618,7 +5642,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
           onReconnect,
         }),
@@ -5661,7 +5685,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       () =>
         useWatchKubeObjectLists({
           kubeObjectClass: mockClass,
-          endpoint: { version: 'v1', resource: 'pods' },
+          endpointByCluster: podsEndpointEverywhere,
           lists,
           onReconnect,
         }),
@@ -5789,7 +5813,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         () =>
           useWatchKubeObjectLists({
             kubeObjectClass: mockClass,
-            endpoint: { version: 'v1', resource: 'pods' },
+            endpointByCluster: podsEndpointEverywhere,
             lists: [{ cluster: 'cluster-a', namespace: 'default', resourceVersion: '100' }],
             onReconnect,
           }),
@@ -5845,7 +5869,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         () =>
           useWatchKubeObjectLists({
             kubeObjectClass: mockClass,
-            endpoint: { version: 'v1', resource: 'pods' },
+            endpointByCluster: podsEndpointEverywhere,
             lists: [{ cluster: 'cluster-a', namespace: 'default', resourceVersion: '100' }],
             onReconnect,
           }),
@@ -5951,5 +5975,111 @@ describe('matchesLabelSelectorString', () => {
   it('treats missing labels as no labels', () => {
     expect(matchesLabelSelectorString('team=frontend', undefined)).toBe(false);
     expect(matchesLabelSelectorString('!team', undefined)).toBe(true);
+  });
+});
+
+describe('useKubeObjectList across clusters on different API versions', () => {
+  // Clusters do not have to serve the same version of a resource: one can still be on
+  // v1beta1 while another has moved to v1. Resolving the version once, against the
+  // first cluster, asked the others for a version they do not serve and dropped their
+  // objects. See https://github.com/kubernetes-sigs/headlamp/issues/8812
+  const mixedVersionClass = class {
+    static apiVersion = ['networking.k8s.io/v1', 'networking.k8s.io/v1beta1'];
+    static apiName = 'servicecidrs';
+
+    static apiEndpoint = {
+      apiInfo: [
+        { group: 'networking.k8s.io', resource: 'servicecidrs', version: 'v1' },
+        { group: 'networking.k8s.io', resource: 'servicecidrs', version: 'v1beta1' },
+      ],
+    };
+
+    constructor(public jsonData: any) {}
+
+    get metadata() {
+      return this.jsonData?.metadata;
+    }
+  } as any;
+
+  /** Serves `servicecidrs` under one version per cluster, and 404s every other one. */
+  function serveVersionPerCluster(versionByCluster: Record<string, string | undefined>) {
+    mockClusterFetch.mockImplementation(async (url: string | URL, options?: any) => {
+      const served = versionByCluster[options?.cluster];
+      if (!served || !url.toString().includes(`/${served}/`)) {
+        throw new ApiError('the server could not find the requested resource', { status: 404 });
+      }
+      return {
+        json: async () => ({
+          kind: 'ServiceCIDRList',
+          apiVersion: `networking.k8s.io/${served}`,
+          metadata: { resourceVersion: '1' },
+          items: [{ metadata: { name: `cidr-${options.cluster}`, uid: `uid-${options.cluster}` } }],
+        }),
+      } as any;
+    });
+  }
+
+  function renderForClusters(clusters: string[]) {
+    return renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mixedVersionClass,
+          requests: clusters.map(cluster => ({ cluster })),
+          watch: false,
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  // Both orders: the bug only showed up for the clusters after the first one.
+  it.each([
+    ['the v1 cluster first', ['cluster-a', 'cluster-b']],
+    ['the v1beta1 cluster first', ['cluster-b', 'cluster-a']],
+  ])('lists every cluster on its own version, with %s', async (_label, clusters) => {
+    serveVersionPerCluster({ 'cluster-a': 'v1', 'cluster-b': 'v1beta1' });
+
+    const { result } = renderForClusters(clusters as string[]);
+
+    await waitFor(() => expect(result.current.items?.length).toBe(2));
+    expect(result.current.items?.map(item => item.metadata.name).sort()).toEqual([
+      'cidr-cluster-a',
+      'cidr-cluster-b',
+    ]);
+    expect(result.current.error).toBeNull();
+    expect(mockClusterFetch).toHaveBeenCalledWith(
+      'apis/networking.k8s.io/v1/servicecidrs',
+      expect.objectContaining({ cluster: 'cluster-a' })
+    );
+    expect(mockClusterFetch).toHaveBeenCalledWith(
+      'apis/networking.k8s.io/v1beta1/servicecidrs',
+      expect.objectContaining({ cluster: 'cluster-b' })
+    );
+  });
+
+  it('keeps the other clusters listed when the first one serves no version', async () => {
+    serveVersionPerCluster({ 'cluster-a': undefined, 'cluster-b': 'v1' });
+
+    const { result } = renderForClusters(['cluster-a', 'cluster-b']);
+
+    await waitFor(() => expect(result.current.items?.length).toBe(1));
+    expect(result.current.items?.[0].metadata.name).toBe('cidr-cluster-b');
+    // The cluster that serves nothing reports for itself instead of emptying the list.
+    expect(result.current.errors?.length).toBe(1);
+    expect(result.current.isError).toBe(true);
+  });
+
+  it('reports the failure when no cluster serves any version', async () => {
+    serveVersionPerCluster({});
+
+    const { result } = renderForClusters(['cluster-a', 'cluster-b']);
+
+    await waitFor(() => expect(result.current.errors?.length).toBe(2));
+    expect(result.current.items).toEqual([]);
   });
 });
