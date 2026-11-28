@@ -54,6 +54,7 @@ import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import { PluginSettingsAPI } from '../settings/pluginSettings';
 import * as stateless from '../stateless/index';
+import { getClusterProxyArgValues, isTrustedClusterProxyPlugin } from './clusterProxy';
 import {
   createPluginRunCommand,
   findCommandCapability,
@@ -71,10 +72,10 @@ import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import { getInfoForRunningPlugins, identifyPackages, runPlugin } from './runPlugin';
 import { createPluginSecureStorage, getPluginSecureStorageNamespace } from './secureStorage';
 
-window.pluginLib = {
+const pluginLib = {
   ApiProxy,
   ReactMonacoEditor: {
     ...ReactMonacoEditor,
@@ -122,6 +123,18 @@ window.pluginLib = {
   stateless,
   Settings: PluginSettingsAPI,
 };
+Object.defineProperty(pluginLib, 'registerClusterProviderPreOpen', {
+  configurable: false,
+  enumerable: true,
+  value: registryToExport.registerClusterProviderPreOpen,
+  writable: false,
+});
+Object.defineProperty(window, 'pluginLib', {
+  configurable: false,
+  enumerable: true,
+  value: pluginLib,
+  writable: false,
+});
 
 // backwards compat.
 window.pluginLib.MuiCore = window.pluginLib.MuiMaterial;
@@ -153,23 +166,28 @@ export async function beforePluginStartupDeadline<T>(
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
 }
 
+export function isPluginDevelopmentMode(
+  electronDevelopment: boolean | undefined,
+  rendererEnvironment: string | undefined
+): boolean {
+  return electronDevelopment ?? rendererEnvironment === 'development';
+}
+
 /**
  * Load external, then local plugins. Then initialize() them in order with a Registry.
  */
 export async function initializePlugins() {
-  // Initialize every plugin in the order they were loaded.
-  return new Promise(resolve => {
-    for (const pluginName of Object.keys(window.plugins)) {
-      const plugin = window.plugins[pluginName];
-      try {
-        // @todo: what should happen if this fails?
-        plugin.initialize(new Registry());
-      } catch (e) {
-        console.error(`Plugin initialize() error in ${pluginName}:`, e);
-      }
+  const errors: unknown[] = [];
+  for (const pluginName of Object.keys(window.plugins)) {
+    const plugin = window.plugins[pluginName];
+    try {
+      await plugin.initialize(new Registry());
+    } catch (e) {
+      console.error(`Plugin initialize() error in ${pluginName}:`, e);
+      errors.push(e);
     }
-    resolve(undefined);
-  });
+  }
+  if (errors.length > 0) throw errors[0];
 }
 
 /**
@@ -376,26 +394,6 @@ export function updateSettingsPackages(
   });
 }
 
-/**
- * Runs a plugin with the given info.
- *
- * This is not a closure, so it doens't have access to the variables
- *  in the scope of the function that called it.
- */
-function runPluginInner(info: runPluginProps) {
-  // We avoid destructuring here in case that is overridden by a plugin.
-  const source = info[0];
-  const packageName = info[1];
-  const packageVersion = info[2];
-  const handleError = info[3];
-  const PrivateFunction = info[4];
-  const args = info[5];
-  const values = info[6];
-  const privateRunPlugin = info[7];
-
-  privateRunPlugin(source, packageName, packageVersion, handleError, PrivateFunction, args, values);
-}
-
 const PLUGIN_LOADING_ERROR = HeadlampEventType.PLUGIN_LOADING_ERROR;
 const consoleError = console.error;
 const storeDispatch = store.dispatch;
@@ -521,13 +519,16 @@ export async function fetchAndExecutePlugins(
       fetchPluginResource(
         `${getAppUrl()}${path}/main.js`,
         headers,
-        response => response.text(),
+        response => {
+          if (!response.ok) return Promise.reject(response);
+          return response.text();
+        },
         remainingStartupTime(deadline)
       )
     )
   );
 
-  const packageInfosPromise = await Promise.all<PluginInfo>(
+  const packageInfosPromise = Promise.all<PluginInfo>(
     pluginPaths.map((path, index) =>
       fetchPluginResource(
         `${getAppUrl()}${path}/package.json`,
@@ -566,9 +567,18 @@ export async function fetchAndExecutePlugins(
     )
   );
 
-  const sources = await sourcesPromise;
-  const packageInfos = await packageInfosPromise;
+  const [sources, packageInfos] = await Promise.all([sourcesPromise, packageInfosPromise]);
   const permissionSecrets = await beforePluginStartupDeadline(permissionSecretsPromise, deadline);
+  const commandPermissionSecrets = Object.fromEntries(
+    Object.entries(permissionSecrets).filter((entry): entry is [string, number] =>
+      Number.isFinite(entry[1])
+    )
+  );
+  const clusterProxyCapability =
+    typeof permissionSecrets.startClusterProxy === 'string'
+      ? permissionSecrets.startClusterProxy
+      : undefined;
+
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
 
@@ -666,10 +676,15 @@ export async function fetchAndExecutePlugins(
   const pluginDesktopApiSend = window?.desktopApi?.send;
   const pluginDesktopApiReceive = window?.desktopApi?.receive;
   const pluginRegisterCluster = window?.desktopApi?.registerCluster;
+  const pluginStartClusterProxy = window?.desktopApi?.startClusterProxy;
   const internalRunCommand = runCommand;
   const PrivateFunction = Function;
   const internalRunPlugin = runPlugin;
   const isDevelopmentMode = process.env.NODE_ENV === 'development';
+  const isElectronDevelopmentMode = isPluginDevelopmentMode(
+    window?.desktopApi?.isDevelopment,
+    process.env.NODE_ENV
+  );
   const consoleError = console.error;
 
   const pluginsLoaded = updatedSettingsPackages
@@ -681,15 +696,19 @@ export async function fetchAndExecutePlugins(
       type: plugin.type,
     }));
 
+  const executionErrors: unknown[] = [];
   const infoForRunningPlugins = sourcesToExecute
     .map((source, index) => {
-      return getInfoForRunningPlugins({
+      const info = getInfoForRunningPlugins({
         source,
         pluginPath: pluginPathsToExecute[index],
         packageName: packageInfosToExecute[index].name,
         packageVersion: packageInfosToExecute[index].version || '',
-        permissionSecrets,
-        handleError: handlePluginRunError,
+        permissionSecrets: commandPermissionSecrets,
+        handleError: (error, packageName, packageVersion) => {
+          executionErrors.push(error);
+          handlePluginRunError(error, packageName, packageVersion);
+        },
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
           const secretsToReturn: Record<string, number> = {};
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
@@ -714,16 +733,20 @@ export async function fetchAndExecutePlugins(
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
           }
 
-          if (isPackage['azure-aks']) {
-            secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
-              secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
-          }
-
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
           const argumentNames: string[] = [];
           const argumentValues: unknown[] = [];
+          const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          const packageInfo = packageInfosToExecute[index];
+          const isTrustedAksDesktop =
+            packageInfo.type === packageInfo.source &&
+            isTrustedClusterProxyPlugin(
+              isPackage['aks-desktop'],
+              packageInfo.source,
+              isElectronDevelopmentMode
+            );
           const commandCapability = findCommandCapability(
             commandCapabilities,
             packageInfosToExecute[index]
@@ -738,6 +761,16 @@ export async function fetchAndExecutePlugins(
           if (productRunCommand) {
             argumentNames.push('pluginRunCommand', 'pluginPath');
             argumentValues.push(productRunCommand, pluginPath);
+          }
+
+          if (isPackage['aks-desktop']) {
+            const [proxyArgs, proxyValues] = getClusterProxyArgValues(
+              isTrustedAksDesktop,
+              pluginStartClusterProxy,
+              clusterProxyCapability
+            );
+            argumentNames.push(...proxyArgs);
+            argumentValues.push(...proxyValues);
           }
           const [registrationArgs, registrationValues] = getPluginClusterRegistrationArgValues(
             commandCapabilities,
@@ -761,6 +794,12 @@ export async function fetchAndExecutePlugins(
         internalRunPlugin,
         consoleError,
       });
+      if (!info) {
+        executionErrors.push(
+          new Error(`Failed to initialize plugin ${packageInfosToExecute[index].name}`)
+        );
+      }
+      return info;
     })
     .filter(info => info !== undefined);
 
@@ -773,12 +812,15 @@ export async function fetchAndExecutePlugins(
     return 0;
   });
 
-  infoForRunningPlugins.forEach(runPluginInner);
+  infoForRunningPlugins.forEach(info => {
+    info[7](info[0], info[1], info[2], info[3], info[4], info[5], info[6]);
+  });
 
   // Initialize plugin i18n after plugins are loaded
   await initializePluginsI18n(packageInfos, pluginPaths, deadline);
 
   await beforePluginStartupDeadline(afterPluginsRun(pluginsLoaded), deadline);
+  if (executionErrors.length > 0) throw executionErrors[0];
 }
 
 /**
@@ -850,11 +892,11 @@ async function afterPluginsRun(
  *
  * @returns promise with permissions secrets like { 'runCmd-minikube': 1235555 }
  */
-export async function permissionSecretsFromApp(): Promise<Record<string, number>> {
+export async function permissionSecretsFromApp(): Promise<Record<string, unknown>> {
   const { desktopApi } = window;
   if (desktopApi) {
     return new Promise(resolve => {
-      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, number>) => {
+      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, unknown>) => {
         resolve(secrets);
       });
       desktopApi.send('request-plugin-permission-secrets');

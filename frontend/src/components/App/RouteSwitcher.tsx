@@ -178,6 +178,9 @@ export function AuthRoute(props: AuthRouteProps) {
 
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
+
+  const clusters = useClustersConf();
+
   const query = useQuery({
     queryKey: ['auth', cluster],
     queryFn: () => testAuthWithRetry(cluster!),
@@ -185,7 +188,6 @@ export function AuthRoute(props: AuthRouteProps) {
     retry: 0,
   });
 
-  const clusters = useClustersConf();
   const currentCluster = getCluster();
   const clusterConf = currentCluster && clusters ? clusters[currentCluster] : null;
   const authError = query.error as any;

@@ -175,7 +175,7 @@ function SettingsClusterRedirect() {
   const history = useHistory();
 
   React.useEffect(() => {
-    history.replace(`/settings/cluster?c=${cluster}`);
+    history.replace(`/settings/cluster?c=${encodeURIComponent(cluster || '')}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

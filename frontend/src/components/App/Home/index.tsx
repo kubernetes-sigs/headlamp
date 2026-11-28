@@ -35,6 +35,7 @@ import { PageGrid } from '../../common/Resource';
 import SectionBox from '../../common/SectionBox';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ProjectList from '../../project/ProjectList';
+import { ClusterNavigationPendingContext } from '../ClusterRouter';
 import ClusterSourceTabs from './ClusterSourceTabs';
 import ClusterTable from './ClusterTable';
 import { ENABLE_RECENT_CLUSTERS } from './config';
@@ -43,19 +44,27 @@ import RecentClusters from './RecentClusters';
 
 export default function Home() {
   const history = useHistory();
-  const location = useLocation<{ fromAuthChooser?: boolean }>();
+  const location = useLocation<{
+    fromAuthChooser?: boolean;
+    showClusterChooser?: boolean;
+  }>();
+  const navigationPending = React.useContext(ClusterNavigationPendingContext);
   const clusters = useClustersConf();
   const sources = useTypedSelector(state => state.config.clusterSources);
   // Keep users on the chooser when they leave a cluster's auth screen.
   const fromAuthChooser = location.state?.fromAuthChooser;
 
-  if (!isElectron() && clusters && Object.keys(clusters).length === 1) {
+  if (!navigationPending && !isElectron() && clusters && Object.keys(clusters).length === 1) {
     const cluster = Object.keys(clusters)[0];
     const isLogout = new URLSearchParams(location.search).get('logout') === 'true';
     if (isLogout) {
       history.push(createRouteURL('login', { cluster }) + '?logout=true');
       return null;
-    } else if (!fromAuthChooser && !hasConfiguredClusterSources(sources)) {
+    } else if (
+      !fromAuthChooser &&
+      !location.state?.showClusterChooser &&
+      !hasConfiguredClusterSources(sources)
+    ) {
       history.push(createRouteURL('cluster', { cluster }));
       return null;
     }

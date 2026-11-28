@@ -210,6 +210,72 @@ be shared with workloads or other cluster users.
 
 - Example plugin: [How To Use Plugin Secure Storage](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/secure-storage)
 
+### Cluster Pre-Open Hooks
+
+Prepare a cluster before Headlamp renders its views with
+[registerClusterProviderPreOpen](../../api/modules/plugin_registry#registerclusterproviderpreopen).
+Pre-open hooks can start a proxy or tunnel, refresh credentials, warm a cache, or
+perform another asynchronous prerequisite. While hooks run, Headlamp displays a
+connecting dialog. Rejecting a hook shows its error with a retry action.
+Both states include **Back to clusters**, which returns to Home and aborts
+pending preparation.
+
+In-app links and programmatic router navigation prepare the destination before
+committing the selected cluster. Existing panels and activity sessions remain
+mounted while preparation is pending or failed. On browser back/forward the
+address bar may change immediately, but the router and the default
+`getCluster()`/`getSelectedClusters()` helpers continue to report the previous
+prepared selection until the destination is ready. This also keeps existing
+polling callbacks on that selection. Preparation hooks should use the supplied
+`context.cluster` and `context.clusterConf`, not the current selection, to address
+their destination. Direct links and reloads still gate the initial cluster views.
+
+Hooks run sequentially whenever a single cluster is opened, after plugin
+initialization completes. Configuration discovery does not wait for plugins.
+If plugin discovery, execution, or initialization fails, opening a cluster stays
+gated even if no hook registered. The error's retry action reloads Headlamp
+instead of executing partially initialized modules again.
+Combined multi-cluster views currently skip pre-open hooks. Hooks that apply only to some
+clusters should inspect the supplied context and resolve immediately for other
+clusters. Long-running work should use the supplied `AbortSignal`, and hooks can
+report status text through `reportProgress`.
+
+Preparation is reused while navigating within the opened cluster. Changed cluster
+configuration or a switch between backend and stored-kubeconfig provenance runs
+preparation again, including when a hook initially received `clusterConf: null`.
+Equivalent configuration refreshes do not re-run hooks.
+
+If an already opened cluster needs preparation again, progress or failure is
+shown over its existing layout without resetting panel or activity state. The
+replacement gate is reserved for a cluster whose views have not yet opened.
+
+Initial stored-kubeconfig loading waits even for known clusters, because a stored
+override may arrive. Failed stored loads keep even known backend targets gated:
+requests independently select same-name stored kubeconfigs, so preparing only the
+backend configuration would not authorize the actual connection. Retry reloads
+`/config` or stored kubeconfigs as needed before running hooks; a failed
+stored-kubeconfig parse is not treated as an empty
+store. Partial imports do not clear a full-load failure; only a successful full
+reload does, and superseded loads cannot replace newer results. Periodic loads
+join in-flight work, allowing slow success or failure to settle; explicit
+replacement loads and Retry still supersede older results. Progress must be a
+string; invalid runtime values show generic progress and are not stored or logged.
+
+Cluster-defined ConfigMap and Secret settings wait for plugin registration and
+prepare each source's target cluster independently before reading it. Reads
+also wait for stored-kubeconfig failures to recover and for plugin initialization
+to succeed. They share preparation with an open cluster, without retaining it
+after the read finishes. A successful preparation retry refetches that cluster's settings
+immediately rather than waiting for the next settings poll.
+Successful settings for configured targets are retained while replacement
+preparation or source reads are pending or fail; deleted targets lose their
+settings. Optional missing sources (404) are skipped. Successful source data is
+merged in order even when another source fails; other failures are logged. If no
+source yields settings and a non-404 read fails, prior settings are retained. A
+successful read with no settings data clears that target's settings.
+
+- API reference: [registerClusterProviderPreOpen](../../api/modules/plugin_registry#registerclusterproviderpreopen)
+
 ### Route
 
 Show a component in the main area at a given URL with

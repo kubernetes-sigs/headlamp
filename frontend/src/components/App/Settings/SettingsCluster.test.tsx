@@ -17,6 +17,7 @@
 import '../../../i18n/config';
 import { ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
@@ -24,7 +25,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { storeClusterSettings } from '../../../helpers/clusterSettings';
 import i18n from '../../../i18n/config';
 import { createMuiTheme } from '../../../lib/themes';
-import { initialState as configInitialState, setConfig } from '../../../redux/configSlice';
+import {
+  registerClusterPreOpenHook,
+  resetClusterPreOpenHooksForTests,
+} from '../../../plugin/clusterPreOpen';
+import { pluginsLoaded } from '../../../plugin/pluginsSlice';
+import {
+  ConfigState,
+  initialState as configInitialState,
+  setConfig,
+  setStatelessConfig,
+  setStatelessConfigError,
+} from '../../../redux/configSlice';
 import reducers from '../../../redux/reducers/reducers';
 import store from '../../../redux/stores/store';
 import { enqueueConfigOperation } from '../../../stateless/configOperationQueue';
@@ -36,34 +48,47 @@ const clusterName = 'my-cluster';
 const theme = createMuiTheme({ base: 'light', name: 'light' });
 const darkTheme = createMuiTheme({ base: 'dark', name: 'dark' });
 
-const { mockDeleteCluster, mockState } = vi.hoisted(() => ({
-  mockDeleteCluster: vi.fn(),
-  mockState: {
-    activeCluster: 'my-cluster' as string | null,
-    electron: false,
-    clustersConf: {} as Record<string, any>,
-  },
-}));
+const { mockDeleteCluster, mockReloadStored, mockNamespaceResolution, mockState } = vi.hoisted(
+  () => ({
+    mockDeleteCluster: vi.fn(),
+    mockReloadStored: vi.fn(),
+    mockNamespaceResolution: vi.fn(() => ({
+      namespaces: [],
+      isFetching: false,
+      isSuccess: false,
+      error: null,
+    })),
+    mockState: {
+      activeCluster: 'my-cluster' as string | null,
+      electron: false,
+      backendPending: false,
+      clustersConf: {} as Record<string, any>,
+    },
+  })
+);
 
 vi.mock('../../../helpers/isElectron', () => ({ isElectron: () => mockState.electron }));
 
 vi.mock('../../../lib/k8s', () => ({
   useCluster: () => mockState.activeCluster,
-  useClustersConf: () => mockState.clustersConf,
+  useSelectedClusters: () => (mockState.activeCluster ? [mockState.activeCluster] : []),
+  useClustersConf: () => (mockState.backendPending ? null : mockState.clustersConf),
 }));
 
 // Stub the selector resolver so the test does not pull in the real k8s model
 // graph (Namespace -> KubeObject -> ...), matching how lib/k8s is mocked above.
 vi.mock('../../../lib/k8s/allowedNamespaces', () => ({
-  useAllowedNamespacesFromSelector: () => ({
-    namespaces: [],
-    isFetching: false,
-    isSuccess: false,
-    error: null,
-  }),
+  useAllowedNamespacesFromSelector: mockNamespaceResolution,
 }));
 
 vi.mock('../../../lib/k8s/api/v1/clusterApi', () => ({ deleteCluster: mockDeleteCluster }));
+vi.mock('../../../stateless', async importOriginal => {
+  type StatelessModule = typeof import('../../../stateless');
+  return {
+    ...(await importOriginal<StatelessModule>()),
+    fetchStatelessClusterKubeConfigs: mockReloadStored,
+  };
+});
 vi.mock('../../common/ConfirmButton', () => ({
   default: ({ children, onConfirm }: { children: React.ReactNode; onConfirm: () => void }) => (
     <button onClick={onConfirm}>{children}</button>
@@ -109,25 +134,60 @@ vi.mock('./PodDebugSettings', () => ({ default: () => null }));
 
 function renderSettings(
   settings: Record<string, unknown> = {},
-  options: { queryCluster?: string | null; dark?: boolean } = {}
+  options: {
+    queryCluster?: string | null;
+    dark?: boolean;
+    config?: Partial<ConfigState>;
+    client?: QueryClient;
+  } = {}
 ) {
   const { queryCluster = clusterName, dark = false } = options;
   localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
-  return render(
-    <TestContext urlSearchParams={queryCluster === null ? undefined : { c: queryCluster }}>
+  const renderStore =
+    options.config === undefined
+      ? store
+      : configureStore({
+          reducer: reducers,
+          preloadedState: {
+            config: {
+              ...configInitialState,
+              clusters: mockState.clustersConf,
+              allClusters: mockState.clustersConf,
+              isDynamicClusterEnabled: false,
+              ...options.config,
+            },
+          },
+        });
+  renderStore.dispatch(pluginsLoaded());
+  const client = options.client ?? new QueryClient();
+  const result = render(
+    <TestContext
+      store={renderStore}
+      urlSearchParams={queryCluster === null ? undefined : { c: queryCluster }}
+    >
       <ThemeProvider theme={dark ? darkTheme : theme}>
         <SettingsCluster />
       </ThemeProvider>
-    </TestContext>
+    </TestContext>,
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    }
   );
+  return { ...result, store: renderStore };
 }
 
 describe('SettingsCluster appearance controls', () => {
   beforeEach(() => {
     localStorage.clear();
     mockDeleteCluster.mockReset();
+    mockReloadStored.mockReset();
+    mockNamespaceResolution.mockClear();
+    resetClusterPreOpenHooksForTests();
     mockState.activeCluster = clusterName;
     mockState.electron = false;
+    mockState.backendPending = false;
     mockState.clustersConf = {
       [clusterName]: {
         name: clusterName,
@@ -184,6 +244,157 @@ describe('SettingsCluster appearance controls', () => {
     expect(
       screen.getByRole('button', { name: 'Appearance Cluster icon Choose Icon' })
     ).toBeInTheDocument();
+  });
+
+  it('prepares query-selected namespace targets and blocks reads through failure until Retry', async () => {
+    let finishFirst!: () => void;
+    let failSecond!: (error: Error) => void;
+    const first = new Promise<void>(resolve => {
+      finishFirst = resolve;
+    });
+    const second = new Promise<void>((_resolve, reject) => {
+      failSecond = reject;
+    });
+    let secondAttempts = 0;
+    const hook = vi.fn(({ cluster }: { cluster: string }) =>
+      cluster === clusterName ? first : ++secondAttempts === 1 ? second : Promise.resolve()
+    );
+    registerClusterPreOpenHook(hook);
+    mockState.clustersConf['other-cluster'] = { name: 'other-cluster', auth_type: '' };
+    localStorage.setItem(
+      'cluster_settings.other-cluster',
+      JSON.stringify({ allowedNamespacesSelector: 'team=other' })
+    );
+    renderSettings({ allowedNamespacesSelector: 'team=first' });
+    await screen.findByRole('status');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockNamespaceResolution).toHaveBeenLastCalledWith('', 'team=first');
+    await act(async () => finishFirst());
+    await waitFor(() =>
+      expect(mockNamespaceResolution).toHaveBeenLastCalledWith(clusterName, 'team=first')
+    );
+    await userEvent.click(screen.getAllByRole('combobox')[0]);
+    await userEvent.click(screen.getByRole('option', { name: 'other-cluster' }));
+    await screen.findByRole('status');
+    expect(mockNamespaceResolution).toHaveBeenLastCalledWith('', 'team=other');
+    await act(async () => failSecond(new Error('Proxy preparation failed')));
+    await screen.findByRole('button', { name: 'Retry' });
+    expect(
+      screen.getByRole('textbox', { name: 'Allowed namespaces label selector' })
+    ).toBeEnabled();
+    expect(screen.getAllByRole('combobox')[0]).toBeEnabled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockNamespaceResolution).toHaveBeenLastCalledWith('', 'team=other');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() =>
+      expect(mockNamespaceResolution).toHaveBeenLastCalledWith('other-cluster', 'team=other')
+    );
+    expect(hook.mock.calls.map(([context]) => context.cluster)).toEqual([
+      clusterName,
+      'other-cluster',
+      'other-cluster',
+    ]);
+  });
+
+  it.each([false, true])(
+    'lets users clear a namespace selector and edit local settings while preparation is blocked (failed: %s)',
+    async failed => {
+      let signal: AbortSignal | undefined;
+      registerClusterPreOpenHook(context => {
+        signal = context.signal;
+        return failed ? Promise.reject(new Error('Proxy offline')) : new Promise(() => {});
+      });
+      renderSettings({ allowedNamespacesSelector: 'team=offline' });
+      if (failed) {
+        await screen.findByRole('button', { name: 'Retry' });
+      } else {
+        await screen.findByRole('status');
+      }
+      expect(mockNamespaceResolution).toHaveBeenLastCalledWith('', 'team=offline');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      const defaultNamespace = screen.getByRole('textbox', { name: 'Default namespace' });
+      await userEvent.type(defaultNamespace, 'offline-local');
+      await userEvent.tab();
+      expect(
+        JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`)!).defaultNamespace
+      ).toBe('offline-local');
+      await userEvent.clear(
+        screen.getByRole('textbox', { name: 'Allowed namespaces label selector' })
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Apply label selector' }));
+      expect(
+        JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`)!)
+          .allowedNamespacesSelector
+      ).toBeUndefined();
+      await waitFor(() =>
+        expect(mockNamespaceResolution).toHaveBeenLastCalledWith(clusterName, '')
+      );
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+      if (!failed) await waitFor(() => expect(signal?.aborted).toBe(true));
+    }
+  );
+
+  it('offers backend configuration Retry for a direct target before declaring it missing', async () => {
+    const client = new QueryClient();
+    mockState.clustersConf = {};
+    mockState.backendPending = true;
+    let available = false;
+    let publishConfig = () => {};
+    const loadConfig = async () => {
+      if (!available) throw new Error('Backend configuration unavailable');
+      mockState.clustersConf = { [clusterName]: { name: clusterName, auth_type: '' } };
+      mockState.backendPending = false;
+      publishConfig();
+      return { clusters: mockState.clustersConf };
+    };
+    await expect(
+      client.fetchQuery({
+        queryKey: ['cluster-fetch'],
+        queryFn: loadConfig,
+        retry: false,
+      })
+    ).rejects.toThrow('Backend configuration unavailable');
+    const view = renderSettings(
+      {},
+      {
+        client,
+        config: { clusters: null, allClusters: null },
+      }
+    );
+    publishConfig = () => {
+      view.store.dispatch(setConfig({ clusters: mockState.clustersConf }));
+    };
+    expect(await screen.findByRole('alert')).toHaveTextContent('Backend configuration unavailable');
+    expect(screen.queryByText(/There seem to be no clusters configured/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/does not exist/)).not.toBeInTheDocument();
+    available = true;
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByRole('textbox', { name: 'Default namespace' });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('retries failed stored discovery before showing an unresolved direct target as nonexistent', async () => {
+    const view = renderSettings(
+      {},
+      {
+        queryCluster: 'unloaded-stored-context',
+        config: {
+          isDynamicClusterEnabled: true,
+          statelessClusters: null,
+          statelessConfigError: 'Stored contexts unavailable',
+        },
+      }
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('Stored contexts unavailable');
+    expect(screen.queryByText(/does not exist/)).not.toBeInTheDocument();
+    mockReloadStored.mockImplementation(async () => {
+      view.store.dispatch(setStatelessConfig({ statelessClusters: {} }));
+      view.store.dispatch(setStatelessConfigError(null));
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByText(/Cluster unloaded-stored-context does not exist/);
+    expect(mockReloadStored).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('updates configured appearance values', async () => {
@@ -670,11 +881,13 @@ describe('SettingsCluster states and namespaces', () => {
       },
     });
     render(
-      <TestContext store={store} urlSearchParams={{ c: clusterName }}>
-        <ThemeProvider theme={theme}>
-          <SettingsCluster />
-        </ThemeProvider>
-      </TestContext>
+      <QueryClientProvider client={new QueryClient()}>
+        <TestContext store={store} urlSearchParams={{ c: clusterName }}>
+          <ThemeProvider theme={theme}>
+            <SettingsCluster />
+          </ThemeProvider>
+        </TestContext>
+      </QueryClientProvider>
     );
 
     expect(screen.getByText('Cluster name editor')).toBeInTheDocument();

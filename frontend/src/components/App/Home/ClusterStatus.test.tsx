@@ -22,6 +22,7 @@ import { describe, expect, it, vi } from 'vitest';
 import clusterProviderReducer, {
   addClusterStatus,
   type ClusterStatusComponent,
+  initialState,
 } from '../../../redux/clusterProviderSlice';
 import { ClusterStatus } from './ClusterTable';
 
@@ -56,12 +57,8 @@ function makeStore(clusterStatuses: ClusterStatusComponent[]) {
     reducer: { clusterProvider: clusterProviderReducer },
     preloadedState: {
       clusterProvider: {
-        dialogs: [],
-        menuItems: [],
-        clusterProviders: [],
+        ...initialState,
         clusterStatuses,
-        clusterEmptyState: null,
-        deleteHandlers: [],
       },
     },
     // clusterStatuses holds functions, which aren't serializable; matches the app's

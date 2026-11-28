@@ -67,21 +67,24 @@ describe('Plugins', () => {
       );
     });
     expect(store.getState().plugins.loaded).toBe(true);
+    expect(store.getState().plugins.loadError).toBe('fetch failed');
   });
 
   test('does not show error snackbar when plugin loading succeeds', async () => {
     mockFetchAndExecutePlugins.mockResolvedValue(undefined);
+    const store = configureStore({ reducer: reducers });
 
     render(
-      <TestContext>
+      <TestContext store={store}>
         <Plugins />
       </TestContext>
     );
 
     // Wait for the effect to run
     await waitFor(() => {
-      expect(mockFetchAndExecutePlugins).toHaveBeenCalled();
+      expect(store.getState().plugins.loaded).toBe(true);
     });
+    expect(store.getState().plugins.loadError).toBeNull();
 
     expect(mockEnqueueSnackbar).not.toHaveBeenCalledWith(
       expect.anything(),

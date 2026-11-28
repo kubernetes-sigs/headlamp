@@ -22,6 +22,7 @@ import configReducer, {
   setAppSettings,
   setConfig,
   setStatelessConfig,
+  setStatelessConfigError,
 } from './configSlice';
 
 describe('configSlice', () => {
@@ -208,6 +209,21 @@ describe('configSlice', () => {
     };
     const nextState = configReducer(initialState, setStatelessConfig({ statelessClusters }));
     expect(nextState.statelessClusters).toEqual(statelessClusters);
+  });
+
+  it('preserves full-load errors when a partial kubeconfig import updates the map', () => {
+    const failed = configReducer(
+      initialState,
+      setStatelessConfigError('other stored contexts could not load')
+    );
+    const partial = configReducer(
+      failed,
+      setStatelessConfig({
+        statelessClusters: { imported: { name: 'imported', auth_type: '' } },
+      })
+    );
+    expect(partial.statelessClusters).toHaveProperty('imported');
+    expect(partial.statelessConfigError).toBe('other stored contexts could not load');
   });
 
   describe('setAppSettings', () => {

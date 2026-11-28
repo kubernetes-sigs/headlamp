@@ -19,6 +19,12 @@ import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import {
+  beginClusterConnectionPreparation,
+  completeClusterConnectionPreparation,
+  failClusterConnectionPreparation,
+  resetPreparedClusterConnections,
+} from '../../../preparedClusterConnection';
 import { getClusterAuthType } from '../../clusterAuthType';
 import { BASE_HTTP_URL, clusterFetch } from './fetch';
 
@@ -51,6 +57,7 @@ describe('clusterFetch', () => {
   const userID = 'mock-user-id';
 
   beforeEach(() => {
+    resetPreparedClusterConnections();
     vi.resetAllMocks();
     setBackendToken('desktop-token');
     (findKubeconfigByClusterName as Mock).mockResolvedValue(kubeconfig);
@@ -108,6 +115,42 @@ describe('clusterFetch', () => {
       cluster: clusterName,
       headers: { 'X-CUSTOM-HEADER': 'caller-value' },
     });
+  });
+
+  it.each(['pending', 'failed'])(
+    'pins v2 stored requests to the last prepared kubeconfig while replacement is %s',
+    async state => {
+      completeClusterConnectionPreparation(clusterName, {
+        stored: true,
+        kubeconfig: 'prepared-kubeconfig',
+      });
+      beginClusterConnectionPreparation(clusterName);
+      if (state === 'failed') failClusterConnectionPreparation(clusterName);
+      vi.mocked(findKubeconfigByClusterName).mockResolvedValue('replacement-kubeconfig');
+      nock(BASE_HTTP_URL)
+        .get(`/clusters/${clusterName}${testUrl}`)
+        .matchHeader('KUBECONFIG', 'prepared-kubeconfig')
+        .reply(200, mockResponse);
+
+      await clusterFetch(testUrl, { cluster: clusterName });
+
+      expect(findKubeconfigByClusterName).not.toHaveBeenCalled();
+    }
+  );
+
+  it('does not resolve mutable stored config when backend replacement is pending', async () => {
+    beginClusterConnectionPreparation(clusterName);
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue('replacement-kubeconfig');
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/${clusterName}${testUrl}`)
+      .reply(function () {
+        expect(this.req.headers.kubeconfig).toBeUndefined();
+        return [200, mockResponse];
+      });
+
+    await clusterFetch(testUrl, { cluster: clusterName });
+
+    expect(findKubeconfigByClusterName).not.toHaveBeenCalled();
   });
 
   it('Throws an error if response is not ok', async () => {

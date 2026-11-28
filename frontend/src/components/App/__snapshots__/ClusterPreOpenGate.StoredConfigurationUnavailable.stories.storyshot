@@ -1,0 +1,143 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1b95sop-MuiGrid-root"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <img
+          alt=""
+          class="css-8atqhb"
+          src="/src/assets/headlamp-broken.svg"
+        />
+        <h1
+          class="MuiTypography-root MuiTypography-h4 css-1nsdt9j-MuiTypography-root"
+        >
+          Could not open cluster
+        </h1>
+        <p
+          class="MuiTypography-root MuiTypography-body1 css-o27isg-MuiTypography-root"
+        >
+          Stored kubeconfig could not be parsed. Retry before opening this cluster.
+        </p>
+        <div
+          class="MuiBox-root css-12aeijf"
+        >
+          <button
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-focusVisible MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Retry
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            >
+              <span
+                class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+                style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
+              >
+                <span
+                  class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+                />
+              </span>
+            </span>
+          </button>
+          <a
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+            href="/"
+            tabindex="0"
+          >
+            Back to clusters
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </a>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-iefvb7"
+        >
+          <div
+            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAccordion-root MuiAccordion-rounded MuiAccordion-gutters css-d0yk9k-MuiPaper-root-MuiAccordion-root"
+          >
+            <div
+              aria-expanded="false"
+              class="MuiButtonBase-root MuiAccordionSummary-root MuiAccordionSummary-gutters css-1f773le-MuiButtonBase-root-MuiAccordionSummary-root"
+              role="button"
+              tabindex="0"
+            >
+              <div
+                class="MuiAccordionSummary-content MuiAccordionSummary-contentGutters css-eqpfi5-MuiAccordionSummary-content"
+              >
+                <p
+                  class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                >
+                  Error Details
+                </p>
+              </div>
+              <div
+                class="MuiAccordionSummary-expandIconWrapper css-yw020d-MuiAccordionSummary-expandIconWrapper"
+              />
+            </div>
+            <div
+              class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-bz4dnt-MuiCollapse-root"
+              style="min-height: 0px;"
+            >
+              <div
+                class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+              >
+                <div
+                  class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                >
+                  <div
+                    class="MuiAccordion-region"
+                    role="region"
+                  >
+                    <div
+                      class="MuiAccordionDetails-root css-15v22id-MuiAccordionDetails-root"
+                    >
+                      <div
+                        class="MuiBox-root css-ch27pp"
+                      >
+                        <button
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+                          tabindex="0"
+                          type="button"
+                        >
+                          Copy
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                        <button
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+                          tabindex="0"
+                          type="button"
+                        >
+                          Open Issue on GitHub
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </div>
+                      <pre
+                        class="MuiTypography-root MuiTypography-body2 css-dna8j4-MuiTypography-root"
+                      >
+                        Error: Stored kubeconfig could not be parsed. Retry before opening this cluster.
+    at loadConfiguration (cluster-config.ts:1:1)
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

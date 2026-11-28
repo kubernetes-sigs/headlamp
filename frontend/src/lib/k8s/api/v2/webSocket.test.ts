@@ -20,6 +20,12 @@ import WS from 'vitest-websocket-mock';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import {
+  beginClusterConnectionPreparation,
+  completeClusterConnectionPreparation,
+  failClusterConnectionPreparation,
+  resetPreparedClusterConnections,
+} from '../../../preparedClusterConnection';
 import { openWebSocket, resetWebSocketsForTesting, useWebSockets } from './webSocket';
 import { BASE_WS_URL } from './webSocket';
 
@@ -38,6 +44,7 @@ vi.mock('../../../../stateless/getUserIdFromLocalStorage', () => ({
 describe('useWebSockets', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetPreparedClusterConnections();
   });
 
   describe('openWebSocket protocols', () => {
@@ -96,6 +103,7 @@ describe('useWebSockets', () => {
       const WebSocketMock = vi.fn(function () {
         return socket;
       });
+
       vi.stubGlobal('WebSocket', WebSocketMock);
       const onMessage = vi.fn();
 
@@ -110,6 +118,37 @@ describe('useWebSockets', () => {
       ]);
       expect(onMessage).toHaveBeenCalledWith('binary-data');
     });
+
+    it.each(['pending', 'failed'])(
+      'keeps v2 stored WebSocket provenance while replacement is %s',
+      async state => {
+        const socket = { addEventListener: vi.fn(), binaryType: '' };
+        const WebSocketMock = vi.fn(function () {
+          return socket;
+        });
+        vi.stubGlobal('WebSocket', WebSocketMock);
+        completeClusterConnectionPreparation('test-cluster', {
+          stored: true,
+          kubeconfig: 'prepared-kubeconfig',
+        });
+        beginClusterConnectionPreparation('test-cluster');
+        if (state === 'failed') failClusterConnectionPreparation('test-cluster');
+        vi.mocked(findKubeconfigByClusterName).mockResolvedValue('replacement-kubeconfig');
+        vi.mocked(getUserIdFromLocalStorage).mockReturnValue('prepared-user');
+
+        await openWebSocket('/api/v1/pods', {
+          cluster: 'test-cluster',
+          type: 'binary',
+          onMessage: vi.fn(),
+        });
+
+        expect(findKubeconfigByClusterName).not.toHaveBeenCalled();
+        expect(WebSocketMock).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.arrayContaining(['base64url.headlamp.authorization.k8s.io.prepared-user'])
+        );
+      }
+    );
   });
 
   afterEach(() => {

@@ -145,6 +145,8 @@ export type PluginInfo = {
 export interface PluginsState {
   /** Have plugins finished executing? */
   loaded: boolean;
+  /** Discovery or initialization failed; partially executed modules require a reload. */
+  loadError?: string | null;
   /** Information stored by settings about plugins. */
   pluginSettings: PluginInfo[];
 }
@@ -177,6 +179,7 @@ function loadPluginSettings(): PluginInfo[] {
 const initialState: PluginsState = {
   /** Once the plugins have been fetched and executed. */
   loaded: false,
+  loadError: null,
   /** If plugin settings are saved use those. */
   pluginSettings: loadPluginSettings(),
 };
@@ -187,6 +190,9 @@ export const pluginsSlice = createSlice({
   reducers: {
     pluginsLoaded(state) {
       state.loaded = true;
+    },
+    pluginsLoadFailed(state, action: PayloadAction<string>) {
+      state.loadError = action.payload;
     },
     /**
      * Save the plugin settings. To both the store, and localStorage.
@@ -225,7 +231,12 @@ export const pluginsSlice = createSlice({
   },
 });
 
-export const { pluginsLoaded, setPluginSettings, setPluginSettingsComponent, reloadPage } =
-  pluginsSlice.actions;
+export const {
+  pluginsLoaded,
+  pluginsLoadFailed,
+  setPluginSettings,
+  setPluginSettingsComponent,
+  reloadPage,
+} = pluginsSlice.actions;
 
 export default pluginsSlice.reducer;

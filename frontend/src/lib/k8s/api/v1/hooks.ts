@@ -15,7 +15,7 @@
  */
 
 import React, { useContext } from 'react';
-import { useHistory, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { getCluster, getSelectedClusters } from '../../../cluster';
 import { SelectedClustersContext } from '../../SelectedClustersContext';
 
@@ -33,22 +33,8 @@ export type CancellablePromise = Promise<() => void>;
  * @returns currently selected cluster
  */
 export function useCluster() {
-  const history = useHistory();
-
-  const [cluster, setCluster] = React.useState(getCluster());
-
-  React.useEffect(() => {
-    // Listen to route changes
-    return history.listen(() => {
-      const newCluster = getCluster(history.location.pathname);
-      // Update the state only when the cluster changes
-      setCluster((currentCluster: string | null) =>
-        newCluster !== currentCluster ? newCluster : currentCluster
-      );
-    });
-  }, [history]);
-
-  return cluster;
+  const { pathname } = useLocation();
+  return getCluster(pathname);
 }
 
 /**

@@ -94,7 +94,7 @@ async function fetchServerConfig(dispatch: Dispatch<UnknownAction>) {
 
   // Do not await a nested operation on this queue.
   if (config?.isDynamicClusterEnabled) {
-    fetchStatelessClusterKubeConfigs(dispatch);
+    void fetchStatelessClusterKubeConfigs(dispatch, { coalesce: true });
   }
   return configToStore;
 }

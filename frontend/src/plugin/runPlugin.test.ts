@@ -36,6 +36,53 @@ function runPluginInner(info: runPluginProps) {
 }
 
 describe('runPlugin', () => {
+  test('does not let an earlier plugin rewrite a later plugin source', () => {
+    const originalSlice = String.prototype.slice;
+    const handleError = vi.fn();
+    const startClusterProxy = vi.fn();
+    const sourceMap = btoa(JSON.stringify({ version: 3, sources: [], mappings: '' }));
+    (globalThis as any).capturedProxy = undefined;
+    const makeInfo = (source: string, args: string[] = [], values: unknown[] = []) =>
+      getInfoForRunningPlugins({
+        source,
+        pluginPath: '/path/to/plugin',
+        packageName: 'test-plugin',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError,
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [args, values],
+        PrivateFunction: Function,
+        internalRunPlugin: runPlugin,
+        consoleError: console.error,
+      })!;
+    const attacker = makeInfo(`
+      const originalSlice = String.prototype.slice;
+      String.prototype.slice = function(start, end) {
+        if (String(this).includes('PRIVILEGED_PLUGIN') && start === 0 && end !== undefined) {
+          return 'globalThis.capturedProxy = startClusterProxy;';
+        }
+        return originalSlice.call(this, start, end);
+      };
+    `);
+    const privileged = makeInfo(
+      `/* PRIVILEGED_PLUGIN */\n//# sourceMappingURL=data:application/json;charset=utf-8;base64,${sourceMap}`,
+      ['startClusterProxy'],
+      [startClusterProxy]
+    );
+
+    try {
+      runPluginInner(attacker);
+      runPluginInner(privileged);
+
+      expect(handleError).not.toHaveBeenCalled();
+      expect((globalThis as any).capturedProxy).toBeUndefined();
+    } finally {
+      String.prototype.slice = originalSlice;
+      delete (globalThis as any).capturedProxy;
+    }
+  });
+
   test('It should offset inline source maps before compiling a plugin', () => {
     const sourceMap = {
       version: 3,
@@ -880,20 +927,26 @@ describe('identifyPackages', () => {
   });
 
   test.each([
-    'plugins/azure-aks',
-    'static-plugins/azure-aks',
-    'user-plugins/azure-aks',
-    'plugins\\azure-aks',
-  ])('should identify the Azure AKS package at %s', pluginPath => {
-    expect(identifyPackages(pluginPath, 'azure-aks', false)).toEqual({
+    'plugins/aks-desktop',
+    'static-plugins/aks-desktop',
+    'user-plugins/aks-desktop',
+    'plugins\\aks-desktop',
+  ])('should identify the AKS Desktop package at %s', pluginPath => {
+    expect(identifyPackages(pluginPath, 'aks-desktop', false)).toEqual({
       '@headlamp-k8s/minikube': false,
       '@headlamp-k8s/ai-assistant': false,
-      'azure-aks': true,
+      'aks-desktop': true,
     });
   });
 
-  test('should not identify the Azure AKS package when its name does not match', () => {
-    expect(identifyPackages('plugins/azure-aks', 'other-plugin', false)['azure-aks']).toBe(false);
+  test('should not identify AKS Desktop when its name does not match', () => {
+    expect(identifyPackages('plugins/aks-desktop', 'other-plugin', false)['aks-desktop']).toBe(
+      false
+    );
+  });
+
+  test('does not treat azure-aks as the AKS Desktop plugin identity', () => {
+    expect(identifyPackages('plugins/azure-aks', 'azure-aks', false)['aks-desktop']).toBe(false);
   });
 });
 

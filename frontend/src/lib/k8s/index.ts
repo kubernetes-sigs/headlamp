@@ -42,17 +42,18 @@ export { getResourceClass } from './getResourceClass';
  * */
 export function useClustersConf(): ConfigState['allClusters'] {
   const state = useTypedSelector(state => state.config);
-  return useMemo(
-    () =>
-      state.clusters === null
-        ? null
-        : _.cloneDeep({
-            ...state.allClusters,
-            ...state.clusters,
-            ...state.statelessClusters,
-          }),
-    [state.clusters, state.allClusters, state.statelessClusters]
-  );
+  return useMemo(() => {
+    if (state.clusters === null) {
+      return null;
+    }
+
+    const allClusters = _.cloneDeep(state.allClusters || {});
+    Object.assign(allClusters, _.cloneDeep(state.clusters));
+    if (state.statelessClusters) {
+      Object.assign(allClusters, _.cloneDeep(state.statelessClusters));
+    }
+    return allClusters;
+  }, [state.allClusters, state.clusters, state.statelessClusters]);
 }
 
 export { useCluster, useConnectApi, useSelectedClusters } from './api/v1/hooks';

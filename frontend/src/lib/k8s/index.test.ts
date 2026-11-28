@@ -421,6 +421,53 @@ describe('Label selector', () => {
   });
 });
 
+describe('useClustersConf', () => {
+  const cluster = (name: string, resourceGroup: string) =>
+    ({ name, auth_type: '', meta_data: { resourceGroup } } as Cluster);
+
+  it('updates when metadata changes without changing the cluster name', async () => {
+    const store = configureStore({ reducer: { config: configReducer } });
+    store.dispatch(setConfig({ clusters: { 'test-cluster': cluster('test-cluster', 'old-rg') } }));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Provider, { store, children });
+
+    const { result } = renderHook(() => useClustersConf(), { wrapper });
+    expect(result.current?.['test-cluster'].meta_data?.resourceGroup).toBe('old-rg');
+
+    act(() => {
+      store.dispatch(
+        setConfig({ clusters: { 'test-cluster': cluster('test-cluster', 'new-rg') } })
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current?.['test-cluster'].meta_data?.resourceGroup).toBe('new-rg')
+    );
+  });
+
+  it('waits for config and combines configured and stateless clusters', async () => {
+    const store = configureStore({ reducer: { config: configReducer } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Provider, { store, children });
+    const { result } = renderHook(() => useClustersConf(), { wrapper });
+
+    expect(result.current).toBeNull();
+
+    act(() => {
+      store.dispatch(setConfig({ clusters: { configured: cluster('configured', 'config-rg') } }));
+      store.dispatch(
+        setStatelessConfig({
+          statelessClusters: { stateless: cluster('stateless', 'stateless-rg') },
+        })
+      );
+    });
+
+    await waitFor(() =>
+      expect(Object.keys(result.current || {})).toEqual(['configured', 'stateless'])
+    );
+  });
+});
+
 describe('useClustersVersion', () => {
   let queryClient: QueryClient;
 

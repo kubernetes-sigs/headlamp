@@ -25,6 +25,9 @@ vi.mock('./getRoute', () => ({
     if (name === 'pluginSimpleRoute') {
       return { path: '/plugin', useClusterURL: false };
     }
+    if (name === 'settingsCluster') {
+      return { path: '/settings/cluster', useClusterURL: false };
+    }
     return undefined;
   }),
 }));
@@ -59,6 +62,14 @@ describe('createRouteURL', () => {
   it('returns the URL as-is for non-parameterized routes', () => {
     expect(createRouteURL('pluginSimpleRoute')).toBe('/plugin');
   });
+
+  it.each(['%41', '50%off', 'cluster+one&two'])(
+    'round-trips the selected settings target %s in its query parameter',
+    cluster => {
+      const url = createRouteURL('settingsCluster', { cluster });
+      expect(new URL(url, 'http://localhost').searchParams.get('c')).toBe(cluster);
+    }
+  );
 
   it('returns an empty string instead of throwing when required params are missing (#4863)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

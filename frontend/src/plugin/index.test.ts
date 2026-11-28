@@ -19,10 +19,25 @@ import {
   beforePluginStartupDeadline,
   fetchAndExecutePlugins,
   initializePlugins,
+  isPluginDevelopmentMode,
   permissionSecretsFromApp,
 } from './index';
 import { PluginInfo } from './pluginsSlice';
 import Registry from './registry';
+
+describe('isPluginDevelopmentMode', () => {
+  it('uses Electron development mode for a production renderer build', () => {
+    expect(isPluginDevelopmentMode(true, 'production')).toBe(true);
+  });
+
+  it('does not trust renderer development mode in a packaged Electron host', () => {
+    expect(isPluginDevelopmentMode(false, 'development')).toBe(false);
+  });
+
+  it('uses renderer development mode outside Electron', () => {
+    expect(isPluginDevelopmentMode(undefined, 'development')).toBe(true);
+  });
+});
 
 describe('beforePluginStartupDeadline', () => {
   afterEach(() => {
@@ -114,8 +129,83 @@ describe('plugin initialization', () => {
 
   afterEach(() => {
     window.plugins = originalPlugins;
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it('rejects discovery failure instead of treating it as a successful zero-plugin load', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('desktopApi', undefined);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 503 })));
+    window.plugins = {};
+    const onSettingsChange = vi.fn();
+    const rejection = expect(fetchAndExecutePlugins([], onSettingsChange, vi.fn())).rejects.toThrow(
+      'HTTP error: 503'
+    );
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await rejection;
+    expect(onSettingsChange).not.toHaveBeenCalled();
+  });
+
+  it.each(['source download', 'execution', 'initialization'])(
+    'rejects an actual %s failure before a provider can register a hook',
+    async failure => {
+      vi.stubGlobal('desktopApi', undefined);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+          const url = String(input);
+          if (url.endsWith('/plugins')) {
+            return new Response(
+              JSON.stringify([
+                { path: 'plugins/example', name: 'example', type: 'user', source: 'user' },
+              ])
+            );
+          }
+          if (url.endsWith('/main.js')) {
+            if (failure === 'source download') return new Response('', { status: 503 });
+            return new Response(failure === 'execution' ? 'throw new Error("module failed")' : '');
+          }
+          if (url.endsWith('/package.json')) {
+            return new Response(
+              JSON.stringify({
+                name: 'example',
+                version: '1.0.0',
+                devDependencies: { '@kinvolk/headlamp-plugin': '0.13.0' },
+              })
+            );
+          }
+          throw new Error(`Unexpected plugin request: ${url}`);
+        })
+      );
+      window.plugins =
+        failure === 'initialization'
+          ? {
+              example: {
+                initialize: () => {
+                  throw new Error('module failed');
+                },
+              },
+            }
+          : {};
+      const result = fetchAndExecutePlugins([], vi.fn(), vi.fn());
+      if (failure === 'source download') {
+        await expect(result).rejects.toMatchObject({ status: 503 });
+      } else {
+        await expect(result).rejects.toThrow('module failed');
+      }
+    }
+  );
+
+  it('allows a successful empty discovery without any registered modules', async () => {
+    vi.stubGlobal('desktopApi', undefined);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('[]')));
+    window.plugins = {};
+    await expect(fetchAndExecutePlugins([], vi.fn(), vi.fn())).resolves.toBeUndefined();
   });
 
   it('rejects failed plugin metadata downloads without publishing incomplete settings', async () => {
@@ -147,6 +237,60 @@ describe('plugin initialization', () => {
     expect(onIncompatible).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['development', 'development', 'function'],
+    ['shipped', 'shipped', 'function'],
+    ['user', 'development', 'undefined'],
+    ['user', 'shipped', 'undefined'],
+  ] as const)(
+    'grants proxy arguments only for matching %s/%s metadata',
+    async (type, source, expected) => {
+      const callbacks = new Map<string, (value: Record<string, unknown>) => void>();
+      vi.stubGlobal('desktopApi', {
+        platform: 'darwin',
+        isDevelopment: true,
+        startClusterProxy: vi.fn(),
+        getDevelopmentPluginsEnabled: async () => true,
+        receive: (channel: string, callback: (value: Record<string, unknown>) => void) =>
+          callbacks.set(channel, callback),
+        send: () =>
+          callbacks.get('plugin-permission-secrets')?.({
+            startClusterProxy: '0123456789abcdef0123456789abcdef',
+          }),
+      });
+      vi.stubEnv('NODE_ENV', 'development');
+      vi.stubGlobal('__proxyCapabilityKind', 'not-run');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+          const url = String(input);
+          if (url.endsWith('/plugins')) {
+            return new Response(
+              JSON.stringify([{ path: 'plugins/aks-desktop', name: 'aks-desktop', type, source }])
+            );
+          }
+          if (url.endsWith('/main.js')) {
+            return new Response('globalThis.__proxyCapabilityKind = typeof startClusterProxy;');
+          }
+          if (url.endsWith('/package.json')) {
+            return new Response(
+              JSON.stringify({
+                name: 'aks-desktop',
+                version: '1.0.0',
+                type: 'development',
+                devDependencies: { '@kinvolk/headlamp-plugin': '0.13.0' },
+              })
+            );
+          }
+          throw new Error(`Unexpected plugin request: ${url}`);
+        })
+      );
+      window.plugins = {};
+      await fetchAndExecutePlugins([], vi.fn(), vi.fn());
+      expect(Reflect.get(globalThis, '__proxyCapabilityKind')).toBe(expected);
+    }
+  );
+
   it('gives each plugin a registry and continues after one plugin fails', async () => {
     const error = new Error('initialization failed');
     const broken = vi.fn(() => {
@@ -156,7 +300,7 @@ describe('plugin initialization', () => {
     const logError = vi.spyOn(console, 'error').mockImplementation(() => {});
     window.plugins = { broken: { initialize: broken }, healthy: { initialize: healthy } };
 
-    await initializePlugins();
+    await expect(initializePlugins()).rejects.toBe(error);
 
     expect(broken).toHaveBeenCalledWith(expect.any(Registry));
     expect(healthy).toHaveBeenCalledWith(expect.any(Registry));

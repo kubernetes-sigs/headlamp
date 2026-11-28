@@ -17,6 +17,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
+import { ReactNode, useLayoutEffect, useMemo } from 'react';
 import { expect, within } from 'storybook/test';
 import { pluginsLoaded } from '../../plugin/pluginsSlice';
 import reducers from '../../redux/reducers/reducers';
@@ -33,9 +34,24 @@ function createLayoutStore(themeConfigReady = true) {
   return store;
 }
 
+function ClusterRouteContext({ cluster, children }: { cluster: string; children: ReactNode }) {
+  const store = useMemo(() => createLayoutStore(), []);
+  useLayoutEffect(() => {
+    const previousURL = window.location.href;
+    const previousState = window.history.state;
+    window.history.replaceState({}, '', `/c/${cluster}/pods`);
+    return () => window.history.replaceState(previousState, '', previousURL);
+  }, [cluster]);
+  return (
+    <TestContext store={store} routerMap={{ cluster, resource: 'pods' }} urlPrefix="/c">
+      {children}
+    </TestContext>
+  );
+}
+
 const clusterRequestHandlers = [
   http.get(`${API_BASE}/clusters/:cluster/*`, () =>
-    HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+    HttpResponse.json({ kind: 'List', items: [], metadata: { resourceVersion: '1' } })
   ),
   http.post(`${API_BASE}/clusters/:cluster/*`, () => HttpResponse.json({ status: {} })),
 ];
@@ -56,16 +72,16 @@ export default {
         // Mock cluster config
         http.get(`${API_BASE}/config`, () =>
           HttpResponse.json({
-            clusters: {
-              minikube: {
+            clusters: [
+              {
                 name: 'minikube',
                 meta_data: { namespace: 'default' },
               },
-              production: {
+              {
                 name: 'production',
                 meta_data: { namespace: 'default' },
               },
-            },
+            ],
           })
         ),
         // Mock plugins
@@ -83,12 +99,14 @@ export default {
           HttpResponse.json({
             kind: 'EventList',
             items: [],
+            metadata: { resourceVersion: '1' },
           })
         ),
         // Mock namespaces
         http.get(`${API_BASE}/*/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
+            metadata: { resourceVersion: '1' },
             items: [
               {
                 metadata: { name: 'default', uid: '1' },
@@ -140,13 +158,9 @@ Default.parameters = {
 export const WithClusterRoute = Template.bind({});
 WithClusterRoute.decorators = [
   Story => (
-    <TestContext
-      store={createLayoutStore()}
-      routerMap={{ cluster: 'minikube', resource: 'pods' }}
-      urlPrefix="/c"
-    >
+    <ClusterRouteContext cluster="minikube">
       <Story />
-    </TestContext>
+    </ClusterRouteContext>
   ),
 ];
 WithClusterRoute.parameters = {
@@ -184,12 +198,12 @@ LoadingState.parameters = {
       http.get(`${API_BASE}/config`, async () => {
         await delay(5000);
         return HttpResponse.json({
-          clusters: {
-            minikube: {
+          clusters: [
+            {
               name: 'minikube',
               meta_data: { namespace: 'default' },
             },
-          },
+          ],
         });
       }),
       http.get(`${API_BASE}/plugins`, () => HttpResponse.json([])),
@@ -214,13 +228,9 @@ LoadingState.parameters = {
 export const MultiCluster = Template.bind({});
 MultiCluster.decorators = [
   Story => (
-    <TestContext
-      store={createLayoutStore()}
-      routerMap={{ cluster: 'minikube+production', resource: 'pods' }}
-      urlPrefix="/c"
-    >
+    <ClusterRouteContext cluster="minikube+production">
       <Story />
-    </TestContext>
+    </ClusterRouteContext>
   ),
 ];
 MultiCluster.parameters = {
@@ -234,20 +244,20 @@ MultiCluster.parameters = {
       ...clusterRequestHandlers,
       http.get(`${API_BASE}/config`, () =>
         HttpResponse.json({
-          clusters: {
-            minikube: {
+          clusters: [
+            {
               name: 'minikube',
               meta_data: { namespace: 'default' },
             },
-            production: {
+            {
               name: 'production',
               meta_data: { namespace: 'default' },
             },
-            staging: {
+            {
               name: 'staging',
               meta_data: { namespace: 'default' },
             },
-          },
+          ],
         })
       ),
       http.get(`${API_BASE}/plugins`, () => HttpResponse.json([])),

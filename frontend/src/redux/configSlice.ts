@@ -39,6 +39,8 @@ export interface ConfigState {
   statelessClusters: {
     [clusterName: string]: Cluster;
   } | null;
+  /** The last stored-kubeconfig loading failure, distinct from an empty store. */
+  statelessConfigError?: string | null;
 
   /**
    * All Clusters is a map of cluster names to cluster objects.
@@ -223,6 +225,7 @@ export const initialState: ConfigState = {
   clusterSources: [],
   clusters: null,
   statelessClusters: null,
+  statelessConfigError: null,
   allClusters: null,
   isDynamicClusterEnabled: false,
   namespaceDiscoveryEnabled: false,
@@ -315,6 +318,9 @@ const configSlice = createSlice({
     ) {
       state.statelessClusters = action.payload.statelessClusters;
     },
+    setStatelessConfigError(state, action: PayloadAction<string | null>) {
+      state.statelessConfigError = action.payload;
+    },
     /**
      * Save the settings. To both the store, and localStorage.
      * @param state - The current state.
@@ -330,6 +336,7 @@ const configSlice = createSlice({
   },
 });
 
-export const { setConfig, setAppSettings, setStatelessConfig } = configSlice.actions;
+export const { setConfig, setAppSettings, setStatelessConfig, setStatelessConfigError } =
+  configSlice.actions;
 
 export default configSlice.reducer;

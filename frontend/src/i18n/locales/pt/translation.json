@@ -53,6 +53,10 @@
   "30 seconds": "",
   "1 minute": "",
   "5 minutes": "",
+  "Could not open cluster": "",
+  "Retry": "",
+  "Connecting to \"{{cluster}}\"": "",
+  "Preparing cluster…": "",
   "Add": "",
   "About loading from KubeConfig": "",
   "Load an existing kubeconfig file to add the clusters it defines to Headlamp.": "",
@@ -1322,5 +1326,9 @@
   "Go to Pods": "",
   "Navigate to the Pods list": "",
   "Go to Deployments": "",
-  "Navigate to the Deployments list": ""
+  "Navigate to the Deployments list": "",
+  "Back to clusters": "",
+  "This action will remove context \"{{ clusterName }}\" from \"{{ source }}\". It will not delete the cluster.": "",
+  "Remove Context": "",
+  "Remove": ""
 }

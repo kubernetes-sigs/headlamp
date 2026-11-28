@@ -130,7 +130,37 @@
             </div>
             <div
               class="MuiBox-root css-0"
-            />
+            >
+              <button
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation css-11jr3ot-MuiButtonBase-root-MuiButton-root"
+                tabindex="0"
+                type="button"
+              >
+                <div
+                  class="MuiBox-root css-172hjuw"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                  >
+                    minikube, production
+                  </span>
+                </div>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </button>
+            </div>
+            <button
+              aria-label="Settings"
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-sizeMedium css-1jcv3fz-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
+              tabindex="0"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
             <button
               aria-controls="primary-user-menu"
               aria-haspopup="true"
@@ -198,7 +228,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-eecfu2-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/"
                           role="button"
                           tabindex="0"
                         >
@@ -250,7 +280,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/map"
                           role="button"
                           tabindex="0"
                         >
@@ -276,7 +306,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/workloads"
                           role="button"
                           tabindex="0"
                         >
@@ -315,7 +345,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/pods"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -338,7 +368,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/deployments"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -361,7 +391,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/statefulsets"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -384,7 +414,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/daemonsets"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -407,7 +437,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/replicasets"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -430,7 +460,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/jobs"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -453,7 +483,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/cronjobs"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -476,7 +506,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/jobsets"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -499,7 +529,7 @@
                               >
                                 <a
                                   class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
-                                  href="/"
+                                  href="/c/minikube+production/leaderworkersets"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -526,7 +556,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/storage/persistentvolumeclaims"
                           role="button"
                           tabindex="0"
                         >
@@ -552,7 +582,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/services"
                           role="button"
                           tabindex="0"
                         >
@@ -578,7 +608,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/gateways"
                           role="button"
                           tabindex="0"
                         >
@@ -604,7 +634,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/serviceaccounts"
                           role="button"
                           tabindex="0"
                         >
@@ -630,7 +660,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/configmaps"
                           role="button"
                           tabindex="0"
                         >
@@ -656,7 +686,7 @@
                       >
                         <a
                           class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
-                          href="/"
+                          href="/c/minikube+production/crds"
                           role="button"
                           tabindex="0"
                         >
@@ -783,7 +813,182 @@
               />
               <div
                 class="MuiContainer-root MuiContainer-maxWidthXl css-15p3enc-MuiContainer-root"
-              />
+              >
+                <div
+                  class="MuiBox-root css-j1fy4m"
+                >
+                  <div
+                    class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                    >
+                      <div
+                        class="MuiBox-root css-70qvj9"
+                      >
+                        <h1
+                          class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                        >
+                          Pods
+                        </h1>
+                        <div
+                          class="MuiBox-root css-ldp2l3"
+                        />
+                      </div>
+                    </div>
+                    <div
+                      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                    >
+                      <div
+                        class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
+                      >
+                        <div
+                          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                        >
+                          <div
+                            class="MuiBox-root css-0"
+                          >
+                            <div
+                              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-7ldjcq-MuiGrid-root"
+                            >
+                              <div
+                                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                              >
+                                <div
+                                  class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
+                                >
+                                  <div
+                                    class="MuiBox-root css-1dipl1t"
+                                  >
+                                    <div
+                                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                                      style="margin-top: 0px;"
+                                    >
+                                      <label
+                                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                                        data-shrink="true"
+                                        for="namespaces-filter"
+                                        id="namespaces-filter-label"
+                                      >
+                                        Namespaces
+                                      </label>
+                                      <div
+                                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
+                                      >
+                                        <input
+                                          aria-autocomplete="both"
+                                          aria-expanded="false"
+                                          aria-invalid="false"
+                                          autocapitalize="none"
+                                          autocomplete="off"
+                                          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                                          id="namespaces-filter"
+                                          placeholder="Filter"
+                                          role="combobox"
+                                          spellcheck="false"
+                                          type="text"
+                                          value=""
+                                        />
+                                        <div
+                                          class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+                                        >
+                                          <button
+                                            aria-label="Open"
+                                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                                            tabindex="-1"
+                                            title="Open"
+                                            type="button"
+                                          >
+                                            <svg
+                                              aria-hidden="true"
+                                              class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                                              data-testid="ArrowDropDownIcon"
+                                              focusable="false"
+                                              viewBox="0 0 24 24"
+                                            >
+                                              <path
+                                                d="M7 10l5 5 5-5z"
+                                              />
+                                            </svg>
+                                            <span
+                                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                                            />
+                                          </button>
+                                        </div>
+                                        <fieldset
+                                          aria-hidden="true"
+                                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                                        >
+                                          <legend
+                                            class="css-sl37lx-MuiNotchedOutlined-root"
+                                          >
+                                            <span>
+                                              Namespaces
+                                            </span>
+                                          </legend>
+                                        </fieldset>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="MuiBox-root css-1txv3mw"
+                  >
+                    <div
+                      class="MuiBox-root css-8atqhb"
+                    >
+                      <div
+                        aria-atomic="true"
+                        aria-live="polite"
+                        class="MuiBox-root css-ty8jgw"
+                        role="status"
+                      >
+                        No data to be shown.
+                      </div>
+                      <div
+                        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+                      >
+                        <div
+                          class="MuiBox-root css-19midj6"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                          >
+                            No data to be shown.
+                          </p>
+                          <div
+                            aria-label="Empty state actions"
+                            class="MuiBox-root css-vqm8x4"
+                            role="group"
+                          >
+                            <button
+                              aria-label="Refresh list"
+                              class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1ftyvt9-MuiButtonBase-root-MuiButton-root"
+                              tabindex="0"
+                              type="button"
+                            >
+                              <span
+                                class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
+                              />
+                              Refresh
+                              <span
+                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </main>
           <div
