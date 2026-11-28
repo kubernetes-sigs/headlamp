@@ -43,15 +43,15 @@ export default function RoleBindingDetails(props: {
         item && [
           {
             name: t('Reference Kind'),
-            value: item.roleRef.kind,
+            value: item.roleRef?.kind,
           },
           {
             name: t('Reference Name'),
-            value: item.roleRef.name,
+            value: item.roleRef?.name,
           },
           {
             name: t('Ref. API Group'),
-            value: item.roleRef.apiGroup,
+            value: item.roleRef?.apiGroup,
           },
         ]
       }
@@ -62,32 +62,36 @@ export default function RoleBindingDetails(props: {
             section: (
               <SectionBox title={t('Binding Info')}>
                 <SimpleTable
-                  data={item.subjects}
+                  data={item.subjects ?? []}
                   columns={[
                     {
                       label: t('Kind'),
-                      getter: item => item.kind,
+                      getter: subject => subject.kind,
                     },
                     {
                       label: t('translation|Name'),
-                      getter: item =>
-                        // item can hold a reference to non kube Objects
+                      getter: subject =>
+                        // subject can hold a reference to non kube Objects
                         // such as user and group names, in that case
                         // dont create a link.
-                        !item?.apiGroup ? (
+                        !subject?.apiGroup ? (
                           <Link
-                            routeName={item.kind}
-                            params={{ namespace: item.namespace || namespace, name: item.name }}
+                            routeName={subject.kind}
+                            params={{
+                              namespace: subject.namespace || namespace,
+                              name: subject.name,
+                            }}
+                            activeCluster={item.cluster || cluster}
                           >
-                            {item.name}
+                            {subject.name}
                           </Link>
                         ) : (
-                          item.name
+                          subject.name
                         ),
                     },
                     {
                       label: t('Namespace'),
-                      getter: item => item.namespace,
+                      getter: subject => subject.namespace,
                     },
                   ]}
                   reflectInURL="bindingInfo"
