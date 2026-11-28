@@ -989,6 +989,42 @@ func TestGetClustersUsesServiceAccountToken(t *testing.T) {
 	}
 }
 
+func TestGetClustersConnectionRevisionChangesOnCredentialOrTLSUpdate(t *testing.T) {
+	makeConfig := func(token string, insecure bool) *HeadlampConfig {
+		store := kubeconfig.NewContextStore()
+		require.NoError(t, store.AddContext(&kubeconfig.Context{
+			Name:        "rev-cluster",
+			KubeContext: &api.Context{Cluster: "rev-cluster", AuthInfo: "rev-user"},
+			Cluster:     &api.Cluster{Server: "https://rev.example.com", InsecureSkipTLSVerify: insecure},
+			AuthInfo:    &api.AuthInfo{Token: token},
+			Source:      kubeconfig.KubeConfig,
+		}))
+
+		return &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					KubeConfigStore: store,
+				},
+			},
+		}
+	}
+
+	base := makeConfig("secret-token-a", false).getClusters()
+	same := makeConfig("secret-token-a", false).getClusters()
+	tokenRotated := makeConfig("secret-token-b", false).getClusters()
+	tlsUpdated := makeConfig("secret-token-a", true).getClusters()
+
+	require.Len(t, base, 1)
+	require.NotEmpty(t, base[0].ConnectionRevision)
+	assert.NotContains(t, base[0].ConnectionRevision, "secret-token-a")
+	assert.Equal(t, base[0].ConnectionRevision, same[0].ConnectionRevision)
+	assert.NotEqual(t, base[0].ConnectionRevision, tokenRotated[0].ConnectionRevision)
+	assert.NotEqual(t, base[0].ConnectionRevision, tlsUpdated[0].ConnectionRevision)
+	assert.Equal(t, base[0].Name, tokenRotated[0].Name)
+	assert.Equal(t, base[0].Server, tokenRotated[0].Server)
+	assert.Equal(t, base[0].AuthType, tokenRotated[0].AuthType)
+}
+
 // clusterInventoryConfigContext returns a minimal discovered context with Cluster Inventory metadata.
 func clusterInventoryConfigContext() *kubeconfig.Context {
 	return &kubeconfig.Context{

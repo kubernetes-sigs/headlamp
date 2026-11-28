@@ -18,6 +18,7 @@ import { waitFor } from '@testing-library/react';
 import { IDBDatabase } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Cluster } from '../lib/k8s/cluster';
+import * as schemaInvalidation from '../lib/schemaCacheInvalidation';
 import { setStatelessConfig } from '../redux/configSlice';
 import store from '../redux/stores/store';
 import { enqueueConfigOperation } from './configOperationQueue';
@@ -407,6 +408,50 @@ extensions:
     expect(configs).toContain(kubeconfig1);
     expect(configs).toContain(kubeconfig2);
     expect(configs).toContain(kubeconfig3);
+  });
+
+  it('invalidates schema cache before and after credential-only or TLS-only kubeconfig replacement', async () => {
+    const initialKubeconfig = btoa(`apiVersion: v1
+kind: Config
+clusters:
+- name: rev-cluster
+  cluster:
+    server: https://rev-cluster.example.com
+contexts:
+- name: rev-cluster
+  context:
+    cluster: rev-cluster
+    user: rev-user
+users:
+- name: rev-user
+  user:
+    token: old-token`);
+
+    const rotatedKubeconfig = btoa(`apiVersion: v1
+kind: Config
+clusters:
+- name: rev-cluster
+  cluster:
+    server: https://rev-cluster.example.com
+    insecure-skip-tls-verify: true
+contexts:
+- name: rev-cluster
+  context:
+    cluster: rev-cluster
+    user: rev-user
+users:
+- name: rev-user
+  user:
+    token: rotated-token`);
+
+    await storeStatelessClusterKubeconfig(initialKubeconfig);
+    const invalidateSpy = vi.spyOn(schemaInvalidation, 'invalidateSchemaCache');
+
+    await findAndReplaceKubeconfig('rev-cluster', rotatedKubeconfig);
+
+    expect(invalidateSpy).toHaveBeenCalledWith('rev-cluster');
+    expect(invalidateSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    invalidateSpy.mockRestore();
   });
 });
 

@@ -17,6 +17,7 @@
 import * as jsyaml from 'js-yaml';
 import { decodeBase64, encodeBase64 } from '../helpers/base64';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
+import { invalidateSchemaCache } from '../lib/schemaCacheInvalidation';
 import { findMatchingContexts } from '.';
 import { visitKubeconfigRows } from './visitKubeconfigRows';
 
@@ -28,50 +29,55 @@ export async function deleteClusterKubeconfig(
   clusterName: string,
   clusterID?: string
 ): Promise<string | null> {
-  return visitKubeconfigRows<string | null>('readwrite', cursor => {
-    if (!cursor) {
-      return { value: null };
-    }
-    const row = cursor.value;
-    const kubeconfig64 = row.kubeconfig;
-    const parsed = jsyaml.load(decodeBase64(kubeconfig64)) as KubeconfigObject;
-    const { matchingKubeconfig, matchingContext } = findMatchingContexts(
-      clusterName,
-      parsed,
-      clusterID
-    );
-    if (!matchingKubeconfig && !matchingContext) {
-      return;
-    }
-    const contextName = matchingContext?.name ?? matchingKubeconfig?.name;
-    parsed.contexts = (parsed.contexts || []).filter(context => context.name !== contextName);
-    if (parsed['current-context'] === contextName) {
-      const nextContext = parsed.contexts[0]?.name;
-      if (nextContext) {
-        parsed['current-context'] = nextContext;
-      } else {
-        Reflect.deleteProperty(parsed, 'current-context');
+  invalidateSchemaCache(clusterName);
+  try {
+    return await visitKubeconfigRows<string | null>('readwrite', cursor => {
+      if (!cursor) {
+        return { value: null };
       }
-    }
-    const remainingRefs = new Set<string>(
-      parsed.contexts.flatMap(c => {
-        const refs: string[] = [];
-        if (c.context.cluster) refs.push(c.context.cluster);
-        if (c.context.user) refs.push(c.context.user);
-        return refs;
-      })
-    );
-    if (parsed.clusters) {
-      parsed.clusters = parsed.clusters.filter(c => remainingRefs.has(c.name));
-    }
-    if (parsed.users) {
-      parsed.users = parsed.users.filter(u => remainingRefs.has(u.name));
-    }
-    if (parsed.contexts.length === 0) {
-      cursor.delete();
-    } else {
-      cursor.update({ ...row, kubeconfig: encodeBase64(jsyaml.dump(parsed)) });
-    }
-    return { value: kubeconfig64 };
-  });
+      const row = cursor.value;
+      const kubeconfig64 = row.kubeconfig;
+      const parsed = jsyaml.load(decodeBase64(kubeconfig64)) as KubeconfigObject;
+      const { matchingKubeconfig, matchingContext } = findMatchingContexts(
+        clusterName,
+        parsed,
+        clusterID
+      );
+      if (!matchingKubeconfig && !matchingContext) {
+        return;
+      }
+      const contextName = matchingContext?.name ?? matchingKubeconfig?.name;
+      parsed.contexts = (parsed.contexts || []).filter(context => context.name !== contextName);
+      if (parsed['current-context'] === contextName) {
+        const nextContext = parsed.contexts[0]?.name;
+        if (nextContext) {
+          parsed['current-context'] = nextContext;
+        } else {
+          Reflect.deleteProperty(parsed, 'current-context');
+        }
+      }
+      const remainingRefs = new Set<string>(
+        parsed.contexts.flatMap(c => {
+          const refs: string[] = [];
+          if (c.context.cluster) refs.push(c.context.cluster);
+          if (c.context.user) refs.push(c.context.user);
+          return refs;
+        })
+      );
+      if (parsed.clusters) {
+        parsed.clusters = parsed.clusters.filter(c => remainingRefs.has(c.name));
+      }
+      if (parsed.users) {
+        parsed.users = parsed.users.filter(u => remainingRefs.has(u.name));
+      }
+      if (parsed.contexts.length === 0) {
+        cursor.delete();
+      } else {
+        cursor.update({ ...row, kubeconfig: encodeBase64(jsyaml.dump(parsed)) });
+      }
+      return { value: kubeconfig64 };
+    });
+  } finally {
+    invalidateSchemaCache(clusterName);
+  }
 }

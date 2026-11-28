@@ -2773,10 +2773,43 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 			AuthType:                context.AuthType(),
 			Metadata:                metadata,
 			UsesServiceAccountToken: c.shouldUseUnsafeServiceAccountTokenForContext(context),
+			ConnectionRevision:      connectionRevision(context),
 		})
 	}
 
 	return clusters
+}
+
+// connectionRevision returns an opaque, non-secret SHA-256 digest of a context's
+// connection, TLS, and credential configuration so clients can detect replacements
+// even when visible Cluster metadata is unchanged.
+func connectionRevision(context *kubeconfig.Context) string {
+	if context == nil {
+		return ""
+	}
+
+	payload, err := json.Marshal(struct {
+		Name           string                 `json:"name"`
+		Cluster        interface{}            `json:"cluster,omitempty"`
+		AuthInfo       interface{}            `json:"auth_info,omitempty"`
+		OidcConf       *kubeconfig.OidcConfig `json:"oidc_conf,omitempty"`
+		KubeConfigPath string                 `json:"kubeconfig_path,omitempty"`
+		ClusterID      string                 `json:"cluster_id,omitempty"`
+	}{
+		Name:           context.Name,
+		Cluster:        context.Cluster,
+		AuthInfo:       context.AuthInfo,
+		OidcConf:       context.OidcConf,
+		KubeConfigPath: context.KubeConfigPath,
+		ClusterID:      context.ClusterID,
+	})
+	if err != nil {
+		return ""
+	}
+
+	sum := sha256.Sum256(payload)
+
+	return fmt.Sprintf("%x", sum)
 }
 
 // parseCustomNameClusters parses the custom name clusters from the kubeconfig.

@@ -34,7 +34,28 @@ describe('schema connection lifecycle wiring', () => {
       );
       expect(notify).not.toHaveBeenCalled();
       store.dispatch(
-        setConfig({ clusters: { lifecycle: { name: 'lifecycle', server: 'replacement' } } as any })
+        setConfig({
+          clusters: {
+            lifecycle: {
+              name: 'lifecycle',
+              server: 'replacement',
+              connection_revision: 'rev-1',
+            },
+          } as any,
+        })
+      );
+      expect(notify.mock.calls).toEqual([['lifecycle']]);
+      notify.mockClear();
+      store.dispatch(
+        setConfig({
+          clusters: {
+            lifecycle: {
+              name: 'lifecycle',
+              server: 'replacement',
+              connection_revision: 'rev-2',
+            },
+          } as any,
+        })
       );
       expect(notify.mock.calls).toEqual([['lifecycle']]);
       notify.mockClear();

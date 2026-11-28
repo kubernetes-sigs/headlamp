@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+import * as jsyaml from 'js-yaml';
 import _ from 'lodash';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
+import { decodeBase64 } from '../helpers/base64';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { request } from '../lib/k8s/api/v1/clusterRequests';
 import { JSON_HEADERS } from '../lib/k8s/api/v1/constants';
 import { Cluster } from '../lib/k8s/cluster';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
+import { invalidateSchemaCache } from '../lib/schemaCacheInvalidation';
 import { ConfigState, setStatelessConfig } from '../redux/configSlice';
 import store from '../redux/stores/store';
 import { enqueueConfigOperation } from './configOperationQueue';
@@ -161,6 +164,23 @@ export function handleDataBaseError(event: DatabaseErrorEvent, reject: (reason?:
   reject(event.target ? event.target.error : 'An error occurred while opening IndexedDB');
 }
 
+function invalidateKubeconfigSchemaCache(kubeconfig: string): void {
+  try {
+    const parsed = jsyaml.load(decodeBase64(kubeconfig)) as KubeconfigObject | null;
+    const contextNames = (parsed?.contexts ?? [])
+      .map(ctx => ctx?.name)
+      .filter((name): name is string => Boolean(name));
+    if (contextNames.length > 0) {
+      contextNames.forEach(name => invalidateSchemaCache(name));
+      return;
+    }
+  } catch {
+    // Fall back to resetting all cluster caches if the kubeconfig cannot be parsed.
+  }
+
+  invalidateSchemaCache();
+}
+
 /**
  * Store the kubeconfig for a stateless cluster in IndexedDB.
  * @param kubeconfig - The kubeconfig to store.
@@ -169,6 +189,7 @@ export function handleDataBaseError(event: DatabaseErrorEvent, reject: (reason?:
  * @throws Error if the kubeconfig is invalid.
  */
 export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<void> {
+  invalidateKubeconfigSchemaCache(kubeconfig);
   return new Promise<void>((resolve, reject) => {
     const request = indexedDB.open('kubeconfigs', 1) as any;
 
@@ -214,6 +235,8 @@ export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<voi
     // The onerror event is fired when the database is opened.
     // This is where you handle errors.
     request.onerror = (event: DatabaseErrorEvent) => handleDataBaseError(event, reject);
+  }).finally(() => {
+    invalidateKubeconfigSchemaCache(kubeconfig);
   });
 }
 
@@ -346,6 +369,7 @@ export async function findAndReplaceKubeconfig(
   kubeconfig: string,
   create: boolean = false
 ): Promise<void> {
+  invalidateSchemaCache(clusterName);
   try {
     // First try to find the existing kubeconfig
     const existingKubeconfig = await findKubeconfigByClusterName(clusterName);
@@ -376,6 +400,8 @@ export async function findAndReplaceKubeconfig(
   } catch (error) {
     console.error('Error in findAndReplaceKubeconfig:', error);
     throw error;
+  } finally {
+    invalidateSchemaCache(clusterName);
   }
 }
 
