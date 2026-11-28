@@ -62,8 +62,8 @@ export interface PluginSettingsPureProps {
   onDevelopmentPluginsChange?: (enabled: boolean) => void;
 }
 
-/** Returns the trimmed URL when it uses an explicit http/https scheme; rejects javascript:, data:, etc. */
-function getSafeHttpUrl(value: unknown): string | null {
+/** Parses value as a URL with an explicit http: or https: scheme, or returns null. */
+function parseSafeHttpUrl(value: unknown): URL | null {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) {
     return null;
@@ -71,10 +71,35 @@ function getSafeHttpUrl(value: unknown): string | null {
 
   try {
     const parsed = new URL(trimmed);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? trimmed : null;
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed : null;
   } catch {
     return null;
   }
+}
+
+/** Returns the trimmed URL when it uses an explicit http/https scheme; rejects javascript:, data:, etc. */
+function getSafeHttpUrl(value: unknown): string | null {
+  return parseSafeHttpUrl(value) ? (value as string).trim() : null;
+}
+
+/** Normalizes git+http/git+https repository URLs to http/https and strips a trailing .git suffix. */
+function getSafeRepositoryUrl(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/^git\+(?=https?:\/\/)/i, '');
+  const parsed = parseSafeHttpUrl(normalized);
+  if (!parsed) {
+    return null;
+  }
+
+  if (parsed.pathname.endsWith('.git')) {
+    parsed.pathname = parsed.pathname.slice(0, -4) || '/';
+    return parsed.toString();
+  }
+
+  return normalized;
 }
 
 /** PluginSettingsProp intentially left empty to remain malleable */
@@ -393,7 +418,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
               header: t('translation|Origin'),
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
                 const url =
-                  getSafeHttpUrl(plugin?.homepage) || getSafeHttpUrl(plugin?.repository?.url);
+                  getSafeHttpUrl(plugin?.homepage) || getSafeRepositoryUrl(plugin?.repository?.url);
                 return plugin?.origin ? (
                   url ? (
                     <Link href={url}>{plugin.origin}</Link>
