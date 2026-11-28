@@ -77,6 +77,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -483,7 +484,7 @@ func TestOIDCStart_RedirectsToIdP(t *testing.T) {
 	q := loc.Query()
 	assert.Equal(t, "test-client-id", q.Get("client_id"))
 	assert.Equal(t, "code", q.Get("response_type"))
-	assert.Contains(t, q.Get("scope"), "openid")
+	assert.Equal(t, "openid profile email", q.Get("scope"))
 	assert.NotEmpty(t, q.Get("redirect_uri"), "redirect_uri must be set")
 }
 
@@ -532,6 +533,36 @@ func TestOIDCCallback_TokenExchangeFailure(t *testing.T) {
 		"token exchange failure should surface as 500")
 	assert.Contains(t, rr.Body.String(), "Failed to exchange token",
 		"error body should identify the failure stage; current handler echoes the IdP error")
+}
+
+// TestOIDCCallback_ProviderError checks that an error from the IdP (RFC 6749
+// section 4.1.2.1) is shown as a 400 with the error and its description,
+// that no token exchange is attempted, and that the state is consumed.
+func TestOIDCCallback_ProviderError(t *testing.T) {
+	var tokenCalls atomic.Int32
+
+	oidcSrv := newOIDCTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		tokenCalls.Add(1)
+		w.WriteHeader(http.StatusBadRequest)
+	})
+	handler, cluster := newOIDCTestHandler(t, oidcSrv)
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+
+	rr := callOIDCCallback(t, handler, url.Values{
+		"state":             {state},
+		"error":             {"invalid_scope"},
+		"error_description": {"scope openid is duplicated"},
+	}.Encode())
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "invalid_scope: scope openid is duplicated")
+	assert.Zero(t, tokenCalls.Load(), "no token exchange should be attempted")
+
+	replay := callOIDCCallback(t, handler, "state="+url.QueryEscape(state)+"&code=fake")
+	assert.Equal(t, http.StatusBadRequest, replay.Code)
+	assert.Equal(t, "invalid request", strings.TrimSpace(replay.Body.String()),
+		"the state should be consumed by the error callback")
 }
 
 // TestOIDCCallback_StateIsSingleUse covers target #6: a state is consumed
@@ -1480,4 +1511,29 @@ func TestOIDCCallback_VerifiesAccessTokenWithValidatorOverrides(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
 		"the validated access token should remain the cluster credential")
+}
+
+// TestOIDCLoginScopes checks that the scopes sent to the IdP are trimmed,
+// free of empty and duplicate entries, and start with a single "openid".
+func TestOIDCLoginScopes(t *testing.T) {
+	tests := []struct {
+		configured string
+		want       []string
+	}{
+		{configured: "openid", want: []string{"openid"}},
+		{configured: "openid,email", want: []string{"openid", "email"}},
+		{configured: "profile, email", want: []string{"openid", "profile", "email"}},
+		{configured: "profile,email,", want: []string{"openid", "profile", "email"}},
+		{configured: "", want: []string{"openid"}},
+		{configured: "email,email", want: []string{"openid", "email"}},
+		{configured: " openid , profile ", want: []string{"openid", "profile"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%q", tt.configured), func(t *testing.T) {
+			// strings.Split keeps empty and untrimmed entries, as the
+			// kubeconfig auth-provider "scope" field does.
+			assert.Equal(t, tt.want, oidcLoginScopes(strings.Split(tt.configured, ",")))
+		})
+	}
 }

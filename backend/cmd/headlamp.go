@@ -1475,7 +1475,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			ClientSecret: oidcAuthConfig.ClientSecret,
 			Endpoint:     provider.Endpoint(),
 			RedirectURL:  getOidcCallbackURL(r, config),
-			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
+			Scopes:       oidcLoginScopes(oidcAuthConfig.Scopes),
 		}
 
 		// state should be unique per request, cryptographically secure random, url safe
@@ -1553,6 +1553,20 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		if !ok {
 			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+
+		// The provider reports a failed authorization request with an error
+		// instead of a code (RFC 6749 section 4.1.2.1). Show it rather than
+		// exchanging an empty code.
+		if providerErr := r.URL.Query().Get("error"); providerErr != "" {
+			errDescription := r.URL.Query().Get("error_description")
+
+			logger.Log(logger.LevelError,
+				map[string]string{"error": providerErr, "error_description": errDescription, logFieldCluster: oauthConfig.Cluster},
+				nil, "OIDC provider returned an error")
+			http.Error(w, "OIDC provider returned an error: "+providerErr+": "+errDescription, http.StatusBadRequest)
+
 			return
 		}
 
@@ -1966,6 +1980,27 @@ func isLoopbackAddr(addr string) bool {
 	ip := net.ParseIP(strings.Trim(addr, "[]"))
 
 	return ip != nil && ip.IsLoopback()
+}
+
+// oidcLoginScopes returns the scopes to request at OIDC login: the configured
+// scopes trimmed, without empty entries or duplicates, and with "openid"
+// exactly once and first. Empty scope tokens are malformed (RFC 6749
+// section 3.3) and strict providers reject them with invalid_scope.
+func oidcLoginScopes(scopes []string) []string {
+	result := []string{oidc.ScopeOpenID}
+	seen := map[string]bool{oidc.ScopeOpenID: true}
+
+	for _, scope := range scopes {
+		scope = strings.TrimSpace(scope)
+		if scope == "" || seen[scope] {
+			continue
+		}
+
+		seen[scope] = true
+		result = append(result, scope)
+	}
+
+	return result
 }
 
 func generateOidcState(reader io.Reader) (string, error) {
