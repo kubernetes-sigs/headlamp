@@ -311,13 +311,13 @@ export default function CronJobDetails(props: {
           },
           {
             name: t('Time Zone'),
-            value: item.spec.timeZone,
-            hide: !item.spec.timeZone,
+            value: item.spec?.timeZone,
+            hide: !item.spec?.timeZone,
           },
           {
             name: t('Concurrency Policy'),
-            value: item.spec.concurrencyPolicy,
-            hide: !item.spec.concurrencyPolicy,
+            value: item.spec?.concurrencyPolicy,
+            hide: !item.spec?.concurrencyPolicy,
           },
           {
             name: t('translation|Suspend'),
@@ -325,18 +325,18 @@ export default function CronJobDetails(props: {
           },
           {
             name: t('Starting deadline'),
-            value: `${item.spec.startingDeadlineSeconds}s`,
-            hide: !item.spec.startingDeadlineSeconds,
+            value: `${item.spec?.startingDeadlineSeconds}s`,
+            hide: !item.spec?.startingDeadlineSeconds,
           },
           {
             name: t('Successful Jobs History Limit'),
-            value: item.spec.successfulJobsHistoryLimit,
-            hide: item.spec.successfulJobsHistoryLimit === undefined,
+            value: item.spec?.successfulJobsHistoryLimit,
+            hide: item.spec?.successfulJobsHistoryLimit === undefined,
           },
           {
             name: t('Failed Jobs History Limit'),
-            value: item.spec.failedJobsHistoryLimit,
-            hide: item.spec.failedJobsHistoryLimit === undefined,
+            value: item.spec?.failedJobsHistoryLimit,
+            hide: item.spec?.failedJobsHistoryLimit === undefined,
           },
           {
             name: t('Last Schedule'),
