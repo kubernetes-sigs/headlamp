@@ -26,6 +26,8 @@ import ClusterTrustBundle from '../../lib/k8s/clusterTrustBundle';
 import CRD from '../../lib/k8s/crd';
 import DeviceClass from '../../lib/k8s/deviceClass';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
+import IPAddress from '../../lib/k8s/ipAddress';
+import ServiceCIDR from '../../lib/k8s/serviceCIDR';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -111,6 +113,8 @@ describe('useSidebarItems', () => {
     servedSchedulingVersions.current = [];
     vi.spyOn(DeviceClass, 'isEnabled').mockResolvedValue(false);
     vi.spyOn(ClusterTrustBundle, 'isEnabled').mockResolvedValue(false);
+    vi.spyOn(IPAddress, 'isEnabled').mockResolvedValue(false);
+    vi.spyOn(ServiceCIDR, 'isEnabled').mockResolvedValue(false);
     const emptyCRDs: [CRD[], null] = [[], null];
     vi.spyOn(CRD, 'useList').mockReturnValue(
       Object.assign(emptyCRDs, {
@@ -222,6 +226,32 @@ describe('useSidebarItems', () => {
       await waitFor(() => expect(securityItems(result.current)).toContain('clusterTrustBundles'));
     });
   });
+
+  it.each([
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false],
+  ])(
+    'shows Network entries based on ServiceCIDR availability %s and IPAddress availability %s',
+    async (serviceCIDRs, ipAddresses) => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['test-cluster']);
+      const cidrDiscovery = vi.spyOn(ServiceCIDR, 'isEnabled').mockResolvedValue(serviceCIDRs);
+      const addressDiscovery = vi.spyOn(IPAddress, 'isEnabled').mockResolvedValue(ipAddresses);
+      const { result } = renderHook(() => useSidebarItems(), {
+        wrapper: wrapper(mockStore({}, [])),
+      });
+
+      await waitFor(() => {
+        expect(cidrDiscovery).toHaveBeenCalledWith('test-cluster');
+        expect(addressDiscovery).toHaveBeenCalledWith('test-cluster');
+        const network = result.current.find(item => item.name === 'network')?.subList;
+        expect(network?.some(item => item.name === 'services')).toBe(true);
+        expect(network?.some(item => item.name === 'serviceCIDRs')).toBe(serviceCIDRs);
+        expect(network?.some(item => item.name === 'ipAddresses')).toBe(ipAddresses);
+      });
+    }
+  );
 
   describe('the Scheduling (alpha) section', () => {
     const schedulingItems = (items: ReturnType<typeof useSidebarItems>) =>

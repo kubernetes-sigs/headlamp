@@ -35,6 +35,7 @@ import HPA from './hpa';
 import HTTPRoute from './httpRoute';
 import Ingress from './ingress';
 import IngressClass from './ingressClass';
+import IPAddress from './ipAddress';
 import Job from './job';
 import JobSet from './jobSet';
 import LeaderWorkerSet from './leaderWorkerSet';
@@ -63,6 +64,7 @@ import SchedulingWorkload from './schedulingWorkload';
 import Secret from './secret';
 import Service from './service';
 import ServiceAccount from './serviceAccount';
+import ServiceCIDR from './serviceCIDR';
 import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
 import TCPRoute from './tcpRoute';
@@ -100,6 +102,7 @@ export const ResourceClasses = {
   PriorityClass,
   Ingress,
   IngressClass,
+  IPAddress,
   Job,
   JobSet,
   LeaderWorkerSet,
@@ -119,6 +122,7 @@ export const ResourceClasses = {
   Secret,
   Service,
   ServiceAccount,
+  ServiceCIDR,
   StatefulSet,
   StorageClass,
   VolumeAttributesClass,

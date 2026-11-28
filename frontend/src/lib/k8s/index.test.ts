@@ -494,6 +494,7 @@ const notNamespacedClasses = [
   'DeviceClass',
   'GatewayClass',
   'IngressClass',
+  'IPAddress',
   'MutatingAdmissionPolicy',
   'MutatingAdmissionPolicyBinding',
   'Namespace',
@@ -502,6 +503,7 @@ const notNamespacedClasses = [
   'PriorityClass',
   'ResourceSlice',
   'RuntimeClass',
+  'ServiceCIDR',
   'StorageClass',
   'VolumeAttributesClass',
 ];
