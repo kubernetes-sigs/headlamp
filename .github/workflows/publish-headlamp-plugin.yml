@@ -1,0 +1,169 @@
+name: Publish plugin SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact SDK version already committed in package.json
+        required: true
+        type: string
+      npm_tag:
+        description: npm distribution tag
+        required: true
+        type: choice
+        options:
+          - alpha
+          - latest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-headlamp-plugin
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'kubernetes-sigs/headlamp' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      filename: ${{ steps.package.outputs.filename }}
+      integrity: ${{ steps.package.outputs.integrity }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Validate release selection
+        env:
+          SDK_VERSION: ${{ inputs.version }}
+          SDK_NPM_TAG: ${{ inputs.npm_tag }}
+        run: node .github/scripts/sdk-release.js validate
+      - name: Install build dependencies
+        run: |
+          npm --prefix frontend ci
+          npm --prefix plugins/headlamp-plugin ci
+      - name: Check canonical npm version availability
+        env:
+          SDK_VERSION: ${{ inputs.version }}
+          SDK_NPM_TAG: ${{ inputs.npm_tag }}
+        run: node .github/scripts/sdk-release.js preflight
+      - name: Build and test SDK
+        working-directory: plugins/headlamp-plugin
+        run: |
+          npm run test:typescript
+          npm run test:upgrade
+          npm run test:storybook-mocks
+          npm run build
+          npm run copy-package-lock
+          mkdir -p "$RUNNER_TEMP/sdk-release"
+          npm pack --json --pack-destination "$RUNNER_TEMP/sdk-release" > "$RUNNER_TEMP/sdk-pack.json"
+      - name: Validate packed release
+        id: package
+        env:
+          SDK_VERSION: ${{ inputs.version }}
+          SDK_NPM_TAG: ${{ inputs.npm_tag }}
+        run: node .github/scripts/sdk-release.js package "$RUNNER_TEMP/sdk-pack.json" "$RUNNER_TEMP/sdk-release"
+      - name: Test packed SDK compatibility
+        working-directory: plugins/headlamp-plugin
+        env:
+          SDK_TARBALL: ${{ steps.package.outputs.filename }}
+        run: npm run test:typescript:compatibility -- "$RUNNER_TEMP/sdk-release/$SDK_TARBALL"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: plugin-sdk-release
+          path: ${{ runner.temp }}/sdk-release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    if: github.repository == 'kubernetes-sigs/headlamp' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: npm-plugin-sdk
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.18.0 --ignore-scripts
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: plugin-sdk-release
+          path: sdk-release
+      - name: Verify artifact and publish through npm trusted publishing
+        env:
+          SDK_TARBALL: ${{ needs.build.outputs.filename }}
+          SDK_INTEGRITY: ${{ needs.build.outputs.integrity }}
+          SDK_NPM_TAG: ${{ inputs.npm_tag }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const path = require('node:path');
+          const filename = process.env.SDK_TARBALL;
+          if (!filename || path.basename(filename) !== filename || !filename.endsWith('.tgz')) {
+            throw new Error('Invalid SDK artifact filename');
+          }
+          const contents = fs.readFileSync(path.join('sdk-release', filename));
+          const integrity = 'sha512-' + crypto.createHash('sha512').update(contents).digest('base64');
+          if (integrity !== process.env.SDK_INTEGRITY) throw new Error('SDK artifact integrity mismatch');
+          NODE
+          npm publish "./sdk-release/$SDK_TARBALL" --tag "$SDK_NPM_TAG" \
+            --access public --provenance --ignore-scripts --registry=https://registry.npmjs.org
+
+  verify:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install npm verifier
+        run: npm install --global npm@11.18.0 --ignore-scripts
+      - name: Verify canonical npm integrity and provenance availability
+        env:
+          SDK_VERSION: ${{ needs.build.outputs.version }}
+          SDK_INTEGRITY: ${{ needs.build.outputs.integrity }}
+          SDK_NPM_TAG: ${{ inputs.npm_tag }}
+        run: |
+          npm view "@kinvolk/headlamp-plugin@$SDK_VERSION" dist dist-tags --json \
+            --registry=https://registry.npmjs.org > published-dist.json
+          node - <<'NODE'
+          const metadata = require('./published-dist.json');
+          const dist = metadata.dist;
+          if (dist.integrity !== process.env.SDK_INTEGRITY) throw new Error('Published SDK integrity mismatch');
+          if (!dist.attestations?.url) throw new Error('Published SDK provenance is not available');
+          if (metadata['dist-tags']?.[process.env.SDK_NPM_TAG] !== process.env.SDK_VERSION) {
+            throw new Error('Published npm tag does not select the expected SDK version');
+          }
+          NODE
+      - name: Verify registry signatures and npm provenance
+        env:
+          SDK_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          verification_dir=$(mktemp -d)
+          trap 'rm -rf "$verification_dir"' EXIT
+          (
+            cd "$verification_dir"
+            npm init --yes
+            npm install "@kinvolk/headlamp-plugin@$SDK_VERSION" --ignore-scripts \
+              --no-audit --no-fund --registry=https://registry.npmjs.org
+            npm audit signatures --json --include-attestations \
+              --registry=https://registry.npmjs.org > verified-signatures.json
+          )
+          node .github/scripts/sdk-release.js verify "$verification_dir/verified-signatures.json"
