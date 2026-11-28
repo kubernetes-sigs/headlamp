@@ -1011,13 +1011,15 @@ function getAcceleratorForPlatform(navigation: 'left' | 'right') {
   }
 }
 
+function isMac() {
+  return process.platform === 'darwin';
+}
+
 function getZoomInAccelerator() {
-  return platform() === 'darwin' ? 'CmdOrCtrl+Plus' : 'CmdOrCtrl+=';
+  return isMac() ? 'CmdOrCtrl+Plus' : 'CmdOrCtrl+=';
 }
 
 function getDefaultAppMenu(): AppMenu[] {
-  const isMac = process.platform === 'darwin';
-
   const sep = { type: 'separator' };
   const aboutMenu = {
     label: i18n.t('About'),
@@ -1043,7 +1045,7 @@ function getDefaultAppMenu(): AppMenu[] {
 
   const appMenu = [
     // { role: 'appMenu' }
-    ...(isMac
+    ...(isMac()
       ? [
           {
             label: app.name,
@@ -1082,7 +1084,7 @@ function getDefaultAppMenu(): AppMenu[] {
       label: i18n.t('File'),
       id: 'original-file',
       submenu: [
-        isMac
+        isMac()
           ? {
               label: i18n.t('Close'),
               role: 'close',
@@ -1111,7 +1113,7 @@ function getDefaultAppMenu(): AppMenu[] {
           role: 'paste',
           id: 'original-paste',
         },
-        ...(isMac
+        ...(isMac()
           ? [
               {
                 label: i18n.t('Paste and Match Style'),
@@ -1227,7 +1229,7 @@ function getDefaultAppMenu(): AppMenu[] {
           role: 'minimize',
           id: 'original-minimize',
         },
-        ...(isMac
+        ...(isMac()
           ? [
               sep,
               {
@@ -1805,7 +1807,7 @@ function startElectron() {
     });
 
     mainWindow.on('close', event => {
-      if (process.platform === 'darwin' && hasTray && !isQuitting) {
+      if (isMac() && hasTray && !isQuitting) {
         event.preventDefault();
         mainWindow?.hide();
         return;
@@ -2096,6 +2098,11 @@ function startElectron() {
   app.on('activate', async function () {
     if (!mainWindow) {
       await startBackendAndWindow();
+    } else {
+      if (isMac()) {
+        // Closing window on Mac hides mainWindow while app remains running; activation should show window again
+        mainWindow.show();
+      }
     }
   });
 
