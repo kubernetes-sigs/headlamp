@@ -16,7 +16,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { afterEach, vi } from 'vitest';
 
@@ -65,20 +65,59 @@ const eventProject = {
   clusters: ['cluster-1'],
 };
 
+const { useProjectMock } = vi.hoisted(() => ({ useProjectMock: vi.fn() }));
+const defaultUseProject = () => ({ project: eventProject, isLoading: false });
+useProjectMock.mockImplementation(defaultUseProject);
+
 vi.mock('./ProjectList', () => ({
-  useProject: () => ({ project: eventProject, isLoading: false }),
+  useProject: (...args: unknown[]) => useProjectMock(...args),
 }));
 
+const { graphViewPropsHolder } = vi.hoisted(() => ({
+  graphViewPropsHolder: { current: [] as any[] },
+}));
+
+vi.mock('../resourceMap/GraphView', () => ({
+  GraphView: (props: any) => {
+    graphViewPropsHolder.current.push(props);
+    return <div>Graph view</div>;
+  },
+}));
+
+vi.mock('./ProjectResourcesTab', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('./ProjectResourcesTab');
+  return {
+    ...actual,
+    ProjectResourcesTab: ({ selectedCategoryName }: { selectedCategoryName?: string }) => (
+      <div>Resources tab, category: {selectedCategoryName ?? 'none'}</div>
+    ),
+  };
+});
+
+// Let tests choose a resource's health through `jsonData.testStatus`.
+vi.mock('../resourceMap/nodes/KubeObjectStatus', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>(
+    '../resourceMap/nodes/KubeObjectStatus'
+  );
+  return {
+    ...actual,
+    getStatus: (item: any) => item.jsonData?.testStatus ?? 'success',
+  };
+});
+
 import App from '../../App';
+import ResourceQuota from '../../lib/k8s/resourceQuota';
 import { HeadlampEventType } from '../../redux/headlampEventSlice';
 import {
   addDetailsTab,
   addHeaderAction,
   addOverviewSection,
   ProjectDefinition,
+  setProjectDeleteButton,
 } from '../../redux/projectsSlice';
 import reducers from '../../redux/reducers/reducers';
 import { recordHeadlampEvents, TestContext } from '../../test';
+import { Activity } from '../activity/Activity';
 import ProjectDetails, { ProjectDetailsContent } from './ProjectDetails';
 import { useProjectItems } from './useProjectResources';
 
@@ -624,5 +663,436 @@ describe('ProjectDetails Access tab', () => {
     expect(lastResourceTablePropsListHolder.current.every(props => props.noNamespaceFilter)).toBe(
       true
     );
+  });
+});
+
+function createDetailsStore() {
+  return configureStore({
+    reducer: reducers,
+    middleware: getDefaultMiddleware =>
+      getDefaultMiddleware({ serializableCheck: false, immutableCheck: false }),
+  });
+}
+
+const detailsProject: ProjectDefinition = {
+  id: 'project-details',
+  namespaces: ['ns-a'],
+  clusters: ['cluster-a'],
+};
+
+function renderContent(project: ProjectDefinition = detailsProject, store = createDetailsStore()) {
+  return render(
+    <TestContext store={store}>
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ProjectDetailsContent project={project} />
+      </QueryClientProvider>
+    </TestContext>
+  );
+}
+
+function resource(kind: string, name: string, testStatus?: string) {
+  return new MockKubeObject({ apiVersion: 'v1', kind, metadata: { name }, testStatus }) as any;
+}
+
+describe('ProjectDetails loading', () => {
+  afterEach(() => {
+    useProjectMock.mockImplementation(defaultUseProject);
+  });
+
+  it('shows a loader while the project is loading', () => {
+    useProjectMock.mockReturnValue({ project: undefined, isLoading: true });
+    vi.mocked(useProjectItems).mockClear();
+
+    render(
+      <TestContext routerMap={{ name: eventProject.id }}>
+        <ProjectDetails />
+      </TestContext>
+    );
+
+    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(useProjectItems).not.toHaveBeenCalled();
+  });
+
+  it('shows a loader when the project does not exist', () => {
+    useProjectMock.mockReturnValue({ project: undefined, isLoading: false });
+
+    render(
+      <TestContext routerMap={{ name: 'missing' }}>
+        <ProjectDetails />
+      </TestContext>
+    );
+
+    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('shows a loader instead of the tabs while the project resources load', () => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: true });
+
+    renderContent();
+
+    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('dispatches PROJECT_DETAILS_VIEW only once the resources have loaded', async () => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: true });
+    // Use the default store, which is the one recordHeadlampEvents() observes and
+    // the only one wired up to run event callbacks.
+    const events = recordHeadlampEvents();
+    const viewEvents = () =>
+      events.filter(event => event.type === HeadlampEventType.PROJECT_DETAILS_VIEW);
+    const tree = (
+      <TestContext>
+        <ProjectDetailsContent project={detailsProject} />
+      </TestContext>
+    );
+
+    const { rerender } = render(tree);
+
+    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeInTheDocument();
+    expect(viewEvents()).toEqual([]);
+
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+    rerender(tree);
+
+    await waitFor(() => expect(viewEvents()).toHaveLength(1));
+    expect(viewEvents()[0].data).toEqual({ project: detailsProject, resources: [] });
+  });
+});
+
+describe('ProjectDetails overview status', () => {
+  beforeEach(() => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+  });
+
+  it('shows the project id, the default tabs and the Overview tab first', async () => {
+    renderContent();
+
+    expect(await screen.findByText(detailsProject.id)).toBeInTheDocument();
+    const tabs = screen.getAllByRole('tab').map(tab => tab.textContent);
+    expect(tabs).toEqual([
+      expect.stringContaining('Overview'),
+      expect.stringContaining('Resources'),
+      expect.stringContaining('Access'),
+      expect.stringContaining('Map'),
+    ]);
+    expect(screen.getByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('shows no resource counts for an empty project', async () => {
+    renderContent();
+
+    await screen.findByRole('tab', { name: /Overview/ });
+    expect(screen.queryByText(/\d+ (Healthy|Warning|Unhealthy)/)).not.toBeInTheDocument();
+  });
+
+  it('shows "Healthy" when every resource is healthy', async () => {
+    vi.mocked(useProjectItems).mockReturnValue({
+      items: [resource('ConfigMap', 'a'), resource('Secret', 'b')],
+      errors: [],
+      isLoading: false,
+    });
+
+    renderContent();
+
+    expect(await screen.findByText('2 Healthy')).toBeInTheDocument();
+    expect(screen.getByText('Healthy')).toBeInTheDocument();
+    expect(screen.queryByText(/Warning/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unhealthy/)).not.toBeInTheDocument();
+  });
+
+  it('shows "Degraded" with a warning count when a resource has a warning', async () => {
+    vi.mocked(useProjectItems).mockReturnValue({
+      items: [resource('ConfigMap', 'a'), resource('Deployment', 'b', 'warning')],
+      errors: [],
+      isLoading: false,
+    });
+
+    renderContent();
+
+    expect(await screen.findByText('Degraded')).toBeInTheDocument();
+    expect(screen.getByText('1 Healthy')).toBeInTheDocument();
+    expect(screen.getByText('1 Warning')).toBeInTheDocument();
+    expect(screen.queryByText(/Unhealthy/)).not.toBeInTheDocument();
+  });
+
+  it('shows "Unhealthy" when a resource has an error, even if others only warn', async () => {
+    vi.mocked(useProjectItems).mockReturnValue({
+      items: [
+        resource('ConfigMap', 'a'),
+        resource('Deployment', 'b', 'warning'),
+        resource('Pod', 'c', 'error'),
+      ],
+      errors: [],
+      isLoading: false,
+    });
+
+    renderContent();
+
+    expect(await screen.findByText('Unhealthy')).toBeInTheDocument();
+    expect(screen.getByText('1 Unhealthy')).toBeInTheDocument();
+    expect(screen.getByText('1 Warning')).toBeInTheDocument();
+    expect(screen.queryByText('Degraded')).not.toBeInTheDocument();
+  });
+
+  it('labels one cluster as "Cluster" and several as "Clusters", linking each one', async () => {
+    const single = renderContent();
+    expect(await screen.findByText('Cluster')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'cluster-a' })).toBeInTheDocument();
+    single.unmount();
+
+    renderContent({ ...detailsProject, clusters: ['cluster-a', 'cluster-b'] });
+    expect(await screen.findByText('Clusters')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'cluster-a' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'cluster-b' })).toBeInTheDocument();
+  });
+
+  it('opens the Resources tab when a resource category is clicked', async () => {
+    vi.mocked(useProjectItems).mockReturnValue({
+      items: [resource('ConfigMap', 'a')],
+      errors: [],
+      isLoading: false,
+    });
+
+    renderContent();
+
+    const categories = await screen.findByTestId('project-resource-categories');
+    fireEvent.click(within(categories).getAllByRole('button')[0]);
+
+    expect(await screen.findByText('Resources tab, category: Configuration')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Resources/ })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('ProjectDetails resource quotas', () => {
+  beforeEach(() => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('prompts to create a resource quota when the project has none', async () => {
+    renderContent();
+
+    expect(
+      await screen.findByText(
+        'Create Resource Quota to limit resource consumption within this project'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create resource quota' })).toBeInTheDocument();
+  });
+
+  it('launches the editor for a new quota in the first namespace and cluster', async () => {
+    const launch = vi.spyOn(Activity, 'launch').mockImplementation(() => {});
+    vi.spyOn(ResourceQuota, 'getBaseObject').mockReturnValue({ metadata: {} } as any);
+    renderContent({ ...detailsProject, namespaces: ['ns-a', 'ns-b'], clusters: ['c-1', 'c-2'] });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create resource quota' }));
+
+    expect(launch).toHaveBeenCalledTimes(1);
+    expect(launch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'create-resource-resourcequotas',
+        location: 'full',
+        cluster: 'c-1',
+      })
+    );
+  });
+
+  it('lists existing quotas instead of the create prompt', async () => {
+    const quota = Object.assign(resource('ResourceQuota', 'compute-quota'), {
+      resourceStats: [],
+      metadata: { name: 'compute-quota' },
+    });
+    vi.spyOn(ResourceQuota, 'getBaseObject').mockReturnValue({ metadata: {} } as any);
+    vi.mocked(useProjectItems).mockReturnValue({ items: [quota], errors: [], isLoading: false });
+
+    renderContent();
+
+    expect(await screen.findByText('compute-quota')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create resource quota' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ProjectDetails Map tab', () => {
+  beforeEach(() => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+    graphViewPropsHolder.current = [];
+  });
+
+  async function openMapTab(project: ProjectDefinition) {
+    renderContent(project);
+    fireEvent.click(await screen.findByRole('tab', { name: /Map/ }));
+    await screen.findByText('Graph view');
+    return graphViewPropsHolder.current[graphViewPropsHolder.current.length - 1];
+  }
+
+  it('filters the graph to the project namespaces', async () => {
+    const props = await openMapTab({ ...detailsProject, namespaces: ['ns-a', 'ns-b'] });
+
+    expect(props.defaultFilters).toEqual([
+      { type: 'namespace', namespaces: new Set(['ns-a', 'ns-b']) },
+    ]);
+  });
+
+  it('filters by exact namespace and cluster pairs when the project has namespace refs', async () => {
+    const props = await openMapTab({
+      ...detailsProject,
+      namespaces: ['shared'],
+      clusters: ['c-1', 'c-2'],
+      namespaceRefs: [
+        { name: 'shared', cluster: 'c-1' },
+        { name: 'other', cluster: 'c-2' },
+      ],
+    });
+
+    expect(props.defaultFilters).toHaveLength(1);
+    expect(props.defaultFilters[0].type).toBe('namespaceCluster');
+    expect(props.defaultFilters[0].namespaceRefs.size).toBe(2);
+  });
+
+  it('adds no filter for a project without namespaces', async () => {
+    const props = await openMapTab({ ...detailsProject, namespaces: [] });
+
+    expect(props.defaultFilters).toEqual([]);
+  });
+});
+
+describe('ProjectDetails custom delete button and tabs', () => {
+  beforeEach(() => {
+    vi.mocked(useProjectItems).mockReturnValue({ items: [], errors: [], isLoading: false });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses a custom delete button without an isEnabled check', async () => {
+    const store = createDetailsStore();
+    store.dispatch(setProjectDeleteButton({ component: () => <button>Custom delete</button> }));
+
+    renderContent(detailsProject, store);
+
+    expect(await screen.findByRole('button', { name: 'Custom delete' })).toBeInTheDocument();
+  });
+
+  it('uses a custom delete button when its isEnabled check resolves true', async () => {
+    const store = createDetailsStore();
+    store.dispatch(
+      setProjectDeleteButton({
+        component: () => <button>Custom delete</button>,
+        isEnabled: async () => true,
+      })
+    );
+
+    renderContent(detailsProject, store);
+
+    expect(await screen.findByRole('button', { name: 'Custom delete' })).toBeInTheDocument();
+  });
+
+  it('keeps the default delete button when the isEnabled check resolves false', async () => {
+    const store = createDetailsStore();
+    const isEnabled = vi.fn().mockResolvedValue(false);
+    store.dispatch(
+      setProjectDeleteButton({ component: () => <button>Custom delete</button>, isEnabled })
+    );
+
+    renderContent(detailsProject, store);
+
+    await waitFor(() => expect(isEnabled).toHaveBeenCalledWith({ project: detailsProject }));
+    expect(screen.queryByRole('button', { name: 'Custom delete' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the default delete button and logs when the isEnabled check rejects', async () => {
+    const store = createDetailsStore();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    store.dispatch(
+      setProjectDeleteButton({
+        component: () => <button>Custom delete</button>,
+        isEnabled: async () => {
+          throw new Error('boom');
+        },
+      })
+    );
+
+    renderContent(detailsProject, store);
+
+    await waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        'Failed to check if custom delete button is ready',
+        expect.any(Error)
+      )
+    );
+    expect(screen.queryByRole('button', { name: 'Custom delete' })).not.toBeInTheDocument();
+  });
+
+  it('adds an enabled custom tab and hides one whose isEnabled check rejects', async () => {
+    const store = createDetailsStore();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    store.dispatch(
+      addDetailsTab({
+        id: 'metrics',
+        label: 'Metrics',
+        icon: 'mdi:view-dashboard',
+        component: () => <div>Metrics panel</div>,
+      })
+    );
+    store.dispatch(
+      addDetailsTab({
+        id: 'broken',
+        label: 'Broken',
+        icon: 'mdi:alert',
+        component: () => <div>Broken panel</div>,
+        isEnabled: async () => {
+          throw new Error('nope');
+        },
+      })
+    );
+
+    renderContent(detailsProject, store);
+
+    fireEvent.click(await screen.findByRole('tab', { name: /Metrics/ }));
+    expect(await screen.findByText('Metrics panel')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /Broken/ })).not.toBeInTheDocument();
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to check if tab is enabled',
+      expect.objectContaining({ id: 'broken' }),
+      expect.any(Error)
+    );
+  });
+
+  it('does not render a tab header for a tab without a component', async () => {
+    const store = createDetailsStore();
+    store.dispatch(
+      addDetailsTab({ id: 'hollow', label: 'Hollow', icon: 'mdi:circle', component: undefined })
+    );
+
+    renderContent(detailsProject, store);
+
+    await screen.findByRole('tab', { name: /Overview/ });
+    expect(screen.queryByRole('tab', { name: /Hollow/ })).not.toBeInTheDocument();
+  });
+
+  it('lets a plugin replace a default tab by registering the same id', async () => {
+    const store = createDetailsStore();
+    store.dispatch(
+      addDetailsTab({
+        id: 'headlamp-projects.tabs.access',
+        label: 'Custom access',
+        icon: 'mdi:lock',
+        component: () => <div>Custom access panel</div>,
+      })
+    );
+
+    renderContent(detailsProject, store);
+
+    fireEvent.click(await screen.findByRole('tab', { name: /Custom access/ }));
+    expect(await screen.findByText('Custom access panel')).toBeInTheDocument();
   });
 });
