@@ -35,6 +35,24 @@ Options:
   --help     Show help                                                 [boolean]
 ```
 
+## Bundled plugin archive integrity
+
+The desktop setup script and container plugin bundler share the SHA-256 verifier
+in `src/archive-integrity.js`. Container manifests must provide a `sha256`
+digest for each archive, and verification runs before extraction.
+
+From the repository root, the verification entry point can be checked with:
+
+```sh
+node plugins/pluginctl/src/archive-integrity.js <archive-path> <sha256>
+npm --prefix plugins/pluginctl run test:integrity
+```
+
+The CLI exits unsuccessfully for missing, malformed, or mismatched digests.
+The container fetcher stops before extracting the archive when verification
+fails. The desktop installer continues to apply its manifest identity,
+extraction, and executable policies.
+
 ## Configuration File Format
 
 plugins.yaml:

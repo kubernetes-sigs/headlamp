@@ -38,6 +38,12 @@ test('setup-plugins verifies plugin identity from an external manifest', () => {
       path.join(repositoryRoot, 'scripts', 'setup-plugins.ts'),
       path.join(scriptsDirectory, 'setup-plugins.ts')
     );
+    const downloadDirectory = path.join(temporaryRoot, 'plugins', 'pluginctl', 'src');
+    fs.mkdirSync(downloadDirectory, { recursive: true });
+    fs.copyFileSync(
+      path.join(repositoryRoot, '../plugins/pluginctl/src/archive-integrity.js'),
+      path.join(downloadDirectory, 'archive-integrity.js')
+    );
     fs.copyFileSync(
       path.join(repositoryRoot, 'scripts', 'build-manifest.ts'),
       path.join(scriptsDirectory, 'build-manifest.ts')

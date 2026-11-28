@@ -22,6 +22,7 @@ if [ -z "$DESTDIR" ]; then
 fi
 
 TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
 
 # Fetch plugins
 echo "Fetching plugins (wdir: $TMPDIR)..."
@@ -33,7 +34,9 @@ for plugin in $plugins; do
   echo "Fetching $plugin..."
 
   url=$(echo $manifest | jq -r ".plugins[] | select(.name == \"$plugin\") | .archive")
-  curl -sL $url --output-dir $TMPDIR --output $plugin.tgz
+  sha256=$(echo "$manifest" | jq -r ".plugins[] | select(.name == \"$plugin\") | .sha256")
+  curl -fsSL "$url" --output "$TMPDIR/$plugin.tgz"
+  node "$(dirname "$0")/../plugins/pluginctl/src/archive-integrity.js" "$TMPDIR/$plugin.tgz" "$sha256"
 
   archivedir=$TMPDIR/$plugin
   mkdir -p $archivedir
