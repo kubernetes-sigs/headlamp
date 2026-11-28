@@ -30,6 +30,8 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,6 +46,20 @@ import (
 )
 
 const refreshNew = "REFRESH_NEW"
+
+var discoveryTokenID atomic.Uint64
+
+type observedDoneContext struct {
+	context.Context
+	observed chan struct{}
+	once     sync.Once
+}
+
+func (c *observedDoneContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.observed) })
+
+	return c.Context.Done()
+}
 
 func TestDecodeBase64JSON(t *testing.T) {
 	tests := []struct {
@@ -553,11 +569,21 @@ func (f *fakeCache) Get(_ context.Context, key string) (interface{}, error) {
 	return f.store[key], nil
 }
 
+func (f *fakeCache) storeSet(key string, val interface{}) {
+	if f.store == nil {
+		f.store = map[string]interface{}{}
+	}
+
+	f.store[key] = val
+}
+
 func (f *fakeCache) Set(_ context.Context, key string, val interface{}) error {
 	f.setCalls = append(f.setCalls, struct {
 		key string
 		val interface{}
 	}{key, val})
+
+	f.storeSet(key, val)
 
 	return f.errOnSet
 }
@@ -591,6 +617,8 @@ func (f *fakeCache) SetWithTTL(_ context.Context, key string, val interface{}, t
 		val interface{}
 		ttl time.Duration
 	}{key, val, ttl})
+
+	f.storeSet(key, val)
 
 	return f.errOnSetWithTTL
 }
@@ -832,9 +860,10 @@ func TestGetNewToken_Success(t *testing.T) {
 		t.Fatalf("id_token extra = %q, want %q", idt, "NEW")
 	}
 
-	// CacheRefreshedToken side-effects
-	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 2 {
-		t.Fatalf("expected Set=1, SetWithTTL=2; got Set=%d, SetWithTTL=%d",
+	// CacheRefreshedToken side-effects, plus the recent-refresh-outcome write
+	// keyed by the old token (see refreshedTokenKeyPrefix).
+	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 5 {
+		t.Fatalf("expected Set=1, SetWithTTL=5; got Set=%d, SetWithTTL=%d",
 			len(fc.setCalls), len(fc.setWithTTLCalls))
 	}
 
@@ -855,9 +884,22 @@ func TestGetNewToken_Success(t *testing.T) {
 	}
 
 	assert.Empty(t, fc.deleteCalls)
-	require.Len(t, fc.updateTTLCalls, 1)
+	require.Len(t, fc.updateTTLCalls, 3)
 	assert.Equal(t, "oidc-id-token-OLD", fc.updateTTLCalls[0].key)
 	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[0].ttl)
+	assert.Equal(t, "oidc-refresh-chain-OLD", fc.updateTTLCalls[1].key)
+	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[1].ttl)
+	assert.Equal(t, "oidc-recovery-token-OLD", fc.updateTTLCalls[2].key)
+	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[2].ttl)
+
+	refreshCall := fc.setWithTTLCalls[3]
+	if refreshCall.key != "oidc-refreshed-token-OLD" || refreshCall.ttl != 10*time.Second {
+		t.Fatalf("SetWithTTL = {%q,%v,%v}, want key %q, ttl %v",
+			refreshCall.key, refreshCall.val, refreshCall.ttl, "oidc-refreshed-token-OLD", 10*time.Second)
+	}
+
+	assert.NotNil(t, refreshCall.val)
+	assert.Equal(t, "oidc-recovery-token-OLD", fc.setWithTTLCalls[4].key)
 }
 
 func TestGetNewToken_IDTokenOmittedRetainsRotatedRefreshToken(t *testing.T) {
@@ -879,8 +921,12 @@ func TestGetNewToken_IDTokenOmittedRetainsRotatedRefreshToken(t *testing.T) {
 	require.Len(t, fc.setCalls, 1)
 	assert.Equal(t, "oidc-token-OLD", fc.setCalls[0].key)
 	assert.Equal(t, refreshNew, fc.setCalls[0].val)
-	require.Len(t, fc.setWithTTLCalls, 1)
+	require.Len(t, fc.setWithTTLCalls, 4)
 	assert.Equal(t, "oidc-id-token-OLD", fc.setWithTTLCalls[0].key)
+	assert.Equal(t, "oidc-refresh-chain-OLD", fc.setWithTTLCalls[1].key)
+	assert.Equal(t, "oidc-refreshed-token-OLD", fc.setWithTTLCalls[2].key)
+	assert.NotNil(t, fc.setWithTTLCalls[2].val)
+	assert.Equal(t, "oidc-recovery-token-OLD", fc.setWithTTLCalls[3].key)
 	assert.Empty(t, fc.deleteCalls)
 }
 
@@ -965,6 +1011,386 @@ func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
 	}
 }
 
+// newCallCountingTokenServer returns a fake OAuth2 token endpoint that always
+// succeeds and a counter tracking how many times it was hit.
+func newCallCountingTokenServer(t *testing.T) (srv *httptest.Server, callCount func() int) {
+	t.Helper()
+
+	var (
+		mu    sync.Mutex
+		calls int
+	)
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	}))
+	t.Cleanup(srv.Close)
+
+	callCount = func() int {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return calls
+	}
+
+	return srv, callCount
+}
+
+// TestGetNewToken_ConcurrentRefresh_Deduplicates reproduces the OIDC
+// token-refresh race: many requests observing the same near-expiry token used
+// to each independently exchange the same cached refresh token with the IdP.
+// On providers with refresh-token rotation this fails for everyone but the
+// first exchange. GetNewToken must collapse concurrent callers sharing the
+// same token into a single upstream refresh.
+func TestGetNewToken_ConcurrentRefresh_Deduplicates(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	const concurrency = 20
+
+	var (
+		wg    sync.WaitGroup
+		ready sync.WaitGroup
+		start = make(chan struct{})
+	)
+
+	results := make([]*oauth2.Token, concurrency)
+	errs := make([]error, concurrency)
+
+	ready.Add(concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			ready.Done()
+			<-start // release every goroutine at once to maximize overlap
+
+			results[i], errs[i] = auth.GetNewToken(
+				"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour,
+			)
+		}(i)
+	}
+
+	ready.Wait()
+	close(start)
+	wg.Wait()
+
+	assert.Equal(t, 1, callCount(), "expected exactly one upstream refresh call for concurrent requests")
+
+	for i, err := range errs {
+		require.NoErrorf(t, err, "goroutine %d", i)
+		require.NotNilf(t, results[i], "goroutine %d", i)
+		assert.Equal(t, refreshNew, results[i].RefreshToken, "goroutine %d", i)
+	}
+
+	require.Len(t, fc.setCalls, 1, "expected exactly one cache write for the new refresh token")
+	require.Len(t, fc.setWithTTLCalls, 5,
+		"expected writes for ID token, recovery, refresh chain, retired refresh, and recent outcome")
+}
+
+//nolint:funlen // Coordinates leader cancellation while the shared endpoint remains blocked.
+func TestGetNewToken_LeaderCancellationDoesNotCancelSharedRefresh(t *testing.T) {
+	var (
+		callMu sync.Mutex
+		calls  int
+	)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+
+	var releaseOnce sync.Once
+
+	releaseEndpoint := func() {
+		releaseOnce.Do(func() { close(release) })
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		callMu.Lock()
+		calls++
+		callMu.Unlock()
+		close(entered)
+		<-release
+
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	}))
+
+	t.Cleanup(func() {
+		releaseEndpoint()
+		srv.Close()
+	})
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderDone := make(chan error, 1)
+
+	go func() {
+		_, err := auth.GetNewToken(
+			"cid", "secret", fc, "id_token", "OLD", srv.URL, leaderCtx, time.Hour,
+		)
+		leaderDone <- err
+	}()
+
+	<-entered
+
+	followerReady := make(chan struct{})
+	followerDone := make(chan error, 1)
+
+	go func() {
+		close(followerReady)
+
+		_, err := auth.GetNewToken(
+			"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour,
+		)
+		followerDone <- err
+	}()
+
+	<-followerReady
+	time.Sleep(20 * time.Millisecond)
+	cancelLeader()
+
+	select {
+	case err := <-leaderDone:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("canceled leader did not return while the shared exchange was blocked")
+	}
+
+	releaseEndpoint()
+	require.NoError(t, <-followerDone)
+
+	callMu.Lock()
+	assert.Equal(t, 1, calls, "canceling the leader must retain one shared token exchange")
+	callMu.Unlock()
+}
+
+func TestGetNewToken_AlreadyCanceledCallerDoesNotStartRefresh(t *testing.T) {
+	var calls atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	_, err := auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "OLD", srv.URL, ctx, time.Hour,
+	)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, calls.Load())
+}
+
+// TestGetNewToken_ReusesRecentRefreshForSameOldToken reproduces the race
+// flagged in review: the middleware can observe an about-to-expire token,
+// then only reach GetNewToken after a concurrent request already refreshed
+// that same token and the singleflight group for it has resolved (and
+// forgotten the key). Without reusing the just-completed refresh, this
+// second call would retry the IdP exchange using the now-retired refresh
+// token, which fails outright on IdPs that rotate refresh tokens on use.
+func TestGetNewToken_ReusesRecentRefreshForSameOldToken(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	first, err := auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 1, callCount(), "expected the first call to hit the IdP")
+
+	// A second, non-overlapping call for the same old token (e.g. a request
+	// that checked the token before the refresh above, but only reached
+	// GetNewToken afterwards) must not attempt another exchange with the
+	// now-retired refresh token.
+	second, err := auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, callCount(), "expected the recent-refresh result to be reused, not a second IdP call")
+	assert.Same(t, first, second)
+}
+
+func TestGetNewToken_ExpiredRecentRefreshUsesSuccessorRefreshToken(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+
+	expired := (&oauth2.Token{
+		AccessToken:  "ACCESS_EXPIRED",
+		RefreshToken: "REFRESH_EXPIRED",
+		Expiry:       time.Now().Add(-time.Minute),
+	}).WithExtra(map[string]interface{}{"id_token": "ID_EXPIRED"})
+	fc := &fakeCache{store: map[string]interface{}{
+		"oidc-refreshed-token-OLD":     expired,
+		"oidc-token-ACCESS_EXPIRED":    "REFRESH_SUCCESSOR",
+		"oidc-id-token-ACCESS_EXPIRED": "ID_EXPIRED",
+		"oidc-token-OLD":               "CONSUMED_REFRESH",
+	}}
+
+	refreshed, err := auth.GetNewToken(
+		"cid",
+		"secret",
+		fc,
+		"access_token",
+		"OLD",
+		srv.URL,
+		context.Background(),
+		time.Hour,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "AT", refreshed.AccessToken)
+	assert.Equal(t, 1, callCount(), "the successor's refresh token should be exchanged once")
+	assert.NotContains(t, fc.setCalls, struct {
+		key string
+		val interface{}
+	}{"oidc-token-OLD", refreshNew})
+}
+
+func TestGetNewToken_ExpiredRecentIDTokenUsesSuccessorRefreshToken(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+	expiredIDToken := makeJWTWithPayload(t, map[string]interface{}{
+		"exp": float64(time.Now().Add(-time.Minute).Unix()),
+	})
+	expired := (&oauth2.Token{
+		AccessToken: "ACCESS_STILL_VALID",
+		Expiry:      time.Now().Add(time.Hour),
+	}).WithExtra(map[string]interface{}{"id_token": expiredIDToken})
+	fc := &fakeCache{store: map[string]interface{}{
+		"oidc-refreshed-token-OLD":     expired,
+		"oidc-token-" + expiredIDToken: "REFRESH_SUCCESSOR",
+	}}
+
+	refreshed, err := auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "NEW", refreshed.Extra("id_token"))
+	assert.Equal(t, 1, callCount(), "the successor's refresh token should be exchanged once")
+}
+
+//nolint:funlen // Regression test coordinates both token generations at the blocked IdP exchange.
+func TestGetNewToken_ExpiredRecentRefreshJoinsSuccessorSingleflight(t *testing.T) {
+	var (
+		mu    sync.Mutex
+		calls int
+	)
+
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+
+		entered <- struct{}{}
+
+		<-release
+
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	}))
+	t.Cleanup(srv.Close)
+
+	expired := &oauth2.Token{
+		AccessToken: "ACCESS_EXPIRED",
+		Expiry:      time.Now().Add(-time.Minute),
+	}
+	tokenCache := cache.New[interface{}]()
+
+	t.Cleanup(func() { require.NoError(t, tokenCache.Close()) })
+
+	ctx := context.Background()
+	require.NoError(t, tokenCache.Set(ctx, "oidc-refreshed-token-OLD", expired))
+	require.NoError(t, tokenCache.Set(ctx, "oidc-token-ACCESS_EXPIRED", "REFRESH_SUCCESSOR"))
+
+	const callers = 2
+
+	tokens := []string{"OLD", "ACCESS_EXPIRED"}
+	results := make([]*oauth2.Token, callers)
+	errs := make([]error, callers)
+	start := make(chan struct{})
+
+	var wg sync.WaitGroup
+
+	for i := range callers {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			<-start
+
+			results[i], errs[i] = auth.GetNewToken(
+				"cid",
+				"secret",
+				tokenCache,
+				"access_token",
+				tokens[i],
+				srv.URL,
+				context.Background(),
+				time.Hour,
+			)
+		}(i)
+	}
+
+	close(start)
+	<-entered
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	assert.Equal(t, 1, calls, "old and successor callers must share one IdP exchange")
+	mu.Unlock()
+
+	close(release)
+	wg.Wait()
+
+	for i := range callers {
+		require.NoError(t, errs[i])
+		require.NotNil(t, results[i])
+		assert.Equal(t, "AT", results[i].AccessToken)
+	}
+}
+
+// TestGetNewToken_SequentialRefreshesAfterDeduplication ensures the dedup key
+// is forgotten once its refresh completes, so a later, independent refresh
+// cycle (e.g. the next time the token nears expiry) still hits the IdP rather
+// than being permanently memoized.
+func TestGetNewToken_SequentialRefreshesAfterDeduplication(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	_, err := auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(), time.Hour,
+	)
+	require.NoError(t, err)
+
+	// Simulate the next refresh cycle: the new token is now the one nearing
+	// expiry, with its own refresh token cached under its own key.
+	fc.store["oidc-token-NEW"] = refreshNew
+
+	_, err = auth.GetNewToken(
+		"cid", "secret", fc, "id_token", "NEW", srv.URL, context.Background(), time.Hour,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, callCount(), "expected a fresh upstream call for each independent refresh cycle")
+}
+
 func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	const (
 		oldToken = "OLD"
@@ -996,7 +1422,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	assert.Equal(t, "oidc-token-NEW", fc.setCalls[0].key)
 	assert.Equal(t, refreshNew, fc.setCalls[0].val)
 
-	require.Len(t, fc.setWithTTLCalls, 2)
+	require.Len(t, fc.setWithTTLCalls, 5)
 	assert.Equal(t, "oidc-id-token-NEW", fc.setWithTTLCalls[0].key)
 	assert.Equal(t, "NEW", fc.setWithTTLCalls[0].val)
 	assert.Positive(t, fc.setWithTTLCalls[0].ttl)
@@ -1004,9 +1430,168 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	assert.Equal(t, "REFRESH_OLD", fc.setWithTTLCalls[1].val)
 	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[1].ttl)
 	assert.Empty(t, fc.deleteCalls)
-	require.Len(t, fc.updateTTLCalls, 1)
+	require.Len(t, fc.updateTTLCalls, 3)
 	assert.Equal(t, "oidc-id-token-"+oldToken, fc.updateTTLCalls[0].key)
 	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[0].ttl)
+	assert.Equal(t, "oidc-refresh-chain-"+oldToken, fc.updateTTLCalls[1].key)
+	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[1].ttl)
+	assert.Equal(t, "oidc-recovery-token-"+oldToken, fc.updateTTLCalls[2].key)
+	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[2].ttl)
+	assert.Equal(t, "oidc-refreshed-token-"+oldToken, fc.setWithTTLCalls[3].key)
+	assert.Equal(t, "oidc-recovery-token-"+oldToken, fc.setWithTTLCalls[4].key)
+}
+
+//nolint:funlen // Coordinates concurrent callers and a blocked discovery endpoint.
+func TestRefreshAndCacheNewToken_DeduplicatesDiscovery(t *testing.T) {
+	var (
+		mu             sync.Mutex
+		discoveryCalls int
+		tokenCalls     int
+	)
+
+	discoveryEntered := make(chan struct{})
+	releaseDiscovery := make(chan struct{})
+
+	var releaseOnce sync.Once
+
+	releaseEndpoint := func() {
+		releaseOnce.Do(func() { close(releaseDiscovery) })
+	}
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+
+	t.Cleanup(func() {
+		releaseEndpoint()
+		srv.Close()
+	})
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		discoveryCalls++
+		mu.Unlock()
+		close(discoveryEntered)
+		<-releaseDiscovery
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"issuer":         srv.URL,
+			"token_endpoint": srv.URL + "/token",
+			"jwks_uri":       srv.URL + "/jwks",
+		}))
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		tokenCalls++
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	tokenCache := cache.New[interface{}]()
+
+	t.Cleanup(func() { require.NoError(t, tokenCache.Close()) })
+
+	token := fmt.Sprintf("DEDUP-DISCOVERY-%d", discoveryTokenID.Add(1))
+	require.NoError(t, tokenCache.Set(context.Background(), "oidc-token-"+token, "REFRESH_OLD"))
+
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	errs := make(chan error, 2)
+
+	go func() {
+		_, err := auth.RefreshAndCacheNewToken(
+			context.Background(),
+			config,
+			tokenCache,
+			"id_token",
+			token,
+			srv.URL,
+			"",
+			time.Hour,
+		)
+		errs <- err
+	}()
+
+	<-discoveryEntered
+
+	followerCtx := &observedDoneContext{
+		Context:  context.Background(),
+		observed: make(chan struct{}),
+	}
+	go func() {
+		_, err := auth.RefreshAndCacheNewToken(
+			followerCtx,
+			config,
+			tokenCache,
+			"id_token",
+			token,
+			srv.URL,
+			"",
+			time.Hour,
+		)
+		errs <- err
+	}()
+
+	<-followerCtx.observed
+
+	select {
+	case err := <-errs:
+		t.Fatalf("follower completed while the shared discovery was blocked: %v", err)
+	default:
+	}
+
+	mu.Lock()
+	require.Equal(t, 1, discoveryCalls, "follower must have joined the in-flight discovery")
+	require.Equal(t, 0, tokenCalls, "token exchange must remain blocked behind discovery")
+	mu.Unlock()
+
+	releaseEndpoint()
+
+	require.NoError(t, <-errs)
+	require.NoError(t, <-errs)
+
+	mu.Lock()
+	assert.Equal(t, 1, discoveryCalls)
+	assert.Equal(t, 1, tokenCalls)
+	mu.Unlock()
+}
+
+func TestRefreshAndCacheNewToken_UsesCachedResultBeforeDiscovery(t *testing.T) {
+	var discoveryCalls atomic.Int32
+
+	validIDToken := makeJWTWithPayload(t, map[string]interface{}{
+		"exp": float64(time.Now().Add(time.Hour).Unix()),
+	})
+	cached := (&oauth2.Token{
+		AccessToken:  "ACCESS_CACHED",
+		RefreshToken: "REFRESH_CACHED",
+		Expiry:       time.Now().Add(time.Hour),
+	}).WithExtra(map[string]interface{}{"id_token": validIDToken})
+	fc := &fakeCache{store: map[string]interface{}{
+		"oidc-refreshed-token-OLD": cached,
+	}}
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		discoveryCalls.Add(1)
+		http.Error(w, "discovery should not run", http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	refreshed, err := auth.RefreshAndCacheNewToken(
+		context.Background(),
+		config,
+		fc,
+		"id_token",
+		"OLD",
+		srv.URL,
+		"",
+		time.Hour,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, validIDToken, refreshed.Extra("id_token"))
+	assert.Zero(t, discoveryCalls.Load())
 }
 
 func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
@@ -1117,6 +1702,44 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 	idToken, ok := findIDTokenCookie(resp, cluster)
 	require.True(t, ok, "expected refreshed ID token cookie to be set")
 	assert.Equal(t, "NEW", idToken)
+}
+
+func TestRefreshAndSetToken_ImmediateFollowerUpdatesAuthorization(t *testing.T) {
+	const (
+		oldToken = "OLD"
+		cluster  = "immediate-follower"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+
+	for range 2 {
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/clusters/"+cluster,
+			nil,
+		)
+		rec := httptest.NewRecorder()
+
+		auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+			Ctx:              context.Background(),
+			OIDCAuthConfig:   config,
+			Cache:            fc,
+			Token:            oldToken,
+			Cluster:          cluster,
+			Writer:           rec,
+			Request:          req,
+			TelemetryHandler: &telemetry.RequestHandler{},
+			OIDCIdpIssuerURL: srv.URL,
+		})
+
+		assert.Equal(t, "Bearer NEW", req.Header.Get("Authorization"))
+	}
 }
 
 func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
@@ -1240,9 +1863,13 @@ func TestRefreshAndSetToken_AccessTokenWithoutIDTokenPreservesLogoutCookie(t *te
 	assert.Equal(t, "ID_ORIGINAL", idTokenCacheCall.val)
 	assert.Equal(t, 24*time.Hour, idTokenCacheCall.ttl)
 	assert.Empty(t, fc.deleteCalls)
-	require.Len(t, fc.updateTTLCalls, 1)
+	require.Len(t, fc.updateTTLCalls, 3)
 	assert.Equal(t, "oidc-id-token-"+oldToken, fc.updateTTLCalls[0].key)
 	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[0].ttl)
+	assert.Equal(t, "oidc-refresh-chain-"+oldToken, fc.updateTTLCalls[1].key)
+	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[1].ttl)
+	assert.Equal(t, "oidc-recovery-token-"+oldToken, fc.updateTTLCalls[2].key)
+	assert.Equal(t, 10*time.Second, fc.updateTTLCalls[2].ttl)
 }
 
 func TestTwoRefreshesFromOldAccessTokenRetainLogoutHint(t *testing.T) {
@@ -1333,6 +1960,94 @@ func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 
 	_, ok := findAuthCookie(resp, cluster)
 	assert.False(t, ok, "expected no auth cookie to be set on error")
+}
+
+// TestRefreshTokenIfNeeded_SkipsWhenNotExpiring verifies that the expiry
+// decision now made inside RefreshTokenIfNeeded still behaves like the old
+// middleware-side IsTokenAboutToExpire check: a token that isn't close to
+// expiry is left untouched, with no IdP call and no cookie write.
+func TestRefreshTokenIfNeeded_SkipsWhenNotExpiring(t *testing.T) {
+	const cluster = "test"
+
+	token := makeJWTWithPayload(t, map[string]interface{}{
+		"exp": float64(time.Now().Add(auth.JWTExpirationTTL + time.Hour).Unix()),
+	})
+
+	tokenEndpointCalled := false
+	srv := newOIDCProviderServer(t, "", func(_ http.ResponseWriter, _ *http.Request) {
+		tokenEndpointCalled = true
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	refreshed := auth.RefreshTokenIfNeeded(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
+		Cache:            &fakeCache{},
+		Token:            token,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		OIDCIdpIssuerURL: srv.URL,
+		BaseURL:          "",
+	})
+
+	assert.False(t, refreshed, "expected no refresh attempt for a token that isn't about to expire")
+	assert.False(t, tokenEndpointCalled, "token endpoint should not be called for a token that isn't about to expire")
+
+	resp := rr.Result()
+	defer func() { _ = resp.Body.Close() }()
+
+	_, ok := findAuthCookie(resp, cluster)
+	assert.False(t, ok, "expected no auth cookie to be set")
+}
+
+// TestRefreshTokenIfNeeded_RefreshesWhenExpiring verifies that a token close
+// to expiry is refreshed and the auth cookie updated, matching what the
+// middleware used to get from IsTokenAboutToExpire + RefreshAndSetToken.
+func TestRefreshTokenIfNeeded_RefreshesWhenExpiring(t *testing.T) {
+	const cluster = "test"
+
+	token := makeJWTWithPayload(t, map[string]interface{}{
+		"exp": float64(time.Now().Add(auth.JWTExpirationTTL / 2).Unix()),
+	})
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + token: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, r.ParseForm())
+		assert.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	refreshed := auth.RefreshTokenIfNeeded(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
+		Cache:            fc,
+		Token:            token,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		OIDCIdpIssuerURL: srv.URL,
+		BaseURL:          "",
+	})
+
+	assert.True(t, refreshed, "expected a refresh attempt for a token about to expire")
+
+	resp := rr.Result()
+	defer func() { _ = resp.Body.Close() }()
+
+	cookieVal, ok := findAuthCookie(resp, cluster)
+	require.True(t, ok, "expected auth cookie to be set")
+	assert.Equal(t, "NEW", cookieVal)
 }
 
 // TestConfigureTLSContext_NoConfig tests when both skipTLSVerify and caCert are not set.

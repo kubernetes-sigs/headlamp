@@ -131,17 +131,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			if !IsTokenAboutToExpire(token) {
-				config.TelemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
-
-				status = "token_valid"
-
-				next.ServeHTTP(w, r)
-
-				return
-			}
-
-			RefreshAndSetToken(RefreshAndSetTokenParams{
+			refreshAttempted, delivery := refreshTokenIfNeeded(RefreshAndSetTokenParams{
 				Ctx:                       ctx,
 				OIDCAuthConfig:            oidcAuthConfig,
 				Cache:                     config.Cache,
@@ -156,10 +146,42 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				OIDCValidatorIdpIssuerURL: config.OidcValidatorIdpIssuerURL,
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
-			})
+			}, true)
+			if !refreshAttempted {
+				config.TelemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
 
-			next.ServeHTTP(w, r)
+				status = "token_valid"
+			}
+
+			serveWithRefreshDelivery(ctx, w, r, next, delivery)
 		})
+	}
+}
+
+func serveWithRefreshDelivery(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+	next http.Handler,
+	delivery *cookieDelivery,
+) {
+	if delivery == nil {
+		next.ServeHTTP(w, r)
+
+		return
+	}
+
+	refreshWriter := &refreshResponseWriter{
+		ResponseWriter: w,
+		delivery:       delivery,
+		ctx:            ctx,
+	}
+	defer delivery.finish(false)
+
+	next.ServeHTTP(refreshWriter, r)
+
+	if !delivery.finished.Load() {
+		_ = refreshWriter.FlushError()
 	}
 }
 
