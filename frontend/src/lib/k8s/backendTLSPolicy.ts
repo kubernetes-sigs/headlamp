@@ -34,11 +34,14 @@ export interface BackendTLSPolicyTargetRef {
  * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#backendtlspolicyvalidation}
  */
 export interface BackendTLSPolicyValidation {
-  caCertificateRefs: {
+  /** CA certificates to validate the backend with. Unset when wellKnownCACertificates is used. */
+  caCertificateRefs?: {
     group: string;
     kind: string;
     name: string;
   }[];
+  /** Validate the backend with a well-known CA set instead of caCertificateRefs, e.g. "System". */
+  wellKnownCACertificates?: string;
   hostname: string;
 }
 
