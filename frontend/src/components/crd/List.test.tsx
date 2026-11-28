@@ -112,4 +112,95 @@ describe('CustomResourceDefinitionList', () => {
     expect(() => scopeCol.getValue(partialCRD)).not.toThrow();
     expect(scopeCol.getValue(partialCRD)).toBe('');
   });
+
+  it('renders CRDs when useList succeeds', () => {
+    const populatedCRD = new CRD(mockCRD);
+    mockUseList.mockReturnValue([[populatedCRD], null]);
+
+    render(
+      <TestContext>
+        <CustomResourceDefinitionList />
+      </TestContext>
+    );
+
+    expect(mockResourceListView).toHaveBeenCalled();
+    const props = mockResourceListView.mock.calls[0][0];
+    expect(props.data).toHaveLength(1);
+    expect(props.errorMessage).toBeNull();
+  });
+
+  it('renders error message when useList returns error', () => {
+    mockUseList.mockReturnValue([null, { status: 403, message: 'Forbidden' }]);
+
+    render(
+      <TestContext>
+        <CustomResourceDefinitionList />
+      </TestContext>
+    );
+
+    expect(mockResourceListView).toHaveBeenCalled();
+    const props = mockResourceListView.mock.calls[0][0];
+    expect(props.errorMessage).toBe('Error: No permissions');
+  });
+
+  it('renders synthetic CRDs seamlessly without error after discovery fallback', () => {
+    const syntheticCrds = [
+      new CRD({
+        apiVersion: 'apiextensions.k8s.io/v1',
+        kind: 'CustomResourceDefinition',
+        metadata: {
+          name: 'crontabs.stable.example.com',
+          uid: 'synthetic-crd-crontabs',
+          creationTimestamp: '2025-01-01T00:00:00Z',
+        },
+        spec: {
+          group: 'stable.example.com',
+          version: 'v1',
+          names: {
+            plural: 'crontabs',
+            singular: 'crontab',
+            kind: 'CronTab',
+            listKind: 'CronTabList',
+          },
+          versions: [{ name: 'v1', served: true, storage: true, additionalPrinterColumns: [] }],
+          scope: 'Namespaced',
+        },
+      }),
+      new CRD({
+        apiVersion: 'apiextensions.k8s.io/v1',
+        kind: 'CustomResourceDefinition',
+        metadata: {
+          name: 'prometheuses.monitoring.coreos.com',
+          uid: 'synthetic-crd-prom',
+          creationTimestamp: '2025-01-01T00:00:00Z',
+        },
+        spec: {
+          group: 'monitoring.coreos.com',
+          version: 'v1',
+          names: {
+            plural: 'prometheuses',
+            singular: 'prometheus',
+            kind: 'Prometheus',
+            listKind: 'PrometheusList',
+          },
+          versions: [{ name: 'v1', served: true, storage: true, additionalPrinterColumns: [] }],
+          scope: 'Namespaced',
+        },
+      }),
+    ];
+
+    // Discovery fallback clears error to null and returns synthetic items
+    mockUseList.mockReturnValue([syntheticCrds, null]);
+
+    render(
+      <TestContext>
+        <CustomResourceDefinitionList />
+      </TestContext>
+    );
+
+    expect(mockResourceListView).toHaveBeenCalled();
+    const props = mockResourceListView.mock.calls[0][0];
+    expect(props.data).toHaveLength(2);
+    expect(props.errorMessage).toBeNull();
+  });
 });

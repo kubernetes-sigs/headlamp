@@ -152,9 +152,19 @@ function replaceUseId(node: any) {
 
 describe('Storybook Tests', () => {
   beforeEach(() => {
+    try {
+      window?.history?.replaceState?.({}, '', '/');
+    } catch {
+      // Ignore
+    }
     vi.useFakeTimers();
   });
   afterEach(() => {
+    try {
+      window?.history?.replaceState?.({}, '', '/');
+    } catch {
+      // Ignore
+    }
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
