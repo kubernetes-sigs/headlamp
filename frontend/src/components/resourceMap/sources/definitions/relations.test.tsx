@@ -70,7 +70,7 @@ import {
 } from './relations';
 
 vi.mock('../../../../redux/filterSlice', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../../../redux/filterSlice')>()),
+  ...(await importOriginal<Record<string, unknown>>()),
   useNamespaces: vi.fn(),
 }));
 
