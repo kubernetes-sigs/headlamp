@@ -2,7 +2,13 @@
 name: document-plugin
 description: Generate docs/OVERVIEW.md for this built plugin — a CRD coverage table (List/Detail ✓), and per resource the live `kubectl get -o wide` output beside a list-view screenshot and the full `kubectl describe` output beside a detail-view screenshot, Map screenshots, and the settings page (if any) with a per-setting scope/default/effect table. Captures screenshots via the chrome-devtools MCP against the running app. Use after live verification (the final phase), while Headlamp is still up. Distills PLAN.md into the permanent record.
 allowed-tools:
-  - mcp__chrome-devtools__*
+  - mcp__chrome-devtools__list_pages
+  - mcp__chrome-devtools__select_page
+  - mcp__chrome-devtools__navigate_page
+  - mcp__chrome-devtools__take_snapshot
+  - mcp__chrome-devtools__take_screenshot
+  - mcp__chrome-devtools__resize_page
+  - mcp__chrome-devtools__click
   - Bash(kubectl get:*)
   - Bash(kubectl describe:*)
   - Write(docs/**)
@@ -57,14 +63,17 @@ Reference images with **relative** paths (`![…](img/list-….png)`).
      trim metadata/Labels/Annotations/Events — it's the describe-parity yardstick.
    - **Full-page detail screenshot.** Detail pages overflow the viewport; `fullPage:true` alone clips
      because Headlamp's main area is a fixed-height stack with internal scroll. **Before the shot,
-     `evaluate_script` this to unclip the chain, then `take_screenshot` with `fullPage:true`:**
+     `evaluate_script` this function to unclip the chain, then `take_screenshot` with
+     `fullPage:true`:**
      ```js
-     let el = document.querySelector('main');
-     while (el && el !== document.documentElement) {
-       el.style.height = 'auto'; el.style.maxHeight = 'none'; el.style.overflow = 'visible';
-       el = el.parentElement;
+     () => {
+       let el = document.querySelector('main');
+       while (el && el !== document.documentElement) {
+         el.style.height = 'auto'; el.style.maxHeight = 'none'; el.style.overflow = 'visible';
+         el = el.parentElement;
+       }
+       return document.documentElement.scrollHeight;   // should now exceed the viewport
      }
-     return document.documentElement.scrollHeight;   // should now exceed the viewport
      ```
      Verify the returned height exceeds one viewport; if not, the selector missed the scroll layer —
      re-inspect and walk again. **Do not use `resize_page`** (Electron lacks the Browser CDP domain).

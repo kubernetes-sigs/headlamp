@@ -2,13 +2,18 @@
 name: run-and-verify
 description: Bring up the live development loop and prove the plugin actually loads — the user launches Headlamp with remote debugging, you run the watch build, attach the chrome-devtools MCP, and run the non-skippable load smoke check (no Plugin execution error, contribution renders, i18n resolves, a11y tree has names/roles). Use to develop, live-verify, or re-check the plugin after any change. This is where gate-green ≠ loads is enforced.
 allowed-tools:
-  - mcp__chrome-devtools__*
+  - mcp__chrome-devtools__list_pages
+  - mcp__chrome-devtools__select_page
+  - mcp__chrome-devtools__navigate_page
+  - mcp__chrome-devtools__take_snapshot
+  - mcp__chrome-devtools__take_screenshot
+  - mcp__chrome-devtools__list_console_messages
   - Bash(npm start:*)
   - Bash(npm run tsc:*)
   - Bash(npm run lint:*)
   - Bash(npm run lint-fix:*)
   - Bash(npm run build:*)
-  - Bash(curl -s http://localhost:9222/json:*)
+  - Bash(curl -s http://localhost:9222/json)
   - Bash(kubectl get:*)
   - Write(src/**)
   - Edit(src/**)
@@ -35,6 +40,9 @@ Electron won't initialize from a headless background shell. Ask the user to star
      Electron `--remote-debugging-port=9222`) — **free `:4466`/`:3000`/`:9222` first**; a stale
      backend makes it silently fall back; or
    - the installed app: `/Applications/Headlamp.app/Contents/MacOS/Headlamp --remote-debugging-port=9222 --user-data-dir=/tmp/headlamp-debug`.
+     The packaged app skips plugins from its **plugins** dir (where `npm start` copies the build)
+     unless **Settings → Plugins → Advanced → Load development plugins** is on. Ask the user to turn
+     it on and choose **Enable** in the "Enable Plugin Development Mode?" dialog.
 
    Cluster-scoped route URLs are `http://localhost:3000/#/c/<cluster>/<route-path>`.
 
@@ -56,9 +64,11 @@ Electron won't initialize from a headless background shell. Ask the user to star
      content / widget) — "the app rendered" ≠ "the plugin loaded".
    - **i18n resolves** — custom labels show real text. A missing translation is **not** blank: plugin
      i18n falls back to the key, and keys are the English text, so in English a broken bundle looks
-     fine. Check the bundle instead: after `npm run i18n` + `npm run build`,
-     `dist/locales/en/translation.json` exists and contains your keys with non-empty values. (`t` is
-     not a page global — don't try to call it via `evaluate_script`.)
+     fine. Check the bundle instead. On a fresh scaffold run `npm run i18n -- en` once: a bare
+     `npm run i18n` writes the catalog but leaves `headlamp.i18n` in `package.json` empty, and
+     Headlamp only loads catalogs listed there. Then check both: `headlamp.i18n` includes `en`, and
+     after `npm run build` `dist/locales/en/translation.json` contains your keys with non-empty
+     values. (`t` is not a page global — don't try to call it via `evaluate_script`.)
    - **a11y** — every interactive control in the snapshot has a name/role.
    - `take_screenshot` for visual confirmation; `evaluate_script` for specific state.
 
@@ -66,7 +76,9 @@ Electron won't initialize from a headless background shell. Ask the user to star
    NOT load.** Re-run this after **every new value import or `extends`** — that's the change that
    introduces this bug invisibly.
 
-5. **Iterate.** On an error/missing contribution/wrong render: read the message, fix `src/` (suspect a
+5. **Iterate.** On the installed app, a missing contribution with no console error usually means
+   **Load development plugins** is off (step 1); check that before the code. On an error/missing
+   contribution/wrong render: read the message, fix `src/` (suspect a
    non-externalized value import first), let the watch build reload, re-check. **Never hand-create a
    symlink to force a not-loading plugin** — a missing contribution is a load-time crash or a wrong
    route/sidebar name, not a placement problem; `npm start` already copies the build to where the app

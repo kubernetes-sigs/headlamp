@@ -50,7 +50,7 @@ only with `withEvents`). So:
 |---|---|---|
 | **Back link** | Returns to the list | **auto-derived** from the resource's list route — **don't pass `backLink`** |
 | **Main info** (top) | Identity + headline scalars (type, version, ready, key spec summary) | `extraInfo={item => NameValueTableRow[]}` |
-| **Header actions** | **Edit / Delete / Scale / Restart come FREE by default**; only add *project-specific* ones | `actions={…}` (see "Project-specific actions" below) |
+| **Header actions** | **Edit / Delete come FREE by default**. Scale needs `static isScalable = true` on the class; Restart never shows for a CRD. Add only *project-specific* ones | `actions={…}` (see "Project-specific actions" below) |
 | **`extraSections`** (middle) | One `SectionBox` per logical `spec`/`status` group — the bulk of parity | `extraSections={item => item && [...]}` (called with `null` while loading) |
 | **Conditions** | `status.conditions` — **LAST in `extraSections`** | `ConditionsSection` (auto-wraps) |
 | **Events** (bottom) | Object events | `withEvents` (auto-rendered after `extraSections`) |
@@ -160,7 +160,8 @@ only proves out at runtime — verify on the live load.
 
 ## Project-specific actions (mutations beyond the free defaults)
 
-Edit / Delete / Scale / Restart are added by DetailsGrid **for free**. Add a custom header action
+Edit / Delete are added by DetailsGrid **for free**. Scale appears only when the resource class sets `static isScalable = true` (the CRD needs a `scale` subresource), and Restart only for the built-in Deployment, StatefulSet and DaemonSet classes, so a
+CRD view gets neither by default. Add a custom header action
 only for a **project-specific operation** that `plan-plugin` decided this CRD needs (flux
 suspend/resume, keda pause, a "trigger reconcile") — those are context-dependent, so the plan names
 them per CRD. A custom action is a **confirm-gated** header action that mutates via
