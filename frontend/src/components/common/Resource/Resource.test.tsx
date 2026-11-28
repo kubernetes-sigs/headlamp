@@ -38,6 +38,8 @@ import {
 import {
   buildEnvironmentVariables,
   ConditionsTable,
+  ContainerInfo,
+  ContainersSection,
   DataField,
   DetailsGrid,
   extractEnvVarReferences,
@@ -755,4 +757,203 @@ it('renders volume mount permissions and arranges all section grid items', () =>
   expect(screen.getByText('/data')).toBeInTheDocument();
   expect(screen.getByText('ReadWrite')).toBeInTheDocument();
   expect(screen.getByText('Extra section')).toBeInTheDocument();
+});
+
+describe('ContainerInfo', () => {
+  it('shows container Ready row as No when ready is false', () => {
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainerInfo
+            container={container}
+            resource={null}
+            status={
+              {
+                ready: false,
+                state: { running: { startedAt: '2025-01-01T00:00:00Z' } },
+              } as any
+            }
+          />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    expect(screen.getByText('Ready')).toBeInTheDocument();
+    expect(screen.getByText('No')).toBeInTheDocument();
+  });
+
+  it('shows container Ready row as Yes when ready is true', () => {
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainerInfo
+            container={container}
+            resource={null}
+            status={
+              {
+                ready: true,
+                state: { running: { startedAt: '2025-01-01T00:00:00Z' } },
+              } as any
+            }
+          />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    expect(screen.getByText('Ready')).toBeInTheDocument();
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+  });
+
+  it('hides the Ready row when ready is undefined', () => {
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainerInfo
+            container={container}
+            resource={null}
+            status={
+              {
+                state: { running: { startedAt: '2025-01-01T00:00:00Z' } },
+              } as any
+            }
+          />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+  });
+
+  it('hides the Ready row when isEphemeral is true even if ready is false', () => {
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainerInfo
+            container={container}
+            resource={null}
+            status={
+              {
+                ready: false,
+                state: { running: { startedAt: '2025-01-01T00:00:00Z' } },
+              } as any
+            }
+            isEphemeral
+          />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+  });
+});
+
+describe('ContainersSection', () => {
+  function makePodResource(spec: Record<string, any>, status: Record<string, any>) {
+    return {
+      kind: 'Pod',
+      spec,
+      status,
+    } as any;
+  }
+
+  it('shows Ready Yes/No for regular containers', () => {
+    const pod = makePodResource(
+      {
+        containers: [
+          { ...container, name: 'app-ready' },
+          { ...container, name: 'app-not-ready' },
+        ],
+      },
+      {
+        containerStatuses: [
+          {
+            name: 'app-ready',
+            ready: true,
+            restartCount: 0,
+            state: { running: { startedAt: '2025-01-01T00:00:00Z' } },
+          },
+          {
+            name: 'app-not-ready',
+            ready: false,
+            restartCount: 0,
+            state: { running: { startedAt: '2025-01-01T00:00:00Z' } },
+          },
+        ],
+      }
+    );
+
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainersSection resource={pod} />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    expect(screen.getAllByText('Ready')).toHaveLength(2);
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+    expect(screen.getByText('No')).toBeInTheDocument();
+  });
+
+  it('shows Ready row for init containers', () => {
+    const pod = makePodResource(
+      {
+        containers: [],
+        initContainers: [{ ...container, name: 'init-c' }],
+      },
+      {
+        initContainerStatuses: [
+          {
+            name: 'init-c',
+            ready: true,
+            restartCount: 0,
+            state: { terminated: { exitCode: 0, reason: 'Completed' } },
+          },
+        ],
+      }
+    );
+
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainersSection resource={pod} />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    expect(screen.getByText('Init Containers')).toBeInTheDocument();
+    expect(screen.getByText('Ready')).toBeInTheDocument();
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+  });
+
+  it('hides Ready row in Ephemeral Containers section even when ready is false', () => {
+    const pod = makePodResource(
+      {
+        containers: [],
+        ephemeralContainers: [{ ...container, name: 'debug-c' }],
+      },
+      {
+        ephemeralContainerStatuses: [
+          {
+            name: 'debug-c',
+            ready: false,
+            restartCount: 0,
+            state: { running: { startedAt: '2025-01-01T00:00:00Z' } },
+          },
+        ],
+      }
+    );
+
+    render(
+      <TestContext>
+        <ThemedContext>
+          <ContainersSection resource={pod} />
+        </ThemedContext>
+      </TestContext>
+    );
+
+    expect(screen.getByText('Ephemeral Containers')).toBeInTheDocument();
+    expect(screen.getByText('debug-c')).toBeInTheDocument();
+    expect(screen.queryByText('Ready')).not.toBeInTheDocument();
+  });
 });
