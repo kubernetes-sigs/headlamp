@@ -37,6 +37,18 @@ export function getReadyCondition(
   return conditions?.find(c => c.type === 'Ready');
 }
 
+/**
+ * Standard Kubernetes conditions with negative/inverse polarity where 'True' indicates
+ * a degraded or failure state and 'False' indicates healthy operation.
+ */
+const NEGATIVE_CONDITIONS = new Set([
+  'replicafailure',
+  'memorypressure',
+  'diskpressure',
+  'pidpressure',
+  'networkunavailable',
+]);
+
 export interface ConditionListProps {
   /**
    * The conditions array, typically from resource.status.conditions.
@@ -62,7 +74,8 @@ export interface ConditionListProps {
  *
  * - status === 'True'  -> 'success'
  * - status === 'False' -> 'error'
- * - for negative conditions (e.g. ReplicaFailure): 'False' -> 'success', 'True' -> 'error'
+ * - for negative conditions (e.g. MemoryPressure, DiskPressure, PIDPressure, NetworkUnavailable, ReplicaFailure):
+ *   'False' -> 'success', 'True' -> 'error'
  * - anything else      -> '' (neutral chip)
  *
  * @example
@@ -86,8 +99,8 @@ export function ConditionList({
 
   function statusFromCondition(condition: KubeCondition): StatusLabelProps['status'] {
     const type = condition.type?.toLowerCase();
-    // ReplicaFailure is True when the controller cannot create pods.
-    if (type === 'replicafailure') {
+    // Negative conditions represent an abnormal/fault state when True (e.g. MemoryPressure or ReplicaFailure).
+    if (type && NEGATIVE_CONDITIONS.has(type)) {
       return condition.status === 'False' ? 'success' : condition.status === 'True' ? 'error' : '';
     }
 

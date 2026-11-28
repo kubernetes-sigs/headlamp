@@ -276,6 +276,76 @@ describe('ConditionList', () => {
         backgroundColor: successBg,
       });
     });
+
+    it('colors standard negative conditions (MemoryPressure, DiskPressure, PIDPressure, NetworkUnavailable) with status="True" as error and "False" as success', () => {
+      const conditions: KubeCondition[] = [
+        createMockCondition({
+          type: 'MemoryPressure',
+          status: 'True',
+          reason: 'OutOfMemory',
+        }),
+        createMockCondition({
+          type: 'memorypressure',
+          status: 'False',
+          reason: 'SufficientMemory',
+        }),
+        createMockCondition({
+          type: 'DiskPressure',
+          status: 'True',
+          reason: 'DiskFull',
+        }),
+        createMockCondition({
+          type: 'diskpressure',
+          status: 'False',
+          reason: 'SufficientDisk',
+        }),
+        createMockCondition({
+          type: 'PIDPressure',
+          status: 'True',
+          reason: 'OutOfPIDs',
+        }),
+        createMockCondition({
+          type: 'pidpressure',
+          status: 'False',
+          reason: 'SufficientPIDs',
+        }),
+        createMockCondition({
+          type: 'NetworkUnavailable',
+          status: 'True',
+          reason: 'NoRouteToHost',
+        }),
+        createMockCondition({
+          type: 'networkunavailable',
+          status: 'False',
+          reason: 'RouteCreated',
+        }),
+      ];
+
+      renderConditionList(conditions);
+
+      const errorBg = (theme.palette.error as any)[800] ?? theme.palette.error.main;
+      const successBg = (theme.palette.success as any)[800] ?? theme.palette.success.main;
+
+      const memLabels = screen.getAllByText(/MemoryPressure/i);
+      expect(memLabels).toHaveLength(2);
+      expect(memLabels[0]).toHaveStyle({ backgroundColor: errorBg });
+      expect(memLabels[1]).toHaveStyle({ backgroundColor: successBg });
+
+      const diskLabels = screen.getAllByText(/DiskPressure/i);
+      expect(diskLabels).toHaveLength(2);
+      expect(diskLabels[0]).toHaveStyle({ backgroundColor: errorBg });
+      expect(diskLabels[1]).toHaveStyle({ backgroundColor: successBg });
+
+      const pidLabels = screen.getAllByText(/PIDPressure/i);
+      expect(pidLabels).toHaveLength(2);
+      expect(pidLabels[0]).toHaveStyle({ backgroundColor: errorBg });
+      expect(pidLabels[1]).toHaveStyle({ backgroundColor: successBg });
+
+      const netLabels = screen.getAllByText(/NetworkUnavailable/i);
+      expect(netLabels).toHaveLength(2);
+      expect(netLabels[0]).toHaveStyle({ backgroundColor: errorBg });
+      expect(netLabels[1]).toHaveStyle({ backgroundColor: successBg });
+    });
   });
 
   describe('Cell formatters and fallback handling', () => {
