@@ -290,11 +290,12 @@ type ListRepoResponse struct {
 }
 
 func createFullPath(p string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(p), defaultNewConfigFolderMode); err != nil {
+	cleanPath := filepath.Clean(p)
+	if err := os.MkdirAll(filepath.Dir(cleanPath), defaultNewConfigFolderMode); err != nil {
 		return nil, err
 	}
 
-	return os.Create(p) //nolint:gosec // Path is constructed from controlled repository configuration
+	return os.Create(cleanPath)
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {

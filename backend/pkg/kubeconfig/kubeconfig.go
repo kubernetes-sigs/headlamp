@@ -405,7 +405,7 @@ type Base64Error struct {
 
 // Error returns a string representation of the error.
 func (e Base64Error) Error() string {
-	var messages []string //nolint:prealloc // Small slice allocated only on error formatting
+	messages := make([]string, 0, len(e.Errors))
 
 	for _, err := range e.Errors {
 		messages = append(messages, err.Error())
@@ -758,7 +758,14 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	// Refer: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#using-kubectl.
 	caFilePath, ok := c.AuthInfo.AuthProvider.Config["idp-certificate-authority"]
 	if ok {
-		caFileContents, err := os.ReadFile(caFilePath) //nolint:gosec // CA certificate file path is loaded from kubeconfig
+		if c.Source == DynamicCluster {
+			return nil, errors.New(
+				"file-backed idp-certificate-authority is not allowed for dynamic clusters; " +
+					"use idp-certificate-authority-data",
+			)
+		}
+
+		caFileContents, err := os.ReadFile(filepath.Clean(caFilePath))
 		if err != nil {
 			return nil, fmt.Errorf("error reading ca file: %w", err)
 		}
@@ -1696,6 +1703,22 @@ func createKubeConfig(
 	return kubeconfig
 }
 
+// ValidateDynamicClusterAuthInfo rejects file-backed idp-certificate-authority
+// for dynamic clusters so untrusted contexts cannot read local host files.
+func ValidateDynamicClusterAuthInfo(contextName string, source int, authInfo *api.AuthInfo) error {
+	if source == DynamicCluster && authInfo != nil && authInfo.AuthProvider != nil && authInfo.AuthProvider.Config != nil {
+		if caPath, ok := authInfo.AuthProvider.Config["idp-certificate-authority"]; ok && caPath != "" {
+			return ContextError{
+				ContextName: contextName,
+				Reason: "file-backed idp-certificate-authority is not allowed for dynamic clusters; " +
+					"use idp-certificate-authority-data",
+			}
+		}
+	}
+
+	return nil
+}
+
 // convertToContext converts the config to a context.
 // contextName is the name of the context.
 // clientConfig is the client config.
@@ -1721,6 +1744,12 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 
 	authInfo := clientConfig.AuthInfos[context.AuthInfo]
 
+	// Reject file-backed idp-certificate-authority for dynamic clusters before setting up proxy.
+	// Client-go OIDC plugin independently reads this path from the filesystem if present.
+	if err := ValidateDynamicClusterAuthInfo(contextName, source, authInfo); err != nil {
+		return Context{}, err
+	}
+
 	newContext := Context{
 		Name:                  MakeDNSFriendly(contextName),
 		KubeConfigPath:        context.LocationOfOrigin,
@@ -1745,13 +1774,18 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 	return newContext, nil
 }
 
-// LoadContextsFromAPIConfig loads contexts from the given api.Config.
+// LoadContextsFromAPIConfig loads contexts from the given api.Config with default source 0.
 func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Context, []error) {
+	return LoadContextsFromAPIConfigWithSource(config, 0, skipProxySetup)
+}
+
+// LoadContextsFromAPIConfigWithSource loads contexts from the given api.Config with a specified source.
+func LoadContextsFromAPIConfigWithSource(config *api.Config, source int, skipProxySetup bool) ([]Context, []error) {
 	contexts := []Context{}
 	errors := []error{}
 
 	for contextName := range config.Contexts {
-		context, err := convertToContext(contextName, config, 0, skipProxySetup)
+		context, err := convertToContext(contextName, config, source, skipProxySetup)
 		if err != nil {
 			errors = append(errors, err)
 			continue
