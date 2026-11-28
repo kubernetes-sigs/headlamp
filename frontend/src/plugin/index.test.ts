@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
+import { addEventCallback, HeadlampEventType } from '../redux/headlampEventSlice';
+import store from '../redux/stores/store';
 import {
   applyPluginPriority,
   beforePluginStartupDeadline,
   fetchAndExecutePlugins,
+  filterSources,
   initializePlugins,
   permissionSecretsFromApp,
+  updateSettingsPackages,
 } from './index';
 import { PluginInfo } from './pluginsSlice';
 import Registry from './registry';
@@ -188,5 +192,286 @@ describe('desktop plugin permission exchange', () => {
     vi.stubGlobal('desktopApi', undefined);
 
     await expect(permissionSecretsFromApp()).resolves.toEqual({});
+  });
+});
+
+describe('filterSources', () => {
+  it('filters out all sources when appMode is true and settingsPackages is undefined', () => {
+    const sources = ['s1', 's2'];
+    const pkgs: PluginInfo[] = [
+      { name: 'p1', description: '', homepage: '' },
+      { name: 'p2', description: '', homepage: '' },
+    ];
+    const { sourcesToExecute } = filterSources(sources, pkgs, true, '>=0.8.0-alpha.3', undefined);
+    expect(sourcesToExecute).toHaveLength(0);
+  });
+
+  it('marks incompatible plugins when appMode is false and version does not match', () => {
+    const sources = ['s1'];
+    const pkgs: PluginInfo[] = [
+      {
+        name: 'old-plugin',
+        description: '',
+        homepage: '',
+        devDependencies: { '@kinvolk/headlamp-plugin': '^0.6.0' },
+      },
+    ];
+    const { sourcesToExecute, incompatiblePlugins } = filterSources(
+      sources,
+      pkgs,
+      false,
+      '>=0.8.0-alpha.3'
+    );
+    expect(sourcesToExecute).toHaveLength(0);
+    expect(incompatiblePlugins['old-plugin']).toBeDefined();
+  });
+
+  it('allows all sources when compatibleVersion is empty string', () => {
+    const sources = ['s1'];
+    const pkgs: PluginInfo[] = [
+      {
+        name: 'old-plugin',
+        description: '',
+        homepage: '',
+        devDependencies: { '@kinvolk/headlamp-plugin': '^0.6.0' },
+      },
+    ];
+    const { sourcesToExecute } = filterSources(sources, pkgs, false, '');
+    expect(sourcesToExecute).toHaveLength(1);
+  });
+});
+
+describe('updateSettingsPackages', () => {
+  it('returns settingsPlugins unchanged when nothing has changed', () => {
+    const pkg: PluginInfo = {
+      name: 'myplugin',
+      description: '',
+      homepage: '',
+      version: '1.0.0',
+      type: 'shipped',
+    };
+    const settingsPkg: PluginInfo = { ...pkg, isEnabled: true };
+    const result = updateSettingsPackages([pkg], [settingsPkg]);
+    // Same length, same reference-equality-like semantics: returns settingsPlugins as-is
+    expect(result).toEqual([settingsPkg]);
+  });
+
+  it('enables development and user plugins by default', () => {
+    const devPlugin: PluginInfo = {
+      name: 'dev-p',
+      description: '',
+      homepage: '',
+      type: 'development',
+    };
+    const userPlugin: PluginInfo = { name: 'user-p', description: '', homepage: '', type: 'user' };
+
+    const devResult = updateSettingsPackages([devPlugin], []);
+    const userResult = updateSettingsPackages([userPlugin], []);
+
+    expect(devResult[0].isEnabled).toBe(true);
+    expect(userResult[0].isEnabled).toBe(true);
+  });
+
+  it('disables shipped plugin with enabledByDefault=false', () => {
+    const pkg: PluginInfo = {
+      name: 'shipped-p',
+      description: '',
+      homepage: '',
+      type: 'shipped',
+      headlamp: { enabledByDefault: false },
+    };
+    const result = updateSettingsPackages([pkg], []);
+    expect(result[0].isEnabled).toBe(false);
+  });
+
+  it('strips isDevelopmentModeBlocked when plugin is re-discovered', () => {
+    const backend: PluginInfo = {
+      name: 'dev-p',
+      description: '',
+      homepage: '',
+      type: 'development',
+    };
+    const settings: PluginInfo = { ...backend, isEnabled: false, isDevelopmentModeBlocked: true };
+    const result = updateSettingsPackages([backend], [settings]);
+    expect(result[0]).not.toHaveProperty('isDevelopmentModeBlocked');
+  });
+});
+
+describe('fetchAndExecutePlugins — retry and 404 package.json', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    window.plugins = {};
+  });
+
+  it('uses plugin folder name and version 0.0.0 when package.json returns 404', async () => {
+    const onSettingsChange = vi.fn();
+    const onIncompatible = vi.fn();
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+      const url = String(input);
+      if (url.endsWith('/plugins')) {
+        return new Response(
+          JSON.stringify([
+            { path: 'plugins/myplugin', name: 'myplugin', type: 'user', source: 'user' },
+          ])
+        );
+      }
+      if (url.endsWith('/main.js')) return new Response('');
+      if (url.endsWith('/package.json')) return new Response('Not Found', { status: 404 });
+      throw new Error(`Unexpected: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetch);
+    vi.stubGlobal('desktopApi', undefined);
+    window.plugins = {};
+
+    await fetchAndExecutePlugins([], onSettingsChange, onIncompatible);
+
+    expect(onSettingsChange).toHaveBeenCalled();
+    // The plugin should have been added with version 0.0.0 and name from path
+    const calledWith = onSettingsChange.mock.calls[0][0] as PluginInfo[];
+    expect(calledWith).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'myplugin', version: '0.0.0' })])
+    );
+  });
+
+  it('calls onIncompatible when a plugin has incompatible headlamp-plugin version', async () => {
+    const onSettingsChange = vi.fn();
+    const onIncompatible = vi.fn();
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+      const url = String(input);
+      if (url.endsWith('/plugins')) {
+        return new Response(
+          JSON.stringify([
+            { path: 'plugins/oldplugin', name: 'oldplugin', type: 'shipped', source: 'shipped' },
+          ])
+        );
+      }
+      if (url.endsWith('/main.js')) return new Response('');
+      if (url.endsWith('/package.json')) {
+        return new Response(
+          JSON.stringify({
+            name: 'oldplugin',
+            version: '1.0.0',
+            description: '',
+            homepage: '',
+            devDependencies: { '@kinvolk/headlamp-plugin': '^0.6.0' },
+          })
+        );
+      }
+      throw new Error(`Unexpected: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetch);
+    vi.stubGlobal('desktopApi', undefined);
+    window.plugins = {};
+
+    await fetchAndExecutePlugins([], onSettingsChange, onIncompatible);
+
+    expect(onIncompatible).toHaveBeenCalled();
+  });
+});
+
+describe('fetchAndExecutePlugins — execution, retry, and error handling', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    window.plugins = {};
+  });
+
+  it('retries transient /plugins failures and executes compatible plugins', async () => {
+    const onSettingsChange = vi.fn();
+    const onIncompatible = vi.fn();
+    let pluginsAttempts = 0;
+
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+      const url = String(input);
+      if (url.endsWith('/plugins')) {
+        pluginsAttempts++;
+        if (pluginsAttempts === 1) {
+          return new Response('Temporary error', { status: 500 });
+        }
+        return new Response(
+          JSON.stringify([
+            { path: 'plugins/good-plugin', name: 'good-plugin', type: 'user', source: 'user' },
+          ])
+        );
+      }
+      if (url.endsWith('/main.js')) {
+        return new Response(
+          'window.plugins["good-plugin"] = { initialize: function(registry) { window.__goodPluginInit = true; } };'
+        );
+      }
+      if (url.endsWith('/package.json')) {
+        return new Response(
+          JSON.stringify({
+            name: 'good-plugin',
+            version: '1.0.0',
+            description: '',
+            homepage: '',
+            devDependencies: { '@kinvolk/headlamp-plugin': '^0.8.0' },
+          })
+        );
+      }
+      throw new Error(`Unexpected: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetch);
+    vi.stubGlobal('desktopApi', undefined);
+    window.plugins = {};
+
+    await fetchAndExecutePlugins([], onSettingsChange, onIncompatible);
+
+    expect(pluginsAttempts).toBe(2);
+    expect(onIncompatible).not.toHaveBeenCalled();
+    expect((window as any).__goodPluginInit).toBe(true);
+    delete (window as any).__goodPluginInit;
+  });
+
+  it('dispatches PLUGIN_LOADING_ERROR when a plugin throws during execution', async () => {
+    const onSettingsChange = vi.fn();
+    const onIncompatible = vi.fn();
+    const eventCallback = vi.fn();
+    store.dispatch(addEventCallback(eventCallback));
+
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+      const url = String(input);
+      if (url.endsWith('/plugins')) {
+        return new Response(
+          JSON.stringify([
+            { path: 'plugins/bad-plugin', name: 'bad-plugin', type: 'user', source: 'user' },
+          ])
+        );
+      }
+      if (url.endsWith('/main.js')) {
+        return new Response('throw new Error("boom in plugin");');
+      }
+      if (url.endsWith('/package.json')) {
+        return new Response(
+          JSON.stringify({
+            name: 'bad-plugin',
+            version: '1.0.0',
+            description: '',
+            homepage: '',
+            devDependencies: { '@kinvolk/headlamp-plugin': '^0.8.0' },
+          })
+        );
+      }
+      throw new Error(`Unexpected: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetch);
+    vi.stubGlobal('desktopApi', undefined);
+    window.plugins = {};
+
+    await expect(
+      fetchAndExecutePlugins([], onSettingsChange, onIncompatible)
+    ).resolves.toBeUndefined();
+
+    expect(eventCallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: HeadlampEventType.PLUGIN_LOADING_ERROR,
+        data: expect.objectContaining({
+          pluginInfo: { name: 'bad-plugin', version: '1.0.0' },
+          error: expect.any(Error),
+        }),
+      })
+    );
   });
 });
