@@ -67,12 +67,12 @@ export default function HpaList() {
           label: t('translation|Targets'),
           getValue: item =>
             item
-              .metrics(t)
-              .map(it => it.shortValue)
-              .join(', '),
+              ?.metrics?.(t)
+              ?.map(it => it.shortValue)
+              ?.join(', ') ?? '',
           render: (hpa: HPA) => {
             const value: ReactNode[] = [];
-            const metrics = hpa.metrics(t);
+            const metrics = hpa?.metrics?.(t) ?? [];
             if (metrics.length) {
               value.push(
                 <PaddedChip label={metrics[0].shortValue} variant="outlined" size="small" key="1" />
