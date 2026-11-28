@@ -190,8 +190,10 @@ class HPA extends KubeObject<KubeHPA> {
   static getBaseObject(): KubeHPA {
     const baseObject = super.getBaseObject() as KubeHPA;
     baseObject.spec = {
-      maxReplicas: 0,
-      minReplicas: 0,
+      // The API rejects maxReplicas 0 and, without the HPAScaleToZero alpha gate,
+      // minReplicas 0. These are the values of the Kubernetes HPA walkthrough.
+      maxReplicas: 10,
+      minReplicas: 1,
       scaleTargetRef: { apiVersion: '', kind: '', name: '' },
       metrics: [],
     };
