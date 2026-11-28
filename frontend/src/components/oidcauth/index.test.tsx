@@ -178,7 +178,7 @@ describe('OIDCAuth component', () => {
   });
 
   it('renders an error and halts navigation when sessionStorage throws in full-page mode', async () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    vi.spyOn(Object.getPrototypeOf(window.sessionStorage), 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError or SecurityError');
     });
 
