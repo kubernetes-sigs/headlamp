@@ -162,6 +162,9 @@ config:
     rootReconcileInterval: ""
     # -- Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default.
     noCRDCacheTTL: ""
+  # -- Distributed admin settings (inline YAML/JSON string, structured object, or existingConfigMap/existingSecret reference).
+  # See charts/headlamp/README.md for supported setting paths and examples.
+  settings: null
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 

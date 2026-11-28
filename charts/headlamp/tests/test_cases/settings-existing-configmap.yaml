@@ -1,0 +1,4 @@
+config:
+  settings:
+    existingConfigMap: my-headlamp-settings
+    key: custom-settings.json

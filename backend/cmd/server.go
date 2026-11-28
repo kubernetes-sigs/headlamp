@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -38,6 +37,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/settings"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -278,8 +278,12 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	cfg.AdminSettings, err = loadAdminSettings(conf.SettingsPath)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading admin settings")
+		logger.Log(logger.LevelError, map[string]string{"path": conf.SettingsPath}, err, "loading admin settings")
 		os.Exit(1)
+	}
+
+	if cfg.AdminSettings != nil {
+		logger.Log(logger.LevelInfo, map[string]string{"path": conf.SettingsPath}, nil, "loaded admin settings")
 	}
 
 	if conf.CacheMaxClientsetsExplicit ||
@@ -296,7 +300,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	}
 }
 
-// loadAdminSettings reads and validates the admin settings JSON file.
+// loadAdminSettings reads and validates the admin settings JSON file against the schema.
 func loadAdminSettings(path string) (json.RawMessage, error) {
 	if path == "" {
 		return nil, nil
@@ -307,8 +311,8 @@ func loadAdminSettings(path string) (json.RawMessage, error) {
 		return nil, fmt.Errorf("reading settings file: %w", err)
 	}
 
-	if !json.Valid(data) {
-		return nil, errors.New("settings file is not valid JSON")
+	if err := settings.Validate(data); err != nil {
+		return nil, err
 	}
 
 	return data, nil

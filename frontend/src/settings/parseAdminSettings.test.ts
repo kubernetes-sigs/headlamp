@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { vi } from 'vitest';
 import { parseAdminSettings } from './parseAdminSettings';
 
 describe('parseAdminSettings', () => {
@@ -198,6 +199,37 @@ describe('parseAdminSettings', () => {
     it('returns empty sources for empty array', () => {
       const result = parseAdminSettings({ clusterDefinedSettings: [] });
       expect(result.sources).toEqual({});
+    });
+  });
+
+  describe('diagnostic warnings for malformed admin settings', () => {
+    it('warns on unknown top-level keys and invalid display modes', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = parseAdminSettings({
+        clusters: { '*': {} },
+        defaults: {
+          timezone: { $display: 'readonly', $value: 'UTC' },
+        },
+        clusterDefinedSettings: {
+          '*': [{ type: 'configmap' }],
+        },
+      } as any);
+
+      expect(result.defaults.timezone).toBe('UTC');
+      expect(result.display['timezone']).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Unknown top-level admin settings key "clusters"')
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid $display mode "readonly"')
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Ignoring malformed clusterDefinedSettings source'),
+        expect.anything()
+      );
+
+      warnSpy.mockRestore();
     });
   });
 });

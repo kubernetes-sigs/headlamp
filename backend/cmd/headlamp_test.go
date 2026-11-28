@@ -566,7 +566,7 @@ func TestGetConfigIncludesOidcAutoLogin(t *testing.T) {
 }
 
 func TestGetConfigIncludesAdminSettings(t *testing.T) {
-	adminSettings := json.RawMessage(`{"settings":{"tableRowsPerPageOptions":{"$value":[10,20]}}}`)
+	adminSettings := json.RawMessage(`{"defaults":{"tableRowsPerPageOptions":{"$value":[10,20]}}}`)
 	c := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{

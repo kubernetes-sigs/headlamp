@@ -1,0 +1,488 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Headlamp Admin Settings",
+  "description": "Schema for Headlamp distributed admin settings (--settings JSON document).",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "displayMode": {
+      "type": "string",
+      "enum": ["normal", "disabled", "hidden"]
+    },
+    "clusterList": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "clusterSource": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": ["configmap", "ConfigMap", "secret", "Secret"]
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "wrappedString": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "type": "string",
+              "minLength": 1
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "wrappedAllowEmptyString": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "type": "string"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "wrappedBoolean": {
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "type": "boolean"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "positiveIntArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "wrappedPositiveIntArray": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/positiveIntArray"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "$ref": "#/definitions/positiveIntArray"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "wrappedStringArray": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/stringArray"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "$ref": "#/definitions/stringArray"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "themeObject": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "light": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dark": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "themeValue": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "$ref": "#/definitions/themeObject"
+        }
+      ]
+    },
+    "wrappedTheme": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/themeValue"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "$ref": "#/definitions/themeValue"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "nodeShellTerminalValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "linuxImage": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        },
+        "namespace": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        },
+        "isEnabled": {
+          "$ref": "#/definitions/wrappedBoolean"
+        }
+      }
+    },
+    "wrappedNodeShellTerminal": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/nodeShellTerminalValue"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "$ref": "#/definitions/nodeShellTerminalValue"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "podDebugTerminalValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "debugImage": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        },
+        "isEnabled": {
+          "$ref": "#/definitions/wrappedBoolean"
+        }
+      }
+    },
+    "wrappedPodDebugTerminal": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/podDebugTerminalValue"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "$ref": "#/definitions/podDebugTerminalValue"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "appearanceValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accentColor": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        },
+        "icon": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        }
+      }
+    },
+    "wrappedAppearance": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/appearanceValue"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "$ref": "#/definitions/appearanceValue"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "clusterConfigValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaultNamespace": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        },
+        "allowedNamespaces": {
+          "$ref": "#/definitions/wrappedStringArray"
+        },
+        "allowedNamespacesSelector": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        },
+        "currentName": {
+          "$ref": "#/definitions/wrappedAllowEmptyString"
+        },
+        "nodeShellTerminal": {
+          "$ref": "#/definitions/wrappedNodeShellTerminal"
+        },
+        "podDebugTerminal": {
+          "$ref": "#/definitions/wrappedPodDebugTerminal"
+        },
+        "appearance": {
+          "$ref": "#/definitions/wrappedAppearance"
+        }
+      }
+    },
+    "wrappedClusterConfig": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/clusterConfigValue"
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {
+              "$ref": "#/definitions/clusterConfigValue"
+            },
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        }
+      ]
+    },
+    "pluginValue": {
+      "oneOf": [
+        {
+          "type": ["string", "number", "boolean", "array", "null"]
+        },
+        {
+          "type": "object",
+          "required": ["$value"],
+          "additionalProperties": false,
+          "properties": {
+            "$value": {},
+            "$display": {
+              "$ref": "#/definitions/displayMode"
+            },
+            "$clusterDefined": {
+              "$ref": "#/definitions/clusterList"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "not": {
+            "anyOf": [
+              { "required": ["$value"] },
+              { "required": ["$display"] },
+              { "required": ["$clusterDefined"] }
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/definitions/pluginValue"
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tableRowsPerPageOptions": {
+          "$ref": "#/definitions/wrappedPositiveIntArray"
+        },
+        "timezone": {
+          "$ref": "#/definitions/wrappedString"
+        },
+        "sidebarSortAlphabetically": {
+          "$ref": "#/definitions/wrappedBoolean"
+        },
+        "expandLargeGraph": {
+          "$ref": "#/definitions/wrappedBoolean"
+        },
+        "useEvict": {
+          "$ref": "#/definitions/wrappedBoolean"
+        },
+        "tutorialTooltips": {
+          "$ref": "#/definitions/wrappedBoolean"
+        },
+        "theme": {
+          "$ref": "#/definitions/wrappedTheme"
+        },
+        "clusters": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "$ref": "#/definitions/wrappedClusterConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        "plugins": {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "object",
+              "patternProperties": {
+                "^.+$": {
+                  "$ref": "#/definitions/pluginValue"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "clusterDefinedSettings": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^.+$": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/clusterSource"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

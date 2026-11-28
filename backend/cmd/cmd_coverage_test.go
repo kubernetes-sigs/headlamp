@@ -59,7 +59,7 @@ func newCmdTestConfig(t *testing.T) *HeadlampConfig {
 
 func TestCreateHeadlampConfigAndLoadAdminSettings(t *testing.T) {
 	settingsPath := filepath.Join(t.TempDir(), "settings.json")
-	require.NoError(t, os.WriteFile(settingsPath, []byte(`{"theme":"dark"}`), 0o600))
+	require.NoError(t, os.WriteFile(settingsPath, []byte(`{"defaults":{"theme":"dark"}}`), 0o600))
 
 	cfg := createHeadlampConfig(&config.Config{
 		Port:                    4466,
@@ -75,7 +75,7 @@ func TestCreateHeadlampConfigAndLoadAdminSettings(t *testing.T) {
 	assert.Equal(t, []string{"openid", "email"}, cfg.OidcScopes)
 	assert.True(t, cfg.ProxyAuthEnabled)
 	assert.Equal(t, "X-User", cfg.ProxyAuthUsernameHeader)
-	assert.JSONEq(t, `{"theme":"dark"}`, string(cfg.AdminSettings))
+	assert.JSONEq(t, `{"defaults":{"theme":"dark"}}`, string(cfg.AdminSettings))
 	assert.Len(t, cfg.compiledProxyURLs, 1)
 
 	_, err := loadAdminSettings(filepath.Join(t.TempDir(), "missing.json"))

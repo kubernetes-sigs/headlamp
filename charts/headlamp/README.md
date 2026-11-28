@@ -148,6 +148,7 @@ $ helm upgrade my-headlamp headlamp/headlamp \
 | config.clusterAPI.enabled | bool | `false` | Enable Cluster API v1beta2 discovery with per-user OIDC |
 | config.clusterAPI.labelSelector | string | `"!headlamp.dev/ignore"` | Select Cluster API Cluster resources |
 | config.clusterAPI.namespaces | list | `[]` | Management namespaces; empty uses each root default, `["*"]` watches all |
+| config.settings   | object \| string \| null | `null` | Distributed admin settings (inline YAML/JSON string, structured object, or `existingConfigMap`/`existingSecret` reference) |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
 | config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
@@ -267,6 +268,96 @@ in the selected namespaces. `config.clusterAPI.labelSelector` defaults to
 `!headlamp.dev/ignore`. With empty `namespaces`, discovery uses the pod namespace
 in-cluster or the management kubeconfig context's namespace outside a cluster.
 Use `["*"]` only when discovery has equivalent cluster-wide permissions.
+
+### Distributed Settings Configuration
+
+Headlamp supports distributed admin settings via `config.settings`. You can provide settings inline (as a YAML/JSON string or as a structured YAML object) or reference an externally managed ConfigMap or Secret.
+
+#### Inline settings (chart-managed ConfigMap)
+
+When inline settings are provided, the chart renders a ConfigMap (`<fullname>-settings`) containing `settings.json`, mounts it at `/etc/headlamp/settings.json`, adds `-settings=/etc/headlamp/settings.json` to the container arguments (unless `-settings` / `--settings` is already passed in `config.extraArgs`), and sets a `checksum/settings` pod annotation so updates trigger a rollout.
+
+```yaml
+config:
+  settings: |
+    defaults:
+      tableRowsPerPageOptions: [10, 20, 50]
+      timezone:
+        $display: disabled
+        $value: UTC
+      clusters:
+        "*":
+          nodeShellTerminal:
+            linuxImage: busybox:1.36
+            isEnabled:
+              $display: disabled
+              $value: false
+    clusterDefinedSettings:
+      "*":
+        - name: headlamp-settings
+          type: configmap
+          namespace: headlamp-tools
+```
+
+You can also pass the same structure directly as a YAML object under `config.settings` so `helm lint` / `helm template` validates every field against `values.schema.json`:
+
+```yaml
+config:
+  settings:
+    defaults:
+      tableRowsPerPageOptions: [10, 20, 50]
+      clusters:
+        "*":
+          nodeShellTerminal:
+            linuxImage: busybox:1.36
+            isEnabled: false
+```
+
+#### Existing ConfigMap or Secret
+
+To mount a ConfigMap or Secret managed outside the chart (no ConfigMap is rendered by the chart):
+
+```yaml
+config:
+  settings:
+    existingConfigMap: headlamp-settings
+    # Or use an existing Secret instead:
+    # existingSecret: headlamp-settings
+    key: settings.json # optional; defaults to settings.json
+```
+
+#### Supported settings structure and paths
+
+At startup, the Headlamp backend validates the `--settings` JSON file against the admin settings JSON schema and fails fast with a descriptive error if unknown or malformed keys are found.
+
+Top-level keys:
+- `defaults`: Admin default values and display/cluster-override rules.
+- `clusterDefinedSettings`: Cluster allow-list and in-cluster ConfigMap/Secret sources (`["*"]`, `["prod", "dev"]`, or `{ "<cluster>": [{ "name": "...", "type": "configmap" | "secret", "namespace": "..." }] }`).
+
+Individual setting values can be plain values or wrapper objects `{ "$value": <value>, "$display": "normal" | "disabled" | "hidden", "$clusterDefined": ["*"] }`. The `defaults.clusters` and `defaults.plugins` containers must remain unwrapped maps.
+
+Schema-accepted paths under `defaults`:
+
+Acceptance by the schema does not guarantee that every consumer uses distributed settings. In particular, `defaults.clusters.<clusterOrWildcard>.podDebugTerminal.debugImage` and `.isEnabled` still use browser-local cluster settings; configuring them here does not change pod debugging behavior.
+- `defaults.tableRowsPerPageOptions` (`int[]`, positive integers)
+- `defaults.timezone` (`string`, IANA timezone name)
+- `defaults.sidebarSortAlphabetically` (`bool`)
+- `defaults.expandLargeGraph` (`bool`)
+- `defaults.useEvict` (`bool`)
+- `defaults.tutorialTooltips` (`bool`)
+- `defaults.theme` (`string` or `{ "light": "...", "dark": "..." }`)
+- `defaults.clusters.<clusterOrWildcard>.defaultNamespace` (`string`)
+- `defaults.clusters.<clusterOrWildcard>.allowedNamespaces` (`string[]`)
+- `defaults.clusters.<clusterOrWildcard>.allowedNamespacesSelector` (`string`)
+- `defaults.clusters.<clusterOrWildcard>.currentName` (`string`)
+- `defaults.clusters.<clusterOrWildcard>.nodeShellTerminal.linuxImage` (`string`)
+- `defaults.clusters.<clusterOrWildcard>.nodeShellTerminal.namespace` (`string`)
+- `defaults.clusters.<clusterOrWildcard>.nodeShellTerminal.isEnabled` (`bool`)
+- `defaults.clusters.<clusterOrWildcard>.podDebugTerminal.debugImage` (`string`)
+- `defaults.clusters.<clusterOrWildcard>.podDebugTerminal.isEnabled` (`bool`)
+- `defaults.clusters.<clusterOrWildcard>.appearance.accentColor` (`string`)
+- `defaults.clusters.<clusterOrWildcard>.appearance.icon` (`string`)
+- `defaults.plugins.<pluginName>.<key>` (plugin-specific configuration)
 
 ### Deployment Configuration
 

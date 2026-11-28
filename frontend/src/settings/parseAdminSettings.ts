@@ -42,7 +42,36 @@ export function parseAdminSettings(raw: RawSettings): ParseResult {
   const display: Record<string, DisplayMode> = {};
   const clusterDefined: Record<string, string[]> = {};
 
-  const defaults = raw.defaults ? structuredClone(raw.defaults) : {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    console.warn('Admin settings payload is not an object; ignoring.', raw);
+    return {
+      defaults: {},
+      display,
+      clusterDefinedSettings: {},
+      clusterDefined,
+      sources: {},
+    };
+  }
+
+  for (const key of Object.keys(raw)) {
+    if (key !== 'defaults' && key !== 'clusterDefinedSettings') {
+      console.warn(
+        `Unknown top-level admin settings key "${key}" will be ignored; expected "defaults" or "clusterDefinedSettings".`
+      );
+    }
+  }
+
+  if (
+    raw.defaults !== undefined &&
+    (typeof raw.defaults !== 'object' || raw.defaults === null || Array.isArray(raw.defaults))
+  ) {
+    console.warn('Admin settings "defaults" must be an object; ignoring.');
+  }
+
+  const defaults =
+    raw.defaults && typeof raw.defaults === 'object' && !Array.isArray(raw.defaults)
+      ? structuredClone(raw.defaults)
+      : {};
   unwrapTree(defaults, '', display, clusterDefined);
 
   const sources = resolveClusterSources(raw.clusterDefinedSettings);
@@ -103,8 +132,17 @@ function extractDisplay(
   display: Record<string, DisplayMode>
 ) {
   const d = obj.$display;
+  if (d === undefined) {
+    return;
+  }
   if (d === 'disabled' || d === 'hidden') {
     display[path] = d;
+  } else if (d !== 'normal') {
+    console.warn(
+      `Invalid $display mode "${String(
+        d
+      )}" at "${path}"; expected "normal", "disabled", or "hidden".`
+    );
   }
 }
 
@@ -114,8 +152,13 @@ function extractClusterDefined(
   clusterDefined: Record<string, string[]>
 ) {
   const cd = obj.$clusterDefined;
+  if (cd === undefined) {
+    return;
+  }
   if (Array.isArray(cd)) {
     clusterDefined[path] = cd.filter((c): c is string => typeof c === 'string');
+  } else {
+    console.warn(`Invalid $clusterDefined at "${path}"; expected an array of cluster names.`);
   }
 }
 
@@ -146,18 +189,28 @@ function resolveClusterSources(clusterDefinedSettings: any): Record<string, Sett
   }
 
   // Long form: { "*": [...], "prod": [...] }
-  if (typeof clusterDefinedSettings === 'object') {
+  if (typeof clusterDefinedSettings === 'object' && !Array.isArray(clusterDefinedSettings)) {
     const sources: Record<string, SettingsSource[]> = {};
     for (const [cluster, rawSources] of Object.entries(clusterDefinedSettings)) {
       if (!Array.isArray(rawSources)) {
+        console.warn(
+          `Invalid clusterDefinedSettings entry for cluster "${cluster}"; expected an array of sources.`
+        );
         continue;
       }
 
       const validSources = (rawSources as any[])
-        .filter(
-          s =>
-            typeof s === 'object' && s !== null && typeof s.name === 'string' && s.name.length > 0
-        )
+        .filter(s => {
+          const valid =
+            typeof s === 'object' && s !== null && typeof s.name === 'string' && s.name.length > 0;
+          if (!valid) {
+            console.warn(
+              `Ignoring malformed clusterDefinedSettings source for cluster "${cluster}": missing non-empty "name".`,
+              s
+            );
+          }
+          return valid;
+        })
         .map(s => ({
           name: s.name as string,
           type: typeof s.type === 'string' ? s.type : DEFAULT_SOURCE_TYPE,
@@ -171,6 +224,7 @@ function resolveClusterSources(clusterDefinedSettings: any): Record<string, Sett
     return sources;
   }
 
+  console.warn('Invalid clusterDefinedSettings format; expected an array or object.');
   return {};
 }
 
