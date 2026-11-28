@@ -275,14 +275,12 @@ class MultiPluginManager {
 
     // after installation, clean up plugins that are not in the config
     const configuredPlugins = new Set(
-      config.plugins.map(p =>
-        p.source
-          ?.replace(/^\/+|\/+$/g, '') // remove leading and trailing slashes
-          .split('/')
-          ?.pop()
-      )
+      config.plugins.map(plugin => PluginManagement.getPluginDestinationName(plugin.source))
     );
-    this._cleanupUnusedPlugins(configuredPlugins);
+    // A rejected install must not remove the last working plugins during reconciliation.
+    if (failedPlugins.size === 0 && skippedPlugins.size === 0) {
+      this._cleanupUnusedPlugins(configuredPlugins);
+    }
 
     const result = {
       total: pluginsNames.length,
@@ -346,6 +344,17 @@ class MultiPluginManager {
       const duplicateSources = sources.filter((source, index) => sources.indexOf(source) !== index);
       if (duplicateSources.length > 0) {
         throw new Error(`Duplicate plugin sources found: ${duplicateSources.join(', ')}`);
+      }
+      // Config aliases do not select folders: installation uses the package name.
+      // Compare case-insensitively to keep configurations portable to Windows.
+      const destinations = new Map();
+      for (const plugin of config.plugins) {
+        const destination = PluginManagement.getPluginDestinationName(plugin.source);
+        const key = destination.toLowerCase();
+        if (destinations.has(key)) {
+          throw new Error(`Duplicate plugin destination "${destination}": ${destinations.get(key)} and ${plugin.source}`);
+        }
+        destinations.set(key, plugin.source);
       }
       this._checkCircularDependencies(config.plugins);
       return config;
