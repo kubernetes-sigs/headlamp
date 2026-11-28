@@ -86,13 +86,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-172hjuw"
+              class="MuiBox-root css-x2s6p3"
             >
-              <span
-                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+              <div
+                class="MuiBox-root css-1xhmi63"
               >
-                cluster2
-              </span>
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                  title="cluster2"
+                >
+                  cluster2
+                </span>
+              </div>
             </div>
             <div
               class="MuiListItemText-root MuiListItemText-dense css-krqs19-MuiListItemText-root"
@@ -115,13 +120,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-172hjuw"
+              class="MuiBox-root css-x2s6p3"
             >
-              <span
-                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+              <div
+                class="MuiBox-root css-1xhmi63"
               >
-                cluster1
-              </span>
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                  title="cluster1"
+                >
+                  cluster1
+                </span>
+              </div>
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
@@ -135,13 +145,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-172hjuw"
+              class="MuiBox-root css-x2s6p3"
             >
-              <span
-                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+              <div
+                class="MuiBox-root css-1xhmi63"
               >
-                cluster3
-              </span>
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                  title="cluster3"
+                >
+                  cluster3
+                </span>
+              </div>
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
@@ -159,13 +174,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-172hjuw"
+              class="MuiBox-root css-x2s6p3"
             >
-              <span
-                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+              <div
+                class="MuiBox-root css-1xhmi63"
               >
-                cluster0
-              </span>
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                  title="cluster0"
+                >
+                  cluster0
+                </span>
+              </div>
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
@@ -179,13 +199,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-172hjuw"
+              class="MuiBox-root css-x2s6p3"
             >
-              <span
-                class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+              <div
+                class="MuiBox-root css-1xhmi63"
               >
-                cluster4
-              </span>
+                <span
+                  class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                  title="cluster4"
+                >
+                  cluster4
+                </span>
+              </div>
             </div>
             <span
               class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"

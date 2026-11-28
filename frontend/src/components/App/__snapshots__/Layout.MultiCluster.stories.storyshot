@@ -220,22 +220,32 @@
                                 style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;"
                               >
                                 <div
-                                  class="MuiBox-root css-172hjuw"
+                                  class="MuiBox-root css-x2s6p3"
                                 >
-                                  <span
-                                    class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                                  <div
+                                    class="MuiBox-root css-1xhmi63"
                                   >
-                                    minikube
-                                  </span>
+                                    <span
+                                      class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                                      title="minikube"
+                                    >
+                                      minikube
+                                    </span>
+                                  </div>
                                 </div>
                                 <div
-                                  class="MuiBox-root css-172hjuw"
+                                  class="MuiBox-root css-x2s6p3"
                                 >
-                                  <span
-                                    class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                                  <div
+                                    class="MuiBox-root css-1xhmi63"
                                   >
-                                    production
-                                  </span>
+                                    <span
+                                      class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                                      title="production"
+                                    >
+                                      production
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
                             </div>

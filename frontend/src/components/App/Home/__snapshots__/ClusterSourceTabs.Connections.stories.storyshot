@@ -620,18 +620,20 @@
                     href="/c/inventory-production-direct/"
                   >
                     <div
-                      class="MuiBox-root css-172hjuw"
+                      class="MuiBox-root css-x2s6p3"
                     >
                       <div
-                        class="MuiBox-root css-31l7gp"
+                        class="MuiBox-root css-1xhmi63"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-caption css-1catroc-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                          title="production"
                         >
                           production
                         </span>
                         <span
-                          class="MuiTypography-root MuiTypography-caption css-q99ks0-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-caption css-cfisbr-MuiTypography-root"
+                          title="Cluster Inventory API · team-a · direct"
                         >
                           Cluster Inventory API · team-a · direct
                         </span>
@@ -741,18 +743,20 @@
                     href="/c/inventory-production-gateway/"
                   >
                     <div
-                      class="MuiBox-root css-172hjuw"
+                      class="MuiBox-root css-x2s6p3"
                     >
                       <div
-                        class="MuiBox-root css-31l7gp"
+                        class="MuiBox-root css-1xhmi63"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-caption css-1catroc-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                          title="production"
                         >
                           production
                         </span>
                         <span
-                          class="MuiTypography-root MuiTypography-caption css-q99ks0-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-caption css-cfisbr-MuiTypography-root"
+                          title="Cluster Inventory API · team-a · gateway"
                         >
                           Cluster Inventory API · team-a · gateway
                         </span>

@@ -637,13 +637,18 @@
                   href="/c/aks-prod/"
                 >
                   <div
-                    class="MuiBox-root css-172hjuw"
+                    class="MuiBox-root css-x2s6p3"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1xhmi63"
                     >
-                      aks-prod
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                        title="aks-prod"
+                      >
+                        aks-prod
+                      </span>
+                    </div>
                   </div>
                 </a>
               </span>

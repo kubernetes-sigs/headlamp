@@ -544,13 +544,18 @@
                   href="/c/aks-prod/"
                 >
                   <div
-                    class="MuiBox-root css-172hjuw"
+                    class="MuiBox-root css-x2s6p3"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1xhmi63"
                     >
-                      aks-prod
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                        title="aks-prod"
+                      >
+                        aks-prod
+                      </span>
+                    </div>
                   </div>
                 </a>
               </span>
@@ -656,13 +661,18 @@
                   href="/c/in-cluster/"
                 >
                   <div
-                    class="MuiBox-root css-172hjuw"
+                    class="MuiBox-root css-x2s6p3"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1xhmi63"
                     >
-                      in-cluster
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                        title="in-cluster"
+                      >
+                        in-cluster
+                      </span>
+                    </div>
                   </div>
                 </a>
               </span>
@@ -768,13 +778,18 @@
                   href="/c/plugin-cluster/"
                 >
                   <div
-                    class="MuiBox-root css-172hjuw"
+                    class="MuiBox-root css-x2s6p3"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1xhmi63"
                     >
-                      plugin-cluster
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                        title="plugin-cluster"
+                      >
+                        plugin-cluster
+                      </span>
+                    </div>
                   </div>
                 </a>
               </span>
@@ -880,13 +895,18 @@
                   href="/c/spoke-a/"
                 >
                   <div
-                    class="MuiBox-root css-172hjuw"
+                    class="MuiBox-root css-x2s6p3"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1xhmi63"
                     >
-                      spoke-a
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-7yd7zo-MuiTypography-root"
+                        title="spoke-a"
+                      >
+                        spoke-a
+                      </span>
+                    </div>
                   </div>
                 </a>
               </span>
