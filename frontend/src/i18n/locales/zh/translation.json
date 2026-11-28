@@ -1073,6 +1073,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "最小可用",
+  "Unhealthy Pod Eviction Policy": "",
   "All pods in the namespace": "",
   "Allowed disruptions": "允许的中断",
   "Current//context:pods": "当前",

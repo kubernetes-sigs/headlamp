@@ -58,6 +58,11 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
             value: <>{item.spec.minAvailable}</>,
           },
           {
+            name: t('translation|Unhealthy Pod Eviction Policy'),
+            value: item.spec.unhealthyPodEvictionPolicy,
+            hide: !item.spec.unhealthyPodEvictionPolicy,
+          },
+          {
             name: t('glossary|Selector'),
             // In policy/v1 an empty selector ({}) selects every pod in the
             // namespace, while a missing selector selects none.

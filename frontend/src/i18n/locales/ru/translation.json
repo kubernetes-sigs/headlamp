@@ -1097,6 +1097,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Минимальный доступный",
+  "Unhealthy Pod Eviction Policy": "",
   "All pods in the namespace": "",
   "Allowed disruptions": "Разрешённые сбои",
   "Current//context:pods": "Текущие",

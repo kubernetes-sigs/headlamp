@@ -1073,6 +1073,7 @@
   "Not generated yet": "",
   "Source": "",
   "Min Available": "Menit Tersedia",
+  "Unhealthy Pod Eviction Policy": "",
   "All pods in the namespace": "",
   "Allowed disruptions": "Gangguan yang diizinkan",
   "Current//context:pods": "Saat ini",
