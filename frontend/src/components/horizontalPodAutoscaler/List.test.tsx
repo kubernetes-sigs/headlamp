@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 import HpaList from './List';
@@ -28,7 +28,7 @@ vi.mock('../../lib/k8s/hpa', () => ({
 }));
 
 vi.mock('../common/Link', () => ({
-  default: ({ children }: any) => children,
+  default: ({ children }: any) => <a href="/reference">{children}</a>,
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({
@@ -91,6 +91,30 @@ describe('HpaList', () => {
     expect(getColumn('maxReplicas').getValue(hpa)).toBe(5);
     expect(getColumn('currentReplicas').getValue(hpa)).toBe(2);
     expect(getColumn('targets').getValue(hpa)).toBe('50%/80%, 10/20');
+  });
+
+  it('renders a raw target reference as plain text after a group mismatch', () => {
+    render(
+      <TestContext>
+        <HpaList />
+      </TestContext>
+    );
+    const mismatchedHpa = {
+      referenceObject: null,
+      spec: {
+        scaleTargetRef: {
+          apiVersion: 'example.com/v1',
+          kind: 'Deployment',
+          name: 'custom-deployment',
+        },
+      },
+    } as any;
+
+    render(getColumn('reference').render(mismatchedHpa));
+
+    expect(getColumn('reference').getValue(mismatchedHpa)).toBe('custom-deployment');
+    expect(screen.getByText('Deployment/custom-deployment')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Deployment/custom-deployment' })).toBeNull();
   });
 
   it('safely handles resources with undefined status and spec without throwing', () => {

@@ -28,7 +28,7 @@ vi.mock('../../lib/k8s/hpa', () => ({
 }));
 
 vi.mock('../common/Link', () => ({
-  default: ({ children }: any) => children,
+  default: ({ children }: any) => <a href="/reference">{children}</a>,
 }));
 
 vi.mock('../common/SimpleTable', () => ({
@@ -84,6 +84,33 @@ describe('HpaDetails', () => {
 
     expect(byName['MinReplicas']).toBe(1);
     expect(byName['MaxReplicas']).toBe(5);
+  });
+
+  it('renders a raw target reference as plain text after a group mismatch', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-hpa' }}>
+        <HpaDetails />
+      </TestContext>
+    );
+    const mismatchedHpa = {
+      ...hpa,
+      referenceObject: null,
+      spec: {
+        ...hpa.spec,
+        scaleTargetRef: {
+          apiVersion: 'example.com/v1',
+          kind: 'Deployment',
+          name: 'custom-deployment',
+        },
+      },
+    };
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const reference = props
+      .extraInfo(mismatchedHpa)
+      .find((field: any) => field.name.includes('Reference'));
+
+    expect(reference.value).toBe('Deployment/custom-deployment');
   });
 
   it('hides the Last Scale Time row when there is no scale time', () => {

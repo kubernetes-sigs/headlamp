@@ -303,6 +303,19 @@ describe('HPA class', () => {
     } as any);
     expect(hpaUnknown.referenceObject).toBeNull();
 
+    const hpaGroupMismatch = new HPA({
+      ...mockHpaData,
+      spec: {
+        ...mockHpaData.spec,
+        scaleTargetRef: {
+          apiVersion: 'example.com/v1',
+          kind: 'Deployment',
+          name: 'custom-deployment',
+        },
+      },
+    } as any);
+    expect(hpaGroupMismatch.referenceObject).toBeNull();
+
     const hpaNoRef = new HPA({
       ...mockHpaData,
       spec: { ...mockHpaData.spec, scaleTargetRef: undefined as any },

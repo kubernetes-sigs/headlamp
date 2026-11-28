@@ -30,7 +30,10 @@ const { endpoints, mockActivityLaunch } = vi.hoisted(() => ({
 
 // Importing the real k8s classes here runs into the lib/k8s import cycle, so only stub what
 // this page imports from there.
-vi.mock('../../lib/k8s', () => ({ ResourceClasses: { Pod: { detailsRoute: 'Pod' } } }));
+vi.mock('../../lib/k8s', () => ({
+  ResourceClasses: { Pod: { detailsRoute: 'Pod' } },
+  getResourceClass: (kind: string) => (kind === 'Pod' ? { detailsRoute: 'Pod' } : null),
+}));
 vi.mock('../../lib/k8s/endpoints', () => ({ default: { kind: 'Endpoints' } }));
 
 // With the details drawer on (the default), Link opens the Pod through Activity.launch.

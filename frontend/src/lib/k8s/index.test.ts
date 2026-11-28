@@ -26,7 +26,13 @@ import { useClusterTags } from '../../components/App/Home/useClusterTags';
 import { loadClusterTags, storeClusterTags } from '../../helpers/clusterTags';
 import configReducer, { setConfig, setStatelessConfig } from '../../redux/configSlice';
 import { createRouteURL } from '../router/createRouteURL';
-import { labelSelectorToQuery, ResourceClasses, useClustersConf, useClustersVersion } from '.';
+import {
+  getResourceClass,
+  labelSelectorToQuery,
+  ResourceClasses,
+  useClustersConf,
+  useClustersVersion,
+} from '.';
 import * as clusterApi from './api/v1/clusterApi';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { Cluster, LabelSelector } from './cluster';
@@ -618,5 +624,60 @@ describe('Namespace testing', () => {
       expect(makeNamespace('renamed', 'kube-system').isProtected()).toBe(true);
       expect(makeNamespace('kube-system', 'my-app').isProtected()).toBe(false);
     });
+  });
+});
+
+describe('getResourceClass', () => {
+  it('returns null for a kind that has no registered class', () => {
+    expect(getResourceClass('TotallyUnknownKind')).toBeNull();
+  });
+
+  it('returns the class unchanged when no apiVersion is given, even for a known kind', () => {
+    expect(getResourceClass('Pod')).toBe(ResourceClasses.Pod);
+  });
+
+  it('matches a core-group (bare version) apiVersion against a class declaring "v1"', () => {
+    expect(getResourceClass('Pod', 'v1')).toBe(ResourceClasses.Pod);
+  });
+
+  it('matches a grouped apiVersion against a class declaring the same group/version', () => {
+    expect(getResourceClass('Deployment', 'apps/v1')).toBe(ResourceClasses.Deployment);
+  });
+
+  it('matches when the version differs but the group matches', () => {
+    // PodDisruptionBudget is registered as policy/v1, but a CRD/older cluster
+    // reporting policy/v1beta1 is still the same group and should match.
+    expect(getResourceClass('PodDisruptionBudget', 'policy/v1beta1')).toBe(
+      ResourceClasses.PodDisruptionBudget
+    );
+  });
+
+  it('matches against any entry when the static apiVersion is an array', () => {
+    expect(getResourceClass('Gateway', 'gateway.networking.k8s.io/v1beta1')).toBe(
+      ResourceClasses.Gateway
+    );
+  });
+
+  it('returns null when the kind matches but the group does not (issue #7321)', () => {
+    // Reproduces the reported ambiguity: a CRD (e.g. Kueue's kueue.x-k8s.io/v1beta1
+    // Workload) can share a kind name with a built-in resource registered under a
+    // different group (here: PriorityClass under scheduling.k8s.io/v1). Only the
+    // group match should resolve to the built-in class.
+    expect(getResourceClass('PriorityClass', 'kueue.x-k8s.io/v1beta1')).toBeNull();
+    expect(getResourceClass('PriorityClass', 'scheduling.k8s.io/v1')).toBe(
+      ResourceClasses.PriorityClass
+    );
+  });
+
+  it('returns null for inherited Object.prototype properties instead of throwing', () => {
+    // `kind` can come straight off the wire (e.g. an ownerReference or an advanced-search
+    // result). A kind like "constructor" or "toString" is not an own property of the
+    // ResourceClasses map, but a plain `obj[kind]` lookup still finds it on the prototype
+    // chain, so it must be rejected before any apiVersion handling touches it.
+    expect(getResourceClass('constructor')).toBeNull();
+    expect(getResourceClass('toString')).toBeNull();
+    expect(() => getResourceClass('constructor', 'v1')).not.toThrow();
+    expect(getResourceClass('constructor', 'v1')).toBeNull();
+    expect(getResourceClass('hasOwnProperty', 'apps/v1')).toBeNull();
   });
 });

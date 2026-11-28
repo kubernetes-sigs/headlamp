@@ -50,13 +50,17 @@ export default function HpaList() {
         {
           id: 'reference',
           label: t('translation|Reference'),
-          getValue: item => item.referenceObject?.metadata?.name,
-          render: item =>
-            item.referenceObject ? (
+          getValue: item => item.referenceObject?.metadata?.name ?? item.spec?.scaleTargetRef?.name,
+          render: item => {
+            const target = item.spec?.scaleTargetRef;
+            return item.referenceObject ? (
               <Link kubeObject={item.referenceObject}>
                 {item.referenceObject?.kind}/{item.referenceObject?.metadata?.name}
               </Link>
-            ) : null,
+            ) : target?.kind && target?.name ? (
+              `${target.kind}/${target.name}`
+            ) : null;
+          },
         },
         {
           id: 'targets',
