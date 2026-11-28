@@ -19,7 +19,13 @@ import { http, HttpResponse } from 'msw';
 import { expect, within } from 'storybook/test';
 import { TestContext } from '../../test';
 import ServiceCIDRDetails from './Details';
-import { allowsActions, collection, collectionUrl, serviceCIDR } from './storyHelper';
+import {
+  allowsActions,
+  betaNotServed,
+  collection,
+  collectionUrl,
+  serviceCIDR,
+} from './storyHelper';
 
 const meta = {
   title: 'ServiceCIDR/Details',
@@ -47,6 +53,7 @@ export const DualStack: Story = {
           allowsActions,
           collection,
           http.get(detailsUrl(serviceCIDR.metadata.name), () => HttpResponse.json(serviceCIDR)),
+          ...betaNotServed,
         ],
       },
     },
@@ -70,6 +77,7 @@ export const Loading: Story = {
           allowsActions,
           collection,
           http.get(detailsUrl(serviceCIDR.metadata.name), () => new Promise(() => {})),
+          ...betaNotServed,
         ],
       },
     },
@@ -84,6 +92,7 @@ export const Error: Story = {
           allowsActions,
           collection,
           http.get(detailsUrl(serviceCIDR.metadata.name), () => HttpResponse.error()),
+          ...betaNotServed,
         ],
       },
     },

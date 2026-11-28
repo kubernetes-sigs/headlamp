@@ -21,6 +21,7 @@ import { API_BASE, TestContext } from '../../test';
 import IPAddressDetails from './Details';
 import {
   allowsActions,
+  betaNotServed,
   collection,
   collectionUrl,
   externalAddress,
@@ -63,6 +64,7 @@ function handlersFor(
             : HttpResponse.json({ message: 'IPAddress not found' }, { status: 404 })
         ),
         ...parentHandlers,
+        ...betaNotServed,
       ],
     },
   };
@@ -148,6 +150,7 @@ export const Loading: Story = {
           allowsActions,
           collection,
           http.get(detailsUrl(serviceAddress.metadata.name), () => new Promise(() => {})),
+          ...betaNotServed,
         ],
       },
     },
@@ -162,6 +165,7 @@ export const Error: Story = {
           allowsActions,
           collection,
           http.get(detailsUrl(serviceAddress.metadata.name), () => HttpResponse.error()),
+          ...betaNotServed,
         ],
       },
     },

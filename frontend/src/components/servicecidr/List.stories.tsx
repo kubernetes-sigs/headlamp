@@ -19,7 +19,7 @@ import { http, HttpResponse } from 'msw';
 import { expect, within } from 'storybook/test';
 import { TestContext } from '../../test';
 import ServiceCIDRList from './List';
-import { allowsActions, collection, collectionUrl, discovery } from './storyHelper';
+import { allowsActions, betaNotServed, collection, collectionUrl, discovery } from './storyHelper';
 
 const meta = {
   title: 'ServiceCIDR/List',
@@ -31,7 +31,9 @@ const meta = {
       </TestContext>
     ),
   ],
-  parameters: { msw: { handlers: { story: [allowsActions, discovery, collection] } } },
+  parameters: {
+    msw: { handlers: { story: [allowsActions, discovery, collection, ...betaNotServed] } },
+  },
 } satisfies Meta<typeof ServiceCIDRList>;
 export default meta;
 
@@ -58,7 +60,12 @@ export const Loading: Story = {
     storyshots: { disable: true },
     msw: {
       handlers: {
-        story: [allowsActions, discovery, http.get(collectionUrl, () => new Promise(() => {}))],
+        story: [
+          allowsActions,
+          discovery,
+          http.get(collectionUrl, () => new Promise(() => {})),
+          ...betaNotServed,
+        ],
       },
     },
   },
@@ -68,7 +75,12 @@ export const Error: Story = {
   parameters: {
     msw: {
       handlers: {
-        story: [allowsActions, discovery, http.get(collectionUrl, () => HttpResponse.error())],
+        story: [
+          allowsActions,
+          discovery,
+          http.get(collectionUrl, () => HttpResponse.error()),
+          ...betaNotServed,
+        ],
       },
     },
   },

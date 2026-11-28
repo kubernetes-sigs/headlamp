@@ -19,8 +19,17 @@ import type { KubeIPAddress } from '../../lib/k8s/ipAddress';
 import { API_BASE } from '../../test';
 
 const apiVersion = 'networking.k8s.io/v1';
+const betaApiVersion = 'networking.k8s.io/v1beta1';
 const api = `${API_BASE}/clusters/main/apis/${apiVersion}`;
+const betaApi = `${API_BASE}/clusters/main/apis/${betaApiVersion}`;
 export const collectionUrl = `${api}/ipaddresses`;
+const betaCollectionUrl = `${betaApi}/ipaddresses`;
+
+const notServed = () =>
+  HttpResponse.json(
+    { kind: 'Status', status: 'Failure', reason: 'NotFound', code: 404 },
+    { status: 404 }
+  );
 
 export const serviceAddress: KubeIPAddress = {
   apiVersion,
@@ -68,3 +77,15 @@ export const collection = http.get(collectionUrl, () =>
     items: [serviceAddress, externalAddress],
   })
 );
+
+/**
+ * The beta endpoints a cluster that serves v1 answers with a 404.
+ *
+ * IPAddress is declared under both v1 and v1beta1, and endpoint selection probes
+ * every declared version at once, so a story answering v1 alone leaves the beta
+ * request unhandled. Every story needs these, the error ones included.
+ */
+export const betaNotServed = [
+  http.get(betaCollectionUrl, () => notServed()),
+  http.get(`${betaCollectionUrl}/:name`, () => notServed()),
+];
