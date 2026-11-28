@@ -150,20 +150,16 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     });
 
     recentClusters.sort((a, b) => {
-      if (a.isCurrent) {
-        return -1;
-      } else if (b.isCurrent) {
-        return 1;
+      if (!!a.isCurrent !== !!b.isCurrent) {
+        return a.isCurrent ? -1 : 1;
       }
 
       return recentClustersNames.indexOf(a.name) - recentClustersNames.indexOf(b.name);
     });
 
     clustersToShow.sort((a, b) => {
-      if (a.isCurrent) {
-        return -1;
-      } else if (b.isCurrent) {
-        return 1;
+      if (!!a.isCurrent !== !!b.isCurrent) {
+        return a.isCurrent ? -1 : 1;
       }
 
       return getClusterDisplayName(a).localeCompare(getClusterDisplayName(b));
