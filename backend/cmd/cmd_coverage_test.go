@@ -364,8 +364,8 @@ func TestMultiplexerProcessClientMessage(t *testing.T) {
 	m := NewMultiplexer(store, false)
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/wsMultiplexer", nil)
 
-	targetKey := m.createConnectionKey("c1", "/p", "u1")
-	otherKey := m.createConnectionKey("c1", "/other", "u1")
+	targetKey := m.createConnectionKey("c1", "/p", "", "u1")
+	otherKey := m.createConnectionKey("c1", "/other", "", "u1")
 
 	m.mutex.Lock()
 	m.connections[targetKey] = &Connection{

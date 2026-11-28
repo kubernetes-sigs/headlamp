@@ -153,13 +153,13 @@ type Message struct {
 
 // Multiplexer manages multiple WebSocket connections.
 type Multiplexer struct {
-	// connections is a map of connections indexed by the cluster ID and path.
-	connections map[string]*Connection
+	// connections is a map of connections indexed by their connectionKey.
+	connections map[connectionKey]*Connection
 	// mutex is a mutex to synchronize access to the connections.
 	mutex sync.RWMutex
 	// inFlight tracks the upstream dials in progress, indexed like connections, so concurrent
 	// requests for the same key share one dial. It is guarded by mutex.
-	inFlight map[string]*inFlightDial
+	inFlight map[connectionKey]*inFlightDial
 	// upgrader is the WebSocket upgrader.
 	upgrader websocket.Upgrader
 	// kubeConfigStore is the kubeconfig store.
@@ -258,8 +258,8 @@ func (conn *WSConnLock) Close() error {
 // NewMultiplexer creates a new Multiplexer instance.
 func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
 	return &Multiplexer{
-		connections:                  make(map[string]*Connection),
-		inFlight:                     make(map[string]*inFlightDial),
+		connections:                  make(map[connectionKey]*Connection),
+		inFlight:                     make(map[connectionKey]*inFlightDial),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
@@ -385,6 +385,7 @@ func (c *Connection) writeStatusLocked() error {
 		ClusterID: c.ClusterID,
 		Path:      c.Path,
 		Query:     c.Query,
+		UserID:    c.UserID,
 		Data:      string(jsonData),
 		Type:      "STATUS",
 	}
@@ -426,11 +427,14 @@ func (c *Connection) safeClose() {
 }
 
 // dialClusterConnection creates and dials a new WebSocket connection to a Kubernetes cluster without registering it.
+// query is the one the client subscribed with, which the connection and its STATUS messages keep;
+// dialQuery is the one sent to the cluster, which differs when a watch resumes.
 func (m *Multiplexer) dialClusterConnection(
 	clusterID,
 	userID,
 	path,
-	query string,
+	query,
+	dialQuery string,
 	clientConn *WSConnLock,
 	token *string,
 ) (*Connection, error) {
@@ -455,7 +459,7 @@ func (m *Multiplexer) dialClusterConnection(
 		connection.usesServiceAccountToken = true
 	}
 
-	wsURL := createWebSocketURL(config.Host, path, query)
+	wsURL := createWebSocketURL(config.Host, path, dialQuery)
 
 	tlsConfig, err := rest.TLSConfigFor(config)
 	if err != nil {
@@ -486,13 +490,13 @@ func (m *Multiplexer) establishClusterConnection(
 	clientConn *WSConnLock,
 	token *string,
 ) (*Connection, error) {
-	connection, err := m.dialClusterConnection(clusterID, userID, path, query, clientConn, token)
+	connection, err := m.dialClusterConnection(clusterID, userID, path, query, query, clientConn, token)
 	if err != nil {
 		return nil, err
 	}
 
 	m.mutex.Lock()
-	connKey := m.createConnectionKey(clusterID, path, userID, query)
+	connKey := m.createConnectionKey(clusterID, path, query, userID)
 	m.connections[connKey] = connection
 	m.mutex.Unlock()
 
@@ -781,10 +785,13 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		return nil, fmt.Errorf("cannot reconnect closed connection")
 	}
 
+	// Dial with the resume query, but keep the subscribed query on the connection, so its
+	// messages and STATUS notifications still route to the client's subscription.
 	newConn, err := m.dialClusterConnection(
 		conn.ClusterID,
 		conn.UserID,
 		conn.Path,
+		conn.Query,
 		resumeWatchQuery(conn.Query, resourceVersion),
 		client,
 		token,
@@ -801,8 +808,6 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		return nil, err
 	}
 
-	// Keep the query the client subscribed with, so its messages still route to it.
-	newConn.Query = conn.Query
 	newConn.resourceVersion = resourceVersion
 
 	if !m.replaceRegistered(conn, newConn) {
@@ -825,27 +830,13 @@ func (m *Multiplexer) replaceRegistered(conn, newConn *Connection) bool {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
-	registeredKey := connKey
-
-	if m.connections[registeredKey] != conn {
-		legacyKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-
-		if m.connections[legacyKey] == conn {
-			registeredKey = legacyKey
-		}
-	}
-
-	if m.connections[registeredKey] != conn || conn.IsClosed() {
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.Query, conn.UserID)
+	if m.connections[connKey] != conn || conn.IsClosed() {
 		return false
 	}
 
 	if newConn != nil {
-		if registeredKey != connKey {
-			m.connections[registeredKey] = newConn
-		} else {
-			m.connections[connKey] = newConn
-		}
+		m.connections[connKey] = newConn
 	}
 
 	return true
@@ -904,7 +895,7 @@ func (m *Multiplexer) processClientMessage(
 ) {
 	// Check if it's a close message
 	if msg.Type == "CLOSE" {
-		if !m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID, msg.Query) {
+		if !m.CloseConnection(msg.ClusterID, msg.Path, msg.Query, msg.UserID) {
 			statusData := []byte(`{"state":"closed","error":""}`)
 			_ = lockClientConn.WriteJSON(Message{
 				ClusterID: msg.ClusterID,
@@ -1023,15 +1014,11 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 		}
 	}
 
-	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID, msg.Query)
+	connKey := m.createConnectionKey(msg.ClusterID, msg.Path, msg.Query, msg.UserID)
 
 	m.mutex.RLock()
 
 	conn, exists := m.connections[connKey]
-
-	if !exists {
-		conn, exists = m.connections[m.createConnectionKey(msg.ClusterID, msg.Path, msg.UserID)]
-	}
 
 	m.mutex.RUnlock()
 
@@ -1069,7 +1056,7 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 // caller already started for it. created is true only for the caller that dialed.
 // mutex is not held during the dial so other clusters are not blocked.
 func (m *Multiplexer) establishSharedConnection(
-	connKey string,
+	connKey connectionKey,
 	msg Message,
 	clientConn *WSConnLock,
 	token *string,
@@ -1460,14 +1447,9 @@ func (m *Multiplexer) sendDataMessage(
 func (m *Multiplexer) removeConnection(conn *Connection) {
 	m.mutex.Lock()
 
-	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID, conn.Query)
+	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.Query, conn.UserID)
 	if m.connections[connKey] == conn {
 		delete(m.connections, connKey)
-	} else {
-		legacyKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-		if m.connections[legacyKey] == conn {
-			delete(m.connections, legacyKey)
-		}
 	}
 	m.mutex.Unlock()
 
@@ -1516,8 +1498,8 @@ func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, 
 }
 
 // CloseConnection closes a specific connection based on its identifier.
-func (m *Multiplexer) CloseConnection(clusterID, path, userID string, queries ...string) bool {
-	connKey := m.createConnectionKey(clusterID, path, userID, queries...)
+func (m *Multiplexer) CloseConnection(clusterID, path, query, userID string) bool {
+	connKey := m.createConnectionKey(clusterID, path, query, userID)
 
 	m.mutex.Lock()
 
@@ -1540,22 +1522,28 @@ func (m *Multiplexer) CloseConnection(clusterID, path, userID string, queries ..
 	return true
 }
 
-// createConnectionKey creates a unique key for a connection based on cluster ID, path, and user ID.
-// Uses string concatenation instead of fmt.Sprintf to avoid allocation overhead
-// on this hot path (called on every WebSocket message routing).
-func (m *Multiplexer) createConnectionKey(clusterID, path, userID string, queries ...string) string {
-	query := ""
+// connectionKey identifies a connection. The query is part of it because the frontend keys
+// its subscriptions by cluster, path and query, and two watches on the same path (for example
+// with different resourceVersions) must not share or close each other's connection.
+// A struct keeps the parts separate, so a value containing the separator of a joined string
+// cannot be read as another part. Query parameters are normalized so their order does not matter.
+type connectionKey struct {
+	clusterID string
+	path      string
+	query     string
+	userID    string
+}
 
-	if len(queries) > 0 {
-		values, err := url.ParseQuery(queries[0])
-		if err == nil {
+// createConnectionKey creates the key of a connection from its cluster ID, path, query and
+// user ID.
+func (m *Multiplexer) createConnectionKey(clusterID, path, query, userID string) connectionKey {
+	if query != "" {
+		if values, err := url.ParseQuery(query); err == nil {
 			query = values.Encode()
-		} else {
-			query = queries[0]
 		}
 	}
 
-	return clusterID + ":" + path + ":" + userID + ":" + query
+	return connectionKey{clusterID: clusterID, path: path, query: query, userID: userID}
 }
 
 // createWebSocketURL creates a WebSocket URL from the given parameters.
