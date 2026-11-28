@@ -41,8 +41,8 @@ class StorageClass extends KubeObject<KubeStorageClass> {
   static getBaseObject(): KubeStorageClass {
     const baseObject = super.getBaseObject() as KubeStorageClass;
     baseObject.provisioner = '';
-    baseObject.reclaimPolicy = '';
-    baseObject.volumeBindingMode = '';
+    baseObject.reclaimPolicy = 'Delete';
+    baseObject.volumeBindingMode = 'Immediate';
     baseObject.allowVolumeExpansion = false;
     return baseObject;
   }
