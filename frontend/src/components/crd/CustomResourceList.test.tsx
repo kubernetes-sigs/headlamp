@@ -84,4 +84,18 @@ describe('CustomResourceListTable additionalPrinterColumns priority', () => {
     expect(labels).not.toContain('WideOnlyCol');
     expect(labels).not.toContain('Age');
   });
+
+  it('sorts a date column by time, not by its locale date text', () => {
+    const columns = renderTable([
+      { name: 'Finished', type: 'date', jsonPath: '.status.completionTime' },
+    ]);
+    const finished = columns.find((col: any) => col.label === 'Finished');
+    // In en-US these read "12/31/2025, …" and "1/2/2026, …", and "1/2" sorts first as text.
+    const older = { jsonData: { status: { completionTime: '2025-12-31T09:00:00Z' } } };
+    const newer = { jsonData: { status: { completionTime: '2026-01-02T09:00:00Z' } } };
+
+    expect(typeof finished.sort).toBe('function');
+    expect(finished.sort(older, newer)).toBeLessThan(0);
+    expect(finished.sort(newer, older)).toBeGreaterThan(0);
+  });
 });

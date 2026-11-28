@@ -46,3 +46,15 @@ export function getPrinterColumnValue(
   }
   return value;
 }
+
+/**
+ * Returns the time of a date additionalPrinterColumn in milliseconds, for sorting, or 0
+ * when the field is missing. The displayed value is a locale date string, which doesn't
+ * sort by time.
+ */
+export function getPrinterColumnTime(
+  item: { jsonData: object },
+  colSpec: { jsonPath: string }
+): number {
+  return Date.parse(getValueWithJSONPath(item, colSpec.jsonPath)) || 0;
+}
