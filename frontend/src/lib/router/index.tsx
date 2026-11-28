@@ -55,6 +55,10 @@ import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
 import EndpointSliceList from '../../components/endpointSlices/List';
+import FlowSchemaDetails from '../../components/flowcontrol/FlowSchemaDetails';
+import FlowSchemaList from '../../components/flowcontrol/FlowSchemaList';
+import PriorityLevelDetails from '../../components/flowcontrol/PriorityLevelDetails';
+import PriorityLevelList from '../../components/flowcontrol/PriorityLevelList';
 import BackendTLSPolicyDetails from '../../components/gateway/BackendTLSPolicyDetails';
 import BackendTLSPolicyList from '../../components/gateway/BackendTLSPolicyList';
 import BackendTrafficPolicyDetails from '../../components/gateway/BackendTrafficPolicyDetails';
@@ -683,6 +687,32 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'certificateSigningRequests',
     component: () => <CertificateSigningRequestDetails />,
+  },
+  flowSchemas: {
+    path: '/flowschemas',
+    exact: true,
+    name: 'Flow Schemas',
+    sidebar: 'flowSchemas',
+    component: () => <FlowSchemaList />,
+  },
+  flowSchema: {
+    path: '/flowschemas/:name',
+    exact: true,
+    sidebar: 'flowSchemas',
+    component: () => <FlowSchemaDetails />,
+  },
+  priorityLevelConfigurations: {
+    path: '/prioritylevelconfigurations',
+    exact: true,
+    name: 'Priority Levels',
+    sidebar: 'priorityLevelConfigurations',
+    component: () => <PriorityLevelList />,
+  },
+  priorityLevelConfiguration: {
+    path: '/prioritylevelconfigurations/:name',
+    exact: true,
+    sidebar: 'priorityLevelConfigurations',
+    component: () => <PriorityLevelDetails />,
   },
   clusterTrustBundles: {
     path: '/clustertrustbundles',

@@ -28,6 +28,7 @@ import Deployment from './deployment';
 import DeviceClass from './deviceClass';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
+import FlowSchema from './flowSchema';
 import Gateway from './gateway';
 import GatewayClass from './gatewayClass';
 import GRPCRoute from './grpcRoute';
@@ -51,6 +52,7 @@ import Pod from './pod';
 import PodDisruptionBudget from './podDisruptionBudget';
 import PodGroup from './podGroup';
 import PriorityClass from './priorityClass';
+import PriorityLevelConfiguration from './priorityLevelConfiguration';
 import ReplicaSet from './replicaSet';
 import ResourceClaim from './resourceClaim';
 import ResourceClaimTemplate from './resourceClaimTemplate';
@@ -86,6 +88,7 @@ export const ResourceClasses = {
   Endpoint: Endpoints,
   Endpoints,
   EndpointSlice,
+  FlowSchema,
   LimitRange,
   Lease,
   MutatingAdmissionPolicy,
@@ -98,6 +101,7 @@ export const ResourceClasses = {
   PodGroup,
   CompositePodGroup,
   PriorityClass,
+  PriorityLevelConfiguration,
   Ingress,
   IngressClass,
   Job,
