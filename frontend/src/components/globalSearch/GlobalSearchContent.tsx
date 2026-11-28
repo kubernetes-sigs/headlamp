@@ -26,7 +26,7 @@ import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { lazy, Suspense, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
@@ -56,8 +56,9 @@ import ServiceAccount from '../../lib/k8s/serviceAccount';
 import StatefulSet from '../../lib/k8s/statefulSet';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
+import { getRoute } from '../../lib/router/getRoute';
 import { getClusterPrefixedPath } from '../../lib/util';
-import { setNamespaceFilter } from '../../redux/filterSlice';
+import { setLabelSelectorFilter, setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { setShortcutsDialogOpen } from '../../redux/shortcutsSlice';
 import { Activity } from '../activity/Activity';
@@ -72,6 +73,12 @@ import {
   useIsThemeLocked,
 } from '../Sidebar/ThemeToggleButton/ThemeToggleButton';
 import { Delayed } from './Delayed';
+import {
+  getNextGlobalLabelSelector,
+  getNextGlobalNamespaces,
+  makeGlobalSearchListOptions,
+  parseGlobalSearchLabelSelector,
+} from './labelSelectorSearch';
 import { useLocalStorageState } from './useLocalStorageState';
 import { useRecent } from './useRecent';
 
@@ -123,9 +130,18 @@ const classes: KubeObjectClass[] = [
 /**
  * Loads lists of Kubernetes objects for searching
  */
-function useSearchResources() {
+function useSearchResources(labelSelector: string | null, activeNamespaces: Iterable<string>) {
   const inACluster = useSelectedClusters().length > 0;
-  const results = classes.map(cls => cls.useList({ clusters: inACluster ? undefined : [] }));
+  const results = classes.map(cls =>
+    cls.useList(
+      makeGlobalSearchListOptions(
+        inACluster,
+        labelSelector,
+        cls.supportsLabelSelectorList,
+        activeNamespaces
+      )
+    )
+  );
 
   return useMemo(() => {
     return results.map((result, index) => {
@@ -133,10 +149,23 @@ function useSearchResources() {
         isLoading: result.isFetching,
         items: result.items,
         kind: classes[index].kind,
+        listRoute: classes[index].listRoute,
+        listLabel: getRoute(classes[index].listRoute)?.name ?? classes[index].pluralName,
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results.map(it => it.data)]);
+}
+
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedValue(value), delay);
+    return () => window.clearTimeout(timeout);
+  }, [value, delay]);
+
+  return debouncedValue;
 }
 
 function makeKubeObjectResults(
@@ -144,6 +173,8 @@ function makeKubeObjectResults(
     isLoading: boolean;
     items: KubeObject<any>[] | null;
     kind: string;
+    listRoute: string;
+    listLabel: string;
   }[],
   onClick: (item: KubeObject) => void
 ) {
@@ -175,7 +206,13 @@ interface GlobalSearchContentProps {
   defaultValue: string;
   /** Callback called when the search field loses focus. */
   onBlur: () => void;
+  /** Add namespace and label-selector results to existing global filters instead of replacing them. */
+  addToGlobalFilters?: boolean;
 }
+
+/** Set REACT_APP_HEADLAMP_ADD_TO_GLOBAL_FILTERS=true to make search results additive. */
+const DEFAULT_ADD_TO_GLOBAL_FILTERS =
+  import.meta.env.REACT_APP_HEADLAMP_ADD_TO_GLOBAL_FILTERS === 'true';
 
 /**
  * The `GlobalSearchContent` component provides the search field and results list for global search.
@@ -185,22 +222,31 @@ interface GlobalSearchContentProps {
  * @param props - The component props.
  */
 export function GlobalSearchContent(props: GlobalSearchContentProps) {
-  const { maxWidth, defaultValue, onBlur } = props;
+  const {
+    maxWidth,
+    defaultValue,
+    onBlur,
+    addToGlobalFilters = DEFAULT_ADD_TO_GLOBAL_FILTERS,
+  } = props;
   const { t } = useTranslation();
   const history = useHistory();
   const dispatch = useDispatch();
   const [query, setQuery] = useState(defaultValue ?? '');
+  const parsedLabelSelector = useMemo(() => parseGlobalSearchLabelSelector(query), [query]);
+  const labelSelector = useDebouncedValue(parsedLabelSelector, 300);
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
   const drawerLocation = useTypedSelector(
     state => state?.drawerMode?.detailsDrawerLocation ?? 'split-right'
   );
+  const activeNamespaces = useTypedSelector(state => state.filter.namespaces);
+  const activeLabelSelector = useTypedSelector(state => state.filter.labelSelector);
 
   const [recent, bump] = useRecent('search-recent-items');
 
   // Resource search items
-  const resources = useSearchResources();
+  const resources = useSearchResources(labelSelector, activeNamespaces);
   const loading = resources.filter(it => it.isLoading).map(it => it.kind);
   const namespaceItems = useMemo(() => {
     const namespaceResource = resources.find(resource => resource.kind === Namespace.kind);
@@ -235,20 +281,26 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       options.push({
         id,
         subLabel: t('translation|Current Namespace'),
-        label: t('translation|Set namespace: {{namespace}}', { namespace: namespaceValue }),
+        label: addToGlobalFilters
+          ? t('translation|Add namespace ({{namespace}})', { namespace: namespaceValue })
+          : t('translation|Set namespace: {{namespace}}', { namespace: namespaceValue }),
         icon: (
           <Suspense fallback={null}>
             <LazyKubeIcon kind="Namespace" width="24px" height="24px" />
           </Suspense>
         ),
         onClick: () => {
-          dispatch(setNamespaceFilter([namespaceValue]));
+          dispatch(
+            setNamespaceFilter(
+              getNextGlobalNamespaces(activeNamespaces, namespaceValue, addToGlobalFilters)
+            )
+          );
         },
       });
     };
 
     const trimmedQuery = query.trim();
-    if (trimmedQuery.length > 0) {
+    if (trimmedQuery.length > 0 && parsedLabelSelector === null) {
       addOption(trimmedQuery);
     }
 
@@ -257,7 +309,16 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       .forEach(addOption);
 
     return options;
-  }, [query, namespaceItems, dispatch, t, allowedNamespacesKey]);
+  }, [
+    activeNamespaces,
+    addToGlobalFilters,
+    query,
+    parsedLabelSelector,
+    namespaceItems,
+    dispatch,
+    t,
+    allowedNamespacesKey,
+  ]);
   const isMap = useRouteMatch(getClusterPrefixedPath(getDefaultRoutes().map?.path));
   const location = useLocation();
   const items = useMemo(
@@ -290,6 +351,54 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [resources, isMap, location.search, drawerLocation]
   );
+  const labelSelectorItems = useMemo(() => {
+    if (!labelSelector || parsedLabelSelector !== labelSelector) {
+      return [];
+    }
+
+    return resources.flatMap(resource => {
+      if (resource.isLoading || !resource.items?.length) {
+        return [];
+      }
+
+      return [
+        {
+          id: `label-selector-${resource.kind}-${labelSelector}`,
+          label: `${resource.listLabel} ${labelSelector}`,
+          subLabel: addToGlobalFilters
+            ? `${t('translation|Add')} ${t('translation|Label Selector')}`
+            : t('translation|Label Selector'),
+          icon: (
+            <Suspense fallback={null}>
+              <LazyKubeIcon kind={resource.kind} width="24px" height="24px" />
+            </Suspense>
+          ),
+          onClick: () => {
+            const nextLabelSelector = getNextGlobalLabelSelector(
+              activeLabelSelector,
+              labelSelector,
+              addToGlobalFilters
+            );
+            dispatch(setLabelSelectorFilter(nextLabelSelector));
+            const search = new URLSearchParams({ labelSelector: nextLabelSelector });
+            history.push({
+              pathname: createRouteURL(resource.listRoute),
+              search: search.toString(),
+            });
+          },
+        } satisfies SearchResult,
+      ];
+    });
+  }, [
+    activeLabelSelector,
+    addToGlobalFilters,
+    dispatch,
+    history,
+    labelSelector,
+    parsedLabelSelector,
+    resources,
+    t,
+  ]);
 
   // Cluster items
   const clusterItems: SearchResult[] = useMemo(
@@ -445,6 +554,9 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   const results: SearchResult[] = useMemo(() => {
     if (!query.trim()) return [];
+    if (parsedLabelSelector) {
+      return parsedLabelSelector === labelSelector ? labelSelectorItems : [];
+    }
     return (
       fuse
         .search(
@@ -500,7 +612,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
             } satisfies SearchResult)
         )
     );
-  }, [query, fuse]);
+  }, [query, fuse, labelSelector, labelSelectorItems, parsedLabelSelector]);
 
   const recentItems = useMemo(() => {
     if (query) return [];
@@ -542,12 +654,14 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     <Box {...autocomplete.getRootProps()}>
       <TextField
         fullWidth
+        inputProps={{ 'aria-label': t('Search') }}
         size="small"
         variant="outlined"
-        placeholder={t('Search resources, pages, clusters by name')}
+        placeholder={t('Search resources, pages, clusters, or label selectors')}
         InputProps={
           {
             ...autocomplete.getInputProps(),
+            'aria-label': t('Search'),
             ref: (el: HTMLDivElement) => {
               const ac = autocomplete as any; // some types are wrong
               ac.setAnchorEl(el);
@@ -572,7 +686,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
                 </Tooltip>
                 {loading.length > 0 && (
                   <Delayed display="flex" mr={1}>
-                    <CircularProgress size="16px" />
+                    <CircularProgress aria-label={t('Loading')} size="16px" />
                   </Delayed>
                 )}
               </>
@@ -586,6 +700,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       <Popper
         anchorEl={autocomplete.anchorEl}
         open={autocomplete.popupOpen}
+        role="presentation"
         sx={theme => ({ zIndex: theme.zIndex.modal, width: '100%', maxWidth: maxWidth + 'px' })}
       >
         <Paper
@@ -593,6 +708,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
           variant="outlined"
           sx={{ position: 'relative', padding: 0, margin: 0 }}
           {...autocomplete.getListboxProps()}
+          aria-label={t('Search')}
         >
           {autocomplete.groupedOptions.length > 0 && (
             <FixedSizeList

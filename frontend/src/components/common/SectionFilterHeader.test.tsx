@@ -14,65 +14,266 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from '@mui/material/styles';
+import Button from '@mui/material/Button';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
-import React from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createMuiTheme } from '../../lib/themes';
-import reducers from '../../redux/reducers/reducers';
-import { TestContext } from '../../test';
-import defaultAppThemes from '../App/defaultAppThemes';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createMemoryHistory } from 'history';
+import { Provider } from 'react-redux';
+import { Router } from 'react-router-dom';
+import filterReducer from '../../redux/filterSlice';
 import SectionFilterHeader from './SectionFilterHeader';
 
-const theme = createMuiTheme(defaultAppThemes[0]);
+vi.mock('./NamespacesAutocomplete', () => ({
+  NamespacesAutocomplete: ({ onApply }: { onApply?: () => void }) => (
+    <input
+      aria-controls="namespace-options"
+      aria-expanded="false"
+      aria-label="Namespaces"
+      onKeyDown={event => event.key === 'Enter' && onApply?.()}
+      role="combobox"
+    />
+  ),
+}));
 
-function Header({ actions }: { actions: React.ReactNode[] }) {
-  return <SectionFilterHeader title="Pods" actions={actions} />;
-}
+vi.mock('./LabelSelectorInput', () => ({
+  LabelSelectorInput: ({ onApply }: { onApply?: () => void }) => (
+    <input aria-label="Label Selector" onKeyDown={event => event.key === 'Enter' && onApply?.()} />
+  ),
+}));
 
 describe('SectionFilterHeader', () => {
-  beforeEach(() => {
-    // Allowed namespaces make the autocomplete use them as options without fetching.
-    localStorage.setItem(
-      'cluster_settings.test',
-      JSON.stringify({ allowedNamespaces: ['alpha', 'beta', 'gamma'] })
-    );
-    window.history.pushState({}, '', '/c/test/pods');
-  });
-
-  afterEach(() => {
-    localStorage.removeItem('cluster_settings.test');
-  });
-
-  it('keeps the namespace popup open when other actions appear or disappear', async () => {
+  const renderHeader = (
+    filter = { namespaces: new Set<string>(), labelSelector: '' },
+    initialEntry = '/',
+    headerProps: Partial<React.ComponentProps<typeof SectionFilterHeader>> = {
+      noLabelFilter: false,
+    }
+  ) => {
+    const theme = createTheme({
+      palette: {
+        headerStyle: { main: {}, subsection: {}, normal: {}, label: {} },
+      } as any,
+    });
     const store = configureStore({
-      reducer: reducers,
-      preloadedState: { filter: { namespaces: new Set(), search: '' } } as any,
+      reducer: { filter: filterReducer },
+      preloadedState: { filter },
       middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
     });
-    const queryClient = new QueryClient();
-    const wrap = (actions: React.ReactNode[]) => (
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <TestContext store={store} routerMap={{ cluster: 'test' }} urlPrefix="/c">
-            <Header actions={actions} />
-          </TestContext>
-        </ThemeProvider>
-      </QueryClientProvider>
+    const history = createMemoryHistory({ initialEntries: [initialEntry] });
+
+    const result = render(
+      <Provider store={store}>
+        <Router history={history}>
+          <ThemeProvider theme={theme}>
+            <SectionFilterHeader
+              title="Pods"
+              titleSideActions={[<Button key="create">Create</Button>]}
+              {...headerProps}
+            />
+          </ThemeProvider>
+        </Router>
+      </Provider>
     );
 
-    const { rerender } = render(wrap([]));
-    fireEvent.mouseDown(await screen.findByRole('combobox'));
-    fireEvent.click(await screen.findByRole('option', { name: 'alpha' }));
-    expect(screen.queryByRole('listbox')).not.toBeNull();
+    return { ...result, history, store };
+  };
 
-    // e.g. the pod list shows a "Load more" action only when there are more pages.
-    rerender(wrap([<button key="load-more">Load more</button>]));
-    expect(screen.queryByRole('listbox')).not.toBeNull();
+  it('initializes the label selector from the URL while editors are hidden', async () => {
+    const { store } = renderHeader(
+      { namespaces: new Set<string>(), labelSelector: '' },
+      '/?labelSelector=environment%20in%20(production)'
+    );
 
-    rerender(wrap([]));
-    expect(screen.queryByRole('listbox')).not.toBeNull();
+    await waitFor(() => {
+      expect(store.getState().filter.labelSelector).toBe('environment in (production)');
+    });
+    expect(screen.getByRole('button', { name: /Edit Label Selector$/ })).toHaveTextContent(
+      'environment in (production)'
+    );
+  });
+
+  it('clears the label selector when browser history removes it', async () => {
+    const { history, store } = renderHeader(
+      { namespaces: new Set<string>(), labelSelector: '' },
+      '/?labelSelector=app%3Dnginx'
+    );
+    await waitFor(() => expect(store.getState().filter.labelSelector).toBe('app=nginx'));
+
+    act(() => history.push('/'));
+
+    await waitFor(() => expect(store.getState().filter.labelSelector).toBe(''));
+    expect(history.location.search).toBe('');
+  });
+
+  it('adds a restored saved selector to supported list URLs', async () => {
+    const { history, store } = renderHeader(
+      { namespaces: new Set<string>(), labelSelector: 'environment=production' },
+      '/'
+    );
+
+    await waitFor(() =>
+      expect(history.location.search).toBe('?labelSelector=environment%3Dproduction')
+    );
+    expect(store.getState().filter.labelSelector).toBe('environment=production');
+  });
+
+  it('narrows a multi-namespace selection when a resource link supplies one namespace', async () => {
+    const { history, store } = renderHeader({
+      namespaces: new Set(['default', 'production']),
+      labelSelector: '',
+    });
+
+    act(() => history.push('/?namespace=default'));
+
+    await waitFor(() => expect([...store.getState().filter.namespaces]).toEqual(['default']));
+  });
+
+  it('does not replace the committed selector with a malformed URL value', async () => {
+    const { store } = renderHeader(
+      { namespaces: new Set<string>(), labelSelector: 'previous=value' },
+      '/?labelSelector=app%20in%20('
+    );
+
+    await waitFor(() => expect(store.getState().filter.labelSelector).toBe('previous=value'));
+  });
+
+  it('hides label filtering by default without syncing the URL selector', () => {
+    const { store } = renderHeader(
+      { namespaces: new Set<string>(), labelSelector: '' },
+      '/?labelSelector=app%3Dnginx',
+      { noNamespaceFilter: true }
+    );
+
+    expect(screen.queryByRole('button', { name: /Filter resources$/ })).not.toBeInTheDocument();
+    expect(store.getState().filter.labelSelector).toBe('');
+  });
+
+  it('shows a filter action after Create when filters are empty', async () => {
+    const user = userEvent.setup();
+    renderHeader();
+
+    const title = screen.getByRole('heading', { name: 'Pods' });
+    const createButton = screen.getByRole('button', { name: 'Create' });
+    const filterButton = screen.getByRole('button', { name: /Filter resources$/ });
+
+    expect(createButton.compareDocumentPosition(filterButton)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(screen.queryByLabelText('Resource filters')).not.toBeInTheDocument();
+
+    await user.hover(filterButton);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/Global filters$/);
+    await user.unhover(filterButton);
+    await user.click(filterButton);
+
+    const filters = screen.getByLabelText('Resource filters');
+    const namespaces = screen.getByRole('combobox', { name: 'Namespaces' });
+    const labelSelector = screen.getByRole('textbox', { name: 'Label Selector' });
+
+    expect(filters).toContainElement(namespaces);
+    expect(filters).toContainElement(labelSelector);
+    expect(namespaces.compareDocumentPosition(labelSelector)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(filters).not.toContainElement(createButton);
+    expect(title.compareDocumentPosition(filters)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('shows active filters as editable subtitles', async () => {
+    const user = userEvent.setup();
+    renderHeader({
+      namespaces: new Set(['payments-production', 'checkout-production']),
+      labelSelector: 'app=checkout',
+    });
+
+    const summary = screen.getByLabelText('Resource filter summary');
+    expect(summary).toHaveTextContent('payments-production, checkout-production');
+    expect(summary).toHaveTextContent('app=checkout');
+    expect(summary.querySelectorAll('.MuiTypography-h2')).toHaveLength(2);
+    const summaryTypography = summary.querySelector('.MuiTypography-h2')!;
+    expect(getComputedStyle(summaryTypography).fontSize).toBe('1.25rem');
+    expect(summaryTypography).not.toHaveClass('MuiTypography-noWrap');
+    expect(getComputedStyle(summaryTypography).overflowWrap).toBe('anywhere');
+    expect(summary).not.toHaveTextContent('Namespaces:');
+    expect(summary).not.toHaveTextContent('Label Selector:');
+    expect(screen.queryByLabelText('Resource filters')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Filter resources$/ })).toBeInTheDocument();
+    expect(screen.queryByTestId('EditOutlinedIcon')).not.toBeInTheDocument();
+
+    const namespacesLink = screen.getByRole('button', { name: /Edit Namespaces$/ });
+    await user.hover(namespacesLink);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent(
+      'Global filters: Namespaces: payments-production, checkout-production'
+    );
+    expect(tooltip.firstElementChild).not.toBeNull();
+    expect(getComputedStyle(tooltip.firstElementChild!).backgroundColor).toBe('rgb(255, 255, 255)');
+    expect(getComputedStyle(tooltip.firstElementChild!).opacity).toBe('1');
+    await user.unhover(namespacesLink);
+    await user.click(namespacesLink);
+
+    expect(screen.getByLabelText('Resource filters')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Hide filters$/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Hide filters$/ }));
+    expect(screen.getByLabelText('Resource filter summary')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Filter resources$/ }));
+    await user.type(screen.getByRole('textbox', { name: 'Label Selector' }), '{Enter}');
+    expect(screen.getByLabelText('Resource filter summary')).toBeInTheDocument();
+  });
+
+  it('can prefix text-link summaries with their filter names', () => {
+    renderHeader(
+      {
+        namespaces: new Set(['payments-production']),
+        labelSelector: 'app=checkout',
+      },
+      '/',
+      { noLabelFilter: false, showFilterSummaryLabels: true }
+    );
+
+    const summary = screen.getByLabelText('Resource filter summary');
+    expect(screen.getByText(/Namespaces:$/)).toBeVisible();
+    expect(screen.getByText(/Label Selector:$/)).toBeVisible();
+    expect(summary).toHaveTextContent('payments-production');
+    expect(summary).toHaveTextContent(/app=checkout$/);
+  });
+
+  it('keeps filter controls visible when subtitle links are disabled', async () => {
+    const user = userEvent.setup();
+    renderHeader(
+      {
+        namespaces: new Set(['payments-production']),
+        labelSelector: 'app=checkout',
+      },
+      '/',
+      { filtersAsLinks: false, noLabelFilter: false }
+    );
+
+    expect(screen.queryByLabelText('Resource filter summary')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Filter resources$/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Resource filters')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Namespaces' })).toBeInTheDocument();
+    const labelSelector = screen.getByRole('textbox', { name: 'Label Selector' });
+    expect(labelSelector).toBeInTheDocument();
+
+    await user.type(labelSelector, '{Enter}');
+    expect(screen.getByLabelText('Resource filters')).toBeInTheDocument();
+  });
+
+  it('can identify global filters with a persistent visible label', () => {
+    renderHeader(
+      {
+        namespaces: new Set(['payments-production']),
+        labelSelector: 'app=checkout',
+      },
+      '/',
+      { globalFilterIndicator: 'label', noLabelFilter: false }
+    );
+
+    expect(screen.getByText(/Global filters$/)).toBeVisible();
   });
 });

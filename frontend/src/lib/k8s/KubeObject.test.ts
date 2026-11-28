@@ -102,8 +102,11 @@ import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import { ScaleApi } from './api/v1/scaleApi';
 import { ApiError } from './api/v2/ApiError';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
+import ClusterRoleBinding from './clusterRoleBinding';
+import ControllerRevision from './controllerRevision';
 import { KubeObject, KubeObjectInterface } from './KubeObject';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
+import RoleBinding from './roleBinding';
 
 function queryWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -632,6 +635,40 @@ describe('KubeObject', () => {
       'explicit-cluster'
     );
   });
+
+  it('returns null list navigation for ControllerRevision', () => {
+    const revision = new ControllerRevision({
+      apiVersion: 'apps/v1',
+      kind: 'ControllerRevision',
+      metadata: {
+        name: 'revision-1',
+        namespace: 'default',
+        creationTimestamp: '2026-08-13T00:00:00Z',
+        uid: 'revision-1-uid',
+      },
+      data: {},
+      revision: 1,
+    });
+
+    expect(revision.getListRouteDescriptor()).toBeNull();
+  });
+
+  it('returns null list navigation when the destination does not consume label selectors', () => {
+    class DataDrivenResource extends KubeObject {
+      static apiName = 'data-driven-resources';
+      static supportsLabelSelectorList = false;
+    }
+    const resource = new DataDrivenResource({ metadata: { name: 'example' } });
+
+    expect(resource.getListRouteDescriptor()).toBeNull();
+  });
+
+  it.each([RoleBinding, ClusterRoleBinding])(
+    'does not expose label navigation for %s lists',
+    ResourceClass => {
+      expect(ResourceClass.supportsLabelSelectorList).toBe(false);
+    }
+  );
 });
 
 function deferred<T>() {
@@ -2066,5 +2103,39 @@ describe('KubeObject.useApiList namespace restriction', () => {
       expect(originalNsARequest.cancel).toHaveBeenCalledTimes(1);
       expect(onList).toHaveBeenCalledTimes(callsBeforeStaleDelivery);
     });
+
+    it('returns null list navigation for ControllerRevision', () => {
+      const revision = new ControllerRevision({
+        apiVersion: 'apps/v1',
+        kind: 'ControllerRevision',
+        metadata: {
+          name: 'revision-1',
+          namespace: 'default',
+          creationTimestamp: '2026-08-13T00:00:00Z',
+          uid: 'revision-1-uid',
+        },
+        data: {},
+        revision: 1,
+      });
+
+      expect(revision.getListRouteDescriptor()).toBeNull();
+    });
+
+    it('returns null list navigation when the destination does not consume label selectors', () => {
+      class DataDrivenResource extends KubeObject {
+        static apiName = 'data-driven-resources';
+        static supportsLabelSelectorList = false;
+      }
+      const resource = new DataDrivenResource({ metadata: { name: 'example' } });
+
+      expect(resource.getListRouteDescriptor()).toBeNull();
+    });
+
+    it.each([RoleBinding, ClusterRoleBinding])(
+      'does not expose label navigation for %s lists',
+      ResourceClass => {
+        expect(ResourceClass.supportsLabelSelectorList).toBe(false);
+      }
+    );
   });
 });

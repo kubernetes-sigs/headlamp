@@ -36,6 +36,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import Namespace from '../../lib/k8s/namespace';
 import K8sNode from '../../lib/k8s/node';
+import { useQueryParamsState } from '../../lib/useQueryParamsState';
 import { useTypedSelector } from '../../redux/hooks';
 import { selectEffectiveSettings } from '../../settings/useAdminSettings';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
@@ -69,7 +70,6 @@ import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
 import { GraphSourceManager, useSources } from './sources/GraphSources';
 import { GraphSourcesView } from './sources/GraphSourcesView';
 import { useGraphViewport } from './useGraphViewport';
-import { useQueryParamsState } from './useQueryParamsState';
 import { useSyncNamespaceParam } from './useSyncNamespaceParam';
 
 // Re-exported here for backwards compatibility with existing consumers that

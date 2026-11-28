@@ -17,6 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import DaemonSet from '../../lib/k8s/daemonSet';
+import { labelSelectorToQuery } from '../../lib/k8s/labelSelector';
 import {
   ContainersSection,
   DetailsGrid,
@@ -122,11 +123,28 @@ export default function DaemonSetDetails(props: {
           },
           {
             name: t('Selector'),
-            value: <MetadataDictGrid dict={item.spec.selector.matchLabels || {}} />,
+            value: (
+              <MetadataDictGrid
+                activeCluster={item.cluster}
+                dict={item.spec.selector.matchLabels || {}}
+                labelFilterNamespace={item.metadata.namespace}
+                labelFilterRoute="pods"
+                labelSelector={labelSelectorToQuery(item.spec.selector)}
+              />
+            ),
           },
           {
             name: t('Node Selector'),
-            value: <MetadataDictGrid dict={item.spec.template.spec.nodeSelector || {}} />,
+            value: (
+              <MetadataDictGrid
+                activeCluster={item.cluster}
+                dict={item.spec.template.spec.nodeSelector || {}}
+                labelFilterRoute="nodes"
+                labelSelector={labelSelectorToQuery({
+                  matchLabels: item.spec.template.spec.nodeSelector,
+                })}
+              />
+            ),
           },
         ]
       }

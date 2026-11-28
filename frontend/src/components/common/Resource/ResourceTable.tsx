@@ -41,6 +41,7 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
+import { getLabelKeysFromResources } from '../../../lib/getLabelKeysFromResources';
 import { useSelectedClusters } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -211,6 +212,8 @@ export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjec
    * are not queried. An empty list queries no cluster and shows an empty table.
    */
   clusters?: string[];
+  /** Reports label keys found in resources loaded by this table. */
+  onLabelKeysChange?: (labelKeys: string[]) => void;
 }
 
 export default function ResourceTable<KubeClass extends KubeObjectClass>(
@@ -230,16 +233,19 @@ export default function ResourceTable<KubeClass extends KubeObjectClass>(
 function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   props: ResourceTableFromResourceClassProps<KubeClass>
 ) {
-  const { resourceClass, id, clusters, ...otherProps } = props;
+  const { resourceClass, id, clusters, onLabelKeysChange, ...otherProps } = props;
   const selectedNamespaces = useNamespaces();
+  const labelSelector = useTypedSelector(state => state.filter.labelSelector);
   const listed = resourceClass.useList({
     namespace: props.namespaces ?? selectedNamespaces,
     clusters,
+    labelSelector: labelSelector || undefined,
   });
   const { items, errors } = clusters?.length === 0 ? NOTHING_LISTED : listed;
 
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);
+  const labelKeys = useMemo(() => getLabelKeysFromResources(throttledItems), [throttledItems]);
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.LIST_VIEW);
   const dispatchHeadlampEventRef = useRef(dispatchHeadlampEvent);
 
@@ -254,6 +260,10 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
       error: errors?.[0] || undefined,
     });
   }, [errors, items, resourceClass.className]);
+
+  useEffect(() => {
+    onLabelKeysChange?.(labelKeys);
+  }, [labelKeys, onLabelKeysChange]);
 
   return (
     <ResourceTableContent

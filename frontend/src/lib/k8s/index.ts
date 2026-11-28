@@ -22,14 +22,13 @@ import { useTypedSelector } from '../../redux/hooks';
 import { getCluster } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
-import { Cluster, LabelSelector, StringDict } from './cluster';
-
+import { Cluster, StringDict } from './cluster';
 export { ResourceClasses } from './resourceClasses';
-import { matchExpressionSimplifier, matchLabelsSimplifier } from './labelSelector';
-
-// Defined in a leaf module so resource classes can use them without importing
-// this file, which re-exports ResourceClasses and would create a cycle.
-export { matchExpressionSimplifier, matchLabelsSimplifier };
+export {
+  labelSelectorToQuery,
+  matchExpressionSimplifier,
+  matchLabelsSimplifier,
+} from './labelSelector';
 
 export { getResourceClass } from './getResourceClass';
 
@@ -66,27 +65,6 @@ export type { CancellablePromise } from './api/v1/hooks';
  */
 export function getVersion(clusterName: string = ''): Promise<StringDict> {
   return clusterRequest('/version', { cluster: clusterName || getCluster() });
-}
-
-/**
- * See {@link https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#list-and-watch-filtering|Label selector examples},
- * {@link https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#resources-that-support-set-based-requirements|deployment selector example},
- * {@link https://github.com/kubernetes/apimachinery/blob/be3a79b26814a8d7637d70f4d434a4626ee1c1e7/pkg/selection/operator.go#L24|possible operators}, and
- * {@link https://github.com/kubernetes/apimachinery/blob/be3a79b26814a8d7637d70f4d434a4626ee1c1e7/pkg/labels/selector.go#L305|Format rule for expressions}.
- */
-export function labelSelectorToQuery(labelSelector: LabelSelector) {
-  const segments: string[] = [];
-
-  segments.push(...(matchLabelsSimplifier(labelSelector.matchLabels, true) || []));
-
-  const matchExpressions = labelSelector.matchExpressions ?? [];
-
-  segments.push(...matchExpressionSimplifier(matchExpressions));
-  if (segments.length === 0) {
-    return '';
-  }
-
-  return segments.join(',');
 }
 
 const versionFetchInterval = 10000; // ms

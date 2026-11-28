@@ -185,11 +185,16 @@
                       <div
                         class="MuiBox-root css-yi3mkw"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=addonmanager.kubernetes.io%2Fmode%3DReconcile&namespace=kube-system"
                         >
-                          addonmanager.kubernetes.io/mode: Reconcile
-                        </p>
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            addonmanager.kubernetes.io/mode: Reconcile
+                          </span>
+                        </a>
                       </div>
                     </div>
                   </dd>
@@ -244,11 +249,24 @@
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-0"
                     >
-                      k8s-app: kube-dns
-                    </span>
+                      <div
+                        class="MuiBox-root css-yi3mkw"
+                      >
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=k8s-app%3Dkube-dns&namespace=kube-system"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            k8s-app: kube-dns
+                          </span>
+                        </a>
+                      </div>
+                    </div>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"

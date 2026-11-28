@@ -16,8 +16,8 @@
 
 import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
+import { useQueryParamsState } from '../../lib/useQueryParamsState';
 import { setNamespaceFilter } from '../../redux/filterSlice';
-import { useQueryParamsState } from './useQueryParamsState';
 
 /**
  * Synchronizes the 'namespace' query parameter from the URL to the global Redux namespace filter.

@@ -56,6 +56,11 @@ class ControllerRevision extends KubeObject<KubeControllerRevision> {
   static apiVersion = 'apps/v1';
   static isNamespaced = true;
 
+  /** ControllerRevisions do not have a registered list page. */
+  getListRouteDescriptor() {
+    return null;
+  }
+
   get data() {
     return this.jsonData.data;
   }

@@ -16,7 +16,7 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
@@ -29,7 +29,7 @@ function createStoreWithNamespaces(namespaces: string[]) {
   return configureStore({
     reducer: reducers,
     preloadedState: {
-      filter: { namespaces: new Set(namespaces) },
+      filter: { namespaces: new Set(namespaces), labelSelector: '' },
     },
     middleware: getDefaultMiddleware =>
       getDefaultMiddleware({
@@ -110,6 +110,60 @@ describe('ResourceTable Column Visibility', () => {
       </TestContext>
     );
   };
+
+  it('reports sorted unique label keys from loaded resources', async () => {
+    const onLabelKeysChange = vi.fn();
+    const resourceClass = {
+      useList: () => ({
+        errors: null,
+        items: [
+          { metadata: { labels: { tier: 'frontend', app: 'checkout' } } },
+          { metadata: { labels: { app: 'payments', environment: 'production' } } },
+        ],
+      }),
+    };
+
+    renderTable({ columns: [], onLabelKeysChange, resourceClass });
+
+    await waitFor(() =>
+      expect(onLabelKeysChange).toHaveBeenCalledWith(['app', 'environment', 'tier'])
+    );
+  });
+
+  it('reports label keys from the same throttled items rendered by the table', async () => {
+    const onLabelKeysChange = vi.fn();
+    let items: Array<{ metadata: { labels: Record<string, string> } }> = [
+      { metadata: { labels: { app: 'first' } } },
+    ];
+    const resourceClass = {
+      useList: () => ({ errors: null, items }),
+    } as any;
+    const table = () => (
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <ResourceTable
+            columns={[]}
+            onLabelKeysChange={onLabelKeysChange}
+            resourceClass={resourceClass}
+          />
+        </ThemeProvider>
+      </TestContext>
+    );
+    const view = render(table());
+
+    await waitFor(() => expect(onLabelKeysChange).toHaveBeenLastCalledWith(['app']));
+    items = [{ metadata: { labels: { environment: 'second' } } }];
+    view.rerender(table());
+    await waitFor(() => expect(onLabelKeysChange).toHaveBeenLastCalledWith(['environment']));
+
+    items = [{ metadata: { labels: { tier: 'third' } } }];
+    view.rerender(table());
+    expect(onLabelKeysChange).not.toHaveBeenCalledWith(['tier']);
+
+    await waitFor(() => expect(onLabelKeysChange).toHaveBeenLastCalledWith(['tier']), {
+      timeout: 1500,
+    });
+  });
 
   it('initializes column visibility with default settings if none stored', async () => {
     const columns = [

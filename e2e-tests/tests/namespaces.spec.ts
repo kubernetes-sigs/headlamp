@@ -23,12 +23,6 @@ test('lists allowed namespaces without cluster-wide namespace access', async ({ 
   const namespaceRequests: string[] = [];
   const namespaceWebSockets: string[] = [];
 
-  await page.addInitScript(namespaces => {
-    window.localStorage.setItem(
-      'cluster_settings.test',
-      JSON.stringify({ allowedNamespaces: namespaces })
-    );
-  }, allowedNamespaces);
   page.on('websocket', socket => {
     if (socket.url().includes('/api/v1/namespaces')) {
       namespaceWebSockets.push(socket.url());
@@ -36,10 +30,12 @@ test('lists allowed namespaces without cluster-wide namespace access', async ({ 
   });
   await page.route('**/clusters/test/api/v1/namespaces**', async route => {
     const url = new URL(route.request().url());
-    namespaceRequests.push(`${url.pathname}${url.search}`);
     const name = allowedNamespaces.find(namespace =>
       url.pathname.endsWith(`/namespaces/${namespace}`)
     );
+    if (url.pathname === '/clusters/test/api/v1/namespaces' || name) {
+      namespaceRequests.push(`${url.pathname}${url.search}`);
+    }
 
     if (!name) {
       await route.fulfill({ status: 403, json: { message: 'namespace list is forbidden' } });
@@ -62,13 +58,34 @@ test('lists allowed namespaces without cluster-wide namespace access', async ({ 
 
   const headlampPage = new HeadlampPage(page);
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+  await page.evaluate(namespaces => {
+    window.localStorage.setItem(
+      'cluster_settings.test',
+      JSON.stringify({ allowedNamespaces: namespaces })
+    );
+  }, allowedNamespaces);
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/c/test/pods');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect(page).toHaveURL(/\/c\/test\/pods/);
+  await page.getByRole('button', { name: 'Filter resources' }).click();
+  const namespacesInput = page.getByRole('combobox', { name: 'Namespaces' });
+  await namespacesInput.click();
 
   for (const namespace of allowedNamespaces) {
-    await expect
-      .poll(() => namespaceRequests.some(request => request.endsWith(`/namespaces/${namespace}`)))
-      .toBe(true);
+    await expect(page.getByRole('option', { name: namespace, exact: true })).toBeVisible();
   }
-  expect(namespaceRequests.some(request => /\/namespaces(?:\?|$)/.test(request))).toBe(false);
+  await expect
+    .poll(() => [...new Set(namespaceRequests)].sort())
+    .toEqual(
+      allowedNamespaces.map(namespace => `/clusters/test/api/v1/namespaces/${namespace}`).sort()
+    );
+  expect(
+    namespaceRequests.some(request =>
+      new URL(request, page.url()).pathname.endsWith('/api/v1/namespaces')
+    )
+  ).toBe(false);
   expect(namespaceWebSockets).toEqual([]);
 });
 

@@ -26,7 +26,6 @@ import { uniq } from 'lodash';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory, useLocation } from 'react-router-dom';
 import {
   getCombinedAllowedNamespaces,
   getDiscoveredNamespacesVersion,
@@ -36,64 +35,32 @@ import {
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
 import Namespace from '../../lib/k8s/namespace';
+import { useQueryParamsState } from '../../lib/useQueryParamsState';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
-
-/**
- * addQuery will add a query parameter to the URL using history API.
- *
- * It will also remove the parameter if the value is the same as the default value.
- * If the tableName is provided, it will be added to the query string.
- * @param queryObj The query object to add to the URL.
- * @param queryParamDefaultObj The default query object to compare with.
- * @param history The history object from react-router.
- * @param location The location object from react-router.
- * @param tableName The table name to add to the query string.
- * @returns void
- */
-function addQuery(
-  queryObj: { [key: string]: string },
-  queryParamDefaultObj: { [key: string]: string } = {},
-  history: any,
-  location: any,
-  tableName = ''
-) {
-  const pathname = location.pathname;
-  const searchParams = new URLSearchParams(location.search);
-
-  if (!!tableName) {
-    searchParams.set('tableName', tableName);
-  }
-  // Ensure that default values will not show up in the URL
-  for (const key in queryObj) {
-    const value = queryObj[key];
-    if (value !== queryParamDefaultObj[key]) {
-      searchParams.set(key, value);
-    } else {
-      searchParams.delete(key);
-    }
-  }
-
-  history.push({
-    pathname: pathname,
-    search: searchParams.toString(),
-  });
-}
 
 export interface PureNamespacesAutocompleteProps {
   namespaceNames: string[];
   onChange: (event: React.ChangeEvent<{}>, newValue: string[]) => void;
+  onApply?: () => void;
   filter: { namespaces: Set<string> };
+}
+
+export interface NamespacesAutocompleteProps {
+  /** Called after a namespace selection is applied. */
+  onApply?: () => void;
 }
 
 export function PureNamespacesAutocomplete({
   namespaceNames,
   onChange: onChangeFromProps,
+  onApply,
   filter,
 }: PureNamespacesAutocompleteProps) {
   const theme = useTheme();
   const { t } = useTranslation(['glossary', 'translation']);
   const [namespaceInput, setNamespaceInput] = React.useState<string>('');
+  const [inputFocused, setInputFocused] = React.useState(false);
   const maxNamespacesChars = 12;
 
   const onInputChange = (event: object, value: string, reason: string) => {
@@ -114,11 +81,19 @@ export function PureNamespacesAutocomplete({
     <Autocomplete
       multiple
       id="namespaces-filter"
+      sx={{
+        '& .MuiAutocomplete-inputRoot': {
+          flexWrap: 'nowrap',
+          minHeight: '40px',
+        },
+      }}
       autoComplete
       openOnFocus
       disableCloseOnSelect
       options={namespaceNames}
+      onBlur={() => setInputFocused(false)}
       onChange={onChange}
+      onFocus={() => setInputFocused(true)}
       onInputChange={onInputChange}
       inputValue={namespaceInput}
       // We reverse the namespaces so the last chosen appear as the first in the label. This
@@ -183,27 +158,36 @@ export function PureNamespacesAutocomplete({
           </Typography>
         );
       }}
-      renderInput={params => (
-        <Box width="15rem">
-          <TextField
-            {...params}
-            variant="outlined"
-            size="small"
-            label={t('Namespaces')}
-            fullWidth
-            InputLabelProps={{ shrink: true }}
-            style={{ marginTop: 0 }}
-            placeholder={[...filter.namespaces.values()].length > 0 ? '' : t('Filter')}
-          />
-        </Box>
-      )}
+      renderInput={params => {
+        const collapseInput = filter.namespaces.size > 0 && !inputFocused;
+        return (
+          <Box sx={{ maxWidth: '100%', width: { xs: '100%', sm: '48rem' } }}>
+            <TextField
+              {...params}
+              variant="outlined"
+              size="small"
+              label={t('Namespaces')}
+              fullWidth
+              inputProps={{
+                ...params.inputProps,
+                style: collapseInput
+                  ? { ...params.inputProps.style, minWidth: 0, padding: 0, width: 0 }
+                  : params.inputProps.style,
+              }}
+              InputLabelProps={{ shrink: true }}
+              style={{ marginTop: 0 }}
+              placeholder={[...filter.namespaces.values()].length > 0 ? '' : t('Filter')}
+              onKeyDown={event => event.key === 'Enter' && onApply?.()}
+            />
+          </Box>
+        );
+      }}
     />
   );
 }
 
-export function NamespacesAutocomplete() {
-  const history = useHistory();
-  const location = useLocation();
+export function NamespacesAutocomplete({ onApply }: NamespacesAutocompleteProps = {}) {
+  const [, setNamespaceInURL] = useQueryParamsState<string | undefined>('namespace', undefined);
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
   const clusters = useSelectedClusters();
@@ -242,17 +226,23 @@ export function NamespacesAutocomplete() {
   }, [allowedPerCluster]);
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
-    addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
+    setNamespaceInURL(newValue.length > 0 ? newValue.join(' ') : undefined);
     dispatch(setNamespaceFilter(newValue));
   };
 
   // A cluster without allowed namespaces still needs its namespaces listed. The allowed
   // ones of the other clusters are added, as their users may not be able to list them.
   return everyClusterLimited ? (
-    <PureNamespacesAutocomplete namespaceNames={allowedNames} onChange={onChange} filter={filter} />
+    <PureNamespacesAutocomplete
+      namespaceNames={allowedNames}
+      onChange={onChange}
+      onApply={onApply}
+      filter={filter}
+    />
   ) : (
     <NamespacesFromClusterAutocomplete
       onChange={onChange}
+      onApply={onApply}
       filter={filter}
       extraNamespaceNames={allowedNames}
       unrestrictedClusters={unrestrictedClusters}

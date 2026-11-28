@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setDiscoveredNamespaces, storeClusterSettings } from '../../helpers/clusterSettings';
 import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
@@ -23,7 +24,7 @@ import { setConfig } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
-import { NamespacesAutocomplete } from './NamespacesAutocomplete';
+import { NamespacesAutocomplete, PureNamespacesAutocomplete } from './NamespacesAutocomplete';
 
 /** Makes the namespace list (of all the selected clusters) return these names. */
 function listNamespaces(names: string[]) {
@@ -49,6 +50,68 @@ function offeredNamespaces(clusters: string) {
 describe('NamespacesAutocomplete', () => {
   beforeEach(() => {
     store.dispatch(setNamespaceFilter([]));
+  });
+
+  describe('PureNamespacesAutocomplete', () => {
+    it('renders all selected namespace names', () => {
+      const namespaces = ['payments-production', 'checkout-production', 'observability'];
+
+      render(
+        <ThemeProvider theme={createTheme()}>
+          <PureNamespacesAutocomplete
+            namespaceNames={namespaces}
+            onChange={vi.fn()}
+            filter={{ namespaces: new Set(namespaces) }}
+          />
+        </ThemeProvider>
+      );
+
+      expect(screen.getByText('observabilit…')).toBeInTheDocument();
+      expect(screen.getByText('+2')).toBeInTheDocument();
+    });
+
+    it('shows the text input on focus when namespaces are already selected', async () => {
+      render(
+        <ThemeProvider theme={createTheme()}>
+          <PureNamespacesAutocomplete
+            namespaceNames={['default', 'production']}
+            onChange={vi.fn()}
+            filter={{ namespaces: new Set(['default']) }}
+          />
+        </ThemeProvider>
+      );
+
+      const input = screen.getByRole('combobox', { name: 'Namespaces' });
+      expect(getComputedStyle(input).width).toBe('0px');
+
+      act(() => input.focus());
+
+      expect(input).toHaveFocus();
+      await waitFor(() => expect(getComputedStyle(input).width).not.toBe('0px'));
+    });
+
+    it('applies only from Enter, not ordinary selection changes', () => {
+      const onApply = vi.fn();
+      const onChange = vi.fn();
+
+      render(
+        <ThemeProvider theme={createTheme()}>
+          <PureNamespacesAutocomplete
+            namespaceNames={['default']}
+            onChange={onChange}
+            onApply={onApply}
+            filter={{ namespaces: new Set() }}
+          />
+        </ThemeProvider>
+      );
+
+      const input = screen.getByRole('combobox', { name: 'Namespaces' });
+      fireEvent.change(input, { target: { value: 'default' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(onApply).toHaveBeenCalledOnce();
+      expect(onChange).not.toHaveBeenCalled();
+    });
   });
 
   afterEach(() => {
