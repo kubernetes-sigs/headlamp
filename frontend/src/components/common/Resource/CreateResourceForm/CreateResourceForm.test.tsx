@@ -23,11 +23,24 @@ import type { FormSection } from './CreateResourceForm';
 // the test. ContainerTextField does not use Namespace, but CreateResourceForm
 // imports it for NamespaceTextField, which is enough to trigger the cycle.
 vi.mock('../../../../lib/k8s/namespace', () => ({
-  default: { useList: () => [[], null] },
+  default: {
+    useList: () => [
+      [{ metadata: { name: 'default' } }, { metadata: { name: 'kube-system' } }],
+      null,
+    ],
+  },
 }));
 
 const { ContainerTextField } = await import('./workloadFields');
-const { ServicePortsTextField } = await import('./CreateResourceForm');
+const {
+  LabelTextField,
+  ServicePortsTextField,
+  labelsToString,
+  metadataSection,
+  parseLabelsString,
+  parseYaml,
+  toYamlString,
+} = await import('./CreateResourceForm');
 const { default: CreateResourceForm } = await import('./index');
 const { default: CreatePodForm } = await import('../../../pod/CreatePodForm');
 const { default: CreateDeploymentForm } = await import('../../../deployments/CreateDeploymentForm');
@@ -971,5 +984,291 @@ describe('CreateResourceForm – validity', () => {
       />
     );
     expect(onValidChange).toHaveBeenLastCalledWith(expected);
+  });
+});
+
+describe('CreateResourceForm – field types, metadataSection, and utilities', () => {
+  it('metadataSection returns Metadata section with name, namespace, and labels', () => {
+    const section = metadataSection(k => k);
+    expect(section.title).toBe('translation|Metadata');
+    expect(section.fields.map(f => f.key)).toEqual(['name', 'namespace', 'labels']);
+  });
+
+  it('handles number (inline and block), boolean, namespace, labels, ports, custom render, and allowEmptyString', () => {
+    const onChange = vi.fn();
+    const onValidChange = vi.fn();
+    const sections: FormSection[] = [
+      {
+        title: 'All Fields',
+        fields: [
+          {
+            key: 'replicas',
+            path: 'spec.replicas',
+            label: 'Replicas',
+            type: 'number',
+            min: 0,
+            inline: true,
+            helperText: 'Replica count',
+          },
+          {
+            key: 'backoff',
+            path: 'spec.backoffLimit',
+            label: 'Backoff Limit',
+            type: 'number',
+            min: 1,
+          },
+          {
+            key: 'suspend',
+            path: 'spec.suspend',
+            label: 'Suspend',
+            type: 'boolean',
+            helperText: 'Pause execution',
+          },
+          {
+            key: 'ns',
+            path: 'metadata.namespace',
+            label: 'Namespace',
+            type: 'namespace',
+          },
+          {
+            key: 'storageClass',
+            path: 'spec.storageClassName',
+            label: 'Storage Class',
+            allowEmptyString: true,
+          },
+          {
+            key: 'custom',
+            path: 'spec.custom',
+            label: 'Custom',
+            render: ({ value, onChange: setVal }) => (
+              <button type="button" onClick={() => setVal(`${value ?? ''}x`)}>
+                CustomBtn
+              </button>
+            ),
+          },
+          {
+            key: 'tags',
+            path: 'spec.tags',
+            label: 'Tags',
+            type: 'text',
+            required: true,
+          },
+        ],
+      },
+    ];
+
+    render(
+      <CreateResourceForm
+        sections={sections}
+        resource={{ spec: { backoffLimit: 3, storageClassName: 'fast', tags: [] } }}
+        onChange={onChange}
+        onValidChange={onValidChange}
+      />
+    );
+
+    // Array value [] for required default field is invalid
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+
+    // Inline number: 0 allowed, decimal/below min ignored
+    const replicasInput = screen.getByLabelText('Replicas');
+    fireEvent.change(replicasInput, { target: { value: '0' } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ spec: expect.objectContaining({ replicas: 0 }) })
+    );
+    onChange.mockClear();
+    fireEvent.change(replicasInput, { target: { value: '1.5' } });
+    expect(onChange).not.toHaveBeenCalled();
+
+    // Block number: below min ignored, empty unsets
+    const backoffInput = screen.getByLabelText('Backoff Limit');
+    fireEvent.change(backoffInput, { target: { value: '0' } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(backoffInput, { target: { value: '' } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).not.toHaveProperty('spec.backoffLimit');
+
+    // Boolean checkbox
+    fireEvent.click(screen.getByLabelText('Suspend'));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ spec: expect.objectContaining({ suspend: true }) })
+    );
+
+    // Namespace autocomplete freeSolo input
+    const nsInput = screen.getByLabelText('Namespace');
+    fireEvent.change(nsInput, { target: { value: 'kube-system' } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ metadata: { namespace: 'kube-system' } })
+    );
+
+    // allowEmptyString preserves ''
+    const scInput = screen.getByLabelText('Storage Class');
+    fireEvent.change(scInput, { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ spec: expect.objectContaining({ storageClassName: '' }) })
+    );
+
+    // Custom render
+    fireEvent.click(screen.getByRole('button', { name: 'CustomBtn' }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ spec: expect.objectContaining({ custom: 'x' }) })
+    );
+  });
+
+  it('validates required ports, boolean, and select (single & multiple) fields', () => {
+    const onValidChange = vi.fn();
+    const sections: FormSection[] = [
+      {
+        title: 'Validation',
+        fields: [
+          { key: 'ports', path: 'spec.ports', label: 'Ports', type: 'ports', required: true },
+          { key: 'flag', path: 'spec.flag', label: 'Flag', type: 'boolean', required: true },
+          {
+            key: 'singleSel',
+            path: 'spec.singleSel',
+            label: 'Single',
+            type: 'select',
+            required: true,
+            options: [{ value: 'a', label: 'A' }],
+          },
+          {
+            key: 'multiSel',
+            path: 'spec.multiSel',
+            label: 'Multi',
+            type: 'select',
+            multiple: true,
+            required: true,
+            options: [{ value: 'x', label: 'X' }],
+          },
+        ],
+      },
+    ];
+
+    const { rerender } = render(
+      <CreateResourceForm
+        sections={sections}
+        resource={{
+          spec: {
+            ports: [{ port: 80, targetPort: 8080 }],
+            singleSel: 'a',
+            multiSel: ['x'],
+          },
+        }}
+        onChange={() => {}}
+        onValidChange={onValidChange}
+      />
+    );
+    expect(onValidChange).toHaveBeenLastCalledWith(true);
+
+    // Invalid targetPort fails ports validation
+    rerender(
+      <CreateResourceForm
+        sections={sections}
+        resource={{
+          spec: {
+            ports: [{ port: 80, targetPort: 70000 }],
+            singleSel: 'a',
+            multiSel: ['x'],
+          },
+        }}
+        onChange={() => {}}
+        onValidChange={onValidChange}
+      />
+    );
+    expect(onValidChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('ServicePortsTextField removes ports, clears fields, and ignores negative numbers', () => {
+    const onChange = vi.fn();
+    render(
+      <ServicePortsTextField
+        value={[{ name: 'http', port: 80, targetPort: 80, protocol: 'TCP' }]}
+        onChange={onChange}
+      />
+    );
+
+    const spinButtons = screen.getAllByRole('spinbutton');
+    // Negative port ignored
+    fireEvent.change(spinButtons[0], { target: { value: '-1' } });
+    expect(onChange).not.toHaveBeenCalled();
+
+    // Empty clears field
+    fireEvent.change(spinButtons[0], { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith([{ name: 'http', targetPort: 80, protocol: 'TCP' }]);
+
+    // Remove port
+    fireEvent.click(screen.getByRole('button', { name: 'Remove port' }));
+    expect(onChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it('LabelTextField supports tag terminology, disabled state, edits, deletion, and external sync', () => {
+    const onChange = vi.fn();
+    const onRowsChange = vi.fn();
+    const { rerender } = render(
+      <LabelTextField
+        label="Tags"
+        helperText="Resource tags"
+        required
+        terminology="tag"
+        value={{ env: 'dev' }}
+        onChange={onChange}
+        onRowsChange={onRowsChange}
+      />
+    );
+
+    expect(screen.getByText('Tags *')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }));
+    expect(onChange).toHaveBeenLastCalledWith({ env: 'dev', 'new-tag': '' });
+
+    const keys = screen.getAllByLabelText('Tag key');
+    const values = screen.getAllByLabelText('Tag value');
+    fireEvent.change(keys[1], { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith({ env: 'dev' });
+    expect(onRowsChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ key: 'env', value: 'dev' }),
+      expect.objectContaining({ key: '', value: '' }),
+    ]);
+    fireEvent.change(keys[1], { target: { value: 'env' } });
+    expect(onChange).toHaveBeenLastCalledWith({ env: 'dev' });
+    expect(onRowsChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ key: 'env', value: 'dev' }),
+      expect.objectContaining({ key: 'env', value: '' }),
+    ]);
+    fireEvent.change(keys[1], { target: { value: 'team' } });
+    fireEvent.change(values[1], { target: { value: 'core' } });
+    expect(onChange).toHaveBeenLastCalledWith({ env: 'dev', team: 'core' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove tag team=core' }));
+    expect(onChange).toHaveBeenLastCalledWith({ env: 'dev' });
+
+    // Disabled state prevents edits and rerender syncs external value
+    rerender(
+      <LabelTextField disabled terminology="tag" value={{ env: 'prod' }} onChange={onChange} />
+    );
+    expect((screen.getByLabelText('Tag key') as HTMLInputElement).value).toBe('env');
+    expect((screen.getByLabelText('Tag value') as HTMLInputElement).value).toBe('prod');
+    onChange.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('parseYaml, labelsToString, parseLabelsString, and toYamlString handle valid and edge inputs', () => {
+    expect(parseYaml('kind: Pod\nmetadata:\n  name: demo')).toEqual({
+      kind: 'Pod',
+      metadata: { name: 'demo' },
+    });
+    expect(parseYaml(undefined)).toEqual({});
+    expect(parseYaml(':::bad')).toEqual({});
+    expect(parseYaml('kind: [Pod')).toEqual({});
+    expect(parseYaml('just-a-string')).toEqual({});
+
+    expect(labelsToString({ a: '1', b: '2' })).toBe('a=1, b=2');
+    expect(labelsToString(undefined)).toBe('');
+
+    expect(parseLabelsString('   ')).toEqual({});
+    expect(parseLabelsString('a=1, b=2=3, =ignored')).toEqual({ a: '1', b: '2=3' });
+
+    expect(toYamlString(null)).toBe('null');
+    expect(toYamlString(undefined)).toBe('null');
+    expect(toYamlString({ kind: 'Pod' })).toContain('kind: Pod');
   });
 });
