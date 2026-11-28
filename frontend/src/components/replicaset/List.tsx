@@ -63,7 +63,7 @@ export default function ReplicaSetList() {
             replicaSet
               .getContainers()
               .map(c => c.name)
-              .join(''),
+              .join(', '),
           render: replicaSet => {
             const containerText = replicaSet
               .getContainers()
@@ -83,7 +83,7 @@ export default function ReplicaSetList() {
             replicaSet
               .getContainers()
               .map((c: KubeContainer) => c.image)
-              .join(''),
+              .join(', '),
           render: replicaSet => {
             const imageText = replicaSet
               .getContainers()
