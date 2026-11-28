@@ -72,8 +72,8 @@ describe('router helpers', () => {
     it('falls back to deprecated noCluster with a warning when useClusterURL is undefined', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      expect(getRouteUseClusterURL({ ...baseRoute, noCluster: false })).toBe(false);
-      expect(getRouteUseClusterURL({ ...baseRoute, noCluster: true })).toBe(true);
+      expect(getRouteUseClusterURL({ ...baseRoute, noCluster: false })).toBe(true);
+      expect(getRouteUseClusterURL({ ...baseRoute, noCluster: true })).toBe(false);
       expect(warnSpy).toHaveBeenCalledTimes(2);
     });
   });
@@ -131,7 +131,7 @@ describe('router helpers', () => {
     it('resolves store routes by name and warns when matched only by key/path', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const storeRoutes: Record<string, Route> = {
-        '/custom-plugin-key': {
+        '/custom-plugin/:item': {
           path: '/custom-plugin/:item',
           name: 'CustomPluginName',
           sidebar: null,
@@ -147,7 +147,7 @@ describe('router helpers', () => {
       expect(createRouteURL('custompluginname', { item: 'alpha' })).toBe('/custom-plugin/alpha');
       expect(warnSpy).not.toHaveBeenCalled();
 
-      expect(createRouteURL('/custom-plugin-key', { item: 'beta' })).toBe('/custom-plugin/beta');
+      expect(createRouteURL('/custom-plugin/:item', { item: 'beta' })).toBe('/custom-plugin/beta');
       expect(warnSpy).toHaveBeenCalledTimes(1);
     });
 

@@ -26,7 +26,7 @@ import type { Route } from './Route';
 export function getRouteUseClusterURL(route: Route): boolean {
   if (route.useClusterURL === undefined && route.noCluster !== undefined) {
     console.warn('Route.noCluster is deprecated. Please use route.useClusterURL instead.');
-    return route.noCluster;
+    return !route.noCluster;
   }
   if (route.useClusterURL === undefined) {
     // default is true, so undefined === true.
