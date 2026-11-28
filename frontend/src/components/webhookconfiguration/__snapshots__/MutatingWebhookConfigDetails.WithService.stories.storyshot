@@ -521,7 +521,9 @@
                         >
                           <td
                             class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
-                          />
+                          >
+                            core
+                          </td>
                           <td
                             class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                           >
