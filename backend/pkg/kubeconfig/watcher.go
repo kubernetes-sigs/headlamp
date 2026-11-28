@@ -249,8 +249,9 @@ func syncContextsLocked(kubeConfigStore ContextStore, paths string, source int, 
 
 	defined := lastDefinitions(definitions, ignoreFunc)
 	reloaded := lastLoaded(loaded, defined)
+	failed := failedContextDefinitions(contextErrors, ignoreFunc)
 
-	removeUnloadedContexts(kubeConfigStore, stored, defined, reloaded)
+	removeUnloadedContexts(kubeConfigStore, stored, defined, reloaded, failed)
 
 	var errs []error
 
@@ -262,6 +263,10 @@ func syncContextsLocked(kubeConfigStore ContextStore, paths string, source int, 
 
 		s := storedByName[name]
 		if s != nil && (s.Source == DynamicCluster || keepStoredContext(s, defined[name])) {
+			continue
+		}
+
+		if s != nil && s.ClusterID != loaded[i].ClusterID && failedContextMatchesStored(s, failed) {
 			continue
 		}
 
@@ -281,12 +286,81 @@ func syncContextsLocked(kubeConfigStore ContextStore, paths string, source int, 
 	return nil
 }
 
-// removeUnloadedContexts removes the stored kubeconfig contexts that are no
-// longer defined, or whose definition no longer loads, unless that is only
-// because a credential file it needs can't be used yet; see keepStoredContext.
-func removeUnloadedContexts(kubeConfigStore ContextStore, stored []*Context, defined, reloaded map[string]*Context) {
+func failedContextDefinitions(
+	contextErrors []ContextLoadError,
+	ignoreFunc shouldBeSkippedFunc,
+) map[string][]*Context {
+	failed := make(map[string][]*Context, len(contextErrors))
+
+	for _, contextError := range contextErrors {
+		context := contextError.Context
+		if context == nil || context.ClusterID == "" {
+			continue
+		}
+
+		if ignoreFunc != nil && ignoreFunc(*context) {
+			continue
+		}
+
+		failed[context.ClusterID] = append(failed[context.ClusterID], context)
+	}
+
+	return failed
+}
+
+// A partial rewrite can omit a referenced cluster or user while leaving its
+// context stanza unchanged. Keep only that stored context, not another context
+// with the same effective name from a different kubeconfig.
+func failedContextMatchesStored(stored *Context, failed map[string][]*Context) bool {
+	if failedFileHasNamelessContext(stored.KubeConfigPath, failed) {
+		return true
+	}
+
+	for _, definition := range failed[stored.ClusterID] {
+		if stored.KubeConfigPath == definition.KubeConfigPath &&
+			stored.KubeConfigContextName == definition.KubeConfigContextName &&
+			reflect.DeepEqual(stored.KubeContext, definition.KubeContext) &&
+			(definition.Cluster == nil || reflect.DeepEqual(stored.Cluster, definition.Cluster)) &&
+			(definition.AuthInfo == nil || reflect.DeepEqual(stored.AuthInfo, definition.AuthInfo)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// A rewrite can be caught after a context stanza is written but before its
+// name is. Such an entry cannot say which of the file's contexts it is, so
+// every stored context of that file is kept. Contexts of the other files are
+// still reconciled, so one genuinely removed elsewhere is still removed.
+func failedFileHasNamelessContext(path string, failed map[string][]*Context) bool {
+	if path == "" {
+		return false
+	}
+
+	for _, definition := range failed[contextClusterID(path, "")] {
+		if definition.KubeConfigPath == path && definition.KubeConfigContextName == "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// removeUnloadedContexts removes stored kubeconfig contexts that are no longer
+// defined, unless the reload failed to load that same source context.
+func removeUnloadedContexts(
+	kubeConfigStore ContextStore,
+	stored []*Context,
+	defined, reloaded map[string]*Context,
+	failed map[string][]*Context,
+) {
 	for _, s := range stored {
 		if s.Source != KubeConfig || reloaded[s.Name] != nil {
+			continue
+		}
+
+		if failedContextMatchesStored(s, failed) {
 			continue
 		}
 

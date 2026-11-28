@@ -171,6 +171,26 @@ describe('clusterRequest failure handling', () => {
     expect(err.message).toContain('forbidden by RBAC');
   });
 
+  it('includes plain-text error bodies in API errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response('cluster "missing" not found: key not found', {
+            status: 404,
+            statusText: 'Not Found',
+            headers: { 'Content-Type': 'text/plain' },
+          })
+        )
+      )
+    );
+
+    const err: ApiError = await clusterRequest('/version').catch(e => e);
+
+    expect(err.status).toBe(404);
+    expect(err.message).toContain('cluster "missing" not found: key not found');
+  });
+
   it('reports a network failure while reading a successful response body as 502', async () => {
     const response = new Response();
     const networkError = new TypeError('Failed to fetch');

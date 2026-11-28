@@ -37,7 +37,7 @@ import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
 import OauthPopup from '../oidcauth/OauthPopup';
-import { testAuthWithRetry, TRANSIENT_STATUSES } from './testAuthWithRetry';
+import { testAuthWithRetry } from './testAuthWithRetry';
 
 function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
   return (
@@ -197,14 +197,11 @@ function AuthChooser({ children }: AuthChooserProps) {
           })
           .catch(err => {
             if (!cancelledRef.current) {
-              // Ideally we'd only not assign the error if it was 401 or 403 (so we let the logic
-              // proceed to request a token), but let's first check whether this is all we get
-              // from clusters that require a token.
-              if (TRANSIENT_STATUSES.includes(err.status)) {
-                // The request did not reach the cluster, so whether a token is needed is still
-                // unknown. Surfacing this as a connection error keeps it apart from the auth
-                // failures below, which do require one.
-                console.debug(`Could not reach ${clusterName} while testing auth:`, err);
+              console.debug(`Testing auth failed for ${clusterName}:`, err);
+
+              // Only 401 or 403 means the cluster is asking us for credentials. Other failures
+              // cannot be fixed by a token and should remain visible to the user.
+              if (![401, 403].includes(err.status)) {
                 errorObj = err;
               } else if (cluster.uses_service_account_token) {
                 // A user token is never applied to this cluster, so asking for one is not a

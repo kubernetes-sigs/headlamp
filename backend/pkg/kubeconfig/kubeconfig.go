@@ -1064,10 +1064,14 @@ func loadContextsFromFileData(data []byte, kubeConfigPath string, source int) ([
 	for i := range contexts {
 		contexts[i].KubeConfigPath = kubeConfigPath
 		// create the clusterID from the path and context name
-		contexts[i].ClusterID = fmt.Sprintf("%s+%s", kubeConfigPath, contexts[i].Name)
+		contexts[i].ClusterID = contextClusterID(kubeConfigPath, contexts[i].Name)
 	}
 
 	return contexts, contextErrors, nil
+}
+
+func contextClusterID(kubeConfigPath, contextName string) string {
+	return fmt.Sprintf("%s+%s", kubeConfigPath, MakeDNSFriendly(contextName))
 }
 
 // LoadContextsFromBase64String loads contexts from a base64 encoded kubeconfig string.
@@ -1260,13 +1264,21 @@ func processContext(
 	}
 
 	// Convert the config to a context
-	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
+	converted, err := convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
 		errs = append(errs, err)
-		context = failedContextDefinition(contextName, singleConfig, source, kubeConfigPath)
 	}
 
-	return context, errors.Join(errs...)
+	// Any error reported above makes this a failed context, and reconciliation
+	// matches it against the store by the fields identifying its source.
+	// convertToContext does not set them, and it can succeed even after a
+	// cluster or user lookup failed, so the definition is rebuilt here rather
+	// than returning what it produced.
+	if len(errs) > 0 {
+		return failedContextDefinition(contextName, singleConfig, source, kubeConfigPath), errors.Join(errs...)
+	}
+
+	return converted, nil
 }
 
 func rawContextDefinition(contextName string, raw map[interface{}]interface{}, source int, path string) Context {
@@ -1274,6 +1286,7 @@ func rawContextDefinition(contextName string, raw map[interface{}]interface{}, s
 		Name:                  MakeDNSFriendly(contextName),
 		KubeConfigPath:        path,
 		KubeConfigContextName: contextName,
+		ClusterID:             contextClusterID(path, contextName),
 		Source:                source,
 	}
 
@@ -1343,10 +1356,18 @@ func failedContextDefinition(contextName string, config *api.Config, source int,
 		Name:                  MakeDNSFriendly(contextName),
 		KubeConfigPath:        path,
 		KubeConfigContextName: contextName,
+		ClusterID:             contextClusterID(path, contextName),
 		Source:                source,
 	}
 	if raw := config.Contexts[contextName]; raw != nil {
 		context.KubeContext = raw.DeepCopy()
+		if cluster := config.Clusters[raw.Cluster]; cluster != nil {
+			context.Cluster = cluster.DeepCopy()
+		}
+
+		if authInfo := config.AuthInfos[raw.AuthInfo]; authInfo != nil {
+			context.AuthInfo = authInfo.DeepCopy()
+		}
 	}
 
 	return context
