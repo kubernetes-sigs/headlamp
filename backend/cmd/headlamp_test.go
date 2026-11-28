@@ -36,6 +36,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,6 +44,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gobwas/glob"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
@@ -1231,6 +1233,37 @@ func TestCompileProxyURLPatternsInvalidPattern(t *testing.T) {
 	assert.Contains(t, err.Error(), "compiling proxy URL pattern")
 }
 
+func TestCompileProxyURLPatternsRejectsPatternsWithoutHost(t *testing.T) {
+	for _, pattern := range []string{"example.com/path", "/just/a/path", "artifacthub.io"} {
+		_, err := compileProxyURLPatterns([]string{pattern})
+
+		require.Error(t, err, "pattern %q should be rejected", pattern)
+		assert.Contains(t, err.Error(), "compiling proxy URL pattern")
+	}
+}
+
+func TestCompileProxyURLPatternsAcceptsNetworkPathReference(t *testing.T) {
+	_, err := compileProxyURLPatterns([]string{"//example.com/path"})
+	require.NoError(t, err)
+}
+
+func TestCompileProxyURLPatternsLimitsHostAlternatives(t *testing.T) {
+	_, err := compileProxyURLPatterns([]string{
+		"https://{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}.example.com/*",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "alternatives")
+}
+
+func TestCompileProxyURLPatternsDoesNotMultiplyBoundaryMatchers(t *testing.T) {
+	matchers, err := compileProxyURLPatterns([]string{
+		"https://example.com/api/v????????????.json?download=*",
+	})
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(matchers), 28)
+}
+
 func TestProxyURLAllowedCompilesConfiguredProxyURLs(t *testing.T) {
 	config := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -1245,6 +1278,874 @@ func TestProxyURLAllowedCompilesConfiguredProxyURLs(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, allowed)
 	assert.NotEmpty(t, config.compiledProxyURLs)
+}
+
+func TestProxyURLPatternRejectsAmbiguousAuthority(t *testing.T) {
+	for _, pattern := range []string{
+		"https://api?.example.com/*",
+		"https://api?*.example.com",
+		"http://db?:8080/*",
+		"http://db?/*",
+		"http://api?internal:8080/*",
+		"https://*?.example.com/*?tenant=trusted",
+		"http://*?@grafana",
+	} {
+		_, err := compileProxyURLPatterns([]string{pattern})
+		require.Error(t, err)
+	}
+}
+
+func TestSplitProxyURLPatternPreservesLiteralQuestionClasses(t *testing.T) {
+	_, _, rawPath, rawQuery, hasQuery, err := splitProxyURLPattern(
+		"https://example.com/api[?]wsdl",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "/api[?]wsdl", rawPath)
+	assert.Empty(t, rawQuery)
+	assert.False(t, hasQuery)
+
+	pathMatchers, err := compileProxyURLPatterns([]string{
+		"https://example.com/api[?]wsdl",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, pathMatchers)
+	assert.True(t, slices.ContainsFunc(pathMatchers, func(matcher proxyURLMatcher) bool {
+		return matcher.path.Match("/api?wsdl") && matcher.query == nil
+	}))
+	assert.False(t, slices.ContainsFunc(pathMatchers, func(matcher proxyURLMatcher) bool {
+		return matcher.path.Match("/apiXwsdl")
+	}))
+
+	queryMatchers, err := compileProxyURLPatterns([]string{
+		"https://example.com/api?tenant=[?]",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, queryMatchers)
+	assert.True(t, slices.ContainsFunc(queryMatchers, func(matcher proxyURLMatcher) bool {
+		return matcher.query != nil && matcher.query.Match("tenant=?")
+	}))
+	assert.False(t, slices.ContainsFunc(queryMatchers, func(matcher proxyURLMatcher) bool {
+		return matcher.query != nil && matcher.query.Match("tenant=X")
+	}))
+
+	_, _, rawPath, rawQuery, hasQuery, err = splitProxyURLPattern(
+		"https://example.com/api?tenant=[?]",
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "/api", rawPath)
+	assert.Equal(t, "tenant=[?]", rawQuery)
+	assert.True(t, hasQuery)
+}
+
+type proxyURLTestGlob func(string) bool
+
+func (g proxyURLTestGlob) Match(value string) bool {
+	return g(value)
+}
+
+func TestProxyURLAllowedRequiresPathMatchBeforeCheckingQuery(t *testing.T) {
+	var pathInputs []string
+
+	config := &HeadlampConfig{
+		compiledProxyURLs: []proxyURLMatcher{
+			{
+				scheme: glob.MustCompile("https"),
+				host:   glob.MustCompile("example.test"),
+				path: proxyURLTestGlob(func(value string) bool {
+					pathInputs = append(pathInputs, value)
+
+					return value != "/catalog"
+				}),
+			},
+		},
+	}
+
+	allowed, err := config.proxyURLAllowed("https://example.test/catalog?view=summary")
+	require.NoError(t, err)
+	assert.False(t, allowed)
+	assert.Equal(t, []string{"/catalog"}, pathInputs)
+}
+
+//nolint:funlen // Table-driven cases cover host, path and query restrictions.
+func TestProxyURLAllowedDoesNotBypassAllowlist(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		url     string
+		allowed bool
+	}{
+		{
+			name: "matching query", pattern: "https://example.com/api?tenant=trusted",
+			url: "https://example.com/api?tenant=trusted", allowed: true,
+		},
+		{
+			name:    "brace alternatives in query match",
+			pattern: "https://example.com/api{?tenant=trusted,?tenant=other}",
+			url:     "https://example.com/api?tenant=other",
+			allowed: true,
+		},
+		{
+			name:    "escaped delimiter brace alternatives expand",
+			pattern: `https://example.com/api{\?tenant=trusted,\?tenant=other}`,
+			url:     "https://example.com/api?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "bracketed delimiter brace alternatives expand",
+			pattern: "https://example.com/api{[?]tenant=trusted,[?]tenant=other}",
+			url:     "https://example.com/api?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "single-character rc path suffix precedes query",
+			pattern: "https://example.com/releases/build?rc?tenant=*",
+			url:     "https://example.com/releases/build1rc?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "host hash character class matches",
+			pattern: "https://[!#]*.example.com/*",
+			url:     "https://api.example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "host at-sign character class matches",
+			pattern: "https://[!@]*.example.com/*",
+			url:     "https://api.example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "encoded internationalized host matches",
+			pattern: "https://b%C3%BCcher.example/*",
+			url:     "https://b%C3%BCcher.example/api",
+			allowed: true,
+		},
+		{
+			name:    "single-character query-key glob matches",
+			pattern: "https://example.com/api?tenant?=trusted",
+			url:     "https://example.com/api?tenant1=trusted",
+			allowed: true,
+		},
+		{
+			name:    "short-path query-key glob matches",
+			pattern: "https://example.com/v1?tenant?Id=trusted",
+			url:     "https://example.com/v1?tenant1Id=trusted",
+			allowed: true,
+		},
+		{
+			name:    "version-path query-key glob matches",
+			pattern: "https://example.com/version?tenant?Id=trusted",
+			url:     "https://example.com/version?tenant1Id=trusted",
+			allowed: true,
+		},
+		{
+			name:    "hyphenated query-key glob matches",
+			pattern: "https://example.com/api?tenant-?Id=trusted",
+			url:     "https://example.com/api?tenant-1Id=trusted",
+			allowed: true,
+		},
+		{
+			name: "query directly after host matches", pattern: "https://example.com?tenant=*",
+			url: "https://example.com?tenant=trusted", allowed: true,
+		},
+		{
+			name: "host-adjacent query wildcard matches", pattern: "https://example.com?*",
+			url: "https://example.com?tenant=trusted", allowed: true,
+		},
+		{
+			name: "host-adjacent key value wildcard matches", pattern: "https://example.com?*=*",
+			url: "https://example.com?tenant=trusted", allowed: true,
+		},
+		{
+			name:    "host-adjacent wildcard key fixed value matches",
+			pattern: "https://example.com?*=trusted",
+			url:     "https://example.com?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "encoded-space IPv6 zone matches",
+			pattern: `http://\[fe80::1%25Ethernet%202\]:8080/*`,
+			url:     "http://[fe80::1%25Ethernet%202]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "host-escaped punctuation IPv6 zone matches",
+			pattern: `http://\[fe80::1%25vEthernet%20(WSL)\]:8080/*`,
+			url:     "http://[fe80::1%25vEthernet%20(WSL)]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "general wildcard host accepts IPv6 zone",
+			pattern: "http://*:9090/metrics",
+			url:     "http://[fe80::1%25eth0]:9090/metrics",
+			allowed: true,
+		},
+		{
+			name:    "host-adjacent suffix key fixed value matches",
+			pattern: "https://example.com?*tenant=trusted",
+			url:     "https://example.com?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "host-adjacent query key single-character glob matches",
+			pattern: "https://example.com?tenant?Id=trusted",
+			url:     "https://example.com?tenant1Id=trusted",
+			allowed: true,
+		},
+		{
+			name:    "path-adjacent query key single-character glob matches",
+			pattern: "https://example.com/api?tenant?Id=trusted",
+			url:     "https://example.com/api?tenant1Id=trusted",
+			allowed: true,
+		},
+		{
+			name:    "host-adjacent escaped query delimiter matches",
+			pattern: `https://example.com\?tenant=*`,
+			url:     "https://example.com?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "host-adjacent escaped dotted query key matches",
+			pattern: `https://example.com\?api.version=1`,
+			url:     "https://example.com?api.version=1",
+			allowed: true,
+		},
+		{
+			name:    "host-adjacent bracketed dotted query key matches",
+			pattern: "https://example.com[?]api.version=1",
+			url:     "https://example.com?api.version=1",
+			allowed: true,
+		},
+		{
+			name:    "long path prefix with single-character suffix precedes query",
+			pattern: "https://example.com/api/version?beta?tenant=*",
+			url:     "https://example.com/api/version1beta?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "underscore query-key glob follows path boundary",
+			pattern: "https://example.com/api?tenant_?Id=trusted",
+			url:     "https://example.com/api?tenant_1Id=trusted",
+			allowed: true,
+		},
+		{
+			name:    "hostless URL is rejected before wildcard matching",
+			pattern: "http://*/*",
+			url:     "http:/api",
+		},
+		{
+			name:    "path single-character glob followed by equals remains path",
+			pattern: "https://example.com/api/v?=prod",
+			url:     "https://example.com/api/v1=prod",
+			allowed: true,
+		},
+		{
+			name:    "path single-character glob followed by ampersand remains path",
+			pattern: "https://example.com/api/v?&prod",
+			url:     "https://example.com/api/v1&prod",
+			allowed: true,
+		},
+		{
+			name:    "path single-character glob followed by matrix parameter remains path",
+			pattern: "https://example.com/api/v?;mode=prod",
+			url:     "https://example.com/api/v1;mode=prod",
+			allowed: true,
+		},
+		{
+			name:    "host-adjacent literal question class matches",
+			pattern: "https://example.com[?]tenant=*",
+			url:     "https://example.com?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "literal question class in path remains literal",
+			pattern: "https://example.com/api[?]wsdl",
+			url:     "https://example.com/apiXwsdl",
+		},
+		{
+			name:    "literal question class in query remains literal",
+			pattern: "https://example.com/api?tenant=[?]",
+			url:     "https://example.com/api?tenant=X",
+		},
+		{
+			name:    "literal question class separates earlier path boundary",
+			pattern: "https://example.com/api[?]wsdl?tenant=[?]",
+			url:     "https://example.com/api?wsdl?tenant=?",
+			allowed: true,
+		},
+		{
+			name:    "flag-style query directly after host matches",
+			pattern: "https://service.example.com?wsdl",
+			url:     "https://service.example.com?wsdl",
+			allowed: true,
+		},
+		{
+			name:    "flag-style query after path matches",
+			pattern: "https://example.com/api?wsdl",
+			url:     "https://example.com/api?wsdl",
+			allowed: true,
+		},
+		{
+			name:    "explicit empty query after path matches",
+			pattern: "https://example.com/api?",
+			url:     "https://example.com/api?",
+			allowed: true,
+		},
+		{
+			name:    "dotted query value directly after host matches",
+			pattern: "https://example.com?version=1.0",
+			url:     "https://example.com?version=1.0",
+			allowed: true,
+		},
+		{
+			name:    "dotted fragment after host query matches",
+			pattern: "https://example.com?tenant=trusted#view.v1",
+			url:     "https://example.com?tenant=trusted#view.v1",
+			allowed: true,
+		},
+		{
+			name:    "query directly after host ignores fragment",
+			pattern: "https://example.com?tenant=trusted#view",
+			url:     "https://example.com?tenant=trusted#view",
+			allowed: true,
+		},
+		{
+			name:    "question mark in fragment is not a query",
+			pattern: "https://example.com/api#view?tab=overview",
+			url:     "https://example.com/api#view?tab=overview",
+			allowed: true,
+		},
+		{
+			name:    "fragment marker inside brace alternative preserves other branch",
+			pattern: "https://example.com/api{#view,/public}",
+			url:     "https://example.com/api/public",
+			allowed: true,
+		},
+		{
+			name:    "hash character class remains in path",
+			pattern: "https://example.com/api/[!#]*",
+			url:     "https://example.com/api/value",
+			allowed: true,
+		},
+		{
+			name:    "hash character class remains in query",
+			pattern: "https://example.com/api?value=[!#]*",
+			url:     "https://example.com/api?value=hash",
+			allowed: true,
+		},
+		{
+			name:    "query directly after host rejects a different query",
+			pattern: "https://example.com?tenant=*", url: "https://example.com?view=summary",
+		},
+		{
+			name:    "query directly after host rejects a nonempty path",
+			pattern: "https://example.com?tenant=trusted",
+			url:     "https://example.com/admin?tenant=trusted",
+		},
+		{
+			name: "exact path rejects an arbitrary query", pattern: "https://example.com/api",
+			url: "https://example.com/api?tenant=other",
+		},
+		{
+			name: "path wildcard continues to accept queries", pattern: "https://example.com/api/*",
+			url: "https://example.com/api/resource?tenant=other", allowed: true,
+		},
+		{
+			name: "different query", pattern: "https://example.com/api?tenant=trusted",
+			url: "https://example.com/api?tenant=other",
+		},
+		{
+			name:    "suffix fallback cannot move path into query",
+			pattern: "https://example.com/api/v*/query?tenant=trusted",
+			url:     "https://example.com/api/v1?x=/query?tenant=trusted",
+		},
+		{
+			name:    "single-character suffix fallback cannot move path into query",
+			pattern: "https://example.com/api/v?/query?tenant=trusted",
+			url:     "https://example.com/api/v?/query?tenant=trusted",
+		},
+		{
+			name:    "bracketed literal delimiter cannot move path into query",
+			pattern: "https://example.com/api/v*/query[?]tenant=trusted",
+			url:     "https://example.com/api/v1?x=/query?tenant=trusted",
+		},
+		{
+			name:    "bracketed flag delimiter cannot move path into query",
+			pattern: "https://example.com/api/v*/query[?]wsdl",
+			url:     "https://example.com/api/v1?x=/query?wsdl",
+		},
+		{
+			name:    "bracketed delimiter permits slash-prefixed query",
+			pattern: "https://example.com/api[?]/tenant=trusted",
+			url:     "https://example.com/api?/tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "escaped delimiter permits slash-prefixed query",
+			pattern: `https://example.com/api\?/tenant=trusted`,
+			url:     "https://example.com/api?/tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "escaped literal delimiter cannot move path into query",
+			pattern: `https://example.com/api/v*/query\?tenant=trusted`,
+			url:     "https://example.com/api/v1?x=/query?tenant=trusted",
+		},
+		{
+			name:    "escaped delimiter inside class remains path glob",
+			pattern: `https://example.com/api/[a\?]?tenant=*`,
+			url:     "https://example.com/api/a?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "escaped delimiter after path wildcard matches",
+			pattern: `https://example.com/api/v*/query\?tenant=trusted`,
+			url:     "https://example.com/api/v1/query?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "escaped delimiter before slash-prefixed query matches",
+			pattern: `https://example.com/api/v*/query\?/tenant=trusted`,
+			url:     "https://example.com/api/v1/query?/tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "suffix fallback does not split brace path alternative",
+			pattern: "https://example.com/api/{foo?,bar}",
+			url:     "https://example.com/api/foo?,bar}",
+		},
+		{
+			name:    "escaped delimiter inside brace alternative is rejected",
+			pattern: `https://example.com/api{\?tenant=trusted,/public}`,
+			url:     "https://example.com/api?tenant=trusted,/public}",
+		},
+		{
+			name:    "suffix fallback does not split bracketed brace path alternative",
+			pattern: "https://example.com/api/{foo[?]bar?,baz}",
+			url:     "https://example.com/api/foo?barX,baz}",
+		},
+		{
+			name:    "suffix fragment remains optional metadata",
+			pattern: "https://example.com/api/version?beta?tenant=*#view",
+			url:     "https://example.com/api/version1beta?tenant=trusted#view",
+			allowed: true,
+		},
+		{
+			name:    "path parameter equals precedes query-key glob",
+			pattern: "https://example.com/api;v=1?tenant_?Id=trusted",
+			url:     "https://example.com/api;v=1?tenant_1Id=trusted",
+			allowed: true,
+		},
+		{
+			name:    "escaped path-adjacent query delimiter with key glob matches",
+			pattern: `https://example.com/api\?tenant?Id=trusted`,
+			url:     "https://example.com/api?tenant1Id=trusted",
+			allowed: true,
+		},
+		{
+			name: "missing query", pattern: "https://example.com/api?tenant=trusted",
+			url: "https://example.com/api",
+		},
+		{
+			name: "wildcard query matches", pattern: "https://example.com/api?tenant=*",
+			url: "https://example.com/api?tenant=trusted", allowed: true,
+		},
+		{
+			name: "wildcard query still requires matching text", pattern: "https://example.com/api?tenant=*",
+			url: "https://example.com/api?view=summary",
+		},
+		{
+			name: "query wildcard matches an explicitly empty query", pattern: "https://example.com/api?*",
+			url: "https://example.com/api?", allowed: true,
+		},
+		{
+			name: "empty query requires a query delimiter", pattern: "https://example.com?",
+			url: "https://example.com",
+		},
+		{
+			name: "explicitly empty query matches", pattern: "https://example.com?",
+			url: "https://example.com?", allowed: true,
+		},
+		{
+			name: "explicitly empty query rejects a nonempty query", pattern: "https://example.com?",
+			url: "https://example.com?view=summary",
+		},
+		{
+			name:    "exact host matches",
+			pattern: "https://prometheus.example.com/*",
+			url:     "https://prometheus.example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "subdomain wildcard matches a real subdomain",
+			pattern: "https://*.example.com",
+			url:     "https://api.example.com",
+			allowed: true,
+		},
+		{
+			name:    "wildcard port matches",
+			pattern: "https://prometheus.example.com:*/*",
+			url:     "https://prometheus.example.com:8443/api",
+			allowed: true,
+		},
+		{
+			name:    "wildcard port requires a port",
+			pattern: "https://prometheus.example.com:*/*",
+			url:     "https://prometheus.example.com/api",
+		},
+		{
+			name:    "IPv4 wildcard matches address",
+			pattern: "http://192.168.*/*",
+			url:     "http://192.168.1.10/api",
+			allowed: true,
+		},
+		{
+			name:    "escaped IPv6 address matches",
+			pattern: `http://\[::1\]:8080/*`,
+			url:     "http://[::1]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "portless IPv6 address matches",
+			pattern: `http://\[::1\]/*`,
+			url:     "http://[::1]/api",
+			allowed: true,
+		},
+		{
+			name:    "portless IPv6 rule rejects explicit port",
+			pattern: `http://\[::1\]/*`,
+			url:     "http://[::1]:8080/api",
+		},
+		{
+			name:    "wildcard IPv6 address matches",
+			pattern: `http://\[2001:db8:*\]:8080/*`,
+			url:     "http://[2001:db8::1]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "single-character IPv6 wildcard matches",
+			pattern: `http://\[2001:db8::?\]:8080/*`,
+			url:     "http://[2001:db8::1]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "question matching class can delimit query",
+			pattern: "https://example.com/api[?x]tenant=trusted",
+			url:     "https://example.com/api?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "general wildcard host matches IPv6 address",
+			pattern: "http://*:9090/metrics",
+			url:     "http://[2001:db8::1]:9090/metrics",
+			allowed: true,
+		},
+		{
+			name:    "double-star host matches IPv6 address",
+			pattern: "http://**:9090/metrics",
+			url:     "http://[2001:db8::1]:9090/metrics",
+			allowed: true,
+		},
+		{
+			name:    "alternating IPv6 hosts match",
+			pattern: `http://{\[::1\],\[::2\]}:8080/*`,
+			url:     "http://[::1]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "authority alternative preserves anonymous host",
+			pattern: "https://{api.example.com,user:pass@api.example.com}/*",
+			url:     "https://api.example.com/api",
+			allowed: true,
+		},
+		{ //nolint:gosec // Synthetic URL credentials verify userinfo alternatives.
+			name:    "authority alternative preserves authenticated host",
+			pattern: "https://{api.example.com,user:pass@api.example.com}/*",
+			url:     "https://user:pass@api.example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "nested host alternatives match",
+			pattern: "https://{api,{metrics,logs}}.example.com/*",
+			url:     "https://logs.example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "authority alternatives can include path branches",
+			pattern: "https://{api.example.com/v1,metrics.example.com/v2}/*",
+			url:     "https://metrics.example.com/v2/api",
+			allowed: true,
+		},
+		{
+			name:    "authority alternatives preserve first path branch",
+			pattern: "https://{api.example.com/v1,metrics.example.com/v2}/*",
+			url:     "https://api.example.com/v1/api",
+			allowed: true,
+		},
+		{
+			name:    "path brace alternatives do not count as host alternatives",
+			pattern: "https://example.com/{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}",
+			url:     "https://example.com/aaaaaaaaa",
+			allowed: true,
+		},
+		{
+			name:    "query brace alternatives do not count as host alternatives",
+			pattern: "https://example.com/api?x={a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}{a,b}",
+			url:     "https://example.com/api?x=aaaaaaaaa",
+			allowed: true,
+		},
+		{
+			name:    "mixed DNS and IPv6 alternatives reject zone suffix",
+			pattern: `http://{*.example.com,\[::2\]}:*/*`,
+			url:     "http://[::1%25.example.com:80]:8080/api",
+		},
+		{
+			name:    "mixed DNS and IPv6 alternatives allow IPv6 branch",
+			pattern: `http://{*.example.com,\[::2\]}:*/*`,
+			url:     "http://[::2]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "single host alternative preserves suffix",
+			pattern: "http://{*}.example.com:*/*",
+			url:     "http://[::1%25.example.com:80]:8080/api",
+		},
+		{
+			name:    "DNS-like suffix rejects zone identifier",
+			pattern: "http://*-internal:*/*",
+			url:     "http://[::1%25-internal:80]:8080/api",
+		},
+		{
+			name:    "escaped zoned IPv6 address matches",
+			pattern: `http://\[fe80::1%25eth0\]:8080/*`,
+			url:     "http://[fe80::1%25eth0]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "zoned IPv6 wildcard address matches",
+			pattern: `http://\[fe80::*%25eth0\]:8080/*`,
+			url:     "http://[fe80::1%25eth0]:8080/api",
+			allowed: true,
+		},
+		{
+			name:    "hostname character class matches",
+			pattern: "https://[ab].example.com/*",
+			url:     "https://a.example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "scheme glob matches HTTP",
+			pattern: "http*://example.com/*",
+			url:     "http://example.com/api",
+			allowed: true,
+		},
+		{
+			name:    "scheme glob matches HTTPS",
+			pattern: "http*://example.com/*",
+			url:     "https://example.com/api",
+			allowed: true,
+		},
+		{ //nolint:gosec // Synthetic URL credentials verify userinfo matching.
+			name:    "userinfo pattern matches authenticated target",
+			pattern: "https://user:pass@example.com/*",
+			url:     "https://user:pass@example.com/api",
+			allowed: true,
+		},
+		{ //nolint:gosec // Synthetic URL credentials verify userinfo matching.
+			name:    "userinfo pattern rejects different credentials",
+			pattern: "https://user:pass@example.com/*",
+			url:     "https://other:pass@example.com/api",
+		},
+		{ //nolint:gosec // Synthetic URL credentials verify userinfo matching.
+			name:    "pattern without userinfo rejects authenticated target",
+			pattern: "https://example.com/*",
+			url:     "https://user:pass@example.com/api",
+		},
+		{
+			name:    "single-character path glob remains in the path",
+			pattern: "https://example.com/api/v?/query",
+			url:     "https://example.com/api/v1/query",
+			allowed: true,
+		},
+		{
+			name:    "path and query globs remain separate",
+			pattern: "https://example.com/api/v?/query?tenant=*",
+			url:     "https://example.com/api/v1/query?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "single-character extension glob remains in path before query",
+			pattern: "https://example.com/releases/v?.json?download=*",
+			url:     "https://example.com/releases/v1.json?download=yes",
+			allowed: true,
+		},
+		{
+			name:    "multiple single-character extension globs remain before query",
+			pattern: "https://example.com/releases/v??.json?download=*",
+			url:     "https://example.com/releases/v10.json?download=yes",
+			allowed: true,
+		},
+		{
+			name:    "double single-character path globs precede query",
+			pattern: "https://example.com/api/v??tenant=*",
+			url:     "https://example.com/api/v1?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "single-character hyphenated path glob precedes query",
+			pattern: "https://example.com/api/v?-stable?tenant=*",
+			url:     "https://example.com/api/v1-stable?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "single-character beta path suffix precedes query",
+			pattern: "https://example.com/api/v?beta?tenant=*",
+			url:     "https://example.com/api/v1beta?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "single-character underscore beta path suffix precedes query",
+			pattern: "https://example.com/api/v?_beta?tenant=*",
+			url:     "https://example.com/api/v1_beta?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "opening brace in path character class stays literal",
+			pattern: "https://example.com/api/[!{}]*?tenant=*",
+			url:     "https://example.com/api/value?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "terminal path wildcard remains a path glob",
+			pattern: "https://example.com/api/v?",
+			url:     "https://example.com/api/v1",
+			allowed: true,
+		},
+		{
+			name:    "path wildcard followed by star remains a path glob",
+			pattern: "https://example.com/api/v?*",
+			url:     "https://example.com/api/v12",
+			allowed: true,
+		},
+		{
+			name:    "question mark character class remains in path",
+			pattern: "https://example.com/api[?]tenant=*",
+			url:     "https://example.com/api?tenant=trusted",
+			allowed: true,
+		},
+		{
+			name:    "domain wildcard rejects bracketed IPv6 target",
+			pattern: "http://*.example.com:*/*",
+			url:     "http://[::1%25.example.com:80]:8080/api",
+		},
+		{
+			name:    "domain wildcard rejects unbracketed IPv6 target",
+			pattern: "http://*.example.com:*/*",
+			url:     "http://::1%25.example.com:80:8080/api",
+		},
+		{
+			name:    "IPv6 wildcard cannot consume zone delimiter",
+			pattern: `http://\[*:1234\]:8080/*`,
+			url:     "http://[::1%25:1234]:8080/api",
+		},
+		{
+			name:    "IPv6 zone class cannot become delimiter",
+			pattern: `http://\[*:12[%25]\]:8080/*`,
+			url:     "http://[::1%25:122]:8080/api",
+		},
+		{
+			name:    "IPv6 address wildcard cannot consume explicit zone",
+			pattern: `http://\[*:1234%25eth0\]:8080/*`,
+			url:     "http://[::1%25:1234%25eth0]:8080/api",
+		},
+		{
+			name:    "negated host class rejects bracketed IPv6 target",
+			pattern: "http://[!a]*.example.com:*/*",
+			url:     "http://[::1%25.example.com:80]:8080/api",
+		},
+		{
+			name:    "encoded path glob character remains literal",
+			pattern: "https://example.com/objects/%2A",
+			url:     "https://example.com/objects/%2A",
+			allowed: true,
+		},
+		{
+			name:    "encoded path glob character cannot widen access",
+			pattern: "https://example.com/objects/%2A",
+			url:     "https://example.com/objects/private",
+		},
+		{
+			name:    "intentionally written path glob still matches",
+			pattern: "https://example.com/objects/*",
+			url:     "https://example.com/objects/private",
+			allowed: true,
+		},
+		{
+			name:    "wildcard matches a nested path on the allowed host",
+			pattern: "https://artifacthub.io/*",
+			url:     "https://artifacthub.io/api/v1/packages/search",
+			allowed: true,
+		},
+		{
+			name:    "wildcard matches a nested path even with a query string",
+			pattern: "https://artifacthub.io/*",
+			url:     "https://artifacthub.io/api/v1/packages/search?query=up",
+			allowed: true,
+		},
+		{
+			name:    "double star matches across path segments",
+			pattern: "https://prometheus.example.com/**",
+			url:     "https://prometheus.example.com/api/v1/query",
+			allowed: true,
+		},
+		{
+			name:    "subdomain wildcard does not match host with allowed suffix in the path",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com/a.example.com",
+			allowed: false,
+		},
+		{
+			name:    "wildcard does not cross the path boundary onto another host",
+			pattern: "https://prometheus.example.com/*",
+			url:     "https://prometheus.example.com.evil.com/api",
+			allowed: false,
+		},
+		{
+			name:    "wildcard does not cross the query boundary onto another host",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com?target=.example.com",
+			allowed: false,
+		},
+		{
+			name:    "wildcard does not cross the fragment boundary onto another host",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com#.example.com",
+			allowed: false,
+		},
+		{
+			name:    "unrelated host is rejected",
+			pattern: "https://*.example.com",
+			url:     "https://evil.com",
+			allowed: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						ProxyURLs: []string{tc.pattern},
+					},
+				},
+			}
+
+			allowed, err := config.proxyURLAllowed(tc.url)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.allowed, allowed)
+		})
+	}
 }
 
 func newLargeBodyUpstream(t *testing.T, size int) *httptest.Server {
