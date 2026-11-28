@@ -35,8 +35,12 @@ export default function DaemonSetList() {
         {
           id: 'pods',
           label: t('Pods'),
-          getValue: daemonSet => daemonSet.status?.currentNumberScheduled || 0,
-          gridTemplate: 0.6,
+          disableFiltering: true,
+          getValue: daemonSet =>
+            `${daemonSet.status?.numberReady || 0}/${
+              daemonSet.status?.desiredNumberScheduled || 0
+            }`,
+          gridTemplate: 'min-content',
         },
         {
           id: 'currentPods',
