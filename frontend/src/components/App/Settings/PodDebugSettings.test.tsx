@@ -19,6 +19,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_POD_DEBUG_IMAGE } from '../../../helpers/clusterSettings';
 import { createMuiTheme } from '../../../lib/themes';
+import { initialAdminSettingsState } from '../../../settings/adminSettingsSlice';
 import { TestContext } from '../../../test';
 import PodDebugSettings from './PodDebugSettings';
 
@@ -35,11 +36,12 @@ vi.mock('../../common/SectionBox', () => ({
 
 function renderSettings(
   clusterSettings: React.ComponentProps<typeof PodDebugSettings>['clusterSettings'] = {},
-  defaultPodDebugImage?: string
+  defaultPodDebugImage?: string,
+  adminSettings: any = { ...initialAdminSettingsState }
 ) {
   const setClusterSettings = vi.fn();
   mockUseTypedSelector.mockImplementation(selector =>
-    selector({ config: { defaultPodDebugImage } })
+    selector({ config: { defaultPodDebugImage }, adminSettings })
   );
 
   render(
@@ -119,5 +121,77 @@ describe('PodDebugSettings', () => {
         isEnabled: false,
       },
     });
+  });
+
+  it('supports admin-managed debugImage and isEnabled settings with disabled mode', () => {
+    const adminSettings = {
+      ...initialAdminSettingsState,
+      defaults: {
+        clusters: {
+          '*': {
+            podDebugTerminal: {
+              debugImage: 'registry.example/admin-debug:1',
+              isEnabled: false,
+            },
+          },
+        },
+      },
+      display: {
+        'clusters.*.podDebugTerminal.debugImage': 'disabled',
+        'clusters.*.podDebugTerminal.isEnabled': 'disabled',
+      },
+    };
+
+    renderSettings({}, undefined, adminSettings);
+
+    const imageInput = screen.getByRole('textbox');
+    expect(imageInput).toHaveValue('registry.example/admin-debug:1');
+    expect(imageInput).toBeDisabled();
+
+    const enabledSwitch = screen.getByRole('checkbox');
+    expect(enabledSwitch).not.toBeChecked();
+    expect(enabledSwitch).toBeDisabled();
+  });
+
+  it('supports admin-managed debugImage and isEnabled settings with hidden mode', () => {
+    const hiddenAdminSettings = {
+      ...initialAdminSettingsState,
+      defaults: {
+        clusters: {
+          '*': {
+            podDebugTerminal: {
+              debugImage: 'registry.example/admin-debug:1',
+              isEnabled: false,
+            },
+          },
+        },
+      },
+      display: {
+        'clusters.*.podDebugTerminal.debugImage': 'hidden',
+        'clusters.*.podDebugTerminal.isEnabled': 'hidden',
+      },
+    };
+
+    renderSettings({}, undefined, hiddenAdminSettings);
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('treats empty local debugImage string as unset and falls back to admin default', () => {
+    const adminSettings = {
+      ...initialAdminSettingsState,
+      defaults: {
+        clusters: {
+          '*': {
+            podDebugTerminal: {
+              debugImage: 'registry.example/admin-debug:1',
+            },
+          },
+        },
+      },
+    };
+
+    renderSettings({ podDebugTerminal: { debugImage: '' } }, undefined, adminSettings);
+    expect(screen.getByRole('textbox')).toHaveValue('registry.example/admin-debug:1');
   });
 });

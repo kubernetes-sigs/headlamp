@@ -103,7 +103,7 @@ function extractDisplay(
   display: Record<string, DisplayMode>
 ) {
   const d = obj.$display;
-  if (d === 'disabled' || d === 'hidden') {
+  if (d === 'normal' || d === 'disabled' || d === 'hidden') {
     display[path] = d;
   }
 }

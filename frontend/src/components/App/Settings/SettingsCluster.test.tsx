@@ -27,6 +27,7 @@ import { createMuiTheme } from '../../../lib/themes';
 import { initialState as configInitialState, setConfig } from '../../../redux/configSlice';
 import reducers from '../../../redux/reducers/reducers';
 import store from '../../../redux/stores/store';
+import { initialAdminSettingsState } from '../../../settings/adminSettingsSlice';
 import { enqueueConfigOperation } from '../../../stateless/configOperationQueue';
 import { TestContext } from '../../../test';
 import SettingsCluster from './SettingsCluster';
@@ -109,12 +110,21 @@ vi.mock('./PodDebugSettings', () => ({ default: () => null }));
 
 function renderSettings(
   settings: Record<string, unknown> = {},
-  options: { queryCluster?: string | null; dark?: boolean } = {}
+  options: { queryCluster?: string | null; dark?: boolean; adminSettings?: any } = {}
 ) {
-  const { queryCluster = clusterName, dark = false } = options;
+  const { queryCluster = clusterName, dark = false, adminSettings } = options;
   localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
+  const store = configureStore({
+    reducer: reducers,
+    preloadedState: {
+      adminSettings: adminSettings ? { ...initialAdminSettingsState, ...adminSettings } : undefined,
+    } as any,
+  });
   return render(
-    <TestContext urlSearchParams={queryCluster === null ? undefined : { c: queryCluster }}>
+    <TestContext
+      store={adminSettings ? store : undefined}
+      urlSearchParams={queryCluster === null ? undefined : { c: queryCluster }}
+    >
       <ThemeProvider theme={dark ? darkTheme : theme}>
         <SettingsCluster />
       </ThemeProvider>
@@ -688,5 +698,145 @@ describe('SettingsCluster states and namespaces', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove Cluster' }));
     await waitFor(() => expect(mockDeleteCluster).toHaveBeenCalledWith(clusterName));
+  });
+
+  it('supports admin-managed allowedNamespaces setting with disabled mode', () => {
+    const adminSettings = {
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespaces: ['admin-ns-1', 'admin-ns-2'],
+          },
+        },
+      },
+      display: {
+        'clusters.*.allowedNamespaces': 'disabled',
+      },
+    };
+
+    renderSettings({}, { adminSettings });
+
+    const input = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+    expect(input).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add namespace' })).toBeDisabled();
+
+    // Verify chips are rendered for admin namespaces and have no delete button
+    expect(screen.getByText('admin-ns-1')).toBeInTheDocument();
+    expect(screen.getByText('admin-ns-2')).toBeInTheDocument();
+    const chip1 = screen.getByText('admin-ns-1').closest('.MuiChip-root');
+    expect(chip1?.querySelector('svg')).toBeNull();
+  });
+
+  it('supports admin-managed allowedNamespaces setting with hidden mode', () => {
+    const hiddenAdminSettings = {
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespaces: ['admin-ns-1', 'admin-ns-2'],
+          },
+        },
+      },
+      display: {
+        'clusters.*.allowedNamespaces': 'hidden',
+      },
+    };
+    renderSettings({}, { adminSettings: hiddenAdminSettings });
+    expect(screen.queryByRole('textbox', { name: 'Allowed namespaces' })).not.toBeInTheDocument();
+  });
+
+  it('supports admin-managed allowedNamespacesSelector setting with disabled mode', () => {
+    const adminSettings = {
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespacesSelector: 'team=infra',
+          },
+        },
+      },
+      display: {
+        'clusters.*.allowedNamespacesSelector': 'disabled',
+      },
+    };
+
+    renderSettings({}, { adminSettings });
+
+    const input = screen.getByRole('textbox', { name: 'Allowed namespaces label selector' });
+    expect(input).toBeDisabled();
+    expect(input).toHaveValue('team=infra');
+    expect(screen.getByRole('button', { name: 'Apply label selector' })).toBeDisabled();
+  });
+
+  it('supports admin-managed allowedNamespacesSelector setting with hidden mode', () => {
+    const hiddenAdminSettings = {
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespacesSelector: 'team=infra',
+          },
+        },
+      },
+      display: {
+        'clusters.*.allowedNamespacesSelector': 'hidden',
+      },
+    };
+    renderSettings({}, { adminSettings: hiddenAdminSettings });
+    expect(
+      screen.queryByRole('textbox', { name: 'Allowed namespaces label selector' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('treats empty local allowedNamespacesSelector as unset and falls back to admin default', () => {
+    const adminSettings = {
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespacesSelector: 'team=admin-default',
+          },
+        },
+      },
+    };
+
+    renderSettings({ allowedNamespacesSelector: '' }, { adminSettings });
+
+    expect(screen.getByRole('textbox', { name: 'Allowed namespaces label selector' })).toHaveValue(
+      'team=admin-default'
+    );
+  });
+
+  it('seeds additions and deletions from effective distributed allowedNamespaces in normal mode', async () => {
+    const adminSettings = {
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespaces: ['admin-a', 'admin-b'],
+          },
+        },
+      },
+    };
+
+    renderSettings({}, { adminSettings });
+
+    const input = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+    await userEvent.type(input, 'user-c');
+    await userEvent.click(screen.getByRole('button', { name: 'Add namespace' }));
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}');
+      expect(stored.allowedNamespaces).toEqual(['admin-a', 'admin-b', 'user-c']);
+    });
+
+    // Deleting a chip from a freshly inherited list persists the remaining namespaces.
+    localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify({}));
+    renderSettings({}, { adminSettings });
+
+    const chipA = screen.getAllByText('admin-a')[1].closest('.MuiChip-root');
+    const deleteSvg = chipA?.querySelector('svg');
+    expect(deleteSvg).not.toBeNull();
+    await userEvent.click(deleteSvg!);
+
+    await waitFor(() => {
+      const stored = JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}');
+      expect(stored.allowedNamespaces).toEqual(['admin-b']);
+    });
   });
 });

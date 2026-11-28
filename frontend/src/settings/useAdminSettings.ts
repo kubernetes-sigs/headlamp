@@ -15,12 +15,18 @@
  */
 
 import { createSelector } from '@reduxjs/toolkit';
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
+import { loadClusterSettings, subscribeToClusterSettings } from '../helpers/clusterSettings';
 import type { ConfigState } from '../redux/configSlice';
 import { builtInSettings } from '../redux/configSlice';
 import { useTypedSelector } from '../redux/hooks';
 import type { RootState } from '../redux/stores/store';
-import { resolveSettingValue } from './settingsResolution';
+import {
+  getDisplayMode,
+  getNestedValue,
+  resolveSettingValue,
+  stripClusterPrefix,
+} from './settingsResolution';
 
 const noUserSettings: Partial<ConfigState['settings']> = {};
 
@@ -61,20 +67,48 @@ export function useSetting<T = any>(
   const adminSettings = useTypedSelector(state => state.adminSettings ?? null);
   const userValue = useTypedSelector(state => state.config?.userSettings?.[path]);
   const builtInDefault = builtInSettings[path];
+  const localClusterSnapshot = useSyncExternalStore(
+    subscribeToClusterSettings,
+    () => {
+      if (!clusterName) {
+        return '';
+      }
+      const clusterSettings = loadClusterSettings(clusterName);
+      const clusterPath = stripClusterPrefix(path, clusterName);
+      const val = getNestedValue(clusterSettings, clusterPath);
+      return val === undefined ? '' : JSON.stringify(val) ?? '';
+    },
+    () => ''
+  );
 
   return useMemo(() => {
-    const { value } = resolveSettingValue(
-      path,
-      userValue,
-      builtInDefault,
-      adminSettings,
-      clusterName
-    );
-    const mode = adminSettings?.display[path];
+    if (clusterName) {
+      const isClusterScopedPath = stripClusterPrefix(path, clusterName) !== path;
+      const rawUserValue = localClusterSnapshot ? JSON.parse(localClusterSnapshot) : undefined;
+      const localUserValue =
+        rawUserValue === '' || (Array.isArray(rawUserValue) && rawUserValue.length === 0)
+          ? undefined
+          : (rawUserValue as T | undefined);
+      const { value } = resolveSettingValue<T | undefined>(
+        path,
+        isClusterScopedPath ? localUserValue : userValue,
+        isClusterScopedPath ? undefined : builtInDefault,
+        adminSettings,
+        clusterName
+      );
+      const mode = getDisplayMode(adminSettings, path, clusterName);
+      return {
+        value,
+        hidden: mode === 'hidden',
+        disabled: mode === 'disabled',
+      };
+    }
+    const { value } = resolveSettingValue(path, userValue, builtInDefault, adminSettings);
+    const mode = getDisplayMode(adminSettings, path);
     return {
       value: value as T | undefined,
       hidden: mode === 'hidden',
       disabled: mode === 'disabled',
     };
-  }, [path, userValue, builtInDefault, adminSettings, clusterName]);
+  }, [path, userValue, builtInDefault, adminSettings, clusterName, localClusterSnapshot]);
 }

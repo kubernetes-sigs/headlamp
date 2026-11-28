@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+import store from '../redux/stores/store';
+import type { AdminSettingsState, SettingSource } from '../settings/adminSettingsSlice';
+import {
+  getDisplayMode,
+  getNestedValue,
+  resolveSettingValue,
+  stripClusterPrefix,
+} from '../settings/settingsResolution';
+
 /**
  * ClusterSettings defines the structure of the cluster settings object.
  */
@@ -222,19 +231,71 @@ export function clearResolvedAllowedNamespaces(clusterName: string) {
 }
 
 /**
+ * Resolves a cluster-scoped setting through the admin settings hierarchy,
+ * taking the user's localStorage value as the user-level value.
+ *
+ * Hierarchy:
+ * - normal mode: user localStorage > cluster-defined > admin default > built-in
+ * - hidden / disabled: cluster-defined > admin default > built-in (user ignored)
+ */
+export function resolveClusterSetting<T = any>(
+  path: string,
+  clusterName: string,
+  adminSettings?: AdminSettingsState | null | unknown
+): { value: T | undefined; hidden: boolean; disabled: boolean; source: SettingSource } {
+  const admin =
+    adminSettings && typeof adminSettings === 'object' && 'defaults' in adminSettings
+      ? (adminSettings as AdminSettingsState)
+      : adminSettings === null
+      ? null
+      : store?.getState?.()?.adminSettings ?? null;
+  const clusterSettings = loadClusterSettings(clusterName);
+  const clusterPath = stripClusterPrefix(path, clusterName);
+  const rawUserValue = getNestedValue(clusterSettings, clusterPath);
+  const userValue =
+    rawUserValue === '' || (Array.isArray(rawUserValue) && rawUserValue.length === 0)
+      ? undefined
+      : (rawUserValue as T | undefined);
+
+  const { value, source } = resolveSettingValue<T | undefined>(
+    path,
+    userValue,
+    undefined,
+    admin,
+    clusterName
+  );
+  const mode = getDisplayMode(admin, path, clusterName);
+
+  return {
+    value,
+    hidden: mode === 'hidden',
+    disabled: mode === 'disabled',
+    source,
+  };
+}
+
+/**
  * Returns whether the resolved-namespaces cache for a cluster needs to be
  * refreshed: there is a selector configured but no cache, the cache was resolved
  * for a different selector, or the cache is older than the max age.
  *
  * @param clusterName - The name of the cluster.
  * @param now - The current time in epoch milliseconds (defaults to Date.now()).
+ * @param adminSettings - Optional admin settings state to resolve against.
  * @returns true if the cache is missing, mismatched or too old.
  */
 export function isResolvedAllowedNamespacesStale(
   clusterName: string,
-  now: number = Date.now()
+  now: number = Date.now(),
+  adminSettings?: AdminSettingsState | null | unknown
 ): boolean {
-  const selector = loadClusterSettings(clusterName).allowedNamespacesSelector?.trim() || '';
+  const selector = (
+    resolveClusterSetting<string>(
+      'clusters.*.allowedNamespacesSelector',
+      clusterName,
+      adminSettings
+    ).value || ''
+  ).trim();
   if (!selector) {
     return false;
   }
@@ -352,16 +413,23 @@ export function getDiscoveredNamespaces(clusterName: string): string[] | undefin
 }
 
 /**
- * Whether the cluster settings configure namespaces explicitly (manual list or
- * label selector). Such settings take precedence over discovered namespaces.
- *
- * @param settings - The cluster settings.
+ * Resolves explicit allowedNamespaces and allowedNamespacesSelector for a cluster.
  */
-function hasConfiguredAllowedNamespaces(settings: ClusterSettings): boolean {
-  return (
-    (settings.allowedNamespaces?.length ?? 0) > 0 ||
-    Boolean(settings.allowedNamespacesSelector?.trim())
-  );
+function getResolvedNamespaceConfig(
+  cluster: string,
+  adminSettings?: AdminSettingsState | null | unknown
+): { allowedNamespaces: string[]; selector: string } {
+  const admin =
+    adminSettings && typeof adminSettings === 'object' && 'defaults' in adminSettings
+      ? (adminSettings as AdminSettingsState)
+      : undefined;
+  const allowedNamespaces =
+    resolveClusterSetting<string[]>('clusters.*.allowedNamespaces', cluster, admin).value || [];
+  const selector = (
+    resolveClusterSetting<string>('clusters.*.allowedNamespacesSelector', cluster, admin).value ||
+    ''
+  ).trim();
+  return { allowedNamespaces, selector };
 }
 
 /**
@@ -377,17 +445,20 @@ function hasConfiguredAllowedNamespaces(settings: ClusterSettings): boolean {
  * list namespaces are returned instead.
  *
  * @param cluster - The name of the cluster.
+ * @param adminSettings - Optional admin settings state to resolve against.
  * @returns The combined list of allowed namespaces.
  */
-export function getCombinedAllowedNamespaces(cluster: string): string[] {
-  const settings = loadClusterSettings(cluster);
-  if (!hasConfiguredAllowedNamespaces(settings)) {
+export function getCombinedAllowedNamespaces(
+  cluster: string,
+  adminSettings?: AdminSettingsState | null | unknown
+): string[] {
+  const { allowedNamespaces, selector } = getResolvedNamespaceConfig(cluster, adminSettings);
+  if (allowedNamespaces.length === 0 && !selector) {
     return getDiscoveredNamespaces(cluster) ?? [];
   }
-  const selector = settings.allowedNamespacesSelector?.trim() || '';
   const cache = selector ? loadResolvedAllowedNamespaces(cluster) : null;
   const resolved = cache && cache.selector === selector ? cache.namespaces : [];
-  return [...new Set([...(settings.allowedNamespaces || []), ...resolved])].sort();
+  return [...new Set([...allowedNamespaces, ...resolved])].sort();
 }
 
 /**
@@ -396,11 +467,15 @@ export function getCombinedAllowedNamespaces(cluster: string): string[] {
  * resource kinds, so callers may lift it for kinds the user can list cluster-wide.
  *
  * @param cluster - The name of the cluster.
+ * @param adminSettings - Optional admin settings state to resolve against.
  */
-export function isRestrictedOnlyByDiscovery(cluster: string): boolean {
+export function isRestrictedOnlyByDiscovery(
+  cluster: string,
+  adminSettings?: AdminSettingsState | null | unknown
+): boolean {
+  const { allowedNamespaces, selector } = getResolvedNamespaceConfig(cluster, adminSettings);
   return (
-    !hasConfiguredAllowedNamespaces(loadClusterSettings(cluster)) &&
-    getDiscoveredNamespaces(cluster) !== undefined
+    allowedNamespaces.length === 0 && !selector && getDiscoveredNamespaces(cluster) !== undefined
   );
 }
 
@@ -408,12 +483,18 @@ export function isRestrictedOnlyByDiscovery(cluster: string): boolean {
  * Checks whether a cluster has an explicit, selector-based or discovered namespace restriction.
  *
  * @param cluster - Cluster whose settings should be checked.
+ * @param adminSettings - Optional admin settings state to resolve against.
  * @returns Whether namespace access is restricted, including when a selector or
  *          discovery resolves empty.
  */
-export function hasAllowedNamespacesRestriction(cluster: string): boolean {
+export function hasAllowedNamespacesRestriction(
+  cluster: string,
+  adminSettings?: AdminSettingsState | null | unknown
+): boolean {
+  const { allowedNamespaces, selector } = getResolvedNamespaceConfig(cluster, adminSettings);
   return (
-    hasConfiguredAllowedNamespaces(loadClusterSettings(cluster)) ||
+    allowedNamespaces.length > 0 ||
+    Boolean(selector) ||
     getDiscoveredNamespaces(cluster) !== undefined
   );
 }

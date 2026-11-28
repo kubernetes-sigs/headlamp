@@ -26,8 +26,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   getDiscoveryGeneration,
-  loadClusterSettings,
   loadResolvedAllowedNamespaces,
+  resolveClusterSetting,
   subscribeDiscoveredNamespaces,
   subscribeToClusterSettings,
 } from '../../helpers/clusterSettings';
@@ -41,6 +41,7 @@ import {
   AllowedNamespacesSelectorContext,
 } from '../../lib/k8s/allowedNamespacesContext';
 import { useTypedSelector } from '../../redux/hooks';
+import { useSetting } from '../../settings/useAdminSettings';
 import { Loader } from '../common';
 
 /** Result state for a single allowed namespace selector. */
@@ -71,7 +72,8 @@ function AllowedNamespacesSelectorResolver({
   cluster: string;
   onResolved: (cluster: string, resolution: SelectorResolution) => void;
 }) {
-  const selector = (loadClusterSettings(cluster).allowedNamespacesSelector || '').trim();
+  const selectorSetting = useSetting<string>('clusters.*.allowedNamespacesSelector', cluster);
+  const selector = (selectorSetting.value || '').trim();
   const resolution = useAllowedNamespacesFromSelector(cluster, selector);
   const resultKey = resolution.error
     ? JSON.stringify([selector, 'error', resolution.error.message])
@@ -175,16 +177,25 @@ export function AllowedNamespacesSelectorProvider({
     );
   }, []);
 
+  const adminSettings = useTypedSelector(state => state.adminSettings ?? null);
   const allClusters = [...new Set([...clusters, ...Object.keys(requestedClusters)])].sort();
   const getSettingsSnapshot = () =>
     JSON.stringify(
       allClusters.map(cluster => {
-        const settings = loadClusterSettings(cluster);
-        const selector = settings.allowedNamespacesSelector?.trim() || '';
+        const allowedNamespaces =
+          resolveClusterSetting<string[]>('clusters.*.allowedNamespaces', cluster, adminSettings)
+            .value || [];
+        const selector = (
+          resolveClusterSetting<string>(
+            'clusters.*.allowedNamespacesSelector',
+            cluster,
+            adminSettings
+          ).value || ''
+        ).trim();
         const cache = selector ? loadResolvedAllowedNamespaces(cluster) : null;
         return [
           cluster,
-          settings.allowedNamespaces || [],
+          allowedNamespaces,
           selector,
           cache?.selector === selector ? cache.namespaces : null,
         ];
@@ -197,7 +208,13 @@ export function AllowedNamespacesSelectorProvider({
   );
   const resolutionKeys = Object.fromEntries(
     allClusters.map((cluster): [string, string | null] => {
-      const selector = (loadClusterSettings(cluster).allowedNamespacesSelector || '').trim();
+      const selector = (
+        resolveClusterSetting<string>(
+          'clusters.*.allowedNamespacesSelector',
+          cluster,
+          adminSettings
+        ).value || ''
+      ).trim();
       const cache = selector ? loadResolvedAllowedNamespaces(cluster) : null;
       const cachedResultKey =
         cache?.selector === selector ? JSON.stringify([selector, 'success', cache.namespaces]) : '';

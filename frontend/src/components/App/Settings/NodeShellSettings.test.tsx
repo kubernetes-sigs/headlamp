@@ -35,10 +35,17 @@ vi.mock('react-i18next', () => ({
 const CLUSTER = 'my-cluster';
 const IMAGE_PATH = 'clusters.*.nodeShellTerminal.linuxImage';
 const ENABLED_PATH = 'clusters.*.nodeShellTerminal.isEnabled';
+const NAMESPACE_PATH = 'clusters.*.nodeShellTerminal.namespace';
 
 const adminDefaults = {
   clusters: {
-    '*': { nodeShellTerminal: { linuxImage: 'admin-image:1', isEnabled: false } },
+    '*': {
+      nodeShellTerminal: {
+        linuxImage: 'admin-image:1',
+        isEnabled: false,
+        namespace: 'admin-ns',
+      },
+    },
   },
 };
 
@@ -69,6 +76,7 @@ function renderSettings(
 
 const linuxImageInput = () => screen.getByLabelText('Linux image');
 const nodeShellSwitch = () => screen.getByRole('checkbox');
+const namespaceInput = () => screen.getByLabelText('Namespace');
 
 describe('NodeShellSettings admin-managed settings', () => {
   it('uses the user value when no admin settings are configured', () => {
@@ -138,5 +146,43 @@ describe('NodeShellSettings admin-managed settings', () => {
     });
 
     expect(linuxImageInput()).toHaveValue('cluster-image:3');
+  });
+
+  it('falls back to admin default for namespace when user has no stored value', () => {
+    renderSettings({ defaults: adminDefaults });
+    expect(namespaceInput()).toHaveValue('admin-ns');
+    expect(namespaceInput()).toBeEnabled();
+  });
+
+  it('uses user namespace value in normal mode', () => {
+    renderSettings({ defaults: adminDefaults }, { nodeShellTerminal: { namespace: 'user-ns' } });
+    expect(namespaceInput()).toHaveValue('user-ns');
+    expect(namespaceInput()).toBeEnabled();
+  });
+
+  it('forces admin namespace default and disables field when disabled', () => {
+    renderSettings(
+      { defaults: adminDefaults, display: { [NAMESPACE_PATH]: 'disabled' } },
+      { nodeShellTerminal: { namespace: 'user-ns' } }
+    );
+    expect(namespaceInput()).toHaveValue('admin-ns');
+    expect(namespaceInput()).toBeDisabled();
+  });
+
+  it('hides namespace field when hidden by admin', () => {
+    renderSettings(
+      { defaults: adminDefaults, display: { [NAMESPACE_PATH]: 'hidden' } },
+      { nodeShellTerminal: { namespace: 'user-ns' } }
+    );
+    expect(screen.queryByLabelText('Namespace')).not.toBeInTheDocument();
+  });
+
+  it('treats empty local namespace and linuxImage strings as unset and falls back to admin defaults', () => {
+    renderSettings(
+      { defaults: adminDefaults },
+      { nodeShellTerminal: { namespace: '', linuxImage: '' } }
+    );
+    expect(namespaceInput()).toHaveValue('admin-ns');
+    expect(linuxImageInput()).toHaveValue('admin-image:1');
   });
 });

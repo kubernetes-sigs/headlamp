@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react';
+import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import {
   loadResolvedAllowedNamespaces,
@@ -25,10 +27,22 @@ import {
 import { AllowedNamespacesSelectorContext } from '../../lib/k8s/allowedNamespacesContext';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeObject } from '../../lib/k8s/KubeObject';
+import reducers from '../../redux/reducers/reducers';
+import type { AdminSettingsState } from '../../settings/adminSettingsSlice';
+import { initialAdminSettingsState } from '../../settings/adminSettingsSlice';
 import AllowedNamespacesSelectorGate, {
   AllowedNamespacesSelectorProvider,
 } from './AllowedNamespacesSelectorGate';
 import { useClusterSettings } from './Settings/useClusterSettings';
+
+function createTestStore(adminSettings?: Partial<AdminSettingsState>) {
+  return configureStore({
+    reducer: reducers,
+    preloadedState: adminSettings
+      ? { adminSettings: { ...initialAdminSettingsState, ...adminSettings } }
+      : undefined,
+  });
+}
 
 const { namespaceLists } = vi.hoisted(() => ({ namespaceLists: vi.fn() }));
 vi.mock('../../lib/k8s/namespace', () => ({
@@ -37,9 +51,6 @@ vi.mock('../../lib/k8s/namespace', () => ({
 vi.mock('../../lib/k8s/accessibleNamespaces', () => ({
   shouldDiscoverNamespaces: vi.fn(() => false),
   useAccessibleNamespaces: vi.fn(() => ({ isPending: false, namespaces: undefined })),
-}));
-vi.mock('../../redux/hooks', () => ({
-  useTypedSelector: vi.fn(() => false),
 }));
 
 class PanelResource extends KubeObject {
@@ -170,15 +181,17 @@ describe('allowed namespace resolution for plugin consumers', () => {
       }
 
       render(
-        <MemoryRouter>
-          <AllowedNamespacesSelectorProvider clusters={['selected']}>
-            {outsideGate && <Panel />}
-            <AllowedNamespacesSelectorGate>
-              {!outsideGate && <Panel />}
-              <span>route content</span>
-            </AllowedNamespacesSelectorGate>
-          </AllowedNamespacesSelectorProvider>
-        </MemoryRouter>
+        <Provider store={createTestStore()}>
+          <MemoryRouter>
+            <AllowedNamespacesSelectorProvider clusters={['selected']}>
+              {outsideGate && <Panel />}
+              <AllowedNamespacesSelectorGate>
+                {!outsideGate && <Panel />}
+                <span>route content</span>
+              </AllowedNamespacesSelectorGate>
+            </AllowedNamespacesSelectorProvider>
+          </MemoryRouter>
+        </Provider>
       );
 
       expect(screen.getByText('plugin panel')).toBeInTheDocument();
@@ -248,12 +261,14 @@ describe('allowed namespace resolution for plugin consumers', () => {
       );
     }
     render(
-      <MemoryRouter>
-        <AllowedNamespacesSelectorProvider clusters={['selected']}>
-          <Panel />
-          <Editor />
-        </AllowedNamespacesSelectorProvider>
-      </MemoryRouter>
+      <Provider store={createTestStore()}>
+        <MemoryRouter>
+          <AllowedNamespacesSelectorProvider clusters={['selected']}>
+            <Panel />
+            <Editor />
+          </AllowedNamespacesSelectorProvider>
+        </MemoryRouter>
+      </Provider>
     );
     expect(streams).toHaveLength(1);
     expect(streams[0].namespace).toBeUndefined();
@@ -319,14 +334,16 @@ describe('allowed namespace resolution for plugin consumers', () => {
         return <span>persistent panel</span>;
       }
       render(
-        <MemoryRouter>
-          <AllowedNamespacesSelectorProvider clusters={['selected']}>
-            <Panel />
-            <AllowedNamespacesSelectorGate>
-              <span>resolved route</span>
-            </AllowedNamespacesSelectorGate>
-          </AllowedNamespacesSelectorProvider>
-        </MemoryRouter>
+        <Provider store={createTestStore()}>
+          <MemoryRouter>
+            <AllowedNamespacesSelectorProvider clusters={['selected']}>
+              <Panel />
+              <AllowedNamespacesSelectorGate>
+                <span>resolved route</span>
+              </AllowedNamespacesSelectorGate>
+            </AllowedNamespacesSelectorProvider>
+          </MemoryRouter>
+        </Provider>
       );
       await act(async () => resolveNamespaces([{ metadata: { name: 'ns-a' } }]));
       expect(streams.map(stream => stream.namespace)).toEqual(['ns-a']);
@@ -364,11 +381,13 @@ describe('allowed namespace resolution for plugin consumers', () => {
       return <span>persistent panel</span>;
     }
     render(
-      <MemoryRouter>
-        <AllowedNamespacesSelectorProvider clusters={[]}>
-          <Panel />
-        </AllowedNamespacesSelectorProvider>
-      </MemoryRouter>
+      <Provider store={createTestStore()}>
+        <MemoryRouter>
+          <AllowedNamespacesSelectorProvider clusters={[]}>
+            <Panel />
+          </AllowedNamespacesSelectorProvider>
+        </MemoryRouter>
+      </Provider>
     );
     const resource = new PanelResource({ metadata: { name: 'initial', namespace: 'ns-a' } });
     act(() => streams[0].deliver([resource]));
@@ -417,14 +436,16 @@ describe('allowed namespace resolution for plugin consumers', () => {
         return <span>persistent panel</span>;
       }
       render(
-        <MemoryRouter>
-          <AllowedNamespacesSelectorProvider clusters={['selected']}>
-            <Panel />
-            <AllowedNamespacesSelectorGate>
-              <span>resolved route</span>
-            </AllowedNamespacesSelectorGate>
-          </AllowedNamespacesSelectorProvider>
-        </MemoryRouter>
+        <Provider store={createTestStore()}>
+          <MemoryRouter>
+            <AllowedNamespacesSelectorProvider clusters={['selected']}>
+              <Panel />
+              <AllowedNamespacesSelectorGate>
+                <span>resolved route</span>
+              </AllowedNamespacesSelectorGate>
+            </AllowedNamespacesSelectorProvider>
+          </MemoryRouter>
+        </Provider>
       );
       expect(screen.getByText('resolved route')).toBeInTheDocument();
       expect(streams[streams.length - 1].namespace).toBe('ns-a');
@@ -487,12 +508,14 @@ describe('allowed namespace resolution for plugin consumers', () => {
       return <span>{`editor selector: ${settings.allowedNamespacesSelector}`}</span>;
     }
     render(
-      <MemoryRouter>
-        <AllowedNamespacesSelectorProvider clusters={['selected']}>
-          <Panel />
-          <Editor />
-        </AllowedNamespacesSelectorProvider>
-      </MemoryRouter>
+      <Provider store={createTestStore()}>
+        <MemoryRouter>
+          <AllowedNamespacesSelectorProvider clusters={['selected']}>
+            <Panel />
+            <Editor />
+          </AllowedNamespacesSelectorProvider>
+        </MemoryRouter>
+      </Provider>
     );
     expect(screen.getByText('editor selector: team=frontend')).toBeInTheDocument();
 
@@ -550,14 +573,17 @@ describe('allowed namespace resolution for plugin consumers', () => {
       }
       return <span>visible panel</span>;
     }
+    const store = createTestStore();
     const tree = () => (
-      <MemoryRouter>
-        <AllowedNamespacesSelectorProvider clusters={[]}>
-          <Suspense fallback="hidden panel">
-            <Panel />
-          </Suspense>
-        </AllowedNamespacesSelectorProvider>
-      </MemoryRouter>
+      <Provider store={store}>
+        <MemoryRouter>
+          <AllowedNamespacesSelectorProvider clusters={[]}>
+            <Suspense fallback="hidden panel">
+              <Panel />
+            </Suspense>
+          </AllowedNamespacesSelectorProvider>
+        </MemoryRouter>
+      </Provider>
     );
     const view = render(tree());
     expect(streams).toHaveLength(1);
@@ -603,14 +629,17 @@ describe('allowed namespace resolution for plugin consumers', () => {
       PanelResource.useApiList(vi.fn(), undefined, { cluster: 'constructor' });
       return null;
     }
+    const store = createTestStore();
     const tree = (consumers: number) => (
-      <MemoryRouter>
-        <AllowedNamespacesSelectorProvider clusters={[]}>
-          {Array.from({ length: consumers }, (_, index) => (
-            <Panel key={index} />
-          ))}
-        </AllowedNamespacesSelectorProvider>
-      </MemoryRouter>
+      <Provider store={store}>
+        <MemoryRouter>
+          <AllowedNamespacesSelectorProvider clusters={[]}>
+            {Array.from({ length: consumers }, (_, index) => (
+              <Panel key={index} />
+            ))}
+          </AllowedNamespacesSelectorProvider>
+        </MemoryRouter>
+      </Provider>
     );
     const view = render(tree(2));
     expect(namespaceLists).toHaveBeenCalledWith(
@@ -622,5 +651,91 @@ describe('allowed namespace resolution for plugin consumers', () => {
 
     view.rerender(tree(0));
     expect(resolverStopped).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves a distributed namespace selector with no local override and unblocks the gate', async () => {
+    type NamespaceData = { metadata: { name: string } };
+    let updateNamespaces!: (items: NamespaceData[]) => void;
+    namespaceLists.mockImplementation(function useNamespaceList() {
+      const [items, setItems] = useState<NamespaceData[] | null>(null);
+      useEffect(() => {
+        updateNamespaces = setItems;
+      }, []);
+      return { items, error: null, isError: false, isFetching: items === null };
+    });
+
+    const store = createTestStore({
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespacesSelector: 'team=platform',
+          },
+        },
+      },
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <AllowedNamespacesSelectorProvider clusters={['selected']}>
+            <AllowedNamespacesSelectorGate>
+              <span>distributed route content</span>
+            </AllowedNamespacesSelectorGate>
+          </AllowedNamespacesSelectorProvider>
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(screen.queryByText('distributed route content')).not.toBeInTheDocument();
+    expect(namespaceLists).toHaveBeenCalledWith(
+      expect.objectContaining({ clusters: ['selected'], labelSelector: 'team=platform' })
+    );
+
+    await act(async () => updateNamespaces([{ metadata: { name: 'ns-platform' } }]));
+
+    expect(loadResolvedAllowedNamespaces('selected')).toEqual(
+      expect.objectContaining({ selector: 'team=platform', namespaces: ['ns-platform'] })
+    );
+    expect(screen.getByText('distributed route content')).toBeInTheDocument();
+  });
+
+  it('resolves a disabled distributed selector overriding a different local selector', async () => {
+    storeClusterSettings('selected', { allowedNamespacesSelector: 'team=local' });
+    namespaceLists.mockImplementation(({ labelSelector }: { labelSelector?: string }) => ({
+      items: labelSelector === 'team=admin' ? [{ metadata: { name: 'ns-admin' } }] : null,
+      error: null,
+      isError: false,
+      isFetching: false,
+    }));
+
+    const store = createTestStore({
+      defaults: {
+        clusters: {
+          '*': {
+            allowedNamespacesSelector: 'team=admin',
+          },
+        },
+      },
+      display: {
+        'clusters.*.allowedNamespacesSelector': 'disabled',
+      },
+    });
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <AllowedNamespacesSelectorProvider clusters={['selected']}>
+            <AllowedNamespacesSelectorGate>
+              <span>admin selector route</span>
+            </AllowedNamespacesSelectorGate>
+          </AllowedNamespacesSelectorProvider>
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(loadResolvedAllowedNamespaces('selected')).toEqual(
+      expect.objectContaining({ selector: 'team=admin', namespaces: ['ns-admin'] })
+    );
+    expect(screen.getByText('admin selector route')).toBeInTheDocument();
   });
 });

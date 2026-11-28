@@ -21,7 +21,7 @@ import _ from 'lodash';
 import { useSnackbar } from 'notistack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_POD_DEBUG_IMAGE, loadClusterSettings } from '../../helpers/clusterSettings';
+import { DEFAULT_POD_DEBUG_IMAGE, resolveClusterSetting } from '../../helpers/clusterSettings';
 import { getCluster } from '../../lib/cluster';
 import { KubeContainer, KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
@@ -206,11 +206,15 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
         return { stream: null };
       }
 
-      const clusterSettings = loadClusterSettings(cluster);
-      const config = clusterSettings.podDebugTerminal;
+      const isEnabled =
+        resolveClusterSetting<boolean>('clusters.*.podDebugTerminal.isEnabled', cluster).value ??
+        true;
+      const debugImageSetting = resolveClusterSetting<string>(
+        'clusters.*.podDebugTerminal.debugImage',
+        cluster
+      ).value;
       const debugImage =
-        config?.debugImage || defaultPodDebugImageRef.current || DEFAULT_POD_DEBUG_IMAGE;
-      const isEnabled = config?.isEnabled ?? true;
+        debugImageSetting || defaultPodDebugImageRef.current || DEFAULT_POD_DEBUG_IMAGE;
 
       if (!isEnabled) {
         enqueueSnackbar(t('translation|Pod debug is disabled in settings'), {

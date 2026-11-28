@@ -97,13 +97,21 @@ describe('parseAdminSettings', () => {
     expect(result.clusterDefined).toEqual({});
   });
 
-  it('omits display:normal from the display map', () => {
+  it('preserves explicit display:normal entries in the display map', () => {
     const result = parseAdminSettings({
-      defaults: { normalSetting: { $display: 'normal', $value: 'val' } },
+      defaults: {
+        normalSetting: { $display: 'normal', $value: 'val' },
+        clusters: {
+          '*': { allowedNamespaces: { $display: 'disabled', $value: ['default'] } },
+          prod: { allowedNamespaces: { $display: 'normal', $value: ['prod-ns'] } },
+        },
+      },
     });
 
-    expect(result.display['normalSetting']).toBeUndefined();
+    expect(result.display['normalSetting']).toBe('normal');
     expect(result.defaults.normalSetting).toBe('val');
+    expect(result.display['clusters.*.allowedNamespaces']).toBe('disabled');
+    expect(result.display['clusters.prod.allowedNamespaces']).toBe('normal');
   });
 
   it('handles nested wrapped values alongside plain values', () => {

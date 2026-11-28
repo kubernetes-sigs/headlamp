@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
+import { act, renderHook } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
+import { Provider } from 'react-redux';
+import { storeClusterSettings } from '../helpers/clusterSettings';
 import configReducer, { initialState, setAppSettings } from '../redux/configSlice';
+import reducers from '../redux/reducers/reducers';
 import type { RootState } from '../redux/stores/store';
 import { initialAdminSettingsState } from './adminSettingsSlice';
 import { applyAdminSettings, parseAdminSettings } from './parseAdminSettings';
-import { selectEffectiveSettings } from './useAdminSettings';
+import { selectEffectiveSettings, useSetting } from './useAdminSettings';
 
 const admin = applyAdminSettings(
   parseAdminSettings({
@@ -59,5 +65,66 @@ describe('selectEffectiveSettings', () => {
     const settings = selectEffectiveSettings(state(config, initialAdminSettingsState));
     expect(settings.useEvict).toBe(false);
     expect(settings.tableRowsPerPageOptions).toEqual(initialState.settings.tableRowsPerPageOptions);
+  });
+});
+
+describe('useSetting cluster-local reactivity', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('invalidates mounted cluster consumers when local cluster settings change', () => {
+    const testStore = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        adminSettings: {
+          ...initialAdminSettingsState,
+          defaults: {
+            clusters: {
+              '*': {
+                allowedNamespaces: ['admin-default'],
+              },
+            },
+          },
+        },
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Provider, { store: testStore, children });
+
+    storeClusterSettings('prod', { allowedNamespaces: ['ns-one', 'ns-two'] });
+    const { result } = renderHook(
+      () => useSetting<string[]>('clusters.*.allowedNamespaces', 'prod'),
+      {
+        wrapper,
+      }
+    );
+    expect(result.current.value).toEqual(['ns-one', 'ns-two']);
+
+    act(() => storeClusterSettings('prod', { allowedNamespaces: ['ns-one'] }));
+    expect(result.current.value).toEqual(['ns-one']);
+
+    act(() => storeClusterSettings('prod', { allowedNamespaces: [] }));
+    expect(result.current.value).toEqual(['admin-default']);
+  });
+
+  it('preserves Redux user and built-in fallbacks for non-cluster settings when clusterName is provided', () => {
+    const testStore = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        config: configReducer(initialState, setAppSettings({ timezone: 'Europe/Lisbon' })),
+        adminSettings: initialAdminSettingsState,
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Provider, { store: testStore, children });
+
+    const { result: userResult } = renderHook(() => useSetting<string>('timezone', 'prod'), {
+      wrapper,
+    });
+    expect(userResult.current.value).toBe('Europe/Lisbon');
+
+    const { result: builtInResult } = renderHook(() => useSetting<boolean>('useEvict', 'prod'), {
+      wrapper,
+    });
+    expect(builtInResult.current.value).toBe(initialState.settings.useEvict);
   });
 });

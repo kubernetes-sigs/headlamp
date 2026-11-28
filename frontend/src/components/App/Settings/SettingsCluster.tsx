@@ -37,6 +37,7 @@ import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
+import { useSetting } from '../../../settings/useAdminSettings';
 import { enqueueConfigOperation } from '../../../stateless/configOperationQueue';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
@@ -70,10 +71,27 @@ export default function SettingsCluster() {
 
   const [clusterSettings, setClusterSettings] = useClusterSettings(cluster);
 
-  const [newAllowedNamespace, setNewAllowedNamespace] = React.useState('');
-  const [namespacesSelectorInput, setNamespacesSelectorInput] = React.useState(
-    clusterSettings.allowedNamespacesSelector || ''
+  const adminAllowedNamespaces = useSetting<string[]>('clusters.*.allowedNamespaces', cluster);
+  const adminAllowedNamespacesSelector = useSetting<string>(
+    'clusters.*.allowedNamespacesSelector',
+    cluster
   );
+
+  const allowedNamespaces =
+    adminAllowedNamespaces.disabled || adminAllowedNamespaces.hidden
+      ? adminAllowedNamespaces.value ?? []
+      : clusterSettings.allowedNamespaces && clusterSettings.allowedNamespaces.length > 0
+      ? clusterSettings.allowedNamespaces
+      : adminAllowedNamespaces.value ?? [];
+
+  const allowedNamespacesSelector =
+    adminAllowedNamespacesSelector.disabled || adminAllowedNamespacesSelector.hidden
+      ? adminAllowedNamespacesSelector.value ?? ''
+      : clusterSettings.allowedNamespacesSelector || adminAllowedNamespacesSelector.value || '';
+
+  const [newAllowedNamespace, setNewAllowedNamespace] = React.useState('');
+  const [namespacesSelectorInput, setNamespacesSelectorInput] =
+    React.useState(allowedNamespacesSelector);
   const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
   const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
 
@@ -156,7 +174,6 @@ export default function SettingsCluster() {
     setDefaultNamespaceInput(defaultNamespace);
   }, [defaultNamespace, cluster]);
 
-  const allowedNamespacesSelector = clusterSettings.allowedNamespacesSelector || '';
   React.useEffect(() => {
     setNamespacesSelectorInput(allowedNamespacesSelector);
   }, [allowedNamespacesSelector, cluster]);
@@ -207,6 +224,9 @@ export default function SettingsCluster() {
     namespacesSelectorResolution.namespaces.length === 0;
 
   function applyNamespacesSelector(selector: string) {
+    if (adminAllowedNamespacesSelector.disabled) {
+      return;
+    }
     const trimmedSelector = selector.trim();
     // Persist the selector only; the resolution (and cache update) is handled by
     // useAllowedNamespacesFromSelector, which reacts to this change.
@@ -222,16 +242,18 @@ export default function SettingsCluster() {
   }
 
   function storeNewAllowedNamespace(namespace: string) {
-    if (!namespace || !isValidNamespaceFormat(namespace)) {
+    if (adminAllowedNamespaces.disabled || !namespace || !isValidNamespaceFormat(namespace)) {
       return;
     }
     setNewAllowedNamespace('');
     setClusterSettings(settings => {
       const newSettings = { ...settings };
-      newSettings.allowedNamespaces = newSettings.allowedNamespaces || [];
-      newSettings.allowedNamespaces.push(namespace);
+      const baseNamespaces =
+        settings.allowedNamespaces && settings.allowedNamespaces.length > 0
+          ? settings.allowedNamespaces
+          : adminAllowedNamespaces.value ?? [];
       // Sort and avoid duplicates
-      newSettings.allowedNamespaces = [...new Set(newSettings.allowedNamespaces)].sort();
+      newSettings.allowedNamespaces = [...new Set([...baseNamespaces, namespace])].sort();
       return newSettings;
     });
   }
@@ -503,9 +525,11 @@ export default function SettingsCluster() {
                   {t('translation|Allowed namespaces')}
                 </Typography>
               ),
+              hide: adminAllowedNamespaces.hidden,
               value: (
                 <>
                   <TextField
+                    disabled={adminAllowedNamespaces.disabled}
                     onChange={event => {
                       let value = event.target.value;
                       value = value.replace(' ', '');
@@ -536,7 +560,11 @@ export default function SettingsCluster() {
                           onClick={() => {
                             storeNewAllowedNamespace(newAllowedNamespace);
                           }}
-                          disabled={!newAllowedNamespace || !isValidNewAllowedNamespace}
+                          disabled={
+                            !newAllowedNamespace ||
+                            !isValidNewAllowedNamespace ||
+                            adminAllowedNamespaces.disabled
+                          }
                           size="medium"
                           aria-label={t('translation|Add namespace')}
                         >
@@ -565,21 +593,30 @@ export default function SettingsCluster() {
                       marginTop: theme.spacing(1),
                     }}
                   >
-                    {(clusterSettings.allowedNamespaces || []).map(namespace => (
+                    {allowedNamespaces.map(namespace => (
                       <Chip
                         key={namespace}
                         label={namespace}
                         size="small"
                         clickable={false}
-                        onDelete={() => {
-                          setClusterSettings(settings => {
-                            const newSettings = { ...settings };
-                            newSettings.allowedNamespaces = newSettings.allowedNamespaces?.filter(
-                              ns => ns !== namespace
-                            );
-                            return newSettings;
-                          });
-                        }}
+                        onDelete={
+                          adminAllowedNamespaces.disabled
+                            ? undefined
+                            : () => {
+                                setClusterSettings(settings => {
+                                  const newSettings = { ...settings };
+                                  const baseNamespaces =
+                                    settings.allowedNamespaces &&
+                                    settings.allowedNamespaces.length > 0
+                                      ? settings.allowedNamespaces
+                                      : adminAllowedNamespaces.value ?? [];
+                                  newSettings.allowedNamespaces = baseNamespaces.filter(
+                                    ns => ns !== namespace
+                                  );
+                                  return newSettings;
+                                });
+                              }
+                        }
                       />
                     ))}
                   </Box>
@@ -592,9 +629,11 @@ export default function SettingsCluster() {
                   {t('translation|Allowed namespaces label selector')}
                 </Typography>
               ),
+              hide: adminAllowedNamespacesSelector.hidden,
               value: (
                 <>
                   <TextField
+                    disabled={adminAllowedNamespacesSelector.disabled}
                     onChange={event => {
                       setNamespacesSelectorInput(event.target.value);
                     }}
@@ -620,6 +659,7 @@ export default function SettingsCluster() {
                             applyNamespacesSelector(namespacesSelectorInput);
                           }}
                           disabled={
+                            adminAllowedNamespacesSelector.disabled ||
                             namespacesSelectorResolution.isFetching ||
                             namespacesSelectorInput.trim() === allowedNamespacesSelector
                           }

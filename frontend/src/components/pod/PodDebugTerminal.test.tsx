@@ -24,7 +24,7 @@ import { PodDebugTerminal } from './PodDebugTerminal';
 const {
   mockEnqueueSnackbar,
   mockGetCluster,
-  mockLoadClusterSettings,
+  mockResolveClusterSetting,
   mockSend,
   mockCancel,
   mockWriteln,
@@ -35,7 +35,7 @@ const {
 } = vi.hoisted(() => ({
   mockEnqueueSnackbar: vi.fn(),
   mockGetCluster: vi.fn(),
-  mockLoadClusterSettings: vi.fn(),
+  mockResolveClusterSetting: vi.fn(),
   mockSend: vi.fn(),
   mockCancel: vi.fn(),
   mockWriteln: vi.fn(),
@@ -65,7 +65,7 @@ vi.mock('../../helpers/clusterSettings', async importOriginal => {
   const actual = (await importOriginal()) as Record<string, any>;
   return {
     ...actual,
-    loadClusterSettings: (...args: any[]) => mockLoadClusterSettings(...args),
+    resolveClusterSetting: (...args: any[]) => mockResolveClusterSetting(...args),
   };
 });
 
@@ -122,7 +122,7 @@ describe('PodDebugTerminal', () => {
     terminalHookArgsRef.current = null;
     mockSocketRef.current = null;
     mockGetCluster.mockReturnValue('test-cluster');
-    mockLoadClusterSettings.mockReturnValue({});
+    mockResolveClusterSetting.mockReturnValue({ value: undefined, hidden: false, disabled: false });
   });
 
   afterEach(() => {
@@ -143,7 +143,7 @@ describe('PodDebugTerminal', () => {
     expect(mockEnqueueSnackbar).toHaveBeenCalledWith('No cluster selected', { variant: 'error' });
     expect(res.stream).toBeNull();
 
-    mockLoadClusterSettings.mockReturnValueOnce({ podDebugTerminal: { isEnabled: false } });
+    mockResolveClusterSetting.mockReturnValueOnce({ value: false, hidden: false, disabled: false });
     res = await terminalHookArgsRef.current.connectStream(vi.fn());
     expect(mockEnqueueSnackbar).toHaveBeenCalledWith('Pod debug is disabled in settings', {
       variant: 'error',
@@ -347,7 +347,7 @@ describe('PodDebugTerminal', () => {
   it('logs warning on unmount when debug container was created and exit was not sent', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockGetCluster.mockReturnValue('test-cluster');
-    mockLoadClusterSettings.mockReturnValue({});
+    mockResolveClusterSetting.mockReturnValue({ value: undefined, hidden: false, disabled: false });
     mockSocketRef.current = { readyState: WebSocket.CLOSED };
 
     const pod = makePod({

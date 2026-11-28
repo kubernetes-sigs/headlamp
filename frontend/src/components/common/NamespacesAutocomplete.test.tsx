@@ -14,14 +14,21 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { setDiscoveredNamespaces, storeClusterSettings } from '../../helpers/clusterSettings';
+import {
+  setDiscoveredNamespaces,
+  storeClusterSettings,
+  storeResolvedAllowedNamespaces,
+} from '../../helpers/clusterSettings';
 import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
 import Namespace from '../../lib/k8s/namespace';
 import { setConfig } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
+import reducers from '../../redux/reducers/reducers';
 import store from '../../redux/stores/store';
+import { applyAdminSettings, parseAdminSettings } from '../../settings/parseAdminSettings';
 import { TestContext } from '../../test';
 import { NamespacesAutocomplete } from './NamespacesAutocomplete';
 
@@ -163,6 +170,77 @@ describe('NamespacesAutocomplete', () => {
 
     expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual([
       'newly-allowed',
+      'team-a',
+      'team-b',
+    ]);
+  });
+
+  it('refreshes namespace options when the selector cache updates for distributed settings', () => {
+    listNamespaces(['default', 'kube-system']);
+    const testStore = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        adminSettings: applyAdminSettings(
+          parseAdminSettings({
+            defaults: {
+              clusters: {
+                'cluster-a': {
+                  allowedNamespaces: ['explicit-ns'],
+                  allowedNamespacesSelector: 'team=platform',
+                },
+              },
+            },
+          })
+        ),
+      },
+    });
+
+    window.history.pushState({}, '', '/c/cluster-a/pods');
+    render(
+      <TestContext store={testStore} routerMap={{ cluster: 'cluster-a' }} urlPrefix="/c">
+        <NamespacesAutocomplete />
+      </TestContext>
+    );
+
+    const input = screen.getByRole('combobox');
+    fireEvent.focus(input);
+    expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual([
+      'explicit-ns',
+    ]);
+
+    act(() => {
+      storeResolvedAllowedNamespaces('cluster-a', 'team=platform', ['selector-a', 'selector-b']);
+    });
+
+    fireEvent.focus(input);
+    expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual([
+      'explicit-ns',
+      'selector-a',
+      'selector-b',
+    ]);
+  });
+
+  it('refreshes namespace options on local cluster settings updates', () => {
+    storeClusterSettings('cluster-a', { allowedNamespaces: ['team-a'] });
+    listNamespaces(['default', 'kube-system']);
+
+    window.history.pushState({}, '', '/c/cluster-a/pods');
+    render(
+      <TestContext routerMap={{ cluster: 'cluster-a' }} urlPrefix="/c">
+        <NamespacesAutocomplete />
+      </TestContext>
+    );
+
+    const input = screen.getByRole('combobox');
+    fireEvent.focus(input);
+    expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['team-a']);
+
+    act(() => {
+      storeClusterSettings('cluster-a', { allowedNamespaces: ['team-a', 'team-b'] });
+    });
+
+    fireEvent.focus(input);
+    expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual([
       'team-a',
       'team-b',
     ]);
