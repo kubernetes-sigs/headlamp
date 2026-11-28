@@ -60,6 +60,39 @@ describe('clusterRequest transports', () => {
     vi.restoreAllMocks();
   });
 
+  it('does not log credentials or request bodies for opaque redirects', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue('secret-kubeconfig');
+    (fetch as Mock).mockResolvedValue({
+      ok: false,
+      status: 0,
+      statusText: '',
+      type: 'opaqueredirect',
+      headers: new Headers(),
+      json: async () => {
+        throw new SyntaxError('empty body');
+      },
+    });
+    await expect(
+      clusterRequest('/openapi/v3/api/v1?hash=stale', {
+        cluster: 'desktop-cluster',
+        redirect: 'manual',
+        body: 'secret-request-body',
+        headers: { Authorization: 'Bearer secret-auth' },
+      })
+    ).rejects.toMatchObject({ status: 0 });
+    expect(log).toHaveBeenCalled();
+    const output = JSON.stringify(log.mock.calls);
+    for (const secret of [
+      'desktop-token',
+      'secret-kubeconfig',
+      'secret-request-body',
+      'secret-auth',
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+  });
+
   it('preserves caller and stateless headers with the backend token', async () => {
     vi.mocked(findKubeconfigByClusterName).mockResolvedValue('encoded-kubeconfig');
     (fetch as Mock).mockResolvedValue(

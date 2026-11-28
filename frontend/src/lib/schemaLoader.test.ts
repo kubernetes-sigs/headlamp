@@ -26,6 +26,7 @@ import {
 import { clusterRequest } from './k8s/api/v1/clusterRequests';
 import { CLUSTERS_PREFIX } from './k8s/api/v1/constants';
 import { combinePath } from './k8s/api/v1/formatUrl';
+import { invalidateChangedConnections,invalidateSchemaCache } from './schemaCacheInvalidation';
 import {
   loadResourceSchema,
   mapApiVersionToDiscoveryKey,
@@ -399,7 +400,7 @@ describe('schemaLoader', () => {
             return mockOpenAPIV3Discovery;
           }
           if (path === '/openapi/v2') return { definitions: schemas };
-          if (path === url) return { components: { schemas } };
+          if (path === url) return { openapi: '3.0.0', components: { schemas } };
           throw new Error(`Unexpected path: ${path}`);
         });
 
@@ -1516,6 +1517,7 @@ describe('schemaLoader', () => {
       const schema = { type: 'object' as const };
       const document = {
         ...mockCoreV1Document,
+        openapi: '3.0.0',
         components: { schemas: { [name]: schema } },
       };
       const before = JSON.stringify(document);
@@ -1579,5 +1581,87 @@ describe('schemaLoader', () => {
       const resolved = resolveLocalRef(parentRef, res.document!);
       expect(resolved).toBe(res.schema); // Circular self-reference intact
     });
+  });
+});
+
+describe('current review regressions', () => {
+  const params = { cluster: 'review', apiVersion: 'apps/v1', kind: 'Deployment' };
+  const url = mockOpenAPIV3Discovery.paths['apis/apps/v1'].serverRelativeURL;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetSchemaLoaderCache();
+  });
+  it.each([{}, [], { swagger: '2.0', definitions: {} }, { openapi: 3 }])(
+    'evicts malformed v3 responses and retries after recovery: %j',
+    async malformed => {
+      let document: unknown = malformed;
+      vi.mocked(clusterRequest).mockImplementation(async path =>
+        path === '/openapi/v3' ? mockOpenAPIV3Discovery : document
+      );
+      await expect(loadResourceSchema(params)).rejects.toThrow(/Malformed OpenAPI/);
+      document = mockAppsV1Document;
+      expect((await loadResourceSchema(params)).sourceFormat).toBe('openapi/v3');
+      expect(vi.mocked(clusterRequest).mock.calls.filter(([path]) => path === url)).toHaveLength(2);
+    }
+  );
+  it.each([404, 501])('propagates exhausted document %s without v2 fallback', async status => {
+    const failure = Object.assign(new Error('document unavailable'), { status });
+    vi.mocked(clusterRequest).mockImplementation(async path => {
+      if (path === '/openapi/v3') return mockOpenAPIV3Discovery;
+      throw failure;
+    });
+    await expect(loadResourceSchema(params)).rejects.toBe(failure);
+    expect(vi.mocked(clusterRequest).mock.calls.some(([path]) => path === '/openapi/v2')).toBe(
+      false
+    );
+  });
+  it.each([404, 501])('propagates replacement document %s without v2 fallback', async status => {
+    const failure = Object.assign(new Error('replacement unavailable'), { status });
+    let discoveries = 0;
+    vi.mocked(clusterRequest).mockImplementation(async path => {
+      if (path === '/openapi/v3')
+        return ++discoveries === 1
+          ? mockOpenAPIV3Discovery
+          : {
+              paths: { 'apis/apps/v1': { serverRelativeURL: '/openapi/v3/apis/apps/v1?hash=new' } },
+            };
+      throw failure;
+    });
+    await expect(loadResourceSchema(params)).rejects.toBe(failure);
+    expect(vi.mocked(clusterRequest).mock.calls.some(([path]) => path === '/openapi/v2')).toBe(
+      false
+    );
+  });
+  it('reloads schemas after auth invalidation and connection replacement', async () => {
+    vi.mocked(clusterRequest).mockImplementation(async path =>
+      path === '/openapi/v3' ? mockOpenAPIV3Discovery : mockAppsV1Document
+    );
+    await loadResourceSchema(params);
+    invalidateSchemaCache(params.cluster);
+    await loadResourceSchema(params);
+    invalidateChangedConnections({ review: { server: 'old' } }, { review: { server: 'new' } });
+    await loadResourceSchema(params);
+    expect(
+      vi.mocked(clusterRequest).mock.calls.filter(([path]) => path === '/openapi/v3')
+    ).toHaveLength(3);
+    invalidateChangedConnections({ review: { server: 'new' } }, { review: { server: 'new' } });
+    await loadResourceSchema(params);
+    expect(
+      vi.mocked(clusterRequest).mock.calls.filter(([path]) => path === '/openapi/v3')
+    ).toHaveLength(3);
+  });
+  it('rejects pending discovery invalidated by a session change', async () => {
+    let resolve!: (value: unknown) => void;
+    vi.mocked(clusterRequest).mockReturnValue(
+      new Promise(r => {
+        resolve = r;
+      })
+    );
+    const loading = loadResourceSchema(params);
+    const rejected = expect(loading).rejects.toThrow(/cache was reset/);
+    invalidateSchemaCache(params.cluster);
+    resolve(mockOpenAPIV3Discovery);
+    await rejected;
+    expect(clusterRequest).toHaveBeenCalledTimes(1);
   });
 });

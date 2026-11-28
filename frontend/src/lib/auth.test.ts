@@ -22,6 +22,7 @@ import { backendFetch } from './k8s/api/v2/fetch';
 import { canLogoutFromProvider } from './k8s/clusterAuthType';
 import { encodeClusterPath } from './oidcLogout';
 import { queryClient, resetAccessibleNamespaces } from './queryClient';
+import * as schemaInvalidation from './schemaCacheInvalidation';
 
 // Mock the dependencies
 vi.mock('./k8s/api/v2/fetch');
@@ -54,6 +55,24 @@ describe('auth', () => {
       config: { allClusters: {} },
     } as any);
     mockProviderLogout.mockReturnValue(false);
+  });
+
+  it('invalidates schemas when setting or clearing credentials, including overrides', async () => {
+    const invalidate = vi.spyOn(schemaInvalidation, 'invalidateSchemaCache');
+    mockBackendFetch.mockResolvedValue({ ok: true } as Response);
+    await setToken('session', 'new-token');
+    await setToken('session', null);
+    expect(invalidate.mock.calls).toEqual([['session'], ['session'], ['session'], ['session']]);
+    invalidate.mockClear();
+    mockStore.getState.mockReturnValue({
+      ui: {
+        functionsToOverride: {
+          setToken: vi.fn().mockResolvedValue(true),
+        },
+      },
+    } as any);
+    await setToken('override', 'new-token');
+    expect(invalidate.mock.calls).toEqual([['override'], ['override']]);
   });
 
   describe('setToken', () => {

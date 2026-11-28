@@ -16,6 +16,7 @@
 
 import type { OpenAPIV2, OpenAPIV3 } from 'openapi-types';
 import { clusterRequest } from './k8s/api/v1/clusterRequests';
+import { onSchemaCacheInvalidation } from './schemaCacheInvalidation';
 
 /** Parameters for loading a Kubernetes resource schema */
 export interface LoadResourceSchemaParams {
@@ -76,6 +77,7 @@ interface ClusterCacheEntry {
 }
 
 const clusterCaches = new Map<string, ClusterCacheEntry>();
+onSchemaCacheInvalidation(resetSchemaLoaderCache);
 
 function getOrCreateClusterCache(cluster: string): ClusterCacheEntry {
   let cache = clusterCaches.get(cluster);
@@ -453,7 +455,13 @@ async function fetchDocument(
         redirect: 'manual',
       });
 
-      if (!doc || typeof doc !== 'object') {
+      if (
+        !doc ||
+        typeof doc !== 'object' ||
+        Array.isArray(doc) ||
+        typeof doc.openapi !== 'string' ||
+        !doc.openapi.startsWith('3.')
+      ) {
         throw new Error(`Malformed OpenAPI document returned from ${serverRelativeURL}`);
       }
 
@@ -614,8 +622,10 @@ export async function loadResourceSchema(
     return loadFallback();
   }
 
+  let discoverySucceeded = false;
   try {
     let discovery = await fetchOpenAPIV3Discovery(cluster, refresh);
+    discoverySucceeded = true;
     assertCurrent();
 
     let advertisedEntry = discovery.paths[discoveryKey];
@@ -682,7 +692,7 @@ export async function loadResourceSchema(
   } catch (v3Err) {
     assertCurrent();
     // If OpenAPI v3 endpoint is genuinely unsupported (404/501), fall back to v2
-    if (isEndpointUnsupported(v3Err)) {
+    if (!discoverySucceeded && isEndpointUnsupported(v3Err)) {
       return await loadFallback();
     }
 
