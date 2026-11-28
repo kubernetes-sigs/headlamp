@@ -73,6 +73,13 @@ export const CLUSTER_ROLE_DUMMY_DATA: KubeRole[] = [
         resourceNames: [],
       },
       {
+        apiGroups: ['', 'events.k8s.io'],
+        resources: ['events'],
+        verbs: ['create', 'patch', 'update'],
+        nonResourceURLs: [],
+        resourceNames: [],
+      },
+      {
         apiGroups: [],
         resources: [],
         verbs: ['get'],

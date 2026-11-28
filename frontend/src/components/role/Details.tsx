@@ -48,7 +48,9 @@ export default function RoleDetails(props: {
                   columns={[
                     {
                       label: t('API Groups'),
-                      getter: ({ apiGroups = [] }) => apiGroups.join(', '),
+                      // "" is the core API group, which the resource map also calls core.
+                      getter: ({ apiGroups = [] }) =>
+                        apiGroups.map((group: string) => group || 'core').join(', '),
                     },
                     {
                       label: t('Resources'),
