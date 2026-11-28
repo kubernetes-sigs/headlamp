@@ -213,6 +213,12 @@ func loadOidcCACert(oidcCAFile string) string {
 		os.Exit(1)
 	}
 
+	// A blank file means no custom CA, which the config validation accepts. Passing the whitespace
+	// on would make the TLS setup of the OIDC and API proxy transports fail.
+	if strings.TrimSpace(string(caFileContents)) == "" {
+		return ""
+	}
+
 	return string(caFileContents)
 }
 

@@ -423,6 +423,216 @@ users:
 	})
 }
 
+// oidcContextWithCA returns a context whose OIDC auth provider sets the given CA setting. For
+// isFile the value is written to a file and the setting points at it.
+func oidcContextWithCA(t *testing.T, key, value string, isFile bool) kubeconfig.Context {
+	t.Helper()
+
+	if isFile {
+		path := filepath.Join(t.TempDir(), "ca.crt")
+		require.NoError(t, os.WriteFile(path, []byte(value), 0o600))
+
+		value = path
+	}
+
+	return kubeconfig.Context{
+		Name: "oidc",
+		AuthInfo: &api.AuthInfo{AuthProvider: &api.AuthProviderConfig{
+			Name: "oidc",
+			Config: map[string]string{
+				"client-id":      "id",
+				"idp-issuer-url": "https://oidc.example.com",
+				key:              value,
+			},
+		}},
+	}
+}
+
+// TestOidcConfigInvalidCA checks that a CA that is set but is not a PEM certificate is reported
+// with the setting that held it, instead of being logged on every login and ignored.
+func TestOidcConfigInvalidCA(t *testing.T) {
+	b64 := func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+	tests := []struct {
+		name    string
+		key     string
+		value   string
+		isFile  bool
+		setting string
+	}{
+		{"data", "idp-certificate-authority-data", b64("not a certificate"), false, "idp-certificate-authority-data"},
+		{"file", "idp-certificate-authority", "not a certificate", true, "idp-certificate-authority"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := oidcContextWithCA(t, tt.key, tt.value, tt.isFile)
+
+			_, err := ctx.OidcConfig()
+
+			var invalidCA *kubeconfig.InvalidOIDCCAError
+
+			require.ErrorAs(t, err, &invalidCA)
+			assert.Equal(t, tt.setting, invalidCA.Setting)
+			assert.ErrorContains(t, err, tt.setting+" does not contain a PEM encoded certificate")
+		})
+	}
+}
+
+// TestOidcConfigBlankCA checks that a blank or whitespace-only CA means no custom CA, and that a
+// PEM certificate is kept.
+func TestOidcConfigBlankCA(t *testing.T) {
+	validPEM, err := os.ReadFile(filepath.Join(getTestDataPath(), "oidc_ca.pem"))
+	require.NoError(t, err)
+
+	b64 := func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
+
+	tests := []struct {
+		name   string
+		key    string
+		value  string
+		isFile bool
+		wantCA bool
+	}{
+		{"data is a PEM certificate", "idp-certificate-authority-data", b64(string(validPEM)), false, true},
+		{"data is empty", "idp-certificate-authority-data", "", false, false},
+		{"data decodes to a newline", "idp-certificate-authority-data", b64("\n"), false, false},
+		{"data decodes to spaces", "idp-certificate-authority-data", b64("  \t "), false, false},
+		{"file with only whitespace", "idp-certificate-authority", "\n", true, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := oidcContextWithCA(t, tt.key, tt.value, tt.isFile)
+
+			oidcConfig, err := ctx.OidcConfig()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCA, oidcConfig.CACert != nil)
+		})
+	}
+}
+
+// loadOIDCCAKubeconfig loads a kubeconfig file with one OIDC context whose auth provider has the
+// given extra config lines. Every call needs its own name: client-go caches OIDC providers by
+// issuer and client ID, and a cached provider would hide a CA that is rejected on a cold cache.
+func loadOIDCCAKubeconfig(
+	t *testing.T, name, authConfig string,
+) ([]kubeconfig.Context, []kubeconfig.ContextLoadError) {
+	t.Helper()
+
+	path := createTempKubeconfig(t, fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://127.0.0.1:6443
+  name: oidc-test-cluster
+contexts:
+- context:
+    cluster: oidc-test-cluster
+    user: oidc-test-user
+  name: oidc-test-context
+current-context: oidc-test-context
+kind: Config
+users:
+- name: oidc-test-user
+  user:
+    auth-provider:
+      config:
+        client-id: "%[1]s"
+        idp-issuer-url: "https://%[1]s.example.com"
+        %[2]s
+      name: oidc`, name, authConfig))
+	defer func() { _ = os.Remove(path) }()
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(path, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+
+	return contexts, contextErrors
+}
+
+// TestLoadContextsRejectsInvalidOIDCCA checks that a context whose OIDC CA is set but unusable is
+// left out when the kubeconfig is loaded and reported with the setting that held it. That
+// includes a path that is not a regular file or is too large to be a CA file, which must not be
+// read at all.
+func TestLoadContextsRejectsInvalidOIDCCA(t *testing.T) {
+	notPEM := base64.StdEncoding.EncodeToString([]byte("not a certificate"))
+
+	bigFile := filepath.Join(t.TempDir(), "big.crt")
+	require.NoError(t, os.WriteFile(bigFile, make([]byte, 1<<20+1), 0o600))
+
+	tests := []struct {
+		name       string
+		authConfig string
+		setting    string
+	}{
+		{"invalid-data", `idp-certificate-authority-data: "` + notPEM + `"`, "idp-certificate-authority-data"},
+		{"directory", "idp-certificate-authority: " + t.TempDir(), "idp-certificate-authority must be a regular file"},
+		{"oversized-file", "idp-certificate-authority: " + bigFile, "idp-certificate-authority must be at most 1 MiB"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			contexts, contextErrors := loadOIDCCAKubeconfig(t, "reject-"+tt.name, tt.authConfig)
+
+			assert.Empty(t, contexts)
+			require.Len(t, contextErrors, 1)
+			assert.Equal(t, "oidc-test-context", contextErrors[0].ContextName)
+			assert.ErrorContains(t, contextErrors[0].Error, tt.setting)
+		})
+	}
+}
+
+// TestLoadContextsAcceptsBlankOIDCCA checks that a blank or whitespace-only CA means no custom CA
+// when the kubeconfig is loaded, and that blank CA data does not replace the CA file.
+func TestLoadContextsAcceptsBlankOIDCCA(t *testing.T) {
+	validPEM, err := os.ReadFile(filepath.Join(getTestDataPath(), "oidc_ca.pem"))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	blankFile := filepath.Join(dir, "blank.crt")
+	validFile := filepath.Join(dir, "valid.crt")
+	invalidFile := filepath.Join(dir, "invalid.crt")
+
+	require.NoError(t, os.WriteFile(blankFile, []byte(" \n"), 0o600))
+	require.NoError(t, os.WriteFile(validFile, validPEM, 0o600)) //nolint:gosec // Test writes into its own temp dir.
+	require.NoError(t, os.WriteFile(invalidFile, []byte("not a certificate"), 0o600))
+
+	blankData := `idp-certificate-authority-data: "` + base64.StdEncoding.EncodeToString([]byte("\n")) + `"`
+
+	tests := []struct {
+		name       string
+		authConfig string
+		wantCA     bool
+	}{
+		{"blank-data", blankData, false},
+		{"blank-file", "idp-certificate-authority: " + blankFile, false},
+		{"valid-file-blank-data", "idp-certificate-authority: " + validFile + "\n        " + blankData, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			contexts, contextErrors := loadOIDCCAKubeconfig(t, "blank-"+tt.name, tt.authConfig)
+
+			assert.Empty(t, contextErrors)
+			require.Len(t, contexts, 1)
+
+			oidcConfig, err := contexts[0].OidcConfig()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCA, oidcConfig.CACert != nil)
+		})
+	}
+
+	t.Run("blank data does not hide an invalid file", func(t *testing.T) {
+		authConfig := "idp-certificate-authority: " + invalidFile + "\n        " + blankData
+
+		contexts, contextErrors := loadOIDCCAKubeconfig(t, "blank-invalid-file", authConfig)
+
+		assert.Empty(t, contexts)
+		require.Len(t, contextErrors, 1)
+		assert.ErrorContains(t, contextErrors[0].Error, "idp-certificate-authority does not contain")
+	})
+}
+
 func TestOidcConfigWithNilAuthInfo(t *testing.T) {
 	context := &kubeconfig.Context{AuthInfo: nil}
 

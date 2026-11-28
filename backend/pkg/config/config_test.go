@@ -864,6 +864,11 @@ func TestOIDCTLSValidation(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "blank_ca_file_is_unset",
+			args:        []string{"go run ./cmd", "--oidc-ca-file=" + filepath.Join(getTestDataPath(), "blank_ca.pem")},
+			expectError: false,
+		},
+		{
 			name:          "invalid_ca_file",
 			args:          []string{"go run ./cmd", "--oidc-ca-file=" + filepath.Join(getTestDataPath(), "invalid_ca.pem")},
 			expectError:   true,

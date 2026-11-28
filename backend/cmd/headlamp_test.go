@@ -839,6 +839,59 @@ func TestDynamicClusterRejectsBlankNameOrServer(t *testing.T) {
 	}
 }
 
+// TestDynamicClustersKubeConfigOnlyInvalidContexts checks that a kubeconfig whose every context
+// is rejected is answered through the setup error path, which logs why, instead of the generic
+// "no contexts" answer that drops the collected errors.
+func TestDynamicClustersKubeConfigOnlyInvalidContexts(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+
+	badCA := base64.StdEncoding.EncodeToString([]byte("not a certificate"))
+	kubeConfigYAML := `apiVersion: v1
+kind: Config
+current-context: oidc
+clusters:
+- name: oidc
+  cluster:
+    server: https://127.0.0.1:6443
+contexts:
+- name: oidc
+  context:
+    cluster: oidc
+    user: oidc
+users:
+- name: oidc
+  user:
+    auth-provider:
+      name: oidc
+      config:
+        client-id: only-invalid-client
+        idp-issuer-url: https://only-invalid.example.com
+        idp-certificate-authority-data: ` + badCA + "\n"
+
+	kubeConfig := base64.StdEncoding.EncodeToString([]byte(kubeConfigYAML))
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+	handler := createHeadlampHandler(newTestHandlerCtx(t), &c)
+
+	r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/cluster", ClusterReq{KubeConfig: &kubeConfig})
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, r.Code)
+	assert.Contains(t, r.Body.String(), "setting up contexts from kubeconfig")
+	assert.Empty(t, c.getClusters())
+}
+
 func TestDynamicClustersKubeConfig(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
