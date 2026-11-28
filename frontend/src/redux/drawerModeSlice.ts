@@ -23,6 +23,7 @@ const drawerLocationValues: DetailsDrawerLocation[] = ['split-right', 'split-lef
 export interface DrawerModeState {
   isDetailDrawerEnabled: boolean;
   detailsDrawerLocation: DetailsDrawerLocation;
+  detailDrawerWidth?: number;
   selectedResource?: {
     kind: string;
     metadata: { name: string; namespace?: string };
@@ -36,9 +37,14 @@ export interface DrawerModeState {
 }
 
 const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) !== 'false';
+const getLocalDrawerWidth = (key: string) => {
+  const w = localStorage.getItem(key);
+  return w ? parseInt(w, 10) : undefined;
+};
 
 const localStorageName = 'detailDrawerEnabled';
 const locationStorageName = 'detailDrawerLocation';
+const localStorageWidthName = 'detailDrawerWidth';
 
 function readStoredLocation(): DetailsDrawerLocation {
   const raw = localStorage.getItem(locationStorageName);
@@ -50,6 +56,7 @@ function readStoredLocation(): DetailsDrawerLocation {
 const initialState: DrawerModeState = {
   isDetailDrawerEnabled: getLocalDrawerStatus(localStorageName),
   detailsDrawerLocation: readStoredLocation(),
+  detailDrawerWidth: getLocalDrawerWidth(localStorageWidthName),
   selectedResource: undefined,
 };
 
@@ -68,9 +75,17 @@ export const drawerModeSlice = createSlice({
     setSelectedResource: (state, action: PayloadAction<DrawerModeState['selectedResource']>) => {
       state.selectedResource = action.payload;
     },
+    setDetailDrawerWidth: (state, action: PayloadAction<number>) => {
+      state.detailDrawerWidth = action.payload;
+      localStorage.setItem(localStorageWidthName, action.payload.toString());
+    },
   },
 });
 
-export const { setDetailDrawerEnabled, setDetailsDrawerLocation, setSelectedResource } =
-  drawerModeSlice.actions;
+export const {
+  setDetailDrawerEnabled,
+  setDetailsDrawerLocation,
+  setSelectedResource,
+  setDetailDrawerWidth,
+} = drawerModeSlice.actions;
 export default drawerModeSlice.reducer;

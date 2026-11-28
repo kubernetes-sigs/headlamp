@@ -50,9 +50,17 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
+import {
+  DRAWER_WIDTH_BOUNDS_CSS,
+  DrawerResizeHandle,
+  useDrawerResize,
+} from '../common/Resource/DrawerResizeHandle';
 import { activitySlice } from './activitySlice';
 
 const areWindowsEnabled = false;
+
+/** The main content area that activities are laid out in. */
+const getMainElement = () => document.getElementById('main');
 
 /** Activity position relative to the main container */
 type ActivityLocation =
@@ -181,6 +189,23 @@ export function SingleActivityRenderer({
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const menuListRef = useRef<HTMLUListElement>(null);
   const isSnapMenuOpen = Boolean(snapMenuAnchor);
+
+  // Details activities docked to a side of the screen can be resized by the user.
+  const isResizableDetails =
+    activity.kind === 'details' &&
+    (location === 'split-right' || location === 'split-left') &&
+    !isOverview &&
+    !minimized;
+  // The handle is on the edge facing the main content.
+  const resizeEdge = location === 'split-left' ? 'right' : 'left';
+  const resize = useDrawerResize({
+    edge: resizeEdge,
+    // Both side locations take up half of the main content by default.
+    defaultWidthRatio: 0.5,
+    drawerRef: activityElementRef,
+    // Activities are laid out within the main content area, beside the sidebar.
+    getContainer: getMainElement,
+  });
 
   useEffect(() => {
     containerElementRef.current = document.getElementById('main');
@@ -428,6 +453,21 @@ export function SingleActivityRenderer({
             gridRow: '1 / 2',
             ...locationStyles,
 
+            ...(isResizableDetails
+              ? {
+                  ...(resize.width !== undefined ? { width: `${resize.width}px` } : {}),
+                  // Keep both the default and restored widths within the same bounds as the
+                  // resize handle, relative to the main content area.
+                  ...DRAWER_WIDTH_BOUNDS_CSS,
+                  // The default split-right position is half of the content shifted by its own
+                  // width, which only works for a width of exactly 50%. Anchor to the right edge
+                  // instead, so a clamped or resized width stays on screen.
+                  ...(location === 'split-right'
+                    ? { left: 'auto', right: 0, transform: 'none' }
+                    : {}),
+                }
+              : {}),
+
             ...(isOverview
               ? {
                   borderRadius: '20px',
@@ -447,10 +487,12 @@ export function SingleActivityRenderer({
 
             borderColor: theme.palette.divider,
 
-            transitionDuration: '0.25s',
+            // No transition while dragging so the activity follows the pointer.
+            transitionDuration: resize.isResizing ? '0s' : '0.25s',
             transitionProperty: 'width,height,left,top,transform',
           })}
         >
+          {isResizableDetails && <DrawerResizeHandle edge={resizeEdge} resize={resize} />}
           {isOverview && (
             <Box
               sx={{
