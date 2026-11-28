@@ -1124,6 +1124,7 @@
   "not a Kubernetes object": "",
   "{{field}} not set": "",
   "{{source}}, document {{index}}: {{reason}}": "",
+  "{{source}}, document {{index}}, item {{item}}: {{reason}}": "",
   "URL is required": "Webbadress måste anges",
   "Failed to load from URL: {{error}}": "Det gick inte att läsa in från webbadressen: {{error}}",
   "Error processing files: {{error}}": "Fel vid bearbetning av filer: {{error}}",
