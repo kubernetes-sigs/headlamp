@@ -15,6 +15,7 @@
  */
 
 import { render } from '@testing-library/react';
+import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 
@@ -108,5 +109,23 @@ describe('lib/router/index', () => {
       expect(mockHistoryReplace).toHaveBeenCalledWith('/settings/cluster?c=');
       expect(mockHistoryReplace).toHaveBeenCalledTimes(1);
     });
+  });
+
+  describe('default route component factories', () => {
+    const routes = getDefaultRoutes();
+    const factoryEntries = Object.entries(routes).filter(
+      ([name, route]) => name !== 'settingsCluster' && typeof route.component === 'function'
+    );
+
+    it.each(factoryEntries)(
+      'route "%s" component factory returns a React element',
+      (name, route) => {
+        const element = (route.component as () => React.ReactElement)();
+        expect(React.isValidElement(element)).toBe(true);
+        if (name === 'addCluster' && typeof element.props?.onChoice === 'function') {
+          expect(() => element.props.onChoice()).not.toThrow();
+        }
+      }
+    );
   });
 });
